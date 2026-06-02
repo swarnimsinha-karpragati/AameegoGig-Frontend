@@ -1,0 +1,16 @@
+.brand-title {
+  font-size: 48px;
+  font-weight: 800;
+
+  background: linear-gradient(
+    135deg,
+    #2ED8A3,
+    #2BB7DA,
+    #1E6BD6
+  );
+
+  background-clip: text;
+  -webkit-background-clip: text;
+
+  -webkit-text-fill-color: transparent;
+}

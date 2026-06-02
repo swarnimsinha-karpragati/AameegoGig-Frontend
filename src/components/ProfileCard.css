@@ -1,0 +1,152 @@
+.profile-card{
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:20px;
+  padding:20px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.05);
+}
+
+.profile-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:24px;
+}
+
+.profile-title{
+  font-size:20px;
+  font-weight:600;
+  color:#1e293b;
+}
+
+.profile-subtitle{
+  font-size:13px;
+  color:#64748b;
+  margin-top:6px;
+}
+
+.edit-btn,
+.camera-btn{
+  width:38px;
+  height:38px;
+  border:none;
+  border-radius:12px;
+  background:#f1f5f9;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+
+.edit-btn:hover,
+.camera-btn:hover{
+  background:#e2e8f0;
+}
+
+.profile-content{
+  display:flex;
+  gap:32px;
+  align-items:flex-start;
+}
+
+.profile-avatar-section{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  min-width:110px;
+}
+
+.profile-avatar{
+  width:80px;
+  height:80px;
+  border-radius:50%;
+  background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
+  color:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  font-weight:600;
+}
+
+.camera-btn{
+  margin-top:12px;
+}
+
+.profile-form-grid{
+  flex:1;
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:16px;
+}
+
+.profile-label{
+  display:block;
+  font-size:14px;
+  font-weight:500;
+  margin-bottom:8px;
+  color:#334155;
+}
+
+.input-wrapper{
+  position:relative;
+}
+
+.input-icon{
+  position:absolute;
+  left:12px;
+  top:50%;
+  transform:translateY(-50%);
+}
+
+.profile-input{
+  width:100%;
+  height:42px;
+  border:1px solid #cbd5e1;
+  border-radius:12px;
+  padding:0 16px 0 40px;
+  font-size:14px;
+  outline:none;
+}
+
+.input-disabled{
+  background:#e2e8f0;
+  color:#64748b;
+  cursor:not-allowed;
+}
+
+.button-row{
+  display:flex;
+  justify-content:flex-end;
+  gap:12px;
+  margin-top:20px;
+}
+
+.discard-btn{
+  border:1px solid #cbd5e1;
+  background:white;
+  padding:10px 20px;
+  border-radius:12px;
+  cursor:pointer;
+}
+
+.save-btn{
+  border:none;
+  padding:10px 20px;
+  border-radius:12px;
+  color:white;
+  cursor:pointer;
+  background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
+}
+
+@media(max-width:768px){
+
+  .profile-content{
+    flex-direction:column;
+  }
+
+  .profile-form-grid{
+    grid-template-columns:1fr;
+  }
+
+}
