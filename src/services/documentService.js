@@ -1,4 +1,5 @@
 import API from "./apiClient";
+import { getApiUrl } from "../config/api";
 
 /* =========================
    GET ALL DOCUMENTS
@@ -57,7 +58,7 @@ export const viewDocument =
       localStorage.getItem("token");
 
     window.open(
-      `http://localhost:5001/api/documents/view/${id}?token=${token}`,
+      getApiUrl(`/documents/view/${id}?token=${token}`),
       "_blank"
     );
   };
@@ -71,7 +72,7 @@ export const downloadDocument =
       localStorage.getItem("token");
 
     window.open(
-      `http://localhost:5001/api/documents/view/${id}?token=${token}`,
+      getApiUrl(`/documents/view/${id}?token=${token}`),
       "_blank"
     );
   };
