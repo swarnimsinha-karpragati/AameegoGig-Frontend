@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://aameegogig-backend.aameego.com/api",
+  baseURL: "https://backend-gig.aameego.com/api",
 });
 
 API.interceptors.request.use(
