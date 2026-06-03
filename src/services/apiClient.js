@@ -1,12 +1,13 @@
-import axios from "axios";
+import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const API = axios.create({
-  baseURL: "https://backend-gig.aameego.com/api",
+  baseURL: API_BASE_URL,
 });
 
 API.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

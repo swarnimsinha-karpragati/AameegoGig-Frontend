@@ -1,23 +1,18 @@
-import axios from 'axios';
+import API from './apiClient';
 
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL || 'http://localhost:5001/api/auth';
-
-const authApi = axios.create({
-  baseURL: API_BASE_URL,
-});
+const authPath = (segment) => `/auth/${segment.replace(/^\//, '')}`;
 
 export const signupUser = async (payload) => {
-  const response = await authApi.post('/signup', payload);
+  const response = await API.post(authPath('signup'), payload);
   return response.data;
 };
 
 export const loginUser = async (payload) => {
-  const response = await authApi.post('/login', payload);
+  const response = await API.post(authPath('login'), payload);
   return response.data;
 };
 
 export const createVendor = async (payload) => {
-  const res = await authApi.post("/create-vendor", payload);
+  const res = await API.post(authPath('create-vendor'), payload);
   return res.data;
 };
