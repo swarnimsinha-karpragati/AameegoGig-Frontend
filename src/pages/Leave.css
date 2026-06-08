@@ -2,6 +2,112 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  max-width: 1400px;
+}
+
+.leave-view-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.leave-view-toolbar-text h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.leave-view-toolbar-text p {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: #64748b;
+}
+
+.leave-role-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+.leave-role-select-wrap label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.leave-role-select {
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #ffffff;
+  min-height: 42px;
+  cursor: pointer;
+}
+
+.leave-role-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.leave-role-banner.manager {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.leave-hr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.leave-hr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.leave-hr-btn.secondary {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #dbe4ef;
+}
+
+.leave-team-balance-group {
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.leave-team-balance-group:last-child {
+  border-bottom: none;
+}
+
+.leave-team-balance-name {
+  display: block;
+  font-size: 14px;
+  color: #0f172a;
+  margin-bottom: 8px;
 }
 
 .leave-error {
@@ -227,5 +333,13 @@
 
   .leave-request-form {
     grid-template-columns: 1fr;
+  }
+
+  .leave-view-toolbar {
+    flex-direction: column;
+  }
+
+  .leave-role-select-wrap {
+    width: 100%;
   }
 }

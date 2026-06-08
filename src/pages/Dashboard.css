@@ -15,7 +15,8 @@ body {
 
 .dashboard-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #f5f7fb;
 }
 
@@ -23,6 +24,7 @@ body {
 
 .sidebar {
   width: 280px;
+  flex-shrink: 0;
   background: white;
   border-right: 1px solid #e5e7eb;
 
@@ -31,6 +33,17 @@ body {
   justify-content: space-between;
 
   padding: 30px 20px;
+
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-top {
+  flex: 1;
+  min-height: 0;
 }
 
 .brand h1 {
@@ -134,6 +147,11 @@ body {
 
 .main-area {
   flex: 1;
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 /* TOPBAR */
@@ -150,6 +168,10 @@ body {
   justify-content: space-between;
   align-items: center;
 
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .topbar h2 {
@@ -190,6 +212,7 @@ body {
 
 .page-content {
   padding: 24px 28px;
+  flex: 1;
 }
 
 /* STATS */
