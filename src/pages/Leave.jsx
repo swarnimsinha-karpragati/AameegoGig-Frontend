@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Calendar,
   Clock3,
@@ -126,25 +126,25 @@ function Leave() {
   const canEditBalances = canEditLeaveBalances(user?.role);
 
   const summary = dashboard?.summary || {};
-  const upcoming = dashboard?.upcoming || [];
+  const upcoming = useMemo(() => dashboard?.upcoming || [], [dashboard?.upcoming]);
   const pendingApprovals = dashboard?.pendingApprovals || [];
 
-  const matchesUser = (item) => {
+  const matchesUser = useCallback((item) => {
     const empName = item.employeeId?.name?.toLowerCase?.();
     return empName && empName === user?.name?.toLowerCase?.();
-  };
+  }, [user?.name]);
 
   const myRequests = useMemo(() => {
     const filtered = requests.filter(matchesUser);
     return filtered.length > 0 ? filtered : requests.slice(0, 3);
-  }, [requests, user]);
+  }, [requests, matchesUser]);
 
   const myRecentRequests = useMemo(() => myRequests.slice(0, 6), [myRequests]);
 
   const myUpcoming = useMemo(() => {
     const filtered = upcoming.filter(matchesUser);
     return filtered.length > 0 ? filtered : upcoming.slice(0, 2);
-  }, [upcoming, user]);
+  }, [upcoming, matchesUser]);
 
   const loadData = async () => {
     setLoading(true);
