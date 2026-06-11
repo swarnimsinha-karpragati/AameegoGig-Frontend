@@ -159,6 +159,13 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+.auth-hint {
+  margin: -16px 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
 .auth-card h2 {
   font-size: 52px;
 
@@ -266,8 +273,8 @@ body {
   height: 100vh;
 }
 
-/* SIDEBAR */
-.sidebar {
+/* Legacy layout (Layout.jsx only — MainLayout uses Dashboard.css) */
+.dashboard-layout:not(:has(.main-area)) .sidebar {
   width: 240px;
 
   background: linear-gradient(
