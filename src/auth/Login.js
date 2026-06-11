@@ -81,6 +81,11 @@ function Login() {
         <div className="auth-card">
           <h2>Login</h2>
 
+          <p className="auth-hint">
+            Employees: use the email and temporary password shared by HR, plus
+            your organization code.
+          </p>
+
           <form onSubmit={handleSubmit}>
             <input
               name="emailOrPhone"
