@@ -95,6 +95,7 @@ function MainLayout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand">
+          
             <h1>
               Aameego <span>Gig</span>
             </h1>
@@ -102,6 +103,9 @@ function MainLayout({ children }) {
             <p>Human Resource Management</p>
           </div>
 
+          <div className="client-info">
+    Threye Interactive Pvt. Ltd.
+  </div>
           <nav className="sidebar-menu">
             {menuItems.map((item) => {
               const Icon = item.icon;

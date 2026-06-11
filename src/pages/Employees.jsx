@@ -777,7 +777,7 @@ function Employees() {
 
 <input
   type="date"
-  name="Date of Birth"
+  name="dob"
   value={form.dob}
   onChange={handleChange}
 />
@@ -868,7 +868,7 @@ function Employees() {
 
                 <input
                   type="date"
-                  name="Date of Joining"
+                  name="dateOfJoining"
                   value={form.dateOfJoining}
                   onChange={handleChange}
                 />
