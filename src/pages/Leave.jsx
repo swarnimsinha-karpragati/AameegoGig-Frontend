@@ -7,6 +7,9 @@ import {
   Check,
   X,
   Plus,
+  Download,
+  Users,
+  ShieldCheck,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import { getEmployees } from "../services/employeeService";
@@ -20,7 +23,20 @@ import {
   rejectLeaveRequest,
   updateLeaveBalances,
 } from "../services/leaveService";
+import {
+  getLeaveViewKey,
+  getStoredUser,
+  canMarkAttendance as roleCanManageLeaveRequests,
+  canEditLeaveBalances,
+} from "../utils/roles";
 import "./Leave.css";
+
+const ROLE_DESCRIPTIONS = {
+  Organization: "Organization-wide leave overview and management",
+  HR: "HR leave policies, balances, and org-wide approvals",
+  Manager: "Review and approve leave requests for your team",
+  Employee: "Apply for leave and track your personal balance",
+};
 
 const leaveStatusClass = {
   Approved: "leave-status approved",
@@ -29,11 +45,58 @@ const leaveStatusClass = {
   Cancelled: "leave-status cancelled",
 };
 
-function Leave() {
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const role = user?.role === "HR" ? "Manager" : user?.role;
-  const isManagerView = role === "Admin" || role === "Manager";
+function LeaveSummaryCards({ summary, labels }) {
+  const cards = [
+    {
+      key: "wfh",
+      icon: Home,
+      iconClass: "blue",
+      value: summary.wfhDaysThisMonth || 0,
+      label: labels?.wfh || "WFH Days (This Month)",
+    },
+    {
+      key: "leave",
+      icon: Calendar,
+      iconClass: "green",
+      value: summary.leaveDaysThisMonth || 0,
+      label: labels?.leave || "Leave Days (This Month)",
+    },
+    {
+      key: "pending",
+      icon: Clock3,
+      iconClass: "amber",
+      value: summary.pendingRequests || 0,
+      label: labels?.pending || "Pending Requests",
+    },
+    {
+      key: "balance",
+      icon: UserCheck2,
+      iconClass: "purple",
+      value: summary.totalBalance || 0,
+      label: labels?.balance || "Total Balance",
+    },
+  ];
 
+  return (
+    <div className="leave-summary-grid">
+      {cards.map(({ key, icon: Icon, iconClass, value, label }) => (
+        <article key={key} className="leave-summary-card">
+          <div className={`leave-icon ${iconClass}`}>
+            <Icon size={20} />
+          </div>
+          <div>
+            <h3>{value}</h3>
+            <p>{label}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function Leave() {
+  const user = getStoredUser();
+  const viewRole = getLeaveViewKey(user?.role);
   const [dashboard, setDashboard] = useState(null);
   const [requests, setRequests] = useState([]);
   const [balances, setBalances] = useState([]);
@@ -58,13 +121,30 @@ function Leave() {
     reason: "",
   });
 
+  const canManageLeave = roleCanManageLeaveRequests(user?.role);
+  const canApprove = canManageLeave;
+  const canEditBalances = canEditLeaveBalances(user?.role);
+
   const summary = dashboard?.summary || {};
   const upcoming = dashboard?.upcoming || [];
   const pendingApprovals = dashboard?.pendingApprovals || [];
 
-  const recentRequests = useMemo(() => {
-    return requests.slice(0, 6);
-  }, [requests]);
+  const matchesUser = (item) => {
+    const empName = item.employeeId?.name?.toLowerCase?.();
+    return empName && empName === user?.name?.toLowerCase?.();
+  };
+
+  const myRequests = useMemo(() => {
+    const filtered = requests.filter(matchesUser);
+    return filtered.length > 0 ? filtered : requests.slice(0, 3);
+  }, [requests, user]);
+
+  const myRecentRequests = useMemo(() => myRequests.slice(0, 6), [myRequests]);
+
+  const myUpcoming = useMemo(() => {
+    const filtered = upcoming.filter(matchesUser);
+    return filtered.length > 0 ? filtered : upcoming.slice(0, 2);
+  }, [upcoming, user]);
 
   const loadData = async () => {
     setLoading(true);
@@ -86,7 +166,7 @@ function Leave() {
   };
 
   const loadEmployees = async () => {
-    if (!isManagerView) return;
+    if (!canManageLeave) return;
     try {
       const res = await getEmployees();
       const list = res.data?.employees || [];
@@ -97,16 +177,20 @@ function Leave() {
       if (!selectedBalanceEmployee && list.length > 0) {
         setSelectedBalanceEmployee(list[0]._id);
       }
-    } catch (err) {
+    } catch {
       // non-blocking
     }
   };
 
   useEffect(() => {
     loadData();
-    loadEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    loadEmployees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
 
   useEffect(() => {
     const selected = balances.find((b) => b.employeeId === selectedBalanceEmployee);
@@ -126,7 +210,7 @@ function Leave() {
     setMessage("");
     try {
       const payload = { ...leaveForm };
-      if (!isManagerView) {
+      if (!canManageLeave || user?.role === "Employee") {
         delete payload.employeeId;
       }
       await createLeaveRequest(payload);
@@ -184,227 +268,436 @@ function Leave() {
     }
   };
 
-  return (
-    <MainLayout>
-      <div className="leave-page">
-        {error ? <p className="leave-error">{error}</p> : null}
-        {message ? <p className="leave-message">{message}</p> : null}
+  const renderCreateRequestForm = (employeeList, showEmployeeSelect) => (
+    <section className="leave-card">
+      <h3>
+        <Plus size={16} /> Create Request
+      </h3>
+      <form className="leave-request-form" onSubmit={handleCreateRequest}>
+        {showEmployeeSelect ? (
+          <select
+            value={leaveForm.employeeId}
+            onChange={(e) => setLeaveForm((p) => ({ ...p, employeeId: e.target.value }))}
+          >
+            {employeeList.map((emp) => (
+              <option key={emp._id} value={emp._id}>
+                {emp.employeeCode} - {emp.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        <select
+          value={leaveForm.requestType}
+          onChange={(e) => setLeaveForm((p) => ({ ...p, requestType: e.target.value }))}
+        >
+          <option value="Leave">Leave</option>
+          <option value="WFH">WFH</option>
+        </select>
+        <select
+          value={leaveForm.leaveType}
+          onChange={(e) => setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))}
+        >
+          <option value="CL">Casual Leave (CL)</option>
+          <option value="SL">Sick Leave (SL)</option>
+          <option value="EL">Earned Leave (EL)</option>
+          <option value="CO">Comp Off (CO)</option>
+          <option value="WFH">WFH</option>
+        </select>
+        <input
+          type="date"
+          value={leaveForm.startDate}
+          onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))}
+          required
+        />
+        <input
+          type="date"
+          value={leaveForm.endDate}
+          onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))}
+          required
+        />
+        <input
+          type="text"
+          placeholder="Reason"
+          value={leaveForm.reason}
+          onChange={(e) => setLeaveForm((p) => ({ ...p, reason: e.target.value }))}
+        />
+        <button type="submit">Submit Request</button>
+      </form>
+    </section>
+  );
 
-        <div className="leave-summary-grid">
-          <article className="leave-summary-card">
-            <div className="leave-icon blue"><Home size={20} /></div>
-            <div><h3>{summary.wfhDaysThisMonth || 0}</h3><p>WFH Days (This Month)</p></div>
-          </article>
-          <article className="leave-summary-card">
-            <div className="leave-icon green"><Calendar size={20} /></div>
-            <div><h3>{summary.leaveDaysThisMonth || 0}</h3><p>Leave Days (This Month)</p></div>
-          </article>
-          <article className="leave-summary-card">
-            <div className="leave-icon amber"><Clock3 size={20} /></div>
-            <div><h3>{summary.pendingRequests || 0}</h3><p>Pending Requests</p></div>
-          </article>
-          <article className="leave-summary-card">
-            <div className="leave-icon purple"><UserCheck2 size={20} /></div>
-            <div><h3>{summary.totalBalance || 0}</h3><p>Total Balance</p></div>
-          </article>
-        </div>
-
-        <div className="leave-layout-grid">
-          <section className="leave-card">
-            <h3><Plus size={16} /> Create Request</h3>
-            <form className="leave-request-form" onSubmit={handleCreateRequest}>
-              {isManagerView ? (
-                <select
-                  value={leaveForm.employeeId}
-                  onChange={(e) => setLeaveForm((p) => ({ ...p, employeeId: e.target.value }))}
-                >
-                  {employees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.employeeCode} - {emp.name}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              <select
-                value={leaveForm.requestType}
-                onChange={(e) => setLeaveForm((p) => ({ ...p, requestType: e.target.value }))}
-              >
-                <option value="Leave">Leave</option>
-                <option value="WFH">WFH</option>
-              </select>
-              <select
-                value={leaveForm.leaveType}
-                onChange={(e) => setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))}
-              >
-                <option value="CL">Casual Leave (CL)</option>
-                <option value="SL">Sick Leave (SL)</option>
-                <option value="EL">Earned Leave (EL)</option>
-                <option value="CO">Comp Off (CO)</option>
-                <option value="WFH">WFH</option>
-              </select>
-              <input
-                type="date"
-                value={leaveForm.startDate}
-                onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))}
-                required
-              />
-              <input
-                type="date"
-                value={leaveForm.endDate}
-                onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))}
-                required
-              />
-              <input
-                type="text"
-                placeholder="Reason"
-                value={leaveForm.reason}
-                onChange={(e) => setLeaveForm((p) => ({ ...p, reason: e.target.value }))}
-              />
-              <button type="submit">Submit Request</button>
-            </form>
-          </section>
-
-          <section className="leave-card">
-            <h3>Upcoming (Next 7 Days)</h3>
-            <div className="leave-list">
-              {upcoming.length === 0 ? <p className="leave-empty">No upcoming schedule</p> : null}
-              {upcoming.map((item) => (
-                <div className="leave-list-item" key={item._id}>
-                  <div>
-                    <strong>{item.employeeId?.name}</strong>
-                    <p>{item.leaveType} • {new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()}</p>
-                  </div>
-                  <span className={leaveStatusClass[item.status] || "leave-status"}>{item.status}</span>
-                </div>
-              ))}
+  const renderUpcomingList = (items, emptyText = "No upcoming schedule") => (
+    <section className="leave-card">
+      <h3>Upcoming (Next 7 Days)</h3>
+      <div className="leave-list">
+        {items.length === 0 ? <p className="leave-empty">{emptyText}</p> : null}
+        {items.map((item) => (
+          <div className="leave-list-item" key={item._id}>
+            <div>
+              <strong>{item.employeeId?.name}</strong>
+              <p>
+                {item.leaveType} • {new Date(item.startDate).toLocaleDateString()} -{" "}
+                {new Date(item.endDate).toLocaleDateString()}
+              </p>
             </div>
-          </section>
-        </div>
+            <span className={leaveStatusClass[item.status] || "leave-status"}>
+              {item.status}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 
-        <div className="leave-layout-grid">
-          <section className="leave-card">
-            <h3>{isManagerView ? "Pending Approvals" : "My Recent Requests"}</h3>
-            <table className="leave-table">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Date / Duration</th>
-                  <th>Reason</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(isManagerView ? pendingApprovals : recentRequests).map((item) => (
-                  <tr key={item._id}>
-                    <td>{item.leaveType}</td>
-                    <td>{new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()} ({item.days}d)</td>
-                    <td>{item.reason || "-"}</td>
-                    <td><span className={leaveStatusClass[item.status] || "leave-status"}>{item.status}</span></td>
-                    <td>
-                      {isManagerView ? (
-                        item.status === "Pending" ? (
-                          <div className="leave-actions">
-                            <button className="approve-btn" onClick={() => handleDecision(item._id, "approve")}><Check size={14} /></button>
-                            <button className="reject-btn" onClick={() => handleDecision(item._id, "reject")}><X size={14} /></button>
-                          </div>
-                        ) : "-"
-                      ) : item.status === "Pending" ? (
-                        <button className="cancel-btn" onClick={() => handleCancel(item._id)}>Cancel</button>
-                      ) : "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-
-          <section className="leave-card">
-            <h3>Leave Balances</h3>
-            {isManagerView ? (
-              <form className="balance-editor" onSubmit={handleSaveBalances}>
-                <select
-                  value={selectedBalanceEmployee}
-                  onChange={(e) => setSelectedBalanceEmployee(e.target.value)}
-                >
-                  {balances.map((b) => (
-                    <option key={b.employeeId} value={b.employeeId}>
-                      {b.employeeCode} - {b.name}
-                    </option>
-                  ))}
-                </select>
-                {["CL", "SL", "EL", "CO"].map((type) => (
-                  <div key={type} className="balance-row">
-                    <label>{type}</label>
-                    <input
-                      type="number"
-                      placeholder="Total"
-                      value={balanceForm[type]?.total ?? ""}
-                      onChange={(e) =>
-                        setBalanceForm((prev) => ({
-                          ...prev,
-                          [type]: { ...prev[type], total: e.target.value },
-                        }))
-                      }
-                    />
-                    <input
-                      type="number"
-                      placeholder="Used"
-                      value={balanceForm[type]?.used ?? ""}
-                      onChange={(e) =>
-                        setBalanceForm((prev) => ({
-                          ...prev,
-                          [type]: { ...prev[type], used: e.target.value },
-                        }))
-                      }
-                    />
+  const renderRequestsTable = ({
+    title,
+    items,
+    mode,
+  }) => (
+    <section className="leave-card">
+      <h3>{title}</h3>
+      <table className="leave-table">
+        <thead>
+          <tr>
+            {mode === "all" ? <th>Employee</th> : null}
+            <th>Type</th>
+            <th>Date / Duration</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 ? (
+            <tr>
+              <td colSpan={mode === "all" ? 6 : 5} className="leave-empty">
+                No requests found
+              </td>
+            </tr>
+          ) : null}
+          {items.map((item) => (
+            <tr key={item._id}>
+              {mode === "all" ? <td>{item.employeeId?.name || "-"}</td> : null}
+              <td>{item.leaveType}</td>
+              <td>
+                {new Date(item.startDate).toLocaleDateString()} -{" "}
+                {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
+              </td>
+              <td>{item.reason || "-"}</td>
+              <td>
+                <span className={leaveStatusClass[item.status] || "leave-status"}>
+                  {item.status}
+                </span>
+              </td>
+              <td>
+                {mode === "approve" && canApprove && item.status === "Pending" ? (
+                  <div className="leave-actions">
+                    <button
+                      type="button"
+                      className="approve-btn"
+                      onClick={() => handleDecision(item._id, "approve")}
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="reject-btn"
+                      onClick={() => handleDecision(item._id, "reject")}
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                ))}
-                <button type="submit">Save Balances</button>
-              </form>
-            ) : (
-              <div className="leave-balance-list">
-                {(dashboard?.balances || []).map((b) => (
-                  <div className="leave-balance-item" key={b.type}>
-                    <span>{b.label}</span>
-                    <strong>{b.remaining} / {b.total}</strong>
+                ) : mode === "employee" && item.status === "Pending" ? (
+                  <button
+                    type="button"
+                    className="cancel-btn"
+                    onClick={() => handleCancel(item._id)}
+                  >
+                    Cancel
+                  </button>
+                ) : (
+                  "-"
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+
+  const renderBalanceEditor = (balanceList, readOnly = false) => (
+    <section className="leave-card">
+      <h3>
+        {readOnly || !canEditBalances
+          ? "Team Leave Balances"
+          : "Manage Leave Balances"}
+      </h3>
+      {readOnly || !canEditBalances ? (
+        <div className="leave-balance-list">
+          {balanceList.length === 0 ? (
+            <p className="leave-empty">No balance records found</p>
+          ) : (
+            balanceList.map((b) => (
+              <div key={b.employeeId} className="leave-team-balance-group">
+                <strong className="leave-team-balance-name">
+                  {b.employeeCode} — {b.name}
+                </strong>
+                {(b.balances || []).map((item) => (
+                  <div className="leave-balance-item" key={`${b.employeeId}-${item.type}`}>
+                    <span>{item.type}</span>
+                    <strong>
+                      {item.total - item.used} / {item.total}
+                    </strong>
                   </div>
                 ))}
               </div>
-            )}
-          </section>
+            ))
+          )}
+        </div>
+      ) : (
+        <form className="balance-editor" onSubmit={handleSaveBalances}>
+          <select
+            value={selectedBalanceEmployee}
+            onChange={(e) => setSelectedBalanceEmployee(e.target.value)}
+          >
+            {balanceList.map((b) => (
+              <option key={b.employeeId} value={b.employeeId}>
+                {b.employeeCode} - {b.name}
+              </option>
+            ))}
+          </select>
+          {["CL", "SL", "EL", "CO"].map((type) => (
+            <div key={type} className="balance-row">
+              <label>{type}</label>
+              <input
+                type="number"
+                placeholder="Total"
+                value={balanceForm[type]?.total ?? ""}
+                onChange={(e) =>
+                  setBalanceForm((prev) => ({
+                    ...prev,
+                    [type]: { ...prev[type], total: e.target.value },
+                  }))
+                }
+              />
+              <input
+                type="number"
+                placeholder="Used"
+                value={balanceForm[type]?.used ?? ""}
+                onChange={(e) =>
+                  setBalanceForm((prev) => ({
+                    ...prev,
+                    [type]: { ...prev[type], used: e.target.value },
+                  }))
+                }
+              />
+            </div>
+          ))}
+          <button type="submit">Save Balances</button>
+        </form>
+      )}
+    </section>
+  );
+
+  const renderPersonalBalances = () => (
+    <section className="leave-card">
+      <h3>My Leave Balances</h3>
+      <div className="leave-balance-list">
+        {(dashboard?.balances || []).length === 0 ? (
+          <p className="leave-empty">No balance data available</p>
+        ) : (
+          (dashboard?.balances || []).map((b) => (
+            <div className="leave-balance-item" key={b.type}>
+              <span>{b.label}</span>
+              <strong>
+                {b.remaining} / {b.total}
+              </strong>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+
+  const renderAllRequestsTable = (items, title = "All Requests") => (
+    <section className="leave-card">
+      <h3>{title}</h3>
+      <table className="leave-table">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Type</th>
+            <th>Dates</th>
+            <th>Days</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {!loading && items.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="leave-empty">
+                No requests found
+              </td>
+            </tr>
+          ) : null}
+          {items.map((item) => (
+            <tr key={item._id}>
+              <td>{item.employeeId?.name || "-"}</td>
+              <td>{item.leaveType}</td>
+              <td>
+                {new Date(item.startDate).toLocaleDateString()} -{" "}
+                {new Date(item.endDate).toLocaleDateString()}
+              </td>
+              <td>{item.days}</td>
+              <td>
+                <span className={leaveStatusClass[item.status] || "leave-status"}>
+                  {item.status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+
+  const renderOrganizationView = () => (
+    <>
+      <LeaveSummaryCards summary={summary} />
+      <div className="leave-layout-grid">
+        {renderCreateRequestForm(employees, true)}
+        {renderUpcomingList(upcoming)}
+      </div>
+      <div className="leave-layout-grid">
+        {renderRequestsTable({
+          title: "Pending Approvals",
+          items: pendingApprovals,
+          mode: "approve",
+        })}
+        {renderBalanceEditor(balances, false)}
+      </div>
+      {renderAllRequestsTable(requests)}
+    </>
+  );
+
+  const renderHRView = () => (
+    <>
+      <div className="leave-hr-actions">
+        <button type="button" className="leave-hr-btn">
+          <ShieldCheck size={16} />
+          Leave Policy Settings
+        </button>
+        <button type="button" className="leave-hr-btn secondary">
+          <Download size={16} />
+          Export Leave Report
+        </button>
+      </div>
+      <LeaveSummaryCards
+        summary={summary}
+        labels={{
+          wfh: "WFH Days (Org)",
+          leave: "Leave Days (Org)",
+          pending: "Pending (Org)",
+          balance: "Total Balance (Org)",
+        }}
+      />
+      <div className="leave-layout-grid">
+        {renderCreateRequestForm(employees, true)}
+        {renderUpcomingList(upcoming, "No org-wide upcoming leave")}
+      </div>
+      <div className="leave-layout-grid">
+        {renderRequestsTable({
+          title: "Pending Approvals — All Employees",
+          items: pendingApprovals,
+          mode: "approve",
+        })}
+        {renderBalanceEditor(balances, false)}
+      </div>
+      {renderAllRequestsTable(requests, "All Requests — Organization")}
+    </>
+  );
+
+  const renderManagerView = () => (
+    <>
+      <div className="leave-role-banner manager">
+        <Users size={18} />
+        <span>
+          Team view — managing {employees.length} team member
+          {employees.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <LeaveSummaryCards
+        summary={summary}
+        labels={{
+          wfh: "Team WFH Days",
+          leave: "Team Leave Days",
+          pending: "Team Pending",
+          balance: "Team Balance",
+        }}
+      />
+      <div className="leave-layout-grid">
+        {renderCreateRequestForm(employees, true)}
+        {renderUpcomingList(upcoming, "No upcoming team leave")}
+      </div>
+      <div className="leave-layout-grid">
+        {renderRequestsTable({
+          title: "Pending Approvals — My Team",
+          items: pendingApprovals,
+          mode: "approve",
+        })}
+        {renderBalanceEditor(balances, true)}
+      </div>
+      {renderAllRequestsTable(requests, "Team Requests")}
+    </>
+  );
+
+  const renderEmployeeView = () => (
+    <>
+      <LeaveSummaryCards
+        summary={summary}
+        labels={{
+          wfh: "My WFH Days",
+          leave: "My Leave Days",
+          pending: "My Pending",
+          balance: "My Balance",
+        }}
+      />
+      <div className="leave-layout-grid">
+        {renderCreateRequestForm([], false)}
+        {renderUpcomingList(myUpcoming, "You have no upcoming leave")}
+      </div>
+      <div className="leave-layout-grid">
+        {renderRequestsTable({
+          title: "My Recent Requests",
+          items: myRecentRequests,
+          mode: "employee",
+        })}
+        {renderPersonalBalances()}
+      </div>
+    </>
+  );
+
+  const roleViews = {
+    Organization: renderOrganizationView,
+    HR: renderHRView,
+    Manager: renderManagerView,
+    Employee: renderEmployeeView,
+  };
+
+  return (
+    <MainLayout>
+      <div className="leave-page">
+        <div className="leave-view-toolbar">
+          <div className="leave-view-toolbar-text">
+            <h1>Leave</h1>
+            <p>{ROLE_DESCRIPTIONS[viewRole]}</p>
+          </div>
         </div>
 
-        <section className="leave-card">
-          <h3>All Requests</h3>
-          <table className="leave-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Type</th>
-                <th>Dates</th>
-                <th>Days</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((item) => (
-                <tr key={item._id}>
-                  <td>{item.employeeId?.name || "-"}</td>
-                  <td>{item.leaveType}</td>
-                  <td>{new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()}</td>
-                  <td>{item.days}</td>
-                  <td><span className={leaveStatusClass[item.status] || "leave-status"}>{item.status}</span></td>
-                </tr>
-              ))}
-              {!loading && requests.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="leave-empty">No requests found</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </section>
+        {error ? <p className="leave-error">{error}</p> : null}
+        {message ? <p className="leave-message">{message}</p> : null}
+        {roleViews[viewRole]?.()}
       </div>
     </MainLayout>
   );

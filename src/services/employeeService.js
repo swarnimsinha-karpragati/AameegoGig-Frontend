@@ -56,3 +56,11 @@ export const deleteEmployee = async (
     `/employees/${id}`
   );
 };
+
+export const getUnlinkedUsers = async () => {
+  return API.get("/employees/unlinked-users");
+};
+
+export const linkUserToEmployee = async (employeeId, userId) => {
+  return API.patch(`/employees/${employeeId}/link-user`, { userId });
+};
