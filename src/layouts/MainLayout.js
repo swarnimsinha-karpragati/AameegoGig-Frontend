@@ -11,12 +11,13 @@ import {
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
+import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
 
 function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const user = getStoredUser();
 
   const pageMeta = {
     "/dashboard": {
@@ -88,7 +89,7 @@ function MainLayout({ children }) {
       path: "/settings",
       icon: Settings,
     },
-  ];
+  ].filter((item) => canAccessRoute(user?.role, item.path));
 
   return (
     <div className="dashboard-layout">
@@ -133,7 +134,7 @@ function MainLayout({ children }) {
 
           <div className="user-meta">
             <h4>{user?.name || "User"}</h4>
-            <p>Administrator</p>
+            <p>{getRoleLabel(user?.role)}</p>
           </div>
         </div>
       </aside>

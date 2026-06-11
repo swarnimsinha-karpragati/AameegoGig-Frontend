@@ -16,3 +16,8 @@ export const createVendor = async (payload) => {
   const res = await API.post(authPath('create-vendor'), payload);
   return res.data;
 };
+
+export const getCurrentUser = async () => {
+  const res = await API.get('/auth/me');
+  return res.data;
+};

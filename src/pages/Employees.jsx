@@ -64,6 +64,10 @@ function Employees() {
     highestQualification: "",
   
     dateOfJoining: "",
+    managerId: "",
+    createAppLogin: false,
+    userRole: "Employee",
+    userPassword: "",
   };
 
   const [form, setForm] = useState(initialForm);
@@ -105,6 +109,12 @@ function Employees() {
 
   const [isEditing, setIsEditing] =
     useState(false);
+
+  const [enableLoginOnUpdate, setEnableLoginOnUpdate] =
+    useState(false);
+
+  const [loginCredentials, setLoginCredentials] =
+    useState(null);
 
   const [showAddModal, setShowAddModal] =
     useState(false);
@@ -190,10 +200,10 @@ function Employees() {
   ========================= */
 
   const handleChange = (e) => {
+    const { name, type, checked, value } = e.target;
     setForm({
       ...form,
-      [e.target.name]:
-        e.target.value,
+      [name]: type === "checkbox" ? checked : value,
     });
   };
 
@@ -204,12 +214,35 @@ function Employees() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    try {
-      await addEmployee(form);
+    if (form.createAppLogin && !form.email?.trim()) {
+      alert("Email is required when enabling app login.");
+      return;
+    }
 
-      alert(
-        "Employee added successfully"
-      );
+    try {
+      const payload = {
+        ...form,
+        createAppLogin: Boolean(form.createAppLogin),
+      };
+
+      const res = await addEmployee(payload);
+      const data = res.data;
+
+      if (form.createAppLogin && !data.hasAppLogin) {
+        alert(
+          "Employee was saved but app login was not created. Add an email and enable login from Edit."
+        );
+      } else if (data.loginInfo) {
+        setLoginCredentials({
+          employeeName: form.name,
+          email: data.loginInfo.email,
+          role: data.loginInfo.role,
+          temporaryPassword: data.loginInfo.temporaryPassword,
+          linkedExisting: !data.loginInfo.created,
+        });
+      } else {
+        alert(data.message || "Employee added successfully");
+      }
 
       setForm(initialForm);
       setShowAddModal(false);
@@ -291,6 +324,7 @@ function Employees() {
   const handleEdit = (emp) => {
     setSelectedEmployee({
       ...emp,
+      managerId: emp.managerId?._id || emp.managerId || "",
       dateOfJoining:
         emp.dateOfJoining
           ? emp.dateOfJoining
@@ -298,22 +332,48 @@ function Employees() {
           : "",
     });
 
+    setEnableLoginOnUpdate(false);
     setIsEditing(true);
   };
 
   const handleUpdate = async () => {
     try {
-      await updateEmployee(
+      if (enableLoginOnUpdate && !selectedEmployee.email?.trim()) {
+        alert("Email is required before enabling app login.");
+        return;
+      }
+
+      const payload = {
+        ...selectedEmployee,
+        ...(enableLoginOnUpdate
+          ? {
+              createAppLogin: true,
+              userRole: selectedEmployee.userRole || "Employee",
+              userPassword: selectedEmployee.userPassword || "",
+            }
+          : {}),
+      };
+
+      const res = await updateEmployee(
         selectedEmployee._id,
-        selectedEmployee
+        payload
       );
 
-      alert(
-        "Employee updated successfully"
-      );
+      if (res.data?.loginInfo) {
+        setLoginCredentials({
+          employeeName: selectedEmployee.name,
+          email: res.data.loginInfo.email,
+          role: res.data.loginInfo.role,
+          temporaryPassword: res.data.loginInfo.temporaryPassword,
+          linkedExisting: !res.data.loginInfo.created,
+        });
+      } else {
+        alert(res.data?.message || "Employee updated successfully");
+      }
 
       setSelectedEmployee(null);
       setIsEditing(false);
+      setEnableLoginOnUpdate(false);
 
       fetchEmployees();
     } catch (error) {
@@ -563,6 +623,7 @@ function Employees() {
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Designation</th>
+                <th>App Login</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -582,6 +643,16 @@ function Employees() {
 
                     <td>
                       {emp.designation || "-"}
+                    </td>
+
+                    <td>
+                      <span
+                        className={`status-badge ${
+                          emp.hasAppLogin ? "active" : "inactive"
+                        }`}
+                      >
+                        {emp.hasAppLogin ? "Login enabled" : "No login"}
+                      </span>
                     </td>
 
                     <td>
@@ -700,7 +771,7 @@ function Employees() {
               ) : (
                 <tr>
                   <td
-                    colSpan="6"
+                    colSpan="7"
                     className="empty-row"
                   >
                     No employees found.
@@ -742,9 +813,10 @@ function Employees() {
 
                 <input
                   name="email"
-                  placeholder="Email"
+                  placeholder={form.createAppLogin ? "Email (required for login)" : "Email (optional)"}
                   value={form.email}
                   onChange={handleChange}
+                  required={form.createAppLogin}
                 />
 
                 <input
@@ -774,6 +846,19 @@ function Employees() {
   value={form.department}
   onChange={handleChange}
 />
+
+<select
+  name="managerId"
+  value={form.managerId}
+  onChange={handleChange}
+>
+  <option value="">Reporting Manager (optional)</option>
+  {employees.map((emp) => (
+    <option key={emp._id} value={emp._id}>
+      {emp.employeeCode} - {emp.name}
+    </option>
+  ))}
+</select>
 
 <input
   type="date"
@@ -872,6 +957,50 @@ function Employees() {
                   value={form.dateOfJoining}
                   onChange={handleChange}
                 />
+
+                <div className="employee-login-option full-width">
+                  <label className="employee-login-toggle">
+                    <input
+                      type="checkbox"
+                      name="createAppLogin"
+                      checked={form.createAppLogin}
+                      onChange={handleChange}
+                    />
+                    <span>Enable app login for this employee</span>
+                  </label>
+                  <p className="employee-login-hint">
+                    Leave unchecked for employees who will not use the app.
+                    Admin or manager can manage their attendance and leave.
+                  </p>
+
+                  {form.createAppLogin ? (
+                    <p className="employee-login-warning">
+                      Email is required above to create app login. The password
+                      will be shown once after saving.
+                    </p>
+                  ) : null}
+
+                  {form.createAppLogin ? (
+                    <div className="employee-login-fields">
+                      <select
+                        name="userRole"
+                        value={form.userRole}
+                        onChange={handleChange}
+                      >
+                        <option value="Employee">Employee login</option>
+                        <option value="Manager">Manager login</option>
+                        <option value="HR">HR login</option>
+                      </select>
+                      <input
+                        name="userPassword"
+                        type="text"
+                        placeholder="Set password (optional — auto-generated if blank)"
+                        value={form.userPassword}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  ) : null}
+                </div>
 
                 <button type="submit">
                   Save Employee
@@ -1042,6 +1171,25 @@ function Employees() {
                     />
                   ))}
 
+                  <select
+                    value={selectedEmployee.managerId || ""}
+                    onChange={(e) =>
+                      setSelectedEmployee({
+                        ...selectedEmployee,
+                        managerId: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">Reporting Manager (optional)</option>
+                    {employees
+                      .filter((emp) => emp._id !== selectedEmployee._id)
+                      .map((emp) => (
+                        <option key={emp._id} value={emp._id}>
+                          {emp.employeeCode} - {emp.name}
+                        </option>
+                      ))}
+                  </select>
+
                   <input
                     type="date"
                     value={
@@ -1056,6 +1204,57 @@ function Employees() {
                       })
                     }
                   />
+
+                  {!selectedEmployee.hasAppLogin ? (
+                    <div className="employee-login-option full-width">
+                      <label className="employee-login-toggle">
+                        <input
+                          type="checkbox"
+                          checked={enableLoginOnUpdate}
+                          onChange={(e) =>
+                            setEnableLoginOnUpdate(e.target.checked)
+                          }
+                        />
+                        <span>Enable app login for this employee</span>
+                      </label>
+                      {enableLoginOnUpdate ? (
+                        <div className="employee-login-fields">
+                          <select
+                            value={selectedEmployee.userRole || "Employee"}
+                            onChange={(e) =>
+                              setSelectedEmployee({
+                                ...selectedEmployee,
+                                userRole: e.target.value,
+                              })
+                            }
+                          >
+                            <option value="Employee">Employee login</option>
+                            <option value="Manager">Manager login</option>
+                            <option value="HR">HR login</option>
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="Set password (optional)"
+                            value={selectedEmployee.userPassword || ""}
+                            onChange={(e) =>
+                              setSelectedEmployee({
+                                ...selectedEmployee,
+                                userPassword: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="employee-login-hint full-width">
+                      App login is already enabled
+                      {selectedEmployee.linkedUser?.email
+                        ? ` (${selectedEmployee.linkedUser.email})`
+                        : ""}
+                      .
+                    </p>
+                  )}
 
                   <button
                   className="save-btn"
@@ -1611,6 +1810,64 @@ function Employees() {
 </div>
 </div>
 )}
+
+        {loginCredentials ? (
+          <div className="modal-overlay">
+            <div className="modal credentials-modal">
+              <div className="modal-header">
+                <h3>App Login Details</h3>
+                <button
+                  type="button"
+                  onClick={() => setLoginCredentials(null)}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="credentials-body">
+                <p>
+                  <strong>{loginCredentials.employeeName}</strong> can now sign in
+                  to the app.
+                </p>
+
+                <div className="credentials-row">
+                  <span>Email / login</span>
+                  <strong>{loginCredentials.email}</strong>
+                </div>
+
+                <div className="credentials-row">
+                  <span>Role</span>
+                  <strong>{loginCredentials.role}</strong>
+                </div>
+
+                {loginCredentials.temporaryPassword ? (
+                  <div className="credentials-password-box">
+                    <span>Temporary password (shown only once)</span>
+                    <strong>{loginCredentials.temporaryPassword}</strong>
+                    <p>
+                      Share this with the employee. They must also use your
+                      organization code on the login page.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="employee-login-hint">
+                    {loginCredentials.linkedExisting
+                      ? "This employee was linked to an existing user account. They should use their current password."
+                      : "Login enabled with the password you set."}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="save-btn"
+                onClick={() => setLoginCredentials(null)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        ) : null}
     </MainLayout>
   );
 }
