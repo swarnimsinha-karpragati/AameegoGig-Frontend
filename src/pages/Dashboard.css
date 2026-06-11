@@ -1094,6 +1094,120 @@ body {
   grid-column: 1 / -1;
 }
 
+.employee-login-option {
+  border: 1px solid #e8edf4;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.employee-login-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.employee-login-toggle input {
+  width: auto;
+  min-height: auto;
+  margin: 0;
+}
+
+.employee-login-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.employee-login-warning {
+  margin: 0;
+  font-size: 13px;
+  color: #b45309;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.credentials-modal {
+  width: min(480px, 92vw);
+}
+
+.credentials-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.credentials-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #e8edf4;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.credentials-row span {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.credentials-row strong {
+  font-size: 15px;
+  color: #0f172a;
+  word-break: break-all;
+}
+
+.credentials-password-box {
+  padding: 16px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.credentials-password-box span {
+  font-size: 12px;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.credentials-password-box strong {
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  color: #0f172a;
+}
+
+.credentials-password-box p {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.employee-login-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 760px) {
+  .employee-login-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .salary-row {
   display: grid;
   grid-template-columns:

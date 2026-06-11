@@ -18,17 +18,17 @@ import {
   getMonthlyAttendance,
   getTodayAttendance,
   markAttendance,
+  checkInAttendance,
+  checkOutAttendance,
 } from "../services/attendanceService";
+import {
+  getAttendanceViewKey,
+  getStoredUser,
+  canMarkAttendance as roleCanMarkAttendance,
+} from "../utils/roles";
 import "./Attendance.css";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-const VIEW_ROLES = [
-  { value: "Organization", label: "Organization" },
-  { value: "HR", label: "HR" },
-  { value: "Manager", label: "Manager" },
-  { value: "Employee", label: "Employee" },
-];
 
 const ROLE_DESCRIPTIONS = {
   Organization: "Organization-wide attendance overview and management",
@@ -197,8 +197,8 @@ function TodayAttendanceTable({ title, rows, loading, showActions = false }) {
 }
 
 function Attendance() {
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const [viewRole, setViewRole] = useState("Organization");
+  const user = getStoredUser();
+  const viewRole = getAttendanceViewKey(user?.role);
   const [viewDate, setViewDate] = useState(() => new Date());
   const [summaryStats, setSummaryStats] = useState(EMPTY_STATS);
   const [calendarMap, setCalendarMap] = useState({});
@@ -216,8 +216,7 @@ function Attendance() {
     notes: "",
   });
 
-  const canMarkAttendance =
-    viewRole === "Organization" || viewRole === "HR" || viewRole === "Manager";
+  const canMarkAttendance = roleCanMarkAttendance(user?.role);
 
   const monthLabel = viewDate.toLocaleString("en-US", {
     month: "long",
@@ -268,7 +267,7 @@ function Attendance() {
   useEffect(() => {
     loadEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewRole]);
+  }, [user?.role]);
 
   const calendarDays = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -299,22 +298,6 @@ function Attendance() {
     return cells;
   }, [viewDate, calendarMap]);
 
-  const teamRows = useMemo(() => {
-    if (todayRows.length <= 1) return todayRows;
-    const teamSize = Math.max(1, Math.ceil(todayRows.length / 2));
-    return todayRows.slice(0, teamSize);
-  }, [todayRows]);
-
-  const teamStats = useMemo(() => {
-    return teamRows.reduce(
-      (acc, row) => {
-        if (acc[row.status] !== undefined) acc[row.status] += 1;
-        return acc;
-      },
-      { ...EMPTY_STATS }
-    );
-  }, [teamRows]);
-
   const myTodayRow = useMemo(() => {
     const byName = todayRows.find(
       (row) => row.name?.toLowerCase() === user?.name?.toLowerCase()
@@ -336,12 +319,6 @@ function Attendance() {
       status: "Absent",
     };
   }, [todayRows, user]);
-
-  const managerEmployees = useMemo(() => {
-    if (employees.length <= 1) return employees;
-    const teamSize = Math.max(1, Math.ceil(employees.length / 2));
-    return employees.slice(0, teamSize);
-  }, [employees]);
 
   const shiftMonth = (delta) => {
     setSaveMessage("");
@@ -381,20 +358,26 @@ function Attendance() {
     }
   };
 
-  const handleCheckIn = () => {
-    const now = new Date().toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    setCheckInMessage(`Checked in at ${now} (preview only — backend not connected)`);
+  const handleCheckIn = async () => {
+    setCheckInMessage("");
+    try {
+      const res = await checkInAttendance();
+      setCheckInMessage(res.message || "Checked in successfully");
+      loadMonthData();
+    } catch (err) {
+      setCheckInMessage(err.response?.data?.message || "Unable to check in");
+    }
   };
 
-  const handleCheckOut = () => {
-    const now = new Date().toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    setCheckInMessage(`Checked out at ${now} (preview only — backend not connected)`);
+  const handleCheckOut = async () => {
+    setCheckInMessage("");
+    try {
+      const res = await checkOutAttendance();
+      setCheckInMessage(res.message || "Checked out successfully");
+      loadMonthData();
+    } catch (err) {
+      setCheckInMessage(err.response?.data?.message || "Unable to check out");
+    }
   };
 
   const renderMarkForm = (employeeList, title) => (
@@ -542,12 +525,12 @@ function Attendance() {
       <div className="attendance-role-banner manager">
         <Users size={18} />
         <span>
-          Team view — showing {teamRows.length} of {todayRows.length} employees
-          assigned to you
+          Team view — {employees.length} team member
+          {employees.length === 1 ? "" : "s"} under your management
         </span>
       </div>
       <AttendanceStats
-        stats={teamStats}
+        stats={summaryStats}
         labels={{
           Present: "Team Present",
           Absent: "Team Absent",
@@ -555,8 +538,8 @@ function Attendance() {
           Late: "Team Late",
         }}
       />
-      {managerEmployees.length > 0
-        ? renderMarkForm(managerEmployees, "Mark Team Attendance")
+      {employees.length > 0
+        ? renderMarkForm(employees, "Mark Team Attendance")
         : null}
       <AttendanceCalendar
         monthLabel={`${monthLabel} — Team Overview`}
@@ -566,7 +549,7 @@ function Attendance() {
       />
       <TodayAttendanceTable
         title="Today's Attendance — My Team"
-        rows={teamRows}
+        rows={todayRows}
         loading={loading}
       />
     </>
@@ -688,25 +671,6 @@ function Attendance() {
           <div className="attendance-view-toolbar-text">
             <h1>Attendance</h1>
             <p>{ROLE_DESCRIPTIONS[viewRole]}</p>
-          </div>
-          <div className="attendance-role-select-wrap">
-            <label htmlFor="attendance-view-role">View as</label>
-            <select
-              id="attendance-view-role"
-              className="attendance-role-select"
-              value={viewRole}
-              onChange={(e) => {
-                setViewRole(e.target.value);
-                setSaveMessage("");
-                setCheckInMessage("");
-              }}
-            >
-              {VIEW_ROLES.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 

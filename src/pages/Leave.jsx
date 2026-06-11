@@ -23,14 +23,13 @@ import {
   rejectLeaveRequest,
   updateLeaveBalances,
 } from "../services/leaveService";
+import {
+  getLeaveViewKey,
+  getStoredUser,
+  canMarkAttendance as roleCanManageLeaveRequests,
+  canEditLeaveBalances,
+} from "../utils/roles";
 import "./Leave.css";
-
-const VIEW_ROLES = [
-  { value: "Organization", label: "Organization" },
-  { value: "HR", label: "HR" },
-  { value: "Manager", label: "Manager" },
-  { value: "Employee", label: "Employee" },
-];
 
 const ROLE_DESCRIPTIONS = {
   Organization: "Organization-wide leave overview and management",
@@ -96,8 +95,8 @@ function LeaveSummaryCards({ summary, labels }) {
 }
 
 function Leave() {
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const [viewRole, setViewRole] = useState("Organization");
+  const user = getStoredUser();
+  const viewRole = getLeaveViewKey(user?.role);
   const [dashboard, setDashboard] = useState(null);
   const [requests, setRequests] = useState([]);
   const [balances, setBalances] = useState([]);
@@ -122,25 +121,13 @@ function Leave() {
     reason: "",
   });
 
-  const canManageLeave =
-    viewRole === "Organization" || viewRole === "HR" || viewRole === "Manager";
+  const canManageLeave = roleCanManageLeaveRequests(user?.role);
   const canApprove = canManageLeave;
+  const canEditBalances = canEditLeaveBalances(user?.role);
 
   const summary = dashboard?.summary || {};
   const upcoming = dashboard?.upcoming || [];
   const pendingApprovals = dashboard?.pendingApprovals || [];
-
-  const teamEmployeeIds = useMemo(() => {
-    if (employees.length <= 1) return new Set(employees.map((e) => e._id));
-    const teamSize = Math.max(1, Math.ceil(employees.length / 2));
-    return new Set(employees.slice(0, teamSize).map((e) => e._id));
-  }, [employees]);
-
-  const teamEmployees = useMemo(() => {
-    if (employees.length <= 1) return employees;
-    const teamSize = Math.max(1, Math.ceil(employees.length / 2));
-    return employees.slice(0, teamSize);
-  }, [employees]);
 
   const matchesUser = (item) => {
     const empName = item.employeeId?.name?.toLowerCase?.();
@@ -158,57 +145,6 @@ function Leave() {
     const filtered = upcoming.filter(matchesUser);
     return filtered.length > 0 ? filtered : upcoming.slice(0, 2);
   }, [upcoming, user]);
-
-  const teamRequests = useMemo(() => {
-    return requests.filter((item) => {
-      const empId = item.employeeId?._id || item.employeeId;
-      return teamEmployeeIds.has(empId);
-    });
-  }, [requests, teamEmployeeIds]);
-
-  const teamPendingApprovals = useMemo(() => {
-    return pendingApprovals.filter((item) => {
-      const empId = item.employeeId?._id || item.employeeId;
-      return teamEmployeeIds.has(empId);
-    });
-  }, [pendingApprovals, teamEmployeeIds]);
-
-  const teamUpcoming = useMemo(() => {
-    return upcoming.filter((item) => {
-      const empId = item.employeeId?._id || item.employeeId;
-      return teamEmployeeIds.has(empId);
-    });
-  }, [upcoming, teamEmployeeIds]);
-
-  const teamBalances = useMemo(() => {
-    return balances.filter((b) => teamEmployeeIds.has(b.employeeId));
-  }, [balances, teamEmployeeIds]);
-
-  const teamSummary = useMemo(() => {
-    const pending = teamPendingApprovals.length;
-    const leaveDays = teamRequests
-      .filter((r) => r.status === "Approved" && r.requestType !== "WFH")
-      .reduce((sum, r) => sum + (r.days || 0), 0);
-    const wfhDays = teamRequests
-      .filter((r) => r.status === "Approved" && r.requestType === "WFH")
-      .reduce((sum, r) => sum + (r.days || 0), 0);
-    const totalBalance = teamBalances.reduce(
-      (sum, b) =>
-        sum +
-        (b.balances || []).reduce(
-          (inner, item) => inner + (item.total - item.used),
-          0
-        ),
-      0
-    );
-
-    return {
-      wfhDaysThisMonth: wfhDays || Math.ceil((summary.wfhDaysThisMonth || 0) / 2),
-      leaveDaysThisMonth: leaveDays || Math.ceil((summary.leaveDaysThisMonth || 0) / 2),
-      pendingRequests: pending,
-      totalBalance: totalBalance || Math.ceil((summary.totalBalance || 0) / 2),
-    };
-  }, [teamPendingApprovals, teamRequests, teamBalances, summary]);
 
   const loadData = async () => {
     setLoading(true);
@@ -254,7 +190,7 @@ function Leave() {
   useEffect(() => {
     loadEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewRole]);
+  }, [user?.role]);
 
   useEffect(() => {
     const selected = balances.find((b) => b.employeeId === selectedBalanceEmployee);
@@ -274,7 +210,7 @@ function Leave() {
     setMessage("");
     try {
       const payload = { ...leaveForm };
-      if (!canManageLeave || viewRole === "Employee") {
+      if (!canManageLeave || user?.role === "Employee") {
         delete payload.employeeId;
       }
       await createLeaveRequest(payload);
@@ -492,8 +428,12 @@ function Leave() {
 
   const renderBalanceEditor = (balanceList, readOnly = false) => (
     <section className="leave-card">
-      <h3>{readOnly ? "Team Leave Balances" : "Manage Leave Balances"}</h3>
-      {readOnly ? (
+      <h3>
+        {readOnly || !canEditBalances
+          ? "Team Leave Balances"
+          : "Manage Leave Balances"}
+      </h3>
+      {readOnly || !canEditBalances ? (
         <div className="leave-balance-list">
           {balanceList.length === 0 ? (
             <p className="leave-empty">No balance records found</p>
@@ -683,11 +623,12 @@ function Leave() {
       <div className="leave-role-banner manager">
         <Users size={18} />
         <span>
-          Team view — managing {teamEmployees.length} of {employees.length} employees
+          Team view — managing {employees.length} team member
+          {employees.length === 1 ? "" : "s"}
         </span>
       </div>
       <LeaveSummaryCards
-        summary={teamSummary}
+        summary={summary}
         labels={{
           wfh: "Team WFH Days",
           leave: "Team Leave Days",
@@ -696,18 +637,18 @@ function Leave() {
         }}
       />
       <div className="leave-layout-grid">
-        {renderCreateRequestForm(teamEmployees, true)}
-        {renderUpcomingList(teamUpcoming, "No upcoming team leave")}
+        {renderCreateRequestForm(employees, true)}
+        {renderUpcomingList(upcoming, "No upcoming team leave")}
       </div>
       <div className="leave-layout-grid">
         {renderRequestsTable({
           title: "Pending Approvals — My Team",
-          items: teamPendingApprovals,
+          items: pendingApprovals,
           mode: "approve",
         })}
-        {renderBalanceEditor(teamBalances, true)}
+        {renderBalanceEditor(balances, true)}
       </div>
-      {renderAllRequestsTable(teamRequests, "Team Requests")}
+      {renderAllRequestsTable(requests, "Team Requests")}
     </>
   );
 
@@ -751,24 +692,6 @@ function Leave() {
           <div className="leave-view-toolbar-text">
             <h1>Leave</h1>
             <p>{ROLE_DESCRIPTIONS[viewRole]}</p>
-          </div>
-          <div className="leave-role-select-wrap">
-            <label htmlFor="leave-view-role">View as</label>
-            <select
-              id="leave-view-role"
-              className="leave-role-select"
-              value={viewRole}
-              onChange={(e) => {
-                setViewRole(e.target.value);
-                setMessage("");
-              }}
-            >
-              {VIEW_ROLES.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
