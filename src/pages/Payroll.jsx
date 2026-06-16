@@ -2,10 +2,8 @@ import React, { useState, useEffect } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import kpLogo from "../assets/kpLogo.png";
-import { createBulkPayrollEntry } from "../services/payrollService";
 import { bulkUploadPayrollEntries, getSalarySlip } from "../services/payrollService";
 import { getPaymentHistory } from "../services/payrollService";
-import * as XLSX from "xlsx";
 import {
   Wallet,
   TrendingUp,
