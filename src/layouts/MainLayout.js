@@ -11,12 +11,20 @@ import {
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
+<<<<<<< HEAD
+=======
+import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
+>>>>>>> origin/main
 
 function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
 
+<<<<<<< HEAD
   const user = JSON.parse(localStorage.getItem("user") || "null");
+=======
+  const user = getStoredUser();
+>>>>>>> origin/main
 
   const pageMeta = {
     "/dashboard": {
@@ -88,13 +96,21 @@ function MainLayout({ children }) {
       path: "/settings",
       icon: Settings,
     },
+<<<<<<< HEAD
   ];
+=======
+  ].filter((item) => canAccessRoute(user?.role, item.path));
+>>>>>>> origin/main
 
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand">
+<<<<<<< HEAD
+=======
+          
+>>>>>>> origin/main
             <h1>
               Aameego <span>Gig</span>
             </h1>
@@ -102,6 +118,12 @@ function MainLayout({ children }) {
             <p>Human Resource Management</p>
           </div>
 
+<<<<<<< HEAD
+=======
+          <div className="client-info">
+    Threye Interactive Pvt. Ltd.
+  </div>
+>>>>>>> origin/main
           <nav className="sidebar-menu">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -129,7 +151,11 @@ function MainLayout({ children }) {
 
           <div className="user-meta">
             <h4>{user?.name || "User"}</h4>
+<<<<<<< HEAD
             <p>Administrator</p>
+=======
+            <p>{getRoleLabel(user?.role)}</p>
+>>>>>>> origin/main
           </div>
         </div>
       </aside>

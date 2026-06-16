@@ -5,9 +5,6 @@ import logo from "../assets/logo.png";
 
 function JoinOrg() {
   const navigate = useNavigate();
-  const regexPhnEmail =
-    /^(\+91\s?[6-9]\d{9}|[A-Za-z0-9]+([._]?[A-Za-z0-9]+)*@[A-Za-z0-9-]+(\.[A-Za-z]{2,})+)$/;
-  const orgRegex = /^[A-Z]{3}\d{4}$/;
 
   const [form, setForm] = useState({
     name: "",
@@ -19,7 +16,6 @@ function JoinOrg() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [emailOrPhoneError, setEmailOrPhoneError] = useState("");
 
   const handleChange = (field, value) => {
     setForm((prev) => ({

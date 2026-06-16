@@ -159,6 +159,16 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+<<<<<<< HEAD
+=======
+.auth-hint {
+  margin: -16px 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+>>>>>>> origin/main
 .auth-card h2 {
   font-size: 52px;
 
@@ -266,8 +276,13 @@ body {
   height: 100vh;
 }
 
+<<<<<<< HEAD
 /* SIDEBAR */
 .sidebar {
+=======
+/* Legacy layout (Layout.jsx only — MainLayout uses Dashboard.css) */
+.dashboard-layout:not(:has(.main-area)) .sidebar {
+>>>>>>> origin/main
   width: 240px;
 
   background: linear-gradient(
@@ -282,7 +297,10 @@ body {
   padding: 24px;
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
 .sidebar h2 {
   margin-bottom: 30px;
 }
@@ -381,6 +399,7 @@ body {
 
 .back-link a:hover {
   text-decoration: underline;
+<<<<<<< HEAD
 }
 
 .filter-input,
@@ -397,4 +416,6 @@ body {
 
 .reset-btn:hover {
   background: #ef4444;
+=======
+>>>>>>> origin/main
 }

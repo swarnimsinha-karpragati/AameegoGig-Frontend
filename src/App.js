@@ -1,5 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import './App.css';
+<<<<<<< HEAD
+=======
+import ProtectedRoute from './components/ProtectedRoute';
+>>>>>>> origin/main
 import Login from './auth/Login';
 import CreateOrg from './pages/CreateOrg';
 import JoinOrg from './pages/JoinOrg';
@@ -19,6 +23,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/create-org" element={<CreateOrg />} />
         <Route path="/join" element={<JoinOrg />} />
+<<<<<<< HEAD
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/employees" element={<Employees />} />
         {/* <Route path="/attendance" element={<div>Attendance Page</div>} />
@@ -32,6 +37,64 @@ function App() {
         <Route path="/leave" element={<Leave />} />
         {/* <Route path="/payroll" element={<div>Payroll Page</div>} /> */}
         <Route path="/documents" element={<Documents/>} />
+=======
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/employees"
+          element={
+            <ProtectedRoute>
+              <Employees />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/documents"
+          element={
+            <ProtectedRoute>
+              <Documents />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payroll"
+          element={
+            <ProtectedRoute>
+              <Payroll />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/attendance"
+          element={
+            <ProtectedRoute>
+              <Attendance />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leave"
+          element={
+            <ProtectedRoute>
+              <Leave />
+            </ProtectedRoute>
+          }
+        />
+>>>>>>> origin/main
       </Routes>
     </div>
   );
