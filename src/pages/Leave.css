@@ -1,0 +1,231 @@
+.leave-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.leave-error {
+  color: #dc2626;
+  margin: 0;
+}
+
+.leave-message {
+  color: #2563eb;
+  margin: 0;
+}
+
+.leave-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.leave-summary-card,
+.leave-card {
+  background: #fff;
+  border: 1px solid #e8edf4;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.leave-summary-card {
+  padding: 18px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.leave-summary-card h3 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.leave-summary-card p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.leave-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.leave-icon.blue { background: #eff6ff; color: #2563eb; }
+.leave-icon.green { background: #ecfdf5; color: #16a34a; }
+.leave-icon.amber { background: #fff7ed; color: #d97706; }
+.leave-icon.purple { background: #f5f3ff; color: #7c3aed; }
+
+.leave-layout-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr;
+  gap: 16px;
+}
+
+.leave-card {
+  padding: 18px 20px;
+}
+
+.leave-card h3 {
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leave-request-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.leave-request-form select,
+.leave-request-form input,
+.balance-editor select,
+.balance-editor input {
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 42px;
+}
+
+.leave-request-form button,
+.balance-editor button,
+.cancel-btn {
+  border: none;
+  border-radius: 10px;
+  min-height: 42px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.leave-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.leave-list-item {
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.leave-list-item p {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.leave-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leave-table th {
+  text-align: left;
+  font-size: 13px;
+  color: #64748b;
+  padding: 10px 8px 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.leave-table td {
+  padding: 12px 8px 12px 0;
+  border-bottom: 1px solid #f8fafc;
+  font-size: 14px;
+}
+
+.leave-status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.leave-status.approved { background: #dcfce7; color: #15803d; }
+.leave-status.pending { background: #fef3c7; color: #b45309; }
+.leave-status.rejected { background: #fee2e2; color: #b91c1c; }
+.leave-status.cancelled { background: #e2e8f0; color: #334155; }
+
+.leave-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.approve-btn,
+.reject-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.approve-btn { background: #dcfce7; color: #15803d; }
+.reject-btn { background: #fee2e2; color: #b91c1c; }
+
+.cancel-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.balance-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.balance-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.leave-balance-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.leave-empty {
+  text-align: center;
+  color: #94a3b8;
+}
+
+@media (max-width: 1200px) {
+  .leave-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .leave-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .leave-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .leave-request-form {
+    grid-template-columns: 1fr;
+  }
+}

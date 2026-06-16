@@ -1,0 +1,100 @@
+.notifications-card{
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:20px;
+  padding:20px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.05);
+}
+
+.notifications-header{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-bottom:20px;
+}
+
+.notifications-icon-box{
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  background:#f8fafc;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+.notifications-title{
+  font-size:16px;
+  font-weight:600;
+  color:#1e293b;
+}
+
+.notifications-subtitle{
+  font-size:12px;
+  color:#64748b;
+  margin-top:4px;
+}
+
+.toggle-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 0;
+  border-bottom:1px solid #f1f5f9;
+}
+
+.toggle-row:last-child{
+  border-bottom:none;
+}
+
+.toggle-left{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.toggle-icon{
+  color:#64748b;
+}
+
+.toggle-title{
+  font-size:14px;
+  font-weight:500;
+  color:#334155;
+}
+
+.toggle-switch{
+  width:44px;
+  height:24px;
+  background:#475569;
+  border-radius:999px;
+  position:relative;
+  cursor:pointer;
+  transition:0.3s;
+}
+
+.toggle-active{
+  background:linear-gradient(
+    135deg,
+    #1E6BD6,
+    #2BB7DA
+  );
+}
+
+.toggle-dot{
+  position:absolute;
+  top:4px;
+  width:16px;
+  height:16px;
+  background:#fff;
+  border-radius:50%;
+  transition:0.3s;
+}
+
+.dot-left{
+  left:4px;
+}
+
+.dot-right{
+  right:4px;
+}
