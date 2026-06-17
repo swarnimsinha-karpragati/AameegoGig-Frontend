@@ -1,6 +1,39 @@
 import API from "./apiClient";
 import { getApiUrl } from "../config/api";
 
+export const formatWorkedHours = (minutes) => {
+  if (minutes === null || minutes === undefined) return "-";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+};
+
+export const summarizeAttendanceSessions = (sessions = []) => {
+  if (!sessions.length) {
+    return {
+      checkIn: "-",
+      checkOut: "-",
+      hours: "-",
+      isCheckedIn: false,
+      sessionCount: 0,
+    };
+  }
+
+  const openSession = sessions.find((session) => session.isOpen);
+  const totalMinutes = sessions.reduce(
+    (sum, session) => sum + (session.minutes || 0),
+    0
+  );
+
+  return {
+    checkIn: sessions[0]?.checkIn || "-",
+    checkOut: openSession ? "-" : sessions[sessions.length - 1]?.checkOut || "-",
+    hours: formatWorkedHours(totalMinutes),
+    isCheckedIn: Boolean(openSession),
+    sessionCount: sessions.length,
+  };
+};
+
 export const getMonthlyAttendance = async (year, month) => {
   const res = await API.get("/attendance/month", {
     params: { year, month },

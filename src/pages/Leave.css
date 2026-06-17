@@ -68,6 +68,23 @@
   border: 1px solid #bfdbfe;
 }
 
+.leave-section-heading {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.leave-self-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.leave-self-notice .leave-empty {
+  margin: 0;
+}
+
 .leave-hr-actions {
   display: flex;
   flex-wrap: wrap;
