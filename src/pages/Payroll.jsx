@@ -753,7 +753,7 @@ export default function Payroll() {
           </table>
         </div>
 
-              {tableData.length > 0 && (
+        {tableData.length > 0 && (
   <table className="history-table">
     <thead>
       <tr>
@@ -764,11 +764,13 @@ export default function Payroll() {
     </thead>
 
     <tbody>
-      {tableData.map((row, index) => (
-        <tr key={index}>
+      {tableData.map((row, rowIndex) => (
+        <tr key={rowIndex}>
           {columns.map((col) => (
-            <td key={col}>
-              {String(row[col] || "-")}
+            <td key={`${rowIndex}-${col}`}>
+              {row[col] !== undefined && row[col] !== null && row[col] !== ""
+                ? String(row[col])
+                : "-"}
             </td>
           ))}
         </tr>
