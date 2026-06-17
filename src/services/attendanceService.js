@@ -1,4 +1,5 @@
 import API from "./apiClient";
+import { getApiUrl } from "../config/api";
 
 export const getMonthlyAttendance = async (year, month) => {
   const res = await API.get("/attendance/month", {
@@ -17,8 +18,18 @@ export const markAttendance = async (payload) => {
   return res.data;
 };
 
-export const checkInAttendance = async (notes = "") => {
-  const res = await API.post("/attendance/check-in", { notes });
+export const checkInAttendance = async (selfieFile, notes = "") => {
+  const formData = new FormData();
+  formData.append("selfie", selfieFile, "selfie.jpg");
+  if (notes) {
+    formData.append("notes", notes);
+  }
+
+  const res = await API.post("/attendance/check-in", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
   return res.data;
 };
 
@@ -30,4 +41,10 @@ export const checkOutAttendance = async (notes = "") => {
 export const bulkMarkToday = async (records) => {
   const res = await API.post("/attendance/bulk-mark-today", { records });
   return res.data;
+};
+
+export const getCheckInSelfieUrl = (selfiePath) => {
+  if (!selfiePath) return null;
+  const token = localStorage.getItem("token");
+  return getApiUrl(`${selfiePath}?token=${token}`);
 };
