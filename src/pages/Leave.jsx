@@ -28,6 +28,7 @@ import {
   getStoredUser,
   canMarkAttendance as roleCanManageLeaveRequests,
   canEditLeaveBalances,
+  hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import "./Leave.css";
 
@@ -124,15 +125,24 @@ function Leave() {
   const canManageLeave = roleCanManageLeaveRequests(user?.role);
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
+  const canApplyForSelf = hasLinkedEmployeeProfile(user);
 
   const summary = dashboard?.summary || {};
   const upcoming = useMemo(() => dashboard?.upcoming || [], [dashboard?.upcoming]);
   const pendingApprovals = dashboard?.pendingApprovals || [];
 
   const matchesUser = useCallback((item) => {
+    const itemEmpId = item.employeeId?._id || item.employeeId;
+    if (
+      user?.employeeId &&
+      itemEmpId &&
+      String(itemEmpId) === String(user.employeeId)
+    ) {
+      return true;
+    }
     const empName = item.employeeId?.name?.toLowerCase?.();
     return empName && empName === user?.name?.toLowerCase?.();
-  }, [user?.name]);
+  }, [user?.employeeId, user?.name]);
 
   const myRequests = useMemo(() => {
     const filtered = requests.filter(matchesUser);
@@ -205,12 +215,12 @@ function Leave() {
     setBalanceForm((prev) => ({ ...prev, ...nextForm }));
   }, [balances, selectedBalanceEmployee]);
 
-  const handleCreateRequest = async (e) => {
+  const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
     setMessage("");
     try {
       const payload = { ...leaveForm };
-      if (!canManageLeave || user?.role === "Employee") {
+      if (forSelf || !canManageLeave || user?.role === "Employee") {
         delete payload.employeeId;
       }
       await createLeaveRequest(payload);
@@ -268,12 +278,15 @@ function Leave() {
     }
   };
 
-  const renderCreateRequestForm = (employeeList, showEmployeeSelect) => (
+  const renderCreateRequestForm = (employeeList, showEmployeeSelect, forSelf = false) => (
     <section className="leave-card">
       <h3>
-        <Plus size={16} /> Create Request
+        <Plus size={16} /> {forSelf ? "Apply for My Leave" : "Create Request"}
       </h3>
-      <form className="leave-request-form" onSubmit={handleCreateRequest}>
+      <form
+        className="leave-request-form"
+        onSubmit={(e) => handleCreateRequest(e, forSelf)}
+      >
         {showEmployeeSelect ? (
           <select
             value={leaveForm.employeeId}
@@ -520,6 +533,36 @@ function Leave() {
     </section>
   );
 
+  const renderMyLeaveSection = () => {
+    if (!canApplyForSelf) {
+      return (
+        <section className="leave-card leave-self-notice">
+          <h3>My Leave</h3>
+          <p className="leave-empty">
+            Link your user account to an employee profile to apply for leave and
+            view your personal balances.
+          </p>
+        </section>
+      );
+    }
+
+    return (
+      <section className="leave-self-section">
+        <h2 className="leave-section-heading">My Leave</h2>
+        <div className="leave-layout-grid">
+          {renderCreateRequestForm([], false, true)}
+          {renderPersonalBalances()}
+        </div>
+        {renderRequestsTable({
+          title: "My Recent Requests",
+          items: myRecentRequests,
+          mode: "employee",
+        })}
+        {renderUpcomingList(myUpcoming, "You have no upcoming leave")}
+      </section>
+    );
+  };
+
   const renderAllRequestsTable = (items, title = "All Requests") => (
     <section className="leave-card">
       <h3>{title}</h3>
@@ -583,6 +626,7 @@ function Leave() {
 
   const renderHRView = () => (
     <>
+      {renderMyLeaveSection()}
       <div className="leave-hr-actions">
         <button type="button" className="leave-hr-btn">
           <ShieldCheck size={16} />
@@ -620,6 +664,7 @@ function Leave() {
 
   const renderManagerView = () => (
     <>
+      {renderMyLeaveSection()}
       <div className="leave-role-banner manager">
         <Users size={18} />
         <span>
@@ -663,18 +708,7 @@ function Leave() {
           balance: "My Balance",
         }}
       />
-      <div className="leave-layout-grid">
-        {renderCreateRequestForm([], false)}
-        {renderUpcomingList(myUpcoming, "You have no upcoming leave")}
-      </div>
-      <div className="leave-layout-grid">
-        {renderRequestsTable({
-          title: "My Recent Requests",
-          items: myRecentRequests,
-          mode: "employee",
-        })}
-        {renderPersonalBalances()}
-      </div>
+      {renderMyLeaveSection()}
     </>
   );
 

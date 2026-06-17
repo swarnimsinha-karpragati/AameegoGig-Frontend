@@ -67,3 +67,5 @@ export const canManageEmployees = (role) =>
 
 export const canEditLeaveBalances = (role) =>
   role === "Admin" || role === "HR";
+
+export const hasLinkedEmployeeProfile = (user) => Boolean(user?.employeeId);
