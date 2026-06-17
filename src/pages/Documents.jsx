@@ -20,6 +20,7 @@ import {
     deleteDocument,
     viewDocument,
     downloadDocument,
+    getEmployeeDocuments,
   } from "../services/documentService";
   
   function Documents() {
@@ -50,21 +51,51 @@ import {
   
     const categories = [
       "All",
+      "General",
       "Policy",
       "Legal",
       "Finance",
-      "General",
+      "Salary Slip",
     ];
+
+    const [loggedInUser,setLoggedInUser] = useState(null)
+
+    /* ==========================================================================
+   1. INITIALIZE USER FROM LOCALSTORAGE
+   ========================================================================== */
+    useEffect(() => {
+      try { 
+
+        const storedUserData = localStorage.getItem("user");
+        
+        if (storedUserData) {
+          
+          const parsedUser = JSON.parse(storedUserData);
+          
+         
+          setLoggedInUser({
+            id: parsedUser.id || parsedUser._id, 
+            employeeId: parsedUser.employeeId, 
+            name: parsedUser.name || "Workspace User",
+            role: parsedUser.role?.toLowerCase() || "employee",
+            vendorId: parsedUser.vendorId || "6a2a49e3baf7ebc467381bf3"
+          });
+        }
+      } catch (error) {
+        console.error("Error loading user data from localStorage:", error);
+      }
+    }, []);
   
     /* =========================
        FETCH DOCUMENTS
     ========================= */
     const fetchDocuments =
       async () => {
+        if (!loggedInUser || !loggedInUser.employeeId) return;
         try {
     
           const res =
-            await getDocuments();
+            await getEmployeeDocuments(loggedInUser?.employeeId);
   
           setDocuments(
             res.data.documents || []
@@ -80,7 +111,7 @@ import {
   
     useEffect(() => {
       fetchDocuments();
-    }, []);
+    }, [loggedInUser]);
   
     /* =========================
        GET ICON
@@ -119,82 +150,82 @@ import {
     /* =========================
        DELETE DOCUMENT
     ========================= */
-    const handleDelete =
-      async (id) => {
-        const confirmDelete =
-          window.confirm(
-            "Are you sure you want to delete this document?"
-          );
+    // const handleDelete =
+    //   async (id) => {
+    //     const confirmDelete =
+    //       window.confirm(
+    //         "Are you sure you want to delete this document?"
+    //       );
   
-        if (!confirmDelete)
-          return;
+    //     if (!confirmDelete)
+    //       return;
   
-        try {
-          await deleteDocument(
-            id
-          );
+    //     try {
+    //       await deleteDocument(
+    //         id
+    //       );
   
-          alert(
-            "Document deleted successfully"
-          );
+    //       alert(
+    //         "Document deleted successfully"
+    //       );
   
-          fetchDocuments();
-        } catch (error) {
-          alert(
-            error.response?.data
-              ?.message ||
-              "Delete failed"
-          );
-        }
-      };
+    //       fetchDocuments();
+    //     } catch (error) {
+    //       alert(
+    //         error.response?.data
+    //           ?.message ||
+    //           "Delete failed"
+    //       );
+    //     }
+    //   };
   
       /* =======================
       UPLOAD DOCUMENT
       ========================*/
 
-      const handleUpload = async () => {
-        if (!uploadFile) {
-          alert("Please select a file");
-          return;
-        }
+      // const handleUpload = async () => {
+      //   if (!uploadFile) {
+      //     alert("Please select a file");
+      //     return;
+      //   }
       
-        try {
-          setLoading(true);
+      //   try {
+      //     setLoading(true);
       
-          const res = await uploadDocument(
-            uploadFile,
-            category
-          );
+      //     const res = await uploadDocument(
+      //       uploadFile,
+      //       category
+      //     );
       
-          setUploadMessage(
-            res.data.message ||
-              "Document uploaded successfully"
-          );
+      //     setUploadMessage(
+      //       res.data.message ||
+      //         "Document uploaded successfully"
+      //     );
       
-          setUploadFile(null);
-          setCategory("General");
-          setShowUploadModal(false);
+      //     setUploadFile(null);
+      //     setCategory("General");
+      //     setShowUploadModal(false);
       
-          fetchDocuments();
-        } catch (error) {
-                if (
-                  error.response?.data?.message?.includes(
-                    "File too large"
-                  )
-                ) {
-                  alert(
-                    "File size should be less than 20 MB"
-                  );
-                } else {
-                  alert(
-                    error.response?.data?.message ||
-                    "Upload failed"
-                  );
-              }
-        } finally {
-          setLoading(false);
-        }
-      };
+      //     fetchDocuments();
+      //   } catch (error) {
+      //           if (
+      //             error.response?.data?.message?.includes(
+      //               "File too large"
+      //             )
+      //           ) {
+      //             alert(
+      //               "File size should be less than 20 MB"
+      //             );
+      //           } else {
+      //             alert(
+      //               error.response?.data?.message ||
+      //               "Upload failed"
+      //             );
+      //         }
+      //   } finally {
+      //     setLoading(false);
+      //   }
+      // };
       
     /* =========================
        FILTER DOCUMENTS
@@ -259,7 +290,7 @@ import {
                 </p>
               </div>
     
-              <button
+              {/* <button
   className="upload-document-btn"
   onClick={() =>
     setShowUploadModal(true)
@@ -267,15 +298,15 @@ import {
 >
   <Upload size={18} />
   Upload Document
-</button>
+</button> */}
             </div>
     
-            {/* MESSAGE */}
+            {/* MESSAGE
             {uploadMessage && (
               <p className="success">
                 {uploadMessage}
               </p>
-            )}
+            )} */}
     
             {/* SEARCH + FILTER */}
             <div className="documents-toolbar-card">
@@ -409,7 +440,7 @@ import {
                             />
                           </button>
     
-                          <button
+                          {/* <button
                             className="delete"
                             onClick={() =>
                               handleDelete(
@@ -422,7 +453,7 @@ import {
                                 16
                               }
                             />
-                          </button>
+                          </button> */}
                         </div>
                       </div>
                     </div>
@@ -436,7 +467,7 @@ import {
               )}
             </div>
           </div>
-          {showUploadModal && (
+          {/* {showUploadModal && (
   <div className="modal-overlay">
       <div className="upload-modal">
   <h2>Upload Document</h2>
@@ -503,7 +534,7 @@ import {
   </div>
 </div>
   </div>
-)}
+)} */}
         </MainLayout>
       );
     }
