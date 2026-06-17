@@ -15,6 +15,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
+import SelfieCapture from "../components/SelfieCapture";
 import { getEmployees } from "../services/employeeService";
 import {
   getMonthlyAttendance,
@@ -23,6 +24,7 @@ import {
   checkInAttendance,
   checkOutAttendance,
   summarizeAttendanceSessions,
+  getCheckInSelfieUrl,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -407,6 +409,8 @@ function Attendance() {
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [checkInMessage, setCheckInMessage] = useState("");
+  const [showSelfieModal, setShowSelfieModal] = useState(false);
+  const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [markForm, setMarkForm] = useState({
     employeeId: "",
     status: "Present",
@@ -560,6 +564,16 @@ function Attendance() {
     return match ? [match] : [];
   }, [selectedDay, dayRecords, isEmployeeView, user]);
 
+  const myLatestCheckInSelfieUrl = useMemo(() => {
+    const sessions = myTodayRow.sessions || [];
+    for (let i = sessions.length - 1; i >= 0; i -= 1) {
+      if (sessions[i]?.checkInSelfieUrl) {
+        return getCheckInSelfieUrl(sessions[i].checkInSelfieUrl);
+      }
+    }
+    return null;
+  }, [myTodayRow]);
+
   const shiftMonth = (delta) => {
     setSaveMessage("");
     setCheckInMessage("");
@@ -603,17 +617,25 @@ function Attendance() {
     }
   };
 
-  const handleCheckIn = async () => {
+  const handleCheckIn = () => {
+    setCheckInMessage("");
+    setShowSelfieModal(true);
+  };
+
+  const handleSelfieCapture = async (selfieBlob) => {
+    setCheckInSubmitting(true);
     setCheckInMessage("");
     setActionLoading(true);
     try {
-      const res = await checkInAttendance();
+      const res = await checkInAttendance(selfieBlob);
       setCheckInMessage(res.message || "Checked in successfully");
+      setShowSelfieModal(false);
       await loadMonthData();
     } catch (err) {
       setCheckInMessage(err.response?.data?.message || "Unable to check in");
     } finally {
       setActionLoading(false);
+      setCheckInSubmitting(false);
     }
   };
 
@@ -746,6 +768,13 @@ function Attendance() {
           </button>
         </div>
         {checkInMessage ? <p className="attendance-save-msg">{checkInMessage}</p> : null}
+
+        {myLatestCheckInSelfieUrl ? (
+          <div className="attendance-checkin-selfie">
+            <span className="attendance-checkin-label">Latest check-in selfie</span>
+            <img src={myLatestCheckInSelfieUrl} alt="Latest check-in selfie" />
+          </div>
+        ) : null}
 
         <div className="attendance-today-sessions">
           <div className="attendance-today-sessions-header">
@@ -968,6 +997,17 @@ function Attendance() {
 
         {error ? <p className="attendance-error">{error}</p> : null}
         {roleViews[viewRole]?.()}
+
+        <SelfieCapture
+          open={showSelfieModal}
+          onClose={() => {
+            if (!checkInSubmitting) {
+              setShowSelfieModal(false);
+            }
+          }}
+          onCapture={handleSelfieCapture}
+          submitting={checkInSubmitting}
+        />
       </div>
     </MainLayout>
   );
