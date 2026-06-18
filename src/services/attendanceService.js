@@ -127,8 +127,14 @@ export const bulkMarkToday = async (records) => {
   return res.data;
 };
 
+
+
 export const getCheckInSelfieUrl = (selfiePath) => {
   if (!selfiePath) return null;
+
   const token = localStorage.getItem("token");
-  return getApiUrl(`${selfiePath}?token=${token}`);
+
+  return getApiUrl(
+    `${selfiePath}${selfiePath.includes("?") ? "&" : "?"}token=${token}`
+  );
 };
