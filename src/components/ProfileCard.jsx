@@ -383,7 +383,7 @@ export default function ProfileCard() {
                   setShowOptions(false);
                 }}
               >
-                🖼️ Choose From Gallery
+                Choose From Gallery
               </button>
 
               <button
@@ -393,7 +393,7 @@ export default function ProfileCard() {
                   setShowOptions(false);
                 }}
               >
-                📷 Open Camera
+                Open Camera
               </button>
             </div>
           </div>
