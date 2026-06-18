@@ -30,6 +30,7 @@ export const ROUTE_ACCESS = {
   "/leave": ["Admin", "HR", "Manager", "Employee"],
   "/payroll": ["Admin", "HR"],
   "/documents": ["Admin", "HR", "Manager", "Employee"],
+  "/expenses": ["Admin", "HR", "Manager", "Employee"],
   "/settings": ["Admin", "HR", "Manager", "Employee"],
 };
 
@@ -69,3 +70,16 @@ export const canEditLeaveBalances = (role) =>
   role === "Admin" || role === "HR";
 
 export const hasLinkedEmployeeProfile = (user) => Boolean(user?.employeeId);
+
+export const canApproveExpenses = (role) =>
+  role === "Admin" || role === "HR" || role === "Manager";
+
+export const canManageExpensePolicy = (role) =>
+  role === "Admin" || role === "HR";
+
+export const getExpenseViewKey = (role) => {
+  if (role === "Admin") return "Organization";
+  if (role === "HR") return "HR";
+  if (role === "Manager") return "Manager";
+  return "Employee";
+};
