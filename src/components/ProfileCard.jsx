@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Camera,
   Mail,
@@ -21,6 +21,7 @@ export default function ProfileCard() {
   const [department, setDepartment] = useState("");
   const [role, setRole] = useState("");
   const [isFormDisabled, setIsFormDisabled] = useState(true);
+  
 
   function InputField({
     icon,
@@ -28,7 +29,10 @@ export default function ProfileCard() {
     value,
     onChange,
     placeholder
-  }) {
+  })
+    
+  
+  {
     return (
       <div>
 

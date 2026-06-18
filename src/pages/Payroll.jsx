@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import kpLogo from "../assets/kpLogo.png";
-import { createBulkPayrollEntry } from "../services/payrollService";
+// import { createBulkPayrollEntry } from "../services/payrollService";
 import { bulkUploadPayrollEntries, getSalarySlip } from "../services/payrollService";
 import { getPaymentHistory } from "../services/payrollService";
-import * as XLSX from "xlsx";
+// import * as XLSX from "xlsx";
 import {
   Wallet,
   TrendingUp,
@@ -42,10 +42,15 @@ export default function Payroll() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
   const [tableData, setTableData] = useState([]);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [appliedFromDate, setAppliedFromDate] = useState("");
+  const [appliedToDate, setAppliedToDate] = useState("");
 
   /*--------- pdf start ---------*/
 
   const generateSalarySlip = (data) => {
+    console.log("data----", data)
     const doc = new jsPDF("p", "mm", "a4");
 
     doc.addImage(kpLogo, "JPEG", 80, 5, 50, 25);
@@ -203,7 +208,7 @@ export default function Payroll() {
       { align: "center" },
     );
 
-    doc.save(`${data.empId}-SalarySlip.pdf`);
+    doc.save(`${data.empId}-SalarySlip.pdf`);     // comment to stop pdf generation
   };
 
   /*--------- pdf end ---------*/
@@ -425,6 +430,10 @@ export default function Payroll() {
     setSearchEmployee("");
     setSelectedMonth("");
     setJoiningDate("");
+    setFromDate("");
+  setToDate("");
+  setAppliedFromDate("");
+  setAppliedToDate("");
   };
   const totalPayroll = payrollHistory.reduce((sum, item) => {
     return sum + Number(item.amount || 0);
@@ -459,7 +468,24 @@ export default function Payroll() {
       else if (selectedMonth === "last1") monthMatch = diffMonths === 1;
       else if (selectedMonth === "last2") monthMatch = diffMonths === 2;
       else if (selectedMonth === "last3") monthMatch = diffMonths === 3;
+
+      else if (
+  selectedMonth === "custom" &&
+  appliedFromDate &&
+  appliedToDate
+) {
+  const from = new Date(appliedFromDate);
+  const to = new Date(appliedToDate);
+
+  from.setHours(0, 0, 0, 0);
+  to.setHours(23, 59, 59, 999);
+
+  monthMatch =
+    paymentDate >= from &&
+    paymentDate <= to;
+}
     }
+    
 
     console.log({
       "checking refNo match for": searchValue,
@@ -469,6 +495,11 @@ export default function Payroll() {
 
     return employeeMatch && joiningMatch && monthMatch;
   });
+
+  const handleCustomDateSearch = () => {
+  setAppliedFromDate(fromDate);
+  setAppliedToDate(toDate);
+};
 
   return (
     <MainLayout>
@@ -631,127 +662,164 @@ export default function Payroll() {
         {/* HISTORY CARD */}
 
         <div className="history-card">
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            {/* <h2 className="history-title">Payroll History</h2> */}
-            {/* <div className="history-filters"> */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "15px",
-                gap: "10px",
-                flexWrap: "wrap",
-              }}
-            >
-              <h2 style={{ margin: 0 }} className="history-title">
-                {/* Payroll History */}
-                Employee Payment Records
-              </h2>
+  <div className="history-header">
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                {/* Employee Search */}
-                <input
-                  type="text"
-                  placeholder="Search Name, Ref No or Mobile No"
-                  value={searchEmployee}
-                  onChange={(e) => setSearchEmployee(e.target.value)}
-                  className="filter-input"
-                />
+    <h2 className="history-title">
+      Employee Payment Records
+    </h2>
 
-                {/* Last 3 Months Filter */}
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="filter-select"
-                >
-                  <option value="">All Months</option>
-                  <option value="current">Current Month</option>
-                  <option value="last1">Last Month</option>
-                  <option value="last2">2 Months Ago</option>
-                  <option value="last3">3 Months Ago</option>
-                </select>
+    <div className="history-filters">
 
-                {/* Date of Joining */}
-                <input
-                  type="date"
-                  value={joiningDate}
-                  onChange={(e) => setJoiningDate(e.target.value)}
-                  className="filter-input"
-                />
+      {/* Search */}
+      <input
+        type="text"
+        placeholder="Name / Ref No / Mobile"
+        value={searchEmployee}
+        onChange={(e) => setSearchEmployee(e.target.value)}
+        className="filter-input"
+      />
 
-                {/* Download CSV */}
-                <button
-                  className="create-payroll-btn"
-                  onClick={handleDownloadCSV}
-                  type="button"
-                >
-                  Download CSV
-                </button>
+      {/* Month / Date Filter */}
+      <select
+        value={selectedMonth}
+        onChange={(e) => setSelectedMonth(e.target.value)}
+        className="filter-select"
+      >
+        <option value="">All Records</option>
+        <option value="current">Current Month</option>
+        <option value="last1">Last Month</option>
+        <option value="last2">2 Months Ago</option>
+        <option value="last3">3 Months Ago</option>
+        <option value="custom">Custom Date</option>
+      </select>
 
-                {/* Reset Filters */}
-                <button
-                  className="create-payroll-btn reset-btn"
-                  onClick={handleResetFilters}
-                  type="button"
-                >
-                  Reset Filters
-                </button>
-              </div>
-            </div>
-          </div>
+      {/* Download */}
+      <button
+        className="gradient-btn"
+        onClick={handleDownloadCSV}
+        type="button"
+      >
+        Download CSV
+      </button>
 
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>EMP ID</th>
-                <th>BENEFICIARY NAME</th>
-                <th>AMOUNT</th>
-                <th>ACCOUNT NUMBER</th>
-                <th>IFSC</th>
-                <th>PAYMENT DATE</th>
-                <th>YEAR</th>
-                <th>STATUS</th>
-              </tr>
-            </thead>
+      {/* Reset */}
+      <button
+        className="gradient-btn"
+        onClick={handleResetFilters}
+        type="button"
+      >
+        Reset Filters
+      </button>
 
-            <tbody>
-              {filteredPayrollHistory?.length > 0 ? (
-                filteredPayrollHistory.map((item) => (
-                  <tr key={item._id}>
-                    <td>{item.refNo || "-"}</td>
-                    <td>{item.beneficiaryName || "-"}</td>
-                    <td>₹{item.amount ?? 0}</td>
-                    <td>{item.accountNo || "-"}</td>
-                    <td>{item.ifsc || "-"}</td>
-                    <td>
-                      {item.paymentDate
-                        ? new Date(item.paymentDate).toLocaleDateString()
-                        : "-"}
-                    </td>
-                    <td>{item.year || "-"}</td>
-                    <td>
-                      <span className="status-badge">{item.status}</span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="8" style={{ textAlign: "center" }}>
-                    No payroll data found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+    </div>
+
+    {/* Custom Date Row */}
+    {/* {selectedMonth === "custom" && (
+      <div className="custom-date-row">
+
+        <div className="date-group">
+          <label>From</label>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="filter-input"
+          />
         </div>
+
+        <div className="date-group">
+          <label>To</label>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="filter-input"
+          />
+        </div>
+
+      </div>
+    )} */}
+
+      {selectedMonth === "custom" && (
+  <div className="custom-date-row">
+
+    <div className="date-group">
+      <label>From</label>
+      <input
+        type="date"
+        value={fromDate}
+        onChange={(e) => setFromDate(e.target.value)}
+        className="filter-input"
+      />
+    </div>
+
+    <div className="date-group">
+      <label>To</label>
+      <input
+        type="date"
+        value={toDate}
+        onChange={(e) => setToDate(e.target.value)}
+        className="filter-input"
+      />
+    </div>
+
+    <button
+      className="gradient-btn"
+      onClick={handleCustomDateSearch}
+      type="button"
+      style={{ marginTop: "24px" }}
+    >
+      Search
+    </button>
+
+  </div>
+)}
+  </div>
+
+  <table className="history-table">
+    <thead>
+      <tr>
+        <th>EMP ID</th>
+        <th>BENEFICIARY NAME</th>
+        <th>AMOUNT</th>
+        <th>ACCOUNT NUMBER</th>
+        <th>IFSC</th>
+        <th>PAYMENT DATE</th>
+        <th>YEAR</th>
+        <th>STATUS</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {filteredPayrollHistory?.length > 0 ? (
+        filteredPayrollHistory.map((item) => (
+          <tr key={item._id}>
+            <td>{item.refNo || "-"}</td>
+            <td>{item.beneficiaryName || "-"}</td>
+            <td>₹{Number(item.amount ?? 0).toLocaleString("en-IN")}</td>
+            <td>{item.accountNo || "-"}</td>
+            <td>{item.ifsc || "-"}</td>
+            <td>
+              {item.paymentDate
+                ? new Date(item.paymentDate).toLocaleDateString()
+                : "-"}
+            </td>
+            <td>{item.year || "-"}</td>
+            <td>
+              <span className="status-badge">{item.status}</span>
+            </td>
+          </tr>
+        ))
+      ) : (
+        <tr>
+          <td colSpan="8" style={{ textAlign: "center" }}>
+            No payroll data found
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
 
         {tableData.length > 0 && (
   <table className="history-table">
