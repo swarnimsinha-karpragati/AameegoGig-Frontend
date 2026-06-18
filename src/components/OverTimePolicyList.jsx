@@ -93,7 +93,7 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
           <table className="ot-table">
             <thead>
               <tr>
-                <th>Policy Name</th>
+                <th>Policy Department</th>
                 <th>Interval</th>
                 <th>Action Rule</th>
                 <th>Details</th>
@@ -106,7 +106,7 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
                 const currentId = policy?._id || policy?.id;
                 return (
                   <tr key={currentId}>
-                    <td className="ot-td-bold">{policy?.policyName}</td>
+                    <td className="ot-td-bold">{policy?.policyDepartment}</td>
                     <td>
                       <span className="ot-badge-gray">{policy?.triggerType}</span>
                     </td>
