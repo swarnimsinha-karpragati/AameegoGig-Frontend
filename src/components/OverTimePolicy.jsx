@@ -4,7 +4,7 @@ import { createOvertimePolicy, updateOvertimePolicy } from '../services/settingS
 
 export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel }) => {
   const initialFormState = {
-    policyName: '',
+    policyDepartment: '',
     OverTimeAction: 'Increase Salary', 
     triggerType: 'Daily',
     rateMultiplier: 1,
@@ -13,6 +13,8 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
     applicableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
   };
 
+  const dummyDepartment = ['HR', 'Finance', 'Operations', 'Sales', 'Marketing', 'IT'];
+
   const [policyData, setPolicyData] = useState(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState({ type: '', message: '' });
@@ -20,7 +22,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
   useEffect(() => {
     if (editingPolicy) {
       setPolicyData({
-        policyName: editingPolicy.policyName || '',
+        policyDepartment: editingPolicy.policyDepartment || '',
         OverTimeAction: editingPolicy.OverTimeAction || 'Increase Salary',
         triggerType: editingPolicy.triggerType || 'Daily',
         rateMultiplier: editingPolicy.rateMultiplier || 1,
@@ -76,8 +78,8 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
     setSubmitStatus({ type: '', message: '' });
 
     try {
-      if (!policyData.policyName.trim()) {
-        throw new Error("Policy name is required.");
+      if (!policyData?.policyDepartment.trim()) {
+        throw new Error("Policy department is required.");
       }
 
       const halfDayHours = Number(policyData.halfDayThresholdHours) || 0;
@@ -94,7 +96,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
 
       const payload = {
         vendorId: vendorId,
-        policyName: policyData.policyName.trim(),
+        policyDepartment: policyData.policyDepartment.trim(),
         OverTimeAction: policyData.OverTimeAction,
         triggerType: policyData.triggerType,
         rateMultiplier: Number(policyData.rateMultiplier) || 1,
@@ -154,16 +156,21 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
           <h3>1. Tracking Metrics</h3>
           <div className="ot-bg-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
-              <label className="ot-label">Policy Name</label>
-              <input
-                type="text"
-                name="policyName"
-                placeholder="e.g., Standard Weekday Overtime"
-                value={policyData.policyName}
+              <label className="ot-label">Policy Department</label>
+              <select
+                name="policyDepartment"
+                value={policyData?.policyDepartment}
                 onChange={handleInputChange}
-                className="ot-input"
+                className="ot-select"
                 required
-              />
+              >
+                <option value="">Select a department</option>
+                {dummyDepartment.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="ot-grid-2">
