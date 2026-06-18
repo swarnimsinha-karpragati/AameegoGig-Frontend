@@ -1,7 +1,7 @@
-/* Container Layout Split */
+
 .shift-manager-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   gap: 40px;
   width: 100%;
   margin: 0 auto;
@@ -73,11 +73,11 @@ input:focus {
 
 .form-actions {
   display: flex;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 0.75rem;
   margin-top: 10px;
 }
 
-/* Button Classes */
 button {
   padding: 10px 16px;
   border: none;
@@ -91,31 +91,37 @@ button {
 .btn-primary {
   background-color: #2563eb;
   color: white;
-  flex: 2;
+  padding: 0.625rem 1.25rem;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: #1d4ed8;
 }
 
 .btn-secondary {
-  background-color: #e2e8f0;
+  background-color: #ffffff;
   color: #475569;
-  flex: 1;
+  border: 1px solid #d1d5db;
+  padding: 0.625rem 1.25rem;
 }
 
-.btn-secondary:hover {
-  background-color: #cbd5e1;
+.btn-secondary:hover:not(:disabled) {
+  background-color: #f9fafb;
 }
 
-/* Grid layout for Cards */
+button:disabled,
+input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .shifts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
 
-.no-shifts {
+.no-shifts, .loading-shifts {
   color: #64748b;
   font-style: italic;
 }
@@ -201,35 +207,43 @@ button {
   color: #dc2626;
 }
 
-.shift-card-actions {
+/* Card Action Button Row Utilities */
+.shift-card-actions-wrapper {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
   display: flex;
-  gap: 8px;
-  border-top: 1px solid #f1f5f9;
-  padding-top: 12px;
+  gap: 0.5rem;
+  justify-content: flex-end;
 }
 
-.shift-card-actions button {
-  flex: 1;
-  padding: 6px 10px;
-  font-size: 0.8rem;
+.shift-action-btn-edit,
+.shift-action-btn-delete {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  font-weight: 500;
 }
 
-.btn-edit {
-  background-color: #f1f5f9;
-  color: #334155;
+.shift-action-btn-edit {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+  color: #374151;
 }
 
-.btn-edit:hover {
-  background-color: #e2e8f0;
+.shift-action-btn-edit:hover:not(:disabled) {
+  background-color: #e5e7eb;
 }
 
-.btn-delete {
+.shift-action-btn-delete {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.shift-action-btn-delete:hover:not(:disabled) {
   background-color: #fee2e2;
-  color: #ef4444;
-}
-
-.btn-delete:hover {
-  background-color: #fecaca;
 }
 
 /* Responsive adjustment */
@@ -237,4 +251,8 @@ button {
   .shift-manager-container {
     flex-direction: column;
   }
+}
+
+.shift-form-section {
+  scroll-margin-top: 2rem;
 }

@@ -89,7 +89,10 @@ const EMPLOYEE_FORM_SECTIONS = [
   },
 ];
 
+
 function EmpModal({ title, onClose, size = "lg", children, footer }) {
+
+
   return (
     <div
       className="emp-modal-overlay"
