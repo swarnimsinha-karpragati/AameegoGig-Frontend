@@ -16,7 +16,8 @@ export const API_ENVIRONMENTS = {
 };
 
 /** Fallback preset when no env variable is set */
-export const DEFAULT_API_ENV = "production";
+export const DEFAULT_API_ENV = "local";
+// export const DEFAULT_API_ENV = "production";
 
 const trimTrailingSlash = (url) => url.replace(/\/$/, "");
 
@@ -62,6 +63,7 @@ export const API_CONFIG = {
 export const getApiUrl = (path = "") => {
   if (!path) return API_BASE_URL;
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  console.log('---api---->', API_BASE_URL, normalizedPath);
   return `${API_BASE_URL}${normalizedPath}`;
 };
 
