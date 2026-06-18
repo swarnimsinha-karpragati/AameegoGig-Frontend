@@ -67,3 +67,7 @@
   }
 
 }
+
+.ot-form-scroll-target {
+  scroll-margin-top: 1rem;
+}
