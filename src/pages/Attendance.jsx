@@ -461,7 +461,7 @@ function Attendance() {
 
   const toast = useToast();
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
-  const openModal = (config) => setModal({ open: true, ...config });
+  // const openModal = (config) => setModal({ open: true, ...config }); // reserved for future use
 
   const canMarkAttendance = roleCanMarkAttendance(user?.role);
   const isEmployeeView = viewRole === "Employee";

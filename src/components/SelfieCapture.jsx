@@ -65,7 +65,8 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
           : "Unable to access camera. Please try again."
       );
     }
-  }, [resetCapture, stopCamera]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopCamera]);
 
   useEffect(() => {
     if (open) {

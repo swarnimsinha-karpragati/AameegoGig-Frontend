@@ -32,7 +32,7 @@ import {
   getStoredUser,
   getExpenseViewKey,
   canApproveExpenses,
-  canManageExpensePolicy,
+  // canManageExpensePolicy,  // reserved for expense policy management feature
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import "./Expense.css";
