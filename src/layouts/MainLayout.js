@@ -9,6 +9,7 @@ import {
   FileText,
   Settings,
   Building2,
+  ReceiptText,
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
@@ -44,6 +45,10 @@ function MainLayout({ children }) {
     "/payroll": {
       title: "Payroll",
       subtitle: "Manage salaries and payroll processing.",
+    },
+    "/expenses": {
+      title: "Expenses",
+      subtitle: "Submit and manage expense claims.",
     },
     "/documents": {
       title: "Documents",
@@ -88,6 +93,11 @@ function MainLayout({ children }) {
       label: "Payroll",
       path: "/payroll",
       icon: Wallet,
+    },
+    {
+      label: "Expenses",
+      path: "/expenses",
+      icon: ReceiptText,
     },
     {
       label: "Documents",

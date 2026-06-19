@@ -16,6 +16,8 @@ import {
   MapPin,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
+import ConfirmModal from "../components/ConfirmModal";
+import { ToastProvider, useToast } from "../components/Toast";
 import SelfieCapture from "../components/SelfieCapture";
 import { getEmployees } from "../services/employeeService";
 import {
@@ -435,11 +437,9 @@ function Attendance() {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
-  const [saveMessage, setSaveMessage] = useState("");
-  const [checkInMessage, setCheckInMessage] = useState("");
   const [showSelfieModal, setShowSelfieModal] = useState(false);
-  const [attendanceAction, setAttendanceAction] =
-  useState("checkin");
+  const [attendanceAction, setAttendanceAction] = useState("checkin");
+  const [checkInMessage, setCheckInMessage] = useState("");
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [markForm, setMarkForm] = useState({
     employeeId: "",
@@ -448,6 +448,20 @@ function Attendance() {
     checkOut: "",
     notes: "",
   });
+
+  /* ── Confirm modal ── */
+  const [modal, setModal] = useState({
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirm",
+    variant: "danger",
+    onConfirm: null,
+  });
+
+  const toast = useToast();
+  const closeModal = () => setModal((m) => ({ ...m, open: false }));
+  // const openModal = (config) => setModal({ open: true, ...config }); // reserved for future use
 
   const canMarkAttendance = roleCanMarkAttendance(user?.role);
   const isEmployeeView = viewRole === "Employee";
@@ -635,8 +649,6 @@ console.log(myLatestCheckInSelfieUrl);
   }, [myTodayRow]);
 
   const shiftMonth = (delta) => {
-    setSaveMessage("");
-    setCheckInMessage("");
     setViewDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1)
     );
@@ -657,9 +669,8 @@ console.log(myLatestCheckInSelfieUrl);
 
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
-    setSaveMessage("");
     if (!markForm.employeeId) {
-      setSaveMessage("Please select an employee");
+      toast.warning("Please select an employee");
       return;
     }
 
@@ -670,10 +681,10 @@ console.log(myLatestCheckInSelfieUrl);
         checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
         date: new Date().toISOString(),
       });
-      setSaveMessage("Attendance saved successfully");
+      toast.success("Attendance saved successfully");
       loadMonthData();
     } catch (err) {
-      setSaveMessage(err.response?.data?.message || "Unable to save attendance");
+      toast.error(err.response?.data?.message || "Unable to save attendance");
     }
   };
 
@@ -685,30 +696,21 @@ console.log(myLatestCheckInSelfieUrl);
   
   const handleSelfieCapture = async (selfieBlob) => {
     setCheckInSubmitting(true);
-    setCheckInMessage("");
     setActionLoading(true);
   
     try {
       setCheckInMessage("Detecting your location...");
   
       const location = await getAttendanceLocation(
-        attendanceAction === "checkin"
-          ? "check in"
-          : "check out"
+        attendanceAction === "checkin" ? "check in" : "check out"
       );
   
       let res;
   
       if (attendanceAction === "checkin") {
-        res = await checkInAttendance(
-          selfieBlob,
-          location
-        );
+        res = await checkInAttendance(selfieBlob, location);
       } else {
-        res = await checkOutAttendance(
-          selfieBlob,
-          location
-        );
+        res = await checkOutAttendance(selfieBlob, location);
       }
   
       setCheckInMessage(
@@ -723,21 +725,17 @@ console.log(myLatestCheckInSelfieUrl);
       await loadMonthData();
   
     } catch (err) {
-  
       setCheckInMessage(
         err.message ||
         err.response?.data?.message ||
         "Unable to process attendance"
       );
-  
     } finally {
-  
       setActionLoading(false);
       setCheckInSubmitting(false);
-  
     }
   };
-  
+
   const handleCheckOut = () => {
     setCheckInMessage("");
     setAttendanceAction("checkout");
@@ -860,64 +858,54 @@ console.log(myLatestCheckInSelfieUrl);
         </div>
         {checkInMessage ? <p className="attendance-save-msg">{checkInMessage}</p> : null}
         {myLatestCheckInSelfieUrl ||
-myLatestCheckOutSelfieUrl ||
-myLatestCheckInLocation ? (
-
-  <div className="attendance-checkin-proof">
-
-    {myLatestCheckInSelfieUrl ? (
-      <div className="attendance-checkin-selfie">
-        <span className="attendance-checkin-label">
-          Latest check-in selfie
-        </span>
-
-        <img
-          src={myLatestCheckInSelfieUrl}
-          alt="Latest check-in selfie"
-        />
-      </div>
-    ) : null}
-
-    {myLatestCheckOutSelfieUrl ? (
-      <div className="attendance-checkin-selfie">
-        <span className="attendance-checkin-label">
-          Latest check-out selfie
-        </span>
-
-        <img
-          src={myLatestCheckOutSelfieUrl}
-          alt="Latest check-out selfie"
-        />
-      </div>
-    ) : null}
-
-    {myLatestCheckInLocation ? (
-      <div className="attendance-checkin-location">
-        <span className="attendance-checkin-label">
-          Latest check-in location
-        </span>
-
-        <a
-          href={myLatestCheckInLocation.mapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="attendance-checkin-location-link"
-        >
-          <MapPin size={16} />
-
-          <span>
-            {myLatestCheckInLocation.label}
-            {myLatestCheckInLocation.accuracy
-              ? ` (${myLatestCheckInLocation.accuracy})`
-              : ""}
-          </span>
-        </a>
-      </div>
-    ) : null}
-
-  </div>
-
-) : null}
+          myLatestCheckOutSelfieUrl ||
+          myLatestCheckInLocation ? (
+          <div className="attendance-checkin-proof">
+            {myLatestCheckInSelfieUrl ? (
+              <div className="attendance-checkin-selfie">
+                <span className="attendance-checkin-label">
+                  Latest check-in selfie
+                </span>
+                <img
+                  src={myLatestCheckInSelfieUrl}
+                  alt="Latest check-in selfie"
+                />
+              </div>
+            ) : null}
+            {myLatestCheckOutSelfieUrl ? (
+              <div className="attendance-checkin-selfie">
+                <span className="attendance-checkin-label">
+                  Latest check-out selfie
+                </span>
+                <img
+                  src={myLatestCheckOutSelfieUrl}
+                  alt="Latest check-out selfie"
+                />
+              </div>
+            ) : null}
+            {myLatestCheckInLocation ? (
+              <div className="attendance-checkin-location">
+                <span className="attendance-checkin-label">
+                  Latest check-in location
+                </span>
+                <a
+                  href={myLatestCheckInLocation.mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="attendance-checkin-location-link"
+                >
+                  <MapPin size={16} />
+                  <span>
+                    {myLatestCheckInLocation.label}
+                    {myLatestCheckInLocation.accuracy
+                      ? ` (${myLatestCheckInLocation.accuracy})`
+                      : ""}
+                  </span>
+                </a>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="attendance-today-sessions">
           <div className="attendance-today-sessions-header">
@@ -1017,7 +1005,6 @@ myLatestCheckInLocation ? (
           <button type="submit">Save</button>
         </div>
       </form>
-      {saveMessage ? <p className="attendance-save-msg">{saveMessage}</p> : null}
     </section>
   );
 
@@ -1151,9 +1138,32 @@ myLatestCheckInLocation ? (
           onCapture={handleSelfieCapture}
           submitting={checkInSubmitting}
         />
+
+        {/* Confirmation Modal */}
+        <ConfirmModal
+          open={modal.open}
+          title={modal.title}
+          message={modal.message}
+          confirmLabel={modal.confirmLabel}
+          variant={modal.variant}
+          loading={actionLoading}
+          onConfirm={modal.onConfirm}
+          onCancel={closeModal}
+        />
       </div>
     </MainLayout>
   );
 }
 
-export default Attendance;
+/* ===========================
+   PAGE EXPORT — wrapped in ToastProvider
+=========================== */
+function AttendancePage() {
+  return (
+    <ToastProvider>
+      <Attendance />
+    </ToastProvider>
+  );
+}
+
+export default AttendancePage;

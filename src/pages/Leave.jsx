@@ -12,6 +12,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
+import ConfirmModal from "../components/ConfirmModal";
+import { ToastProvider, useToast } from "../components/Toast";
 import { getEmployees } from "../services/employeeService";
 import {
   approveLeaveRequest,
@@ -95,16 +97,21 @@ function LeaveSummaryCards({ summary, labels }) {
   );
 }
 
-function Leave() {
+/* ===========================
+   INNER COMPONENT (uses useToast)
+=========================== */
+function LeaveInner() {
+  const toast = useToast();
   const user = getStoredUser();
   const viewRole = getLeaveViewKey(user?.role);
+
   const [dashboard, setDashboard] = useState(null);
   const [requests, setRequests] = useState([]);
   const [balances, setBalances] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
   const [selectedBalanceEmployee, setSelectedBalanceEmployee] = useState("");
   const [balanceForm, setBalanceForm] = useState({
     CL: { total: "", used: "" },
@@ -122,27 +129,46 @@ function Leave() {
     reason: "",
   });
 
+  /* ── Confirm modal ── */
+  const [modal, setModal] = useState({
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirm",
+    variant: "danger",
+    onConfirm: null,
+  });
+
+  const closeModal = () => setModal((m) => ({ ...m, open: false }));
+  const openModal = (config) => setModal({ open: true, ...config });
+
   const canManageLeave = roleCanManageLeaveRequests(user?.role);
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
 
   const summary = dashboard?.summary || {};
-  const upcoming = useMemo(() => dashboard?.upcoming || [], [dashboard?.upcoming]);
+  const upcoming = useMemo(
+    () => dashboard?.upcoming || [],
+    [dashboard?.upcoming]
+  );
   const pendingApprovals = dashboard?.pendingApprovals || [];
 
-  const matchesUser = useCallback((item) => {
-    const itemEmpId = item.employeeId?._id || item.employeeId;
-    if (
-      user?.employeeId &&
-      itemEmpId &&
-      String(itemEmpId) === String(user.employeeId)
-    ) {
-      return true;
-    }
-    const empName = item.employeeId?.name?.toLowerCase?.();
-    return empName && empName === user?.name?.toLowerCase?.();
-  }, [user?.employeeId, user?.name]);
+  const matchesUser = useCallback(
+    (item) => {
+      const itemEmpId = item.employeeId?._id || item.employeeId;
+      if (
+        user?.employeeId &&
+        itemEmpId &&
+        String(itemEmpId) === String(user.employeeId)
+      ) {
+        return true;
+      }
+      const empName = item.employeeId?.name?.toLowerCase?.();
+      return empName && empName === user?.name?.toLowerCase?.();
+    },
+    [user?.employeeId, user?.name]
+  );
 
   const myRequests = useMemo(() => {
     const filtered = requests.filter(matchesUser);
@@ -203,28 +229,27 @@ function Leave() {
   }, [user?.role]);
 
   useEffect(() => {
-    const selected = balances.find((b) => b.employeeId === selectedBalanceEmployee);
+    const selected = balances.find(
+      (b) => b.employeeId === selectedBalanceEmployee
+    );
     if (!selected) return;
     const nextForm = {};
     selected.balances.forEach((item) => {
-      nextForm[item.type] = {
-        total: item.total,
-        used: item.used,
-      };
+      nextForm[item.type] = { total: item.total, used: item.used };
     });
     setBalanceForm((prev) => ({ ...prev, ...nextForm }));
   }, [balances, selectedBalanceEmployee]);
 
+  /* ── Handlers ── */
   const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
-    setMessage("");
     try {
       const payload = { ...leaveForm };
       if (forSelf || !canManageLeave || user?.role === "Employee") {
         delete payload.employeeId;
       }
       await createLeaveRequest(payload);
-      setMessage("Request submitted");
+      toast.success("Leave request submitted successfully");
       setLeaveForm((prev) => ({
         ...prev,
         leaveType: "CL",
@@ -235,30 +260,61 @@ function Leave() {
       }));
       loadData();
     } catch (err) {
-      setMessage(err.response?.data?.message || "Failed to submit request");
+      toast.error(err.response?.data?.message || "Failed to submit request");
     }
   };
 
-  const handleDecision = async (id, action) => {
-    try {
-      if (action === "approve") {
-        await approveLeaveRequest(id);
-      } else {
-        await rejectLeaveRequest(id);
-      }
-      loadData();
-    } catch (err) {
-      setMessage(err.response?.data?.message || "Action failed");
-    }
+  const handleDecision = (id, action, employeeName) => {
+    const isApprove = action === "approve";
+    openModal({
+      title: isApprove ? "Approve Leave Request" : "Reject Leave Request",
+      message: isApprove
+        ? `Are you sure you want to approve${employeeName ? ` ${employeeName}'s` : " this"} leave request?`
+        : `Are you sure you want to reject${employeeName ? ` ${employeeName}'s` : " this"} leave request?`,
+      confirmLabel: isApprove ? "Approve" : "Reject",
+      variant: isApprove ? "success" : "danger",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          if (isApprove) {
+            await approveLeaveRequest(id);
+            toast.success("Leave request approved");
+          } else {
+            await rejectLeaveRequest(id);
+            toast.warning("Leave request rejected");
+          }
+          loadData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Action failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
   };
 
-  const handleCancel = async (id) => {
-    try {
-      await cancelLeaveRequest(id);
-      loadData();
-    } catch (err) {
-      setMessage(err.response?.data?.message || "Cancel failed");
-    }
+  const handleCancel = (id) => {
+    openModal({
+      title: "Cancel Leave Request",
+      message:
+        "Are you sure you want to cancel this leave request? This action cannot be undone.",
+      confirmLabel: "Cancel Request",
+      variant: "warning",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await cancelLeaveRequest(id);
+          toast.success("Leave request cancelled");
+          loadData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Cancel failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
   };
 
   const handleSaveBalances = async (e) => {
@@ -266,22 +322,40 @@ function Leave() {
     if (!selectedBalanceEmployee) return;
     try {
       await updateLeaveBalances(selectedBalanceEmployee, {
-        CL: { total: Number(balanceForm.CL.total), used: Number(balanceForm.CL.used) },
-        SL: { total: Number(balanceForm.SL.total), used: Number(balanceForm.SL.used) },
-        EL: { total: Number(balanceForm.EL.total), used: Number(balanceForm.EL.used) },
-        CO: { total: Number(balanceForm.CO.total), used: Number(balanceForm.CO.used) },
+        CL: {
+          total: Number(balanceForm.CL.total),
+          used: Number(balanceForm.CL.used),
+        },
+        SL: {
+          total: Number(balanceForm.SL.total),
+          used: Number(balanceForm.SL.used),
+        },
+        EL: {
+          total: Number(balanceForm.EL.total),
+          used: Number(balanceForm.EL.used),
+        },
+        CO: {
+          total: Number(balanceForm.CO.total),
+          used: Number(balanceForm.CO.used),
+        },
       });
-      setMessage("Balances updated");
+      toast.success("Leave balances updated");
       loadData();
     } catch (err) {
-      setMessage(err.response?.data?.message || "Unable to save balances");
+      toast.error(err.response?.data?.message || "Unable to save balances");
     }
   };
 
-  const renderCreateRequestForm = (employeeList, showEmployeeSelect, forSelf = false) => (
+  /* ── Renders ── */
+  const renderCreateRequestForm = (
+    employeeList,
+    showEmployeeSelect,
+    forSelf = false
+  ) => (
     <section className="leave-card">
       <h3>
-        <Plus size={16} /> {forSelf ? "Apply for My Leave" : "Create Request"}
+        <Plus size={16} />{" "}
+        {forSelf ? "Apply for My Leave" : "Create Request"}
       </h3>
       <form
         className="leave-request-form"
@@ -290,7 +364,9 @@ function Leave() {
         {showEmployeeSelect ? (
           <select
             value={leaveForm.employeeId}
-            onChange={(e) => setLeaveForm((p) => ({ ...p, employeeId: e.target.value }))}
+            onChange={(e) =>
+              setLeaveForm((p) => ({ ...p, employeeId: e.target.value }))
+            }
           >
             {employeeList.map((emp) => (
               <option key={emp._id} value={emp._id}>
@@ -301,14 +377,18 @@ function Leave() {
         ) : null}
         <select
           value={leaveForm.requestType}
-          onChange={(e) => setLeaveForm((p) => ({ ...p, requestType: e.target.value }))}
+          onChange={(e) =>
+            setLeaveForm((p) => ({ ...p, requestType: e.target.value }))
+          }
         >
           <option value="Leave">Leave</option>
           <option value="WFH">WFH</option>
         </select>
         <select
           value={leaveForm.leaveType}
-          onChange={(e) => setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))}
+          onChange={(e) =>
+            setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))
+          }
         >
           <option value="CL">Casual Leave (CL)</option>
           <option value="SL">Sick Leave (SL)</option>
@@ -319,20 +399,26 @@ function Leave() {
         <input
           type="date"
           value={leaveForm.startDate}
-          onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))}
+          onChange={(e) =>
+            setLeaveForm((p) => ({ ...p, startDate: e.target.value }))
+          }
           required
         />
         <input
           type="date"
           value={leaveForm.endDate}
-          onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))}
+          onChange={(e) =>
+            setLeaveForm((p) => ({ ...p, endDate: e.target.value }))
+          }
           required
         />
         <input
           type="text"
           placeholder="Reason"
           value={leaveForm.reason}
-          onChange={(e) => setLeaveForm((p) => ({ ...p, reason: e.target.value }))}
+          onChange={(e) =>
+            setLeaveForm((p) => ({ ...p, reason: e.target.value }))
+          }
         />
         <button type="submit">Submit Request</button>
       </form>
@@ -343,13 +429,16 @@ function Leave() {
     <section className="leave-card">
       <h3>Upcoming (Next 7 Days)</h3>
       <div className="leave-list">
-        {items.length === 0 ? <p className="leave-empty">{emptyText}</p> : null}
+        {items.length === 0 ? (
+          <p className="leave-empty">{emptyText}</p>
+        ) : null}
         {items.map((item) => (
           <div className="leave-list-item" key={item._id}>
             <div>
               <strong>{item.employeeId?.name}</strong>
               <p>
-                {item.leaveType} • {new Date(item.startDate).toLocaleDateString()} -{" "}
+                {item.leaveType} •{" "}
+                {new Date(item.startDate).toLocaleDateString()} -{" "}
                 {new Date(item.endDate).toLocaleDateString()}
               </p>
             </div>
@@ -362,11 +451,7 @@ function Leave() {
     </section>
   );
 
-  const renderRequestsTable = ({
-    title,
-    items,
-    mode,
-  }) => (
+  const renderRequestsTable = ({ title, items, mode }) => (
     <section className="leave-card">
       <h3>{title}</h3>
       <table className="leave-table">
@@ -388,52 +473,63 @@ function Leave() {
               </td>
             </tr>
           ) : null}
-          {items.map((item) => (
-            <tr key={item._id}>
-              {mode === "all" ? <td>{item.employeeId?.name || "-"}</td> : null}
-              <td>{item.leaveType}</td>
-              <td>
-                {new Date(item.startDate).toLocaleDateString()} -{" "}
-                {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
-              </td>
-              <td>{item.reason || "-"}</td>
-              <td>
-                <span className={leaveStatusClass[item.status] || "leave-status"}>
-                  {item.status}
-                </span>
-              </td>
-              <td>
-                {mode === "approve" && canApprove && item.status === "Pending" ? (
-                  <div className="leave-actions">
-                    <button
-                      type="button"
-                      className="approve-btn"
-                      onClick={() => handleDecision(item._id, "approve")}
-                    >
-                      <Check size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="reject-btn"
-                      onClick={() => handleDecision(item._id, "reject")}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : mode === "employee" && item.status === "Pending" ? (
-                  <button
-                    type="button"
-                    className="cancel-btn"
-                    onClick={() => handleCancel(item._id)}
+          {items.map((item) => {
+            const empName = item.employeeId?.name || null;
+            return (
+              <tr key={item._id}>
+                {mode === "all" ? <td>{empName || "-"}</td> : null}
+                <td>{item.leaveType}</td>
+                <td>
+                  {new Date(item.startDate).toLocaleDateString()} -{" "}
+                  {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
+                </td>
+                <td>{item.reason || "-"}</td>
+                <td>
+                  <span
+                    className={leaveStatusClass[item.status] || "leave-status"}
                   >
-                    Cancel
-                  </button>
-                ) : (
-                  "-"
-                )}
-              </td>
-            </tr>
-          ))}
+                    {item.status}
+                  </span>
+                </td>
+                <td>
+                  {mode === "approve" &&
+                  canApprove &&
+                  item.status === "Pending" ? (
+                    <div className="leave-actions">
+                      <button
+                        type="button"
+                        className="approve-btn"
+                        onClick={() =>
+                          handleDecision(item._id, "approve", empName)
+                        }
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="reject-btn"
+                        onClick={() =>
+                          handleDecision(item._id, "reject", empName)
+                        }
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : mode === "employee" && item.status === "Pending" ? (
+                    <button
+                      type="button"
+                      className="cancel-btn"
+                      onClick={() => handleCancel(item._id)}
+                    >
+                      Cancel
+                    </button>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </section>
@@ -457,7 +553,10 @@ function Leave() {
                   {b.employeeCode} — {b.name}
                 </strong>
                 {(b.balances || []).map((item) => (
-                  <div className="leave-balance-item" key={`${b.employeeId}-${item.type}`}>
+                  <div
+                    className="leave-balance-item"
+                    key={`${b.employeeId}-${item.type}`}
+                  >
                     <span>{item.type}</span>
                     <strong>
                       {item.total - item.used} / {item.total}
@@ -594,7 +693,9 @@ function Leave() {
               </td>
               <td>{item.days}</td>
               <td>
-                <span className={leaveStatusClass[item.status] || "leave-status"}>
+                <span
+                  className={leaveStatusClass[item.status] || "leave-status"}
+                >
                   {item.status}
                 </span>
               </td>
@@ -605,6 +706,7 @@ function Leave() {
     </section>
   );
 
+  /* ── Role views ── */
   const renderOrganizationView = () => (
     <>
       <LeaveSummaryCards summary={summary} />
@@ -730,10 +832,33 @@ function Leave() {
         </div>
 
         {error ? <p className="leave-error">{error}</p> : null}
-        {message ? <p className="leave-message">{message}</p> : null}
+
         {roleViews[viewRole]?.()}
+
+        {/* Confirmation Modal */}
+        <ConfirmModal
+          open={modal.open}
+          title={modal.title}
+          message={modal.message}
+          confirmLabel={modal.confirmLabel}
+          variant={modal.variant}
+          loading={actionLoading}
+          onConfirm={modal.onConfirm}
+          onCancel={closeModal}
+        />
       </div>
     </MainLayout>
+  );
+}
+
+/* ===========================
+   PAGE EXPORT — wrapped in ToastProvider
+=========================== */
+function Leave() {
+  return (
+    <ToastProvider>
+      <LeaveInner />
+    </ToastProvider>
   );
 }
 

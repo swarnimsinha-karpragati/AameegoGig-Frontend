@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   Camera,
   Mail,
@@ -10,7 +10,6 @@ import {
   User,
 } from "lucide-react";
 import "./ProfileCard.css";
-import Webcam from "react-webcam";
 function InputField({
   icon,
   label,
@@ -70,9 +69,63 @@ export default function ProfileCard() {
   const [profileImage, setProfileImage] = useState(null);
   const cameraInputRef = useRef(null);
   const [showCamera, setShowCamera] = useState(false);
-  const webcamRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [cameraReady, setCameraReady] = useState(false);
   const [errors, setErrors] = useState({});
   const [showSavePopup, setShowSavePopup] = useState(false);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraReady(false);
+  }, []);
+
+  const startNativeCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    try {
+      stopCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().then(() => setCameraReady(true));
+        };
+      }
+    } catch {
+      // camera permission denied or unavailable
+    }
+  }, [stopCamera]);
+
+  useEffect(() => {
+    if (showCamera) {
+      startNativeCamera();
+    } else {
+      stopCamera();
+    }
+    return () => stopCamera();
+  }, [showCamera, startNativeCamera, stopCamera]);
+
+  const captureNativePhoto = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !cameraReady) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageSrc = canvas.toDataURL("image/jpeg", 0.9);
+    setProfileImage(imageSrc);
+    setShowCamera(false);
+  }, [cameraReady]);
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -400,7 +453,7 @@ export default function ProfileCard() {
         </div>
       )}
 
-      {/* webcam popup */}
+      {/* webcam popup — native getUserMedia */}
       {showCamera && (
         <div className="upload-overlay">
           <div className="upload-modal">
@@ -415,25 +468,21 @@ export default function ProfileCard() {
 
             <h2>Capture Photo</h2>
 
-            <Webcam
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              style={{
-                width: "100%",
-                borderRadius: "12px",
-                marginTop: "10px",
-              }}
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              style={{ width: "100%", borderRadius: "12px", marginTop: "10px" }}
             />
+            {!cameraReady && (
+              <p style={{ textAlign: "center", color: "#888", marginTop: 8 }}>Starting camera…</p>
+            )}
 
             <button
               className="upload-submit-btn"
               style={{ marginTop: "16px" }}
-              onClick={() => {
-                const imageSrc = webcamRef.current.getScreenshot();
-
-                setProfileImage(imageSrc);
-                setShowCamera(false);
-              }}
+              onClick={captureNativePhoto}
+              disabled={!cameraReady}
             >
               Capture Photo
             </button>

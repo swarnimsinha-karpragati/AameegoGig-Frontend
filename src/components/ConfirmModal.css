@@ -1,0 +1,216 @@
+/* =========================
+   CONFIRM MODAL
+========================= */
+
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 25, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+  animation: confirm-overlay-in 0.15s ease;
+}
+
+@keyframes confirm-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.confirm-modal {
+  position: relative;
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px 28px 24px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.15),
+    0 4px 16px rgba(0, 0, 0, 0.08);
+  animation: confirm-modal-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes confirm-modal-in {
+  from { transform: scale(0.9) translateY(10px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* ── Variants — top accent bar ── */
+.confirm-modal--danger::before {
+  content: "";
+  display: block;
+  height: 4px;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(90deg, #ef4444, #f87171);
+  position: absolute;
+  top: 0; left: 0; right: 0;
+}
+
+.confirm-modal--warning::before {
+  content: "";
+  display: block;
+  height: 4px;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  position: absolute;
+  top: 0; left: 0; right: 0;
+}
+
+.confirm-modal--success::before {
+  content: "";
+  display: block;
+  height: 4px;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  position: absolute;
+  top: 0; left: 0; right: 0;
+}
+
+/* ── Close button ── */
+.confirm-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.confirm-modal-close:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
+
+/* ── Header ── */
+.confirm-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.confirm-modal-icon {
+  flex-shrink: 0;
+}
+
+.confirm-modal-icon.danger  { color: #ef4444; }
+.confirm-modal-icon.warning { color: #f59e0b; }
+.confirm-modal-icon.success { color: #10b981; }
+
+.confirm-modal-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+/* ── Body text ── */
+.confirm-modal-message {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0 0 18px;
+  line-height: 1.55;
+}
+
+/* ── Textarea input slot ── */
+.confirm-modal-input-block {
+  margin-bottom: 18px;
+}
+
+.confirm-modal-input-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.confirm-modal-textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+  color: #111827;
+}
+
+.confirm-modal-textarea:focus {
+  border-color: #6366f1;
+}
+
+/* ── Actions ── */
+.confirm-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.confirm-modal-btn {
+  padding: 9px 20px;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.confirm-modal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.confirm-modal-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.confirm-modal-btn.cancel {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.confirm-modal-btn.cancel:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.confirm-modal-btn.confirm--danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+}
+
+.confirm-modal-btn.confirm--danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.confirm-modal-btn.confirm--warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+}
+
+.confirm-modal-btn.confirm--warning:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.confirm-modal-btn.confirm--success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+}
+
+.confirm-modal-btn.confirm--success:hover:not(:disabled) {
+  opacity: 0.9;
+}

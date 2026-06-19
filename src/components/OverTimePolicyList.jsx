@@ -41,6 +41,7 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
     if (vendorId) {
       fetchPolicies();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId, refreshTrigger]);
 
   const handleDelete = async (policyId) => {
