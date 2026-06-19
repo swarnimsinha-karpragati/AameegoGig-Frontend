@@ -1,6 +1,7 @@
 import API from "./apiClient";
 
 const EMPLOYEE_PAYLOAD_FIELDS = [
+  "employeeCode",
   "name",
   "email",
   "phone",
