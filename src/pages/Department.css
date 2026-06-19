@@ -1,0 +1,402 @@
+/* ==========================================================================
+   Page Layout & Typography Variables
+   ========================================================================== */
+.manage-depts-container {
+  padding: 2rem;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #334155;
+}
+
+.manage-depts-stats {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin-bottom: 1.25rem;
+}
+
+.manage-depts-stats strong {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* ==========================================================================
+   Toolbar Actions & Search Bar Layout
+   ========================================================================== */
+.manage-depts-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.manage-depts-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 720px;
+}
+
+.manage-depts-search svg {
+  position: absolute;
+  left: 1rem;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.manage-depts-search input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  font-size: 0.95rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.manage-depts-search input:focus {
+  border-color: #3b82f6;
+}
+
+.manage-depts-actions {
+  display: flex;
+  align-items: center;
+}
+
+.manage-depts-add-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  transition: opacity 0.15s ease;
+}
+
+.manage-depts-add-trigger:hover {
+  opacity: 0.95;
+}
+
+/* ==========================================================================
+   Data Matrix Card & Table Layout
+   ========================================================================== */
+.manage-depts-card {
+  width: 100%;
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.manage-depts-scrollable {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.manage-depts-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.manage-depts-table th {
+  font-weight: 600;
+  color: #64748b;
+  padding: 1.25rem 1.5rem;
+  background-color: #fafafa;
+  border-bottom: 1px solid #f1f5f9;
+  text-transform: capitalize;
+}
+
+.manage-depts-table td {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  color: #1e293b;
+}
+
+.manage-depts-table tr:last-child td {
+  border-bottom: none;
+}
+
+.manage-depts-empty {
+  text-align: center;
+  padding: 4rem !important;
+  font-style: italic;
+  color: #94a3b8;
+}
+
+/* Row Action Buttons Setup */
+.manage-depts-row-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.manage-depts-row-buttons button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+  padding: 0;
+}
+
+.manage-depts-row-buttons button:active {
+  transform: scale(0.95);
+}
+
+.manage-depts-btn-view {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.manage-depts-btn-view:hover {
+  background-color: #dbeafe;
+}
+
+.manage-depts-btn-edit {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0 !important;
+  color: #d97706;
+}
+
+.manage-depts-btn-edit:hover {
+  background-color: #f1f5f9;
+}
+
+.manage-depts-btn-delete {
+  background-color: #fef2f2;
+  color: #ef4444;
+}
+
+.manage-depts-btn-delete:hover {
+  background-color: #fee2e2;
+}
+
+/* ==========================================================================
+   Overlay Dialog View Modals
+   ========================================================================== */
+.manage-depts-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  background-color: rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(4px);
+}
+
+.manage-depts-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 85vh;
+  margin: 1rem;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.manage-depts-modal--md {
+  max-width: 520px;
+}
+
+.manage-depts-modal--lg {
+  max-width: 720px;
+}
+
+.manage-depts-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.manage-depts-modal__header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.manage-depts-modal__close {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: inline-flex;
+  border-radius: 6px;
+}
+
+.manage-depts-modal__close:hover {
+  background-color: #f1f5f9;
+}
+
+.manage-depts-modal__body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.manage-depts-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid #f1f5f9;
+  background-color: #fafafa;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+/* ==========================================================================
+   Structural Input Forms & Field Architecture
+   ========================================================================== */
+.manage-depts-section {
+  margin-bottom: 2rem;
+}
+
+.manage-depts-section:last-child {
+  margin-bottom: 0;
+}
+
+.manage-depts-section__head {
+  margin-bottom: 1.25rem;
+}
+
+.manage-depts-section__head h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.manage-depts-section__head p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.manage-depts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+}
+
+.manage-depts-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.manage-depts-field--full {
+  grid-column: span 2;
+}
+
+.manage-depts-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.manage-depts-required {
+  margin-left: 0.25rem;
+  color: #ef4444;
+}
+
+/* Global Form Resets */
+.manage-depts-field input[type="text"],
+.manage-depts-field select,
+.manage-depts-field textarea {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #1e293b;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.manage-depts-field input[type="text"]:focus,
+.manage-depts-field select:focus,
+.manage-depts-field textarea:focus {
+  border-color: #3b82f6;
+}
+
+.manage-depts-field input:disabled,
+.manage-depts-field select:disabled,
+.manage-depts-field textarea:disabled {
+  cursor: not-allowed;
+  background-color: #f8fafc;
+  color: #64748b;
+}
+
+/* Control Buttons Style */
+.manage-depts-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.15s ease;
+}
+
+.manage-depts-control-btn--secondary {
+  background-color: #e2e8f0;
+  color: #475569;
+}
+
+.manage-depts-control-btn--secondary:hover {
+  background-color: #cbd5e1;
+}
+
+.manage-depts-control-btn--primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: #ffffff;
+}
+
+.manage-depts-control-btn--primary:hover {
+  opacity: 0.95;
+}
+
+/* ==========================================================================
+   Responsive Adaptations
+   ========================================================================== */
+@media (max-width: 640px) {
+  .manage-depts-grid {
+    grid-template-columns: 1fr;
+  }
+  .manage-depts-field--full {
+    grid-column: span 1;
+  }
+  .manage-depts-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
