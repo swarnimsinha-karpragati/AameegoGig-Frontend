@@ -15,7 +15,7 @@ import {
   X,
   IndianRupee,
 } from "lucide-react";
-import axios from "axios";
+// import axios from "axios"; // reserved for future direct API calls
 import "./Payroll.css";
 import MainLayout from "../layouts/MainLayout";
 import {
@@ -242,27 +242,27 @@ export default function Payroll() {
   const [payrollHistory, setPayrollHistory] = useState([]);
 
   /* ----------Create Payroll Entry -------  */
-
-  const createPayrollEntry = async () => {
-    try {
-      const res = await axios.post(
-        "http://localhost:5001/api/payroll/entries",
-        {
-          vendorId: "64a26e74b183cf7a61de92758",
-          employeeCode: "EMP0010",
-          month: "August",
-          year: 2026,
-          grossMonthlySalary: 50000,
-          paymentDate: "2026-07-01",
-          status: "Processed",
-        },
-      );
-      console.log("Payroll Entry Created:", res.data);
-      fetchPayrollHistory();
-    } catch (error) {
-      console.log("Error fetching payroll history:", error);
-    }
-  };
+  // Reserved for future use — uncomment to enable manual payroll entry creation
+  // const createPayrollEntry = async () => {
+  //   try {
+  //     const res = await axios.post(
+  //       "http://localhost:5001/api/payroll/entries",
+  //       {
+  //         vendorId: "64a26e74b183cf7a61de92758",
+  //         employeeCode: "EMP0010",
+  //         month: "August",
+  //         year: 2026,
+  //         grossMonthlySalary: 50000,
+  //         paymentDate: "2026-07-01",
+  //         status: "Processed",
+  //       },
+  //     );
+  //     console.log("Payroll Entry Created:", res.data);
+  //     fetchPayrollHistory();
+  //   } catch (error) {
+  //     console.log("Error fetching payroll history:", error);
+  //   }
+  // };
 
   /* ----------Fetch Payroll History -------  */
 
@@ -435,11 +435,11 @@ export default function Payroll() {
   setAppliedFromDate("");
   setAppliedToDate("");
   };
-  const totalPayroll = payrollHistory.reduce((sum, item) => {
-    return sum + Number(item.amount || 0);
-  }, 0);
-  const earnings = totalPayroll;
-  const deductions = 0;
+  // const totalPayroll = payrollHistory.reduce((sum, item) => {  // reserved for summary card
+  //   return sum + Number(item.amount || 0);
+  // }, 0);
+  // const earnings = totalPayroll;  // reserved for card display — uncomment when earnings card is wired up
+  // const deductions = 0;           // reserved for card display — uncomment when deductions are tracked
 
   /* ---------- Filter Payroll History -------  */
   const filteredPayrollHistory = payrollHistory.filter((item) => {

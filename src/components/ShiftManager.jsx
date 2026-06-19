@@ -36,6 +36,7 @@ const ShiftManager = ({ vendorId }) => {
 
   useEffect(() => {
     fetchExistingShifts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
 
   const handleChange = (e) => {

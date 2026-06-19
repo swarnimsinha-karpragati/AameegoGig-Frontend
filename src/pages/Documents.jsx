@@ -5,19 +5,19 @@ import {
   import MainLayout from "../layouts/MainLayout";
   import {
     Search,
-    Upload,
+    // Upload,  // reserved for future upload feature
     FileText,
     FileSpreadsheet,
     Image,
     Eye,
     Download,
-    Trash2,
+    // Trash2,  // reserved for future delete feature
   } from "lucide-react";
   
   import {
-    getDocuments,
-    uploadDocument,
-    deleteDocument,
+    // getDocuments,       // reserved for future use
+    // uploadDocument,     // reserved for future upload feature
+    // deleteDocument,     // reserved for future delete feature
     viewDocument,
     downloadDocument,
     getEmployeeDocuments,
@@ -38,16 +38,16 @@ import {
       setActiveCategory,
     ] = useState("All");
   
-    const [uploadFile, setUploadFile] =
-      useState(null);
+    // const [uploadFile, setUploadFile] =  // reserved for future upload feature
+    //   useState(null);
   
     const [
-      uploadMessage,
-      setUploadMessage,
+      // uploadMessage,     // reserved for future upload feature
+      // setUploadMessage,  // reserved for future upload feature
     ] = useState("");
   
-    const [loading, setLoading] =
-      useState(false);
+    // const [loading, setLoading] =  // reserved for future upload feature
+    //   useState(false);
   
     const categories = [
       "All",
@@ -111,6 +111,7 @@ import {
   
     useEffect(() => {
       fetchDocuments();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loggedInUser]);
   
     /* =========================
@@ -267,11 +268,11 @@ import {
       ======================= */
       
 
-      const [showUploadModal, setShowUploadModal] =
-      useState(false);
+      // const [showUploadModal, setShowUploadModal] =  // reserved for future upload feature
+      // useState(false);
 
-     const [category, setCategory] =
-     useState("General");
+     // const [category, setCategory] =  // reserved for future upload feature
+     // useState("General");
 
       return (
         <MainLayout>
