@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
+  MapPin,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
@@ -34,6 +35,7 @@ import {
   canMarkAttendance as roleCanMarkAttendance,
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
+import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
 import "./Attendance.css";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -71,6 +73,26 @@ const EMPTY_MY_ROW = {
   isCheckedIn: false,
   sessionCount: 0,
 };
+
+function SessionLocationLink({ location, prefix }) {
+  const formatted = formatGeoLocation(location);
+  if (!formatted) return null;
+
+  return (
+    <a
+      className="attendance-session-location"
+      href={formatted.mapsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <MapPin size={14} />
+      <span>
+        {prefix}: {formatted.label}
+        {formatted.accuracy ? ` (${formatted.accuracy})` : ""}
+      </span>
+    </a>
+  );
+}
 
 function AttendanceStats({ stats, labels }) {
   const items = [
@@ -162,6 +184,12 @@ function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions re
                   <strong>{session.isOpen ? "—" : session.checkOut}</strong>
                 </div>
               </div>
+            </div>
+            <div className="attendance-session-locations">
+              <SessionLocationLink location={session.checkInLocation} prefix="Check-in" />
+              {!session.isOpen ? (
+                <SessionLocationLink location={session.checkOutLocation} prefix="Check-out" />
+              ) : null}
             </div>
           </div>
         </article>
@@ -410,6 +438,8 @@ function Attendance() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSelfieModal, setShowSelfieModal] = useState(false);
+  const [attendanceAction, setAttendanceAction] = useState("checkin");
+  const [checkInMessage, setCheckInMessage] = useState("");
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [markForm, setMarkForm] = useState({
     employeeId: "",
@@ -588,6 +618,36 @@ function Attendance() {
     return null;
   }, [myTodayRow]);
 
+  const myLatestCheckOutSelfieUrl = useMemo(() => {
+    const sessions = myTodayRow.sessions || [];
+  
+    for (
+      let i = sessions.length - 1;
+      i >= 0;
+      i -= 1
+    ) {
+      if (sessions[i]?.checkOutSelfieUrl) {
+        return getCheckInSelfieUrl(
+          sessions[i].checkOutSelfieUrl
+        );
+      }
+    }
+  
+    return null;
+  }, [myTodayRow]);
+
+  console.log(myLatestCheckOutSelfieUrl);
+console.log(myLatestCheckInSelfieUrl);
+  const myLatestCheckInLocation = useMemo(() => {
+    const sessions = myTodayRow.sessions || [];
+    for (let i = sessions.length - 1; i >= 0; i -= 1) {
+      if (sessions[i]?.checkInLocation) {
+        return formatGeoLocation(sessions[i].checkInLocation);
+      }
+    }
+    return null;
+  }, [myTodayRow]);
+
   const shiftMonth = (delta) => {
     setViewDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1)
@@ -629,19 +689,47 @@ function Attendance() {
   };
 
   const handleCheckIn = () => {
+    setCheckInMessage("");
+    setAttendanceAction("checkin");
     setShowSelfieModal(true);
   };
-
+  
   const handleSelfieCapture = async (selfieBlob) => {
     setCheckInSubmitting(true);
     setActionLoading(true);
+  
     try {
-      const res = await checkInAttendance(selfieBlob);
-      toast.success(res.message || "Checked in successfully");
+      setCheckInMessage("Detecting your location...");
+  
+      const location = await getAttendanceLocation(
+        attendanceAction === "checkin" ? "check in" : "check out"
+      );
+  
+      let res;
+  
+      if (attendanceAction === "checkin") {
+        res = await checkInAttendance(selfieBlob, location);
+      } else {
+        res = await checkOutAttendance(selfieBlob, location);
+      }
+  
+      setCheckInMessage(
+        res.message ||
+          (attendanceAction === "checkin"
+            ? "Checked in successfully"
+            : "Checked out successfully")
+      );
+  
       setShowSelfieModal(false);
+  
       await loadMonthData();
+  
     } catch (err) {
-      toast.error(err.response?.data?.message || "Unable to check in");
+      setCheckInMessage(
+        err.message ||
+        err.response?.data?.message ||
+        "Unable to process attendance"
+      );
     } finally {
       setActionLoading(false);
       setCheckInSubmitting(false);
@@ -649,25 +737,9 @@ function Attendance() {
   };
 
   const handleCheckOut = () => {
-    openModal({
-      title: "Confirm Check Out",
-      message: "Are you sure you want to check out now? Your session will be ended.",
-      confirmLabel: "Check Out",
-      variant: "warning",
-      onConfirm: async () => {
-        setActionLoading(true);
-        try {
-          const res = await checkOutAttendance();
-          toast.success(res.message || "Checked out successfully");
-          await loadMonthData();
-        } catch (err) {
-          toast.error(err.response?.data?.message || "Unable to check out");
-        } finally {
-          setActionLoading(false);
-          closeModal();
-        }
-      },
-    });
+    setCheckInMessage("");
+    setAttendanceAction("checkout");
+    setShowSelfieModal(true);
   };
 
   const renderCalendarSection = (title) => (
@@ -716,7 +788,7 @@ function Attendance() {
             </span>
             <h2>{title}</h2>
             <p className="attendance-checkin-subtitle">
-              Multiple sessions supported — check out before starting a new one
+              Selfie and location are required for check-in; location is also required for check-out.
             </p>
           </div>
           <span
@@ -784,11 +856,54 @@ function Attendance() {
             {actionLoading ? "Processing..." : "Check Out"}
           </button>
         </div>
-
-        {myLatestCheckInSelfieUrl ? (
-          <div className="attendance-checkin-selfie">
-            <span className="attendance-checkin-label">Latest check-in selfie</span>
-            <img src={myLatestCheckInSelfieUrl} alt="Latest check-in selfie" />
+        {checkInMessage ? <p className="attendance-save-msg">{checkInMessage}</p> : null}
+        {myLatestCheckInSelfieUrl ||
+          myLatestCheckOutSelfieUrl ||
+          myLatestCheckInLocation ? (
+          <div className="attendance-checkin-proof">
+            {myLatestCheckInSelfieUrl ? (
+              <div className="attendance-checkin-selfie">
+                <span className="attendance-checkin-label">
+                  Latest check-in selfie
+                </span>
+                <img
+                  src={myLatestCheckInSelfieUrl}
+                  alt="Latest check-in selfie"
+                />
+              </div>
+            ) : null}
+            {myLatestCheckOutSelfieUrl ? (
+              <div className="attendance-checkin-selfie">
+                <span className="attendance-checkin-label">
+                  Latest check-out selfie
+                </span>
+                <img
+                  src={myLatestCheckOutSelfieUrl}
+                  alt="Latest check-out selfie"
+                />
+              </div>
+            ) : null}
+            {myLatestCheckInLocation ? (
+              <div className="attendance-checkin-location">
+                <span className="attendance-checkin-label">
+                  Latest check-in location
+                </span>
+                <a
+                  href={myLatestCheckInLocation.mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="attendance-checkin-location-link"
+                >
+                  <MapPin size={16} />
+                  <span>
+                    {myLatestCheckInLocation.label}
+                    {myLatestCheckInLocation.accuracy
+                      ? ` (${myLatestCheckInLocation.accuracy})`
+                      : ""}
+                  </span>
+                </a>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

@@ -164,7 +164,6 @@ export default function SecurityCard() {
               <input
                 type="tel"
                 value={phone}
-                placeholder="+91"
 
                 onChange={(e) => {
 

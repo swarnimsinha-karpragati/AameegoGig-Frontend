@@ -51,11 +51,19 @@ export const markAttendance = async (payload) => {
   return res.data;
 };
 
-export const checkInAttendance = async (selfieFile, notes = "") => {
+export const checkInAttendance = async (selfieFile, options = {}) => {
+  const { notes = "", latitude, longitude, accuracy } = options;
   const formData = new FormData();
   formData.append("selfie", selfieFile, "selfie.jpg");
+  formData.append("latitude", String(latitude));
+  formData.append("longitude", String(longitude));
+
   if (notes) {
     formData.append("notes", notes);
+  }
+
+  if (accuracy != null && Number.isFinite(Number(accuracy))) {
+    formData.append("accuracy", String(accuracy));
   }
 
   const res = await API.post("/attendance/check-in", formData, {
@@ -66,8 +74,51 @@ export const checkInAttendance = async (selfieFile, notes = "") => {
   return res.data;
 };
 
-export const checkOutAttendance = async (notes = "") => {
-  const res = await API.post("/attendance/check-out", { notes });
+export const checkOutAttendance = async (
+  selfieFile,
+  location
+) => {
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "selfie",
+    selfieFile,
+    "selfie.jpg"
+  );
+
+  formData.append(
+    "latitude",
+    location.latitude
+  );
+
+  formData.append(
+    "longitude",
+    location.longitude
+  );
+
+  if (
+    location.accuracy != null
+  ) {
+    formData.append(
+      "accuracy",
+      location.accuracy
+    );
+  }
+
+  const res =
+    await API.post(
+      "/attendance/check-out",
+      formData,
+      {
+        headers: {
+          "Content-Type":
+            "multipart/form-data",
+        },
+      }
+    );
+
   return res.data;
 };
 
@@ -76,8 +127,14 @@ export const bulkMarkToday = async (records) => {
   return res.data;
 };
 
+
+
 export const getCheckInSelfieUrl = (selfiePath) => {
   if (!selfiePath) return null;
+
   const token = localStorage.getItem("token");
-  return getApiUrl(`${selfiePath}?token=${token}`);
+
+  return getApiUrl(
+    `${selfiePath}${selfiePath.includes("?") ? "&" : "?"}token=${token}`
+  );
 };

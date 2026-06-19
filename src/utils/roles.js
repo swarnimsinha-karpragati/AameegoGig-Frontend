@@ -28,7 +28,7 @@ export const ROUTE_ACCESS = {
   "/employees": ["Admin", "HR"],
   "/attendance": ["Admin", "HR", "Manager", "Employee"],
   "/leave": ["Admin", "HR", "Manager", "Employee"],
-  "/payroll": ["Admin", "HR"],
+  "/payroll": ["Admin", "HR","Manager", "Employee"],  // remove manager, employee 
   "/documents": ["Admin", "HR", "Manager", "Employee"],
   "/expenses": ["Admin", "HR", "Manager", "Employee"],
   "/settings": ["Admin", "HR", "Manager", "Employee"],

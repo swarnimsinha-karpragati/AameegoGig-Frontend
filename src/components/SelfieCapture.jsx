@@ -21,7 +21,6 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
   }, []);
 
   const resetCapture = useCallback(() => {
-    console.log("RESET CAPTURE");
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -30,9 +29,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
   }, [previewUrl]);
 
   const startCamera = useCallback(async () => {
-    console.log("START CAMERA CALLED");
     setError("");
-    // resetCapture();
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("Camera is not supported on this device or browser.");
@@ -94,23 +91,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
   );
 
   const handleCapture = () => {
-
-    console.log(
-      "CAPTURE CLICKED"
-    );
-
     const video = videoRef.current;
-
-    console.log(
-      "VIDEO",
-      video
-    );
-  
-    console.log(
-      "CAMERA READY",
-      cameraReady
-    );
-
     if (!video || !cameraReady) return;
 
     const canvas = document.createElement("canvas");
@@ -126,15 +107,13 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
           setError("Failed to capture selfie. Please try again.");
           return;
         }
-console.log("BEFORE SET");
+
         if (previewUrl) {
           URL.revokeObjectURL(previewUrl);
         }
 
         setCapturedBlob(blob);
-        console.log("SET BLOB");
         setPreviewUrl(URL.createObjectURL(blob));
-        console.log("SET PREVIEW");
         stopCamera();
       },
       "image/jpeg",
@@ -161,7 +140,9 @@ console.log("BEFORE SET");
         <div className="selfie-modal-header">
           <div>
             <h2 id="selfie-modal-title">Check in with selfie</h2>
-            <p>Take a clear photo of your face to mark attendance.</p>
+            <p>
+              Take a clear photo of your face. Your location will be captured when you confirm check-in.
+            </p>
           </div>
           <button
             type="button"
