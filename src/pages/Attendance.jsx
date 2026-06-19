@@ -15,6 +15,8 @@ import {
   ChevronUp,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
+import ConfirmModal from "../components/ConfirmModal";
+import { ToastProvider, useToast } from "../components/Toast";
 import SelfieCapture from "../components/SelfieCapture";
 import { getEmployees } from "../services/employeeService";
 import {
@@ -407,8 +409,6 @@ function Attendance() {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
-  const [saveMessage, setSaveMessage] = useState("");
-  const [checkInMessage, setCheckInMessage] = useState("");
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [markForm, setMarkForm] = useState({
@@ -418,6 +418,20 @@ function Attendance() {
     checkOut: "",
     notes: "",
   });
+
+  /* ── Confirm modal ── */
+  const [modal, setModal] = useState({
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirm",
+    variant: "danger",
+    onConfirm: null,
+  });
+
+  const toast = useToast();
+  const closeModal = () => setModal((m) => ({ ...m, open: false }));
+  const openModal = (config) => setModal({ open: true, ...config });
 
   const canMarkAttendance = roleCanMarkAttendance(user?.role);
   const isEmployeeView = viewRole === "Employee";
@@ -575,8 +589,6 @@ function Attendance() {
   }, [myTodayRow]);
 
   const shiftMonth = (delta) => {
-    setSaveMessage("");
-    setCheckInMessage("");
     setViewDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1)
     );
@@ -597,9 +609,8 @@ function Attendance() {
 
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
-    setSaveMessage("");
     if (!markForm.employeeId) {
-      setSaveMessage("Please select an employee");
+      toast.warning("Please select an employee");
       return;
     }
 
@@ -610,47 +621,53 @@ function Attendance() {
         checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
         date: new Date().toISOString(),
       });
-      setSaveMessage("Attendance saved successfully");
+      toast.success("Attendance saved successfully");
       loadMonthData();
     } catch (err) {
-      setSaveMessage(err.response?.data?.message || "Unable to save attendance");
+      toast.error(err.response?.data?.message || "Unable to save attendance");
     }
   };
 
   const handleCheckIn = () => {
-    setCheckInMessage("");
     setShowSelfieModal(true);
   };
 
   const handleSelfieCapture = async (selfieBlob) => {
     setCheckInSubmitting(true);
-    setCheckInMessage("");
     setActionLoading(true);
     try {
       const res = await checkInAttendance(selfieBlob);
-      setCheckInMessage(res.message || "Checked in successfully");
+      toast.success(res.message || "Checked in successfully");
       setShowSelfieModal(false);
       await loadMonthData();
     } catch (err) {
-      setCheckInMessage(err.response?.data?.message || "Unable to check in");
+      toast.error(err.response?.data?.message || "Unable to check in");
     } finally {
       setActionLoading(false);
       setCheckInSubmitting(false);
     }
   };
 
-  const handleCheckOut = async () => {
-    setCheckInMessage("");
-    setActionLoading(true);
-    try {
-      const res = await checkOutAttendance();
-      setCheckInMessage(res.message || "Checked out successfully");
-      await loadMonthData();
-    } catch (err) {
-      setCheckInMessage(err.response?.data?.message || "Unable to check out");
-    } finally {
-      setActionLoading(false);
-    }
+  const handleCheckOut = () => {
+    openModal({
+      title: "Confirm Check Out",
+      message: "Are you sure you want to check out now? Your session will be ended.",
+      confirmLabel: "Check Out",
+      variant: "warning",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          const res = await checkOutAttendance();
+          toast.success(res.message || "Checked out successfully");
+          await loadMonthData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Unable to check out");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
   };
 
   const renderCalendarSection = (title) => (
@@ -767,7 +784,6 @@ function Attendance() {
             {actionLoading ? "Processing..." : "Check Out"}
           </button>
         </div>
-        {checkInMessage ? <p className="attendance-save-msg">{checkInMessage}</p> : null}
 
         {myLatestCheckInSelfieUrl ? (
           <div className="attendance-checkin-selfie">
@@ -874,7 +890,6 @@ function Attendance() {
           <button type="submit">Save</button>
         </div>
       </form>
-      {saveMessage ? <p className="attendance-save-msg">{saveMessage}</p> : null}
     </section>
   );
 
@@ -1008,9 +1023,32 @@ function Attendance() {
           onCapture={handleSelfieCapture}
           submitting={checkInSubmitting}
         />
+
+        {/* Confirmation Modal */}
+        <ConfirmModal
+          open={modal.open}
+          title={modal.title}
+          message={modal.message}
+          confirmLabel={modal.confirmLabel}
+          variant={modal.variant}
+          loading={actionLoading}
+          onConfirm={modal.onConfirm}
+          onCancel={closeModal}
+        />
       </div>
     </MainLayout>
   );
 }
 
-export default Attendance;
+/* ===========================
+   PAGE EXPORT — wrapped in ToastProvider
+=========================== */
+function AttendancePage() {
+  return (
+    <ToastProvider>
+      <Attendance />
+    </ToastProvider>
+  );
+}
+
+export default AttendancePage;

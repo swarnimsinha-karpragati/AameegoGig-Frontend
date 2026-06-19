@@ -9,12 +9,13 @@ import {
   Check,
   X,
   Trash2,
-  Pencil,
   Send,
   ExternalLink,
   Users,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
+import ConfirmModal from "../components/ConfirmModal";
+import { ToastProvider, useToast } from "../components/Toast";
 import {
   getExpenseDashboard,
   getExpenses,
@@ -91,7 +92,6 @@ function ExpenseSummaryCards({ summary, labels = {} }) {
       icon: Clock3,
       iconClass: "amber",
       value: formatCurrency(summary.totalPending),
-      sub: `${summary.countPending || 0} claims`,
       label: labels.pending || "Pending",
     },
     {
@@ -121,13 +121,13 @@ function ExpenseSummaryCards({ summary, labels = {} }) {
 }
 
 /* ===========================
-   MAIN COMPONENT
+   INNER COMPONENT (uses useToast)
 =========================== */
-function Expense() {
+function ExpenseInner() {
+  const toast = useToast();
   const user = getStoredUser();
   const viewRole = getExpenseViewKey(user?.role);
   const canApprove = canApproveExpenses(user?.role);
-  const canPolicy = canManageExpensePolicy(user?.role);
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
 
   /* ── State ── */
@@ -135,12 +135,29 @@ function Expense() {
   const [expenses, setExpenses] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
 
-  const [rejectModal, setRejectModal] = useState({ open: false, id: null });
-  const [rejectComment, setRejectComment] = useState("");
+  /* ── Confirm modal state ── */
+  const [modal, setModal] = useState({
+    open: false,
+    title: "",
+    message: "",
+    confirmLabel: "Confirm",
+    variant: "danger",
+    onConfirm: null,
+    // For reject reason input
+    withInput: false,
+    inputValue: "",
+  });
 
+  const closeModal = () =>
+    setModal((m) => ({ ...m, open: false, inputValue: "" }));
+
+  const openModal = (config) =>
+    setModal({ open: true, inputValue: "", withInput: false, ...config });
+
+  /* ── Form ── */
   const [form, setForm] = useState({
     employeeId: "",
     title: "",
@@ -160,11 +177,7 @@ function Expense() {
   const matchesUser = useCallback(
     (item) => {
       const empId = item.employeeId?._id || item.employeeId;
-      if (
-        user?.employeeId &&
-        empId &&
-        String(empId) === String(user.employeeId)
-      )
+      if (user?.employeeId && empId && String(empId) === String(user.employeeId))
         return true;
       const empName = item.employeeId?.name?.toLowerCase?.();
       return empName && empName === user?.name?.toLowerCase?.();
@@ -189,9 +202,7 @@ function Expense() {
       setDashboard(dashRes);
       setExpenses(expRes.expenses || []);
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Failed to load expense data"
-      );
+      setError(err.response?.data?.message || "Failed to load expense data");
     } finally {
       setLoading(false);
     }
@@ -222,14 +233,8 @@ function Expense() {
   }, [user?.role]);
 
   /* ── Handlers ── */
-  const flashMessage = (msg) => {
-    setMessage(msg);
-    setTimeout(() => setMessage(""), 4000);
-  };
-
   const handleCreate = async (e, forSelf = false) => {
     e.preventDefault();
-    setMessage("");
     try {
       const fd = new FormData();
       fd.append("title", form.title);
@@ -239,13 +244,12 @@ function Expense() {
       fd.append("description", form.description);
       if (form.receipt) fd.append("receipt", form.receipt);
       if (form.submitDirectly) fd.append("status", "Pending");
-
       if (!forSelf && canApprove && form.employeeId) {
         fd.append("employeeId", form.employeeId);
       }
 
       await createExpense(fd);
-      flashMessage(
+      toast.success(
         form.submitDirectly
           ? "Expense submitted for approval"
           : "Expense saved as draft"
@@ -260,61 +264,120 @@ function Expense() {
       }));
       loadData();
     } catch (err) {
-      flashMessage(err.response?.data?.message || "Failed to submit expense");
+      toast.error(err.response?.data?.message || "Failed to submit expense");
     }
   };
 
-  const handleSubmitDraft = async (id) => {
-    try {
-      await submitExpense(id);
-      flashMessage("Expense submitted for approval");
-      loadData();
-    } catch (err) {
-      flashMessage(err.response?.data?.message || "Submit failed");
-    }
+  const handleSubmitDraft = (id) => {
+    openModal({
+      title: "Submit Expense",
+      message: "Are you sure you want to submit this expense for approval?",
+      confirmLabel: "Submit",
+      variant: "success",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await submitExpense(id);
+          toast.success("Expense submitted for approval");
+          loadData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Submit failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
   };
 
-  const handleApprove = async (id) => {
-    try {
-      await approveExpense(id);
-      flashMessage("Expense approved");
-      loadData();
-    } catch (err) {
-      flashMessage(err.response?.data?.message || "Approve failed");
-    }
+  const handleApprove = (id, name) => {
+    openModal({
+      title: "Approve Expense",
+      message: `Are you sure you want to approve${name ? ` the expense by ${name}` : " this expense"}?`,
+      confirmLabel: "Approve",
+      variant: "success",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await approveExpense(id);
+          toast.success("Expense approved successfully");
+          loadData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Approve failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
   };
 
-  const handleReject = async () => {
-    if (!rejectModal.id) return;
-    try {
-      await rejectExpense(rejectModal.id, rejectComment);
-      setRejectModal({ open: false, id: null });
-      setRejectComment("");
-      flashMessage("Expense rejected");
-      loadData();
-    } catch (err) {
-      flashMessage(err.response?.data?.message || "Reject failed");
-    }
+  const handleReject = (id, name) => {
+    openModal({
+      title: "Reject Expense",
+      message: `You are about to reject${name ? ` the expense by ${name}` : " this expense"}.`,
+      confirmLabel: "Reject",
+      variant: "danger",
+      withInput: true,
+      inputValue: "",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await rejectExpense(id, modal.inputValue);
+          toast.warning("Expense rejected");
+          loadData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Reject failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
   };
 
-  const handleReimburse = async (id) => {
-    try {
-      await markReimbursed(id);
-      flashMessage("Marked as reimbursed");
-      loadData();
-    } catch (err) {
-      flashMessage(err.response?.data?.message || "Reimburse failed");
-    }
+  const handleReimburse = (id, name) => {
+    openModal({
+      title: "Mark as Reimbursed",
+      message: `Confirm that${name ? ` ${name}'s` : " this"} expense has been reimbursed. This action cannot be undone.`,
+      confirmLabel: "Mark Reimbursed",
+      variant: "success",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await markReimbursed(id);
+          toast.success("Expense marked as reimbursed");
+          loadData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Reimburse failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await deleteExpense(id);
-      flashMessage("Expense deleted");
-      loadData();
-    } catch (err) {
-      flashMessage(err.response?.data?.message || "Delete failed");
-    }
+  const handleDelete = (id) => {
+    openModal({
+      title: "Delete Draft Expense",
+      message: "This expense will be permanently deleted. This action cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await deleteExpense(id);
+          toast.success("Expense deleted");
+          loadData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Delete failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
   };
 
   /* ===========================
@@ -325,10 +388,7 @@ function Expense() {
       <h3>
         <Plus size={16} /> {forSelf ? "Submit My Expense" : "Submit Expense"}
       </h3>
-      <form
-        className="expense-form"
-        onSubmit={(e) => handleCreate(e, forSelf)}
-      >
+      <form className="expense-form" onSubmit={(e) => handleCreate(e, forSelf)}>
         {showEmployeeSelect && employees.length > 0 ? (
           <select
             value={form.employeeId}
@@ -491,176 +551,142 @@ function Expense() {
             {items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={showEmployee ? (showActions ? 8 : 7) : showActions ? 7 : 6}
+                  colSpan={
+                    showEmployee
+                      ? showActions ? 8 : 7
+                      : showActions ? 7 : 6
+                  }
                   className="expense-empty"
                 >
                   No expenses found
                 </td>
               </tr>
             ) : null}
-            {items.map((exp) => (
-              <tr key={exp._id}>
-                {showEmployee ? (
-                  <td>{exp.employeeId?.name || "-"}</td>
-                ) : null}
-                <td>{exp.title}</td>
-                <td>{exp.category}</td>
-                <td className="amount-cell">{formatCurrency(exp.amount)}</td>
-                <td>
-                  {new Date(exp.expenseDate).toLocaleDateString("en-IN")}
-                </td>
-                <td>
-                  {exp.receiptPath ? (
-                    <a
-                      href={getReceiptUrl(exp._id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="receipt-link"
-                    >
-                      <ExternalLink size={12} /> View
-                    </a>
-                  ) : (
-                    "-"
-                  )}
-                </td>
-                <td>
-                  <span
-                    className={
-                      STATUS_CLASS[exp.status] || "expense-status"
-                    }
-                  >
-                    {exp.status}
-                  </span>
-                </td>
-                {showActions ? (
+            {items.map((exp) => {
+              const empName = exp.employeeId?.name || null;
+              return (
+                <tr key={exp._id}>
+                  {showEmployee ? <td>{empName || "-"}</td> : null}
+                  <td>{exp.title}</td>
+                  <td>{exp.category}</td>
+                  <td className="amount-cell">{formatCurrency(exp.amount)}</td>
                   <td>
-                    <div className="expense-actions">
-                      {/* Owner actions */}
-                      {actionMode === "owner" && exp.status === "Draft" ? (
-                        <>
-                          <button
-                            className="edit-expense-btn"
-                            title="Submit"
-                            onClick={() => handleSubmitDraft(exp._id)}
-                          >
-                            <Send size={12} /> Submit
-                          </button>
-                          <button
-                            className="delete-expense-btn"
-                            title="Delete"
-                            onClick={() => handleDelete(exp._id)}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </>
-                      ) : null}
-
-                      {actionMode === "owner" &&
-                      exp.status === "Pending" ? (
-                        <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>
-                          Awaiting approval
-                        </span>
-                      ) : null}
-
-                      {/* Approver actions */}
-                      {actionMode === "approve" &&
-                      exp.status === "Pending" ? (
-                        <>
-                          <button
-                            className="approve-expense-btn"
-                            onClick={() => handleApprove(exp._id)}
-                          >
-                            <Check size={12} /> Approve
-                          </button>
-                          <button
-                            className="reject-expense-btn"
-                            onClick={() =>
-                              setRejectModal({ open: true, id: exp._id })
-                            }
-                          >
-                            <X size={12} /> Reject
-                          </button>
-                        </>
-                      ) : null}
-
-                      {/* Reimburse action */}
-                      {actionMode === "reimburse" &&
-                      exp.status === "Approved" ? (
-                        <button
-                          className="reimburse-btn"
-                          onClick={() => handleReimburse(exp._id)}
-                        >
-                          <Banknote size={12} /> Reimburse
-                        </button>
-                      ) : null}
-
-                      {/* Combined approve + reimburse */}
-                      {actionMode === "full" && exp.status === "Pending" ? (
-                        <>
-                          <button
-                            className="approve-expense-btn"
-                            onClick={() => handleApprove(exp._id)}
-                          >
-                            <Check size={12} /> Approve
-                          </button>
-                          <button
-                            className="reject-expense-btn"
-                            onClick={() =>
-                              setRejectModal({ open: true, id: exp._id })
-                            }
-                          >
-                            <X size={12} /> Reject
-                          </button>
-                        </>
-                      ) : null}
-                      {actionMode === "full" && exp.status === "Approved" ? (
-                        <button
-                          className="reimburse-btn"
-                          onClick={() => handleReimburse(exp._id)}
-                        >
-                          <Banknote size={12} /> Reimburse
-                        </button>
-                      ) : null}
-                    </div>
+                    {new Date(exp.expenseDate).toLocaleDateString("en-IN")}
                   </td>
-                ) : null}
-              </tr>
-            ))}
+                  <td>
+                    {exp.receiptPath ? (
+                      <a
+                        href={getReceiptUrl(exp._id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="receipt-link"
+                      >
+                        <ExternalLink size={12} /> View
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td>
+                    <span
+                      className={STATUS_CLASS[exp.status] || "expense-status"}
+                    >
+                      {exp.status}
+                    </span>
+                  </td>
+                  {showActions ? (
+                    <td>
+                      <div className="expense-actions">
+                        {/* Owner: Draft actions */}
+                        {actionMode === "owner" && exp.status === "Draft" ? (
+                          <>
+                            <button
+                              className="edit-expense-btn"
+                              title="Submit for approval"
+                              onClick={() => handleSubmitDraft(exp._id)}
+                            >
+                              <Send size={12} /> Submit
+                            </button>
+                            <button
+                              className="delete-expense-btn"
+                              title="Delete draft"
+                              onClick={() => handleDelete(exp._id)}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </>
+                        ) : null}
+
+                        {actionMode === "owner" && exp.status === "Pending" ? (
+                          <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>
+                            Awaiting approval
+                          </span>
+                        ) : null}
+
+                        {/* Approver: Pending actions */}
+                        {actionMode === "approve" && exp.status === "Pending" ? (
+                          <>
+                            <button
+                              className="approve-expense-btn"
+                              onClick={() => handleApprove(exp._id, empName)}
+                            >
+                              <Check size={12} /> Approve
+                            </button>
+                            <button
+                              className="reject-expense-btn"
+                              onClick={() => handleReject(exp._id, empName)}
+                            >
+                              <X size={12} /> Reject
+                            </button>
+                          </>
+                        ) : null}
+
+                        {/* Reimburse only */}
+                        {actionMode === "reimburse" && exp.status === "Approved" ? (
+                          <button
+                            className="reimburse-btn"
+                            onClick={() => handleReimburse(exp._id, empName)}
+                          >
+                            <Banknote size={12} /> Reimburse
+                          </button>
+                        ) : null}
+
+                        {/* Full: approve + reimburse */}
+                        {actionMode === "full" && exp.status === "Pending" ? (
+                          <>
+                            <button
+                              className="approve-expense-btn"
+                              onClick={() => handleApprove(exp._id, empName)}
+                            >
+                              <Check size={12} /> Approve
+                            </button>
+                            <button
+                              className="reject-expense-btn"
+                              onClick={() => handleReject(exp._id, empName)}
+                            >
+                              <X size={12} /> Reject
+                            </button>
+                          </>
+                        ) : null}
+                        {actionMode === "full" && exp.status === "Approved" ? (
+                          <button
+                            className="reimburse-btn"
+                            onClick={() => handleReimburse(exp._id, empName)}
+                          >
+                            <Banknote size={12} /> Reimburse
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </section>
   );
-
-  /* ===========================
-     RENDER: Reject Modal
-  =========================== */
-  const renderRejectModal = () => {
-    if (!rejectModal.open) return null;
-    return (
-      <div className="reject-modal-overlay" onClick={() => setRejectModal({ open: false, id: null })}>
-        <div className="reject-modal" onClick={(e) => e.stopPropagation()}>
-          <h3>Reject Expense</h3>
-          <textarea
-            placeholder="Reason for rejection (optional)"
-            value={rejectComment}
-            onChange={(e) => setRejectComment(e.target.value)}
-          />
-          <div className="reject-modal-actions">
-            <button
-              className="cancel-reject"
-              onClick={() => setRejectModal({ open: false, id: null })}
-            >
-              Cancel
-            </button>
-            <button className="confirm-reject" onClick={handleReject}>
-              Reject
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   /* ===========================
      RENDER: My Expense Section
@@ -697,7 +723,6 @@ function Expense() {
   /* ===========================
      ROLE VIEWS
   =========================== */
-
   const renderEmployeeView = () => (
     <>
       <ExpenseSummaryCards
@@ -853,7 +878,6 @@ function Expense() {
         </div>
 
         {error ? <p className="expense-error">{error}</p> : null}
-        {message ? <p className="expense-message">{message}</p> : null}
 
         {loading && !dashboard ? (
           <p className="expense-empty">Loading expense data...</p>
@@ -861,9 +885,35 @@ function Expense() {
           roleViews[viewRole]?.()
         )}
 
-        {renderRejectModal()}
+        {/* Confirmation Modal */}
+        <ConfirmModal
+          open={modal.open}
+          title={modal.title}
+          message={modal.message}
+          confirmLabel={modal.confirmLabel}
+          variant={modal.variant}
+          loading={actionLoading}
+          onConfirm={modal.onConfirm}
+          onCancel={closeModal}
+          /* Rejection reason textarea */
+          inputLabel={modal.withInput ? "Reason for rejection (optional)" : undefined}
+          inputValue={modal.inputValue}
+          onInputChange={(val) => setModal((m) => ({ ...m, inputValue: val }))}
+          inputPlaceholder="Enter a reason..."
+        />
       </div>
     </MainLayout>
+  );
+}
+
+/* ===========================
+   PAGE EXPORT — wrapped in ToastProvider
+=========================== */
+function Expense() {
+  return (
+    <ToastProvider>
+      <ExpenseInner />
+    </ToastProvider>
   );
 }
 
