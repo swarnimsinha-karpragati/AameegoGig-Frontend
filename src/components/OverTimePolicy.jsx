@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import './OverTimePolicy.css';
 import { createOvertimePolicy, updateOvertimePolicy } from '../services/settingService';
 
-export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel }) => {
-  const initialFormState = {
-    policyDepartment: '',
-    OverTimeAction: 'Increase Salary', 
-    triggerType: 'Daily',
-    rateMultiplier: 1,
-    halfDayThresholdHours: 4, 
-    fullDayThresholdHours: 8, 
-    applicableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-  };
+const initialFormState = {
+  policyDepartment: '',
+  OverTimeAction: 'Increase Salary',
+  triggerType: 'Daily',
+  rateMultiplier: 1,
+  halfDayThresholdHours: 4,
+  fullDayThresholdHours: 8,
+  applicableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+};
 
+export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel }) => {
   const dummyDepartment = ['HR', 'Finance', 'Operations', 'Sales', 'Marketing', 'IT'];
 
   const [policyData, setPolicyData] = useState(initialFormState);
@@ -33,7 +33,8 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
     } else {
       setPolicyData(initialFormState);
     }
-  }, [editingPolicy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingPolicy, initialFormState]);
 
   useEffect(() => {
     if (submitStatus.message) {
@@ -46,7 +47,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
   }, [submitStatus.message]);
 
   const daysOfWeek = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
     'Friday', 'Saturday', 'Sunday'
   ];
 
@@ -54,7 +55,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
     const { name, value, type } = e.target;
     setPolicyData(prev => ({
       ...prev,
-      [name]: type === 'number' 
+      [name]: type === 'number'
         ? (value === '' ? '' : parseFloat(value))
         : value
     }));
@@ -71,7 +72,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (isSubmitting) return;
 
     setIsSubmitting(true);
@@ -100,8 +101,8 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         OverTimeAction: policyData.OverTimeAction,
         triggerType: policyData.triggerType,
         rateMultiplier: Number(policyData.rateMultiplier) || 1,
-        halfDayThreshold: halfDayHours * 60, 
-        fullDayThreshold: fullDayHours * 60, 
+        halfDayThreshold: halfDayHours * 60,
+        fullDayThreshold: fullDayHours * 60,
         applicableDays: Array.isArray(policyData.applicableDays) ? policyData.applicableDays : []
       };
 
@@ -116,15 +117,15 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
       if (res?.status === 200 || res?.status === 201 || res?.success) {
         setSubmitStatus({
           type: 'success',
-          message: editingPolicy 
-            ? 'Overtime policy has been successfully updated.' 
+          message: editingPolicy
+            ? 'Overtime policy has been successfully updated.'
             : 'Overtime policy has been successfully configured and saved.'
         });
-        
+
         if (!editingPolicy) {
           setPolicyData(initialFormState);
         }
-        
+
         if (onSuccess) {
           setTimeout(() => onSuccess(), 1000);
         }
@@ -151,7 +152,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
       </div>
 
       <form onSubmit={handleSubmit} className="ot-form">
-        
+
         <div className="ot-section">
           <h3>1. Tracking Metrics</h3>
           <div className="ot-bg-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -187,7 +188,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
                   <option value="Monthly">Monthly</option>
                 </select>
               </div>
-              
+
               <div className="ot-info-text">
                 Determines the window over which cumulative overtime thresholds will execute.
               </div>
@@ -196,20 +197,20 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         </div>
 
         <hr className="ot-divider" />
-        
+
         <div className="ot-section">
           <h3>2. Overtime Action Rules</h3>
-          
+
           <div className="ot-strategy-group">
             <label className={`ot-card ${policyData.OverTimeAction === 'Increase Salary' ? 'active' : ''}`}>
               <div className="ot-card-title">
                 <span>Increase Salary</span>
-                <input 
-                  type="radio" 
-                  name="OverTimeAction" 
-                  value="Increase Salary" 
-                  checked={policyData.OverTimeAction === 'Increase Salary'} 
-                  onChange={handleInputChange} 
+                <input
+                  type="radio"
+                  name="OverTimeAction"
+                  value="Increase Salary"
+                  checked={policyData.OverTimeAction === 'Increase Salary'}
+                  onChange={handleInputChange}
                 />
               </div>
               <p>Provide direct operational financial payout increments.</p>
@@ -218,12 +219,12 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
             <label className={`ot-card ${policyData.OverTimeAction === 'Add Leave' ? 'active' : ''}`}>
               <div className="ot-card-title">
                 <span>Add Leave</span>
-                <input 
-                  type="radio" 
-                  name="OverTimeAction" 
-                  value="Add Leave" 
-                  checked={policyData.OverTimeAction === 'Add Leave'} 
-                  onChange={handleInputChange} 
+                <input
+                  type="radio"
+                  name="OverTimeAction"
+                  value="Add Leave"
+                  checked={policyData.OverTimeAction === 'Add Leave'}
+                  onChange={handleInputChange}
                 />
               </div>
               <p>Convert excess hours into half-day or full-day leaves.</p>
@@ -232,12 +233,12 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
             <label className={`ot-card ${policyData.OverTimeAction === 'None' ? 'active' : ''}`}>
               <div className="ot-card-title">
                 <span>No Action</span>
-                <input 
-                  type="radio" 
-                  name="OverTimeAction" 
-                  value="None" 
-                  checked={policyData.OverTimeAction === 'None'} 
-                  onChange={handleInputChange} 
+                <input
+                  type="radio"
+                  name="OverTimeAction"
+                  value="None"
+                  checked={policyData.OverTimeAction === 'None'}
+                  onChange={handleInputChange}
                 />
               </div>
               <p>Log overtime for metrics without adding leaves or pay tier variances.</p>
@@ -274,7 +275,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
                     onChange={handleInputChange}
                     className="ot-input"
                   />
-                  <span className="ot-unit-badge">hours ({ (Number(policyData.halfDayThresholdHours) || 0) * 60 }m)</span>
+                  <span className="ot-unit-badge">hours ({(Number(policyData.halfDayThresholdHours) || 0) * 60}m)</span>
                 </div>
               </div>
               <div>
@@ -287,7 +288,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
                     onChange={handleInputChange}
                     className="ot-input"
                   />
-                  <span className="ot-unit-badge">hours ({ (Number(policyData.fullDayThresholdHours) || 0) * 60 }m)</span>
+                  <span className="ot-unit-badge">hours ({(Number(policyData.fullDayThresholdHours) || 0) * 60}m)</span>
                 </div>
               </div>
             </div>
@@ -322,10 +323,10 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         )}
 
         <div className="ot-actions">
-          <button 
-            type="button" 
-            className="ot-btn-secondary" 
-            onClick={editingPolicy ? onCancel : undefined} 
+          <button
+            type="button"
+            className="ot-btn-secondary"
+            onClick={editingPolicy ? onCancel : undefined}
             disabled={isSubmitting}
           >
             {editingPolicy ? 'Cancel Edit' : 'Cancel'}
