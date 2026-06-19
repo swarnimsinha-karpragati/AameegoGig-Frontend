@@ -15,7 +15,15 @@ import {
 import "../pages/Dashboard.css";
 import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
 
+const toPascalCase = (str) => {
+  return str
+    .toLowerCase()
+    .replace(/(?:^|[-_\s]+)(.)/g, (_, chr) => chr.toUpperCase());
+};
+
 function MainLayout({ children }) {
+
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -125,7 +133,7 @@ function MainLayout({ children }) {
           </div>
 
           <div className="client-info">
-    Threye Interactive Pvt. Ltd.
+    {toPascalCase(user?.name)}
   </div>
           <nav className="sidebar-menu">
             {menuItems.map((item) => {
