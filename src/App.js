@@ -11,6 +11,7 @@ import Settings from "./pages/Setting";
 import Payroll from './pages/Payroll';
 import Attendance from "./pages/Attendance";
 import Leave from "./pages/Leave";
+import Expense from "./pages/Expense";
 
 function App() {
   return (
@@ -73,6 +74,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Leave />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute>
+              <Expense />
             </ProtectedRoute>
           }
         />

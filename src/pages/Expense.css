@@ -1,0 +1,525 @@
+/* =========================
+   EXPENSE PAGE — mirrors Leave.css design
+========================= */
+
+.expense-page {
+  padding: 0;
+}
+
+/* ── Toolbar ── */
+.expense-view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+
+.expense-view-toolbar-text h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary, #1a1a2e);
+  margin: 0;
+}
+
+.expense-view-toolbar-text p {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 4px 0 0;
+}
+
+/* ── Summary Grid ── */
+.expense-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.expense-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s;
+}
+
+.expense-summary-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+
+.expense-summary-card h3 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0;
+  color: #1a1a2e;
+}
+
+.expense-summary-card p {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin: 2px 0 0;
+}
+
+.expense-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.expense-icon.blue {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.expense-icon.green {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.expense-icon.amber {
+  background: #fffbeb;
+  color: #f59e0b;
+}
+
+.expense-icon.purple {
+  background: #f3e8ff;
+  color: #8b5cf6;
+}
+
+.expense-icon.rose {
+  background: #fff1f2;
+  color: #f43f5e;
+}
+
+/* ── Layout Grid ── */
+.expense-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+  .expense-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Card ── */
+.expense-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.expense-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1a1a2e;
+}
+
+/* ── Status Badges ── */
+.expense-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.expense-status.draft {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.expense-status.pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.expense-status.approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.expense-status.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.expense-status.reimbursed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+/* ── Tables ── */
+.expense-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.expense-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.expense-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+}
+
+.expense-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.expense-empty {
+  text-align: center;
+  color: #9ca3af;
+  padding: 24px;
+  font-size: 0.85rem;
+}
+
+/* ── Actions ── */
+.expense-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.expense-actions button,
+.approve-expense-btn,
+.reject-expense-btn,
+.reimburse-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.approve-expense-btn {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.reject-expense-btn {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.reimburse-btn {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.cancel-expense-btn {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.delete-expense-btn {
+  background: #fee2e2;
+  color: #991b1b;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.edit-expense-btn {
+  background: #eff6ff;
+  color: #3b82f6;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* ── Form ── */
+.expense-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.expense-form input,
+.expense-form select,
+.expense-form textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.expense-form input:focus,
+.expense-form select:focus,
+.expense-form textarea:focus {
+  border-color: #6366f1;
+}
+
+.expense-form textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.expense-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .expense-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.expense-form label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.expense-form button[type="submit"] {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  align-self: flex-start;
+}
+
+.expense-form button[type="submit"]:hover {
+  opacity: 0.9;
+}
+
+.expense-form .file-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expense-form .file-input-wrapper small {
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+/* ── Receipt link ── */
+.receipt-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #6366f1;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.receipt-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Error / Message ── */
+.expense-error {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.expense-message {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+/* ── Section Heading ── */
+.expense-section-heading {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 28px 0 16px;
+  color: #1a1a2e;
+}
+
+/* ── Category Breakdown ── */
+.category-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.category-item:last-child {
+  border-bottom: none;
+}
+
+.category-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.category-amount {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.category-count {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-left: 6px;
+}
+
+/* ── Role Banner ── */
+.expense-role-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.expense-role-banner.manager {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+/* ── Self Section ── */
+.expense-self-section {
+  margin-bottom: 28px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* ── Reject Comment Modal ── */
+.reject-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.reject-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.reject-modal h3 {
+  margin: 0 0 16px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.reject-modal textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  margin-bottom: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.reject-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.reject-modal-actions button {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.reject-modal-actions .confirm-reject {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.reject-modal-actions .cancel-reject {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* ── Amount formatting ── */
+.amount-cell {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
