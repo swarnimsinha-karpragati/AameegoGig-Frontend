@@ -4,16 +4,15 @@ import { createOvertimePolicy, updateOvertimePolicy } from '../services/settingS
 
 export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel }) => {
   const initialFormState = {
-    policyDepartment: '',
-    OverTimeAction: 'Increase Salary', 
+    policyName: 'General',
+    OverTimeAction: 'Incentive', 
     triggerType: 'Daily',
-    rateMultiplier: 1,
     halfDayThresholdHours: 4, 
     fullDayThresholdHours: 8, 
+    minHours: 0, // In hours for UI tracking
+    perHourRate: 0, 
     applicableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
   };
-
-  const dummyDepartment = ['HR', 'Finance', 'Operations', 'Sales', 'Marketing', 'IT'];
 
   const [policyData, setPolicyData] = useState(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,12 +21,13 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
   useEffect(() => {
     if (editingPolicy) {
       setPolicyData({
-        policyDepartment: editingPolicy.policyDepartment || '',
-        OverTimeAction: editingPolicy.OverTimeAction || 'Increase Salary',
+        policyName: editingPolicy.policyName || '',
+        OverTimeAction: editingPolicy.OverTimeAction || 'Incentive',
         triggerType: editingPolicy.triggerType || 'Daily',
-        rateMultiplier: editingPolicy.rateMultiplier || 1,
         halfDayThresholdHours: editingPolicy.halfDayThreshold ? editingPolicy.halfDayThreshold / 60 : 0,
         fullDayThresholdHours: editingPolicy.fullDayThreshold ? editingPolicy.fullDayThreshold / 60 : 0,
+        minHours: editingPolicy.minHours ? editingPolicy.minHours / 60 : 0, // Convert minutes from DB back to hours
+        perHourRate: editingPolicy.perHourRate || 0,
         applicableDays: editingPolicy.applicableDays || []
       });
     } else {
@@ -78,12 +78,14 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
     setSubmitStatus({ type: '', message: '' });
 
     try {
-      if (!policyData?.policyDepartment.trim()) {
-        throw new Error("Policy department is required.");
+      if (!policyData?.policyName.trim()) {
+        throw new Error("Policy name is required.");
       }
 
       const halfDayHours = Number(policyData.halfDayThresholdHours) || 0;
       const fullDayHours = Number(policyData.fullDayThresholdHours) || 0;
+      const parsedMinHours = Number(policyData.minHours) || 0;
+      const parsedPerHourRate = Number(policyData.perHourRate) || 0;
 
       if (policyData.OverTimeAction === 'Add Leave') {
         if (halfDayHours <= 0 || fullDayHours <= 0) {
@@ -94,14 +96,21 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         }
       }
 
+      if (policyData.OverTimeAction === 'Increase Salary') {
+        if (parsedMinHours < 0 || parsedPerHourRate < 0) {
+          throw new Error("Minimum hours and per hour rate values cannot be negative.");
+        }
+      }
+
       const payload = {
         vendorId: vendorId,
-        policyDepartment: policyData.policyDepartment.trim(),
+        policyName: policyData.policyName.trim(),
         OverTimeAction: policyData.OverTimeAction,
         triggerType: policyData.triggerType,
-        rateMultiplier: Number(policyData.rateMultiplier) || 1,
         halfDayThreshold: halfDayHours * 60, 
         fullDayThreshold: fullDayHours * 60, 
+        minHours: parsedMinHours * 60, // Convert hours to minutes for Mongoose Schema schema mapping
+        perHourRate: parsedPerHourRate,
         applicableDays: Array.isArray(policyData.applicableDays) ? policyData.applicableDays : []
       };
 
@@ -156,21 +165,15 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
           <h3>1. Tracking Metrics</h3>
           <div className="ot-bg-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
-              <label className="ot-label">Policy Department</label>
-              <select
-                name="policyDepartment"
-                value={policyData?.policyDepartment}
+              <label className="ot-label">Policy Name</label>
+              <input
+                type="text"
+                name="policyName"
+                value={policyData?.policyName}
                 onChange={handleInputChange}
                 className="ot-select"
                 required
-              >
-                <option value="">Select a department</option>
-                {dummyDepartment.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div className="ot-grid-2">
@@ -201,18 +204,18 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
           <h3>2. Overtime Action Rules</h3>
           
           <div className="ot-strategy-group">
-            <label className={`ot-card ${policyData.OverTimeAction === 'Increase Salary' ? 'active' : ''}`}>
+            <label className={`ot-card ${policyData.OverTimeAction === 'Incentive' ? 'active' : ''}`}>
               <div className="ot-card-title">
-                <span>Increase Salary</span>
+                <span>Incentive</span>
                 <input 
                   type="radio" 
                   name="OverTimeAction" 
-                  value="Increase Salary" 
-                  checked={policyData.OverTimeAction === 'Increase Salary'} 
+                  value="Incentive" 
+                  checked={policyData.OverTimeAction === 'Incentive'} 
                   onChange={handleInputChange} 
                 />
               </div>
-              <p>Provide direct operational financial payout increments.</p>
+              <p>Provide direct operational financial payout Incentive.</p>
             </label>
 
             <label className={`ot-card ${policyData.OverTimeAction === 'Add Leave' ? 'active' : ''}`}>
@@ -244,20 +247,38 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
             </label>
           </div>
 
+          {/* New Financial Settings Section for Increase Salary */}
           {policyData.OverTimeAction === 'Increase Salary' && (
-            <div className="ot-sub-panel">
-              <label className="ot-label">Salary Rate Multiplier</label>
-              <div className="ot-input-inline">
-                <input
-                  type="number"
-                  step="0.1"
-                  name="rateMultiplier"
-                  value={policyData.rateMultiplier}
-                  onChange={handleInputChange}
-                  min="1"
-                  className="ot-input"
-                />
-                <span>× regular base wage payout</span>
+            <div className="ot-grid-2 ot-sub-panel">
+              <div>
+                <label className="ot-label">Minimum Overtime Hours</label>
+                <div className="ot-relative-input">
+                  <input
+                    type="number"
+                    step="0.5"
+                    name="minHours"
+                    value={policyData.minHours ?? ''}
+                    onChange={handleInputChange}
+                    min="0"
+                    className="ot-input"
+                  />
+                  <span className="ot-unit-badge">hours ({ (Number(policyData.minHours) || 0) * 60 }m)</span>
+                </div>
+              </div>
+              <div>
+                <label className="ot-label">Per Hour Rate</label>
+                <div className="ot-relative-input">
+                  <input
+                    type="number"
+                    step="1"
+                    name="perHourRate"
+                    value={policyData.perHourRate ?? ''}
+                    onChange={handleInputChange}
+                    min="0"
+                    className="ot-input"
+                  />
+                  <span className="ot-unit-badge">per hour</span>
+                </div>
               </div>
             </div>
           )}

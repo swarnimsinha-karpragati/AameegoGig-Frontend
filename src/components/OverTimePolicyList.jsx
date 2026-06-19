@@ -94,7 +94,7 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
           <table className="ot-table">
             <thead>
               <tr>
-                <th>Policy Department</th>
+                <th>Policy Name</th>
                 <th>Interval</th>
                 <th>Action Rule</th>
                 <th>Details</th>
@@ -107,7 +107,7 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
                 const currentId = policy?._id || policy?.id;
                 return (
                   <tr key={currentId}>
-                    <td className="ot-td-bold">{policy?.policyDepartment}</td>
+                    <td className="ot-td-bold">{policy?.policyName}</td>
                     <td>
                       <span className="ot-badge-gray">{policy?.triggerType}</span>
                     </td>
@@ -117,8 +117,9 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
                       </span>
                     </td>
                     <td>
-                      {policy?.OverTimeAction === 'Increase Salary' && (
-                        <span className="ot-text-muted">{policy?.rateMultiplier}x Base Wage</span>
+                      {/* Updated: rateMultiplier conditionally checked row was removed */}
+                      {policy?.OverTimeAction === 'Incentive' && (
+                        <span className="ot-text-muted">Incentive Applied</span>
                       )}
                       {policy?.OverTimeAction === 'Add Leave' && (
                         <span className="ot-text-muted">

@@ -11,6 +11,7 @@ import Settings from "./pages/Setting";
 import Payroll from './pages/Payroll';
 import Attendance from "./pages/Attendance";
 import Leave from "./pages/Leave";
+import Departments from './pages/Department';
 import Expense from "./pages/Expense";
 
 function App() {
@@ -26,6 +27,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/departments"
+          element={
+            <ProtectedRoute>
+              <Departments />
             </ProtectedRoute>
           }
         />

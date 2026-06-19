@@ -7,6 +7,7 @@ function Sidebar() {
 
       <nav>
         <Link to="/dashboard">Dashboard</Link>
+        <Link to="#">Departments</Link>
         <Link to="#">Employees</Link>
         <Link to="#">Attendance</Link>
         <Link to="#">Payroll</Link>
