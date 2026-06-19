@@ -8,6 +8,7 @@ import {
   LogOut,
   FileText,
   Settings,
+  Building2,
   ReceiptText,
 } from "lucide-react";
 
@@ -24,6 +25,10 @@ function MainLayout({ children }) {
     "/dashboard": {
       title: "Dashboard",
       subtitle: "Welcome back! Here's what's happening today.",
+    },
+    "/departments": {
+      title: "Departments",
+      subtitle: "Manage your organization departments.",
     },
     "/employees": {
       title: "Employees",
@@ -63,6 +68,11 @@ function MainLayout({ children }) {
       label: "Dashboard",
       path: "/dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      label: "Departments",
+      path: "/departments",
+      icon: Building2,
     },
     {
       label: "Employees",
