@@ -930,28 +930,28 @@ function Employees() {
                     </td>
 
                     <td>
-                      <div className="action-buttons">
+                      <div className="emp-action-buttons">
 
                         <button
-                          className="view-btn"
+                          className="emp-grid-btn"
                           onClick={() =>
                             handleView(emp)
                           }
                         >
-                          <Eye size={16} />
+                          <Eye />
                         </button>
 
                         <button
-                          className="edit-btn"
+                          className="emp-grid-btn"
                           onClick={() =>
                             handleEdit(emp)
                           }
                         >
-                          <Pencil size={16} />
+                          <Pencil />
                         </button>
 
                         <button
-  className="letter-btn"
+  className="emp-grid-btn"
   onClick={() => {
     setLetterData({
       employeeName:
@@ -990,11 +990,11 @@ function Employees() {
     setShowLetterModal(true);
   }}
 >
-  <FileText size={16} />
+  <FileText />
 </button>
 
 <button
-  className="view-btn"
+  className="emp-grid-btn"
   onClick={async () => {
 
     setSelectedEmployeeForDocs(
@@ -1010,18 +1010,18 @@ function Employees() {
     );
   }}
 >
-  <FolderOpen size={16} />
+  <FolderOpen />
 </button>
 
                         <button
-                          className="delete-btn"
+                          className=" emp-grid-btn"
                           onClick={() =>
                             handleDelete(
                               emp._id
                             )
                           }
                         >
-                          <Trash2 size={16} />
+                          <Trash2 />
                         </button>
 
                       </div>
