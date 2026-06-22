@@ -37,17 +37,19 @@ body {
 
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 24px;
 
   padding: 30px 20px;
 
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .sidebar-top {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .brand h1 {
@@ -86,6 +88,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .menu-item {
@@ -126,6 +132,8 @@ body {
   border-top: 1px solid #e5e7eb;
 
   padding-top: 20px;
+  margin-top: auto;
+  flex-shrink: 0;
 
   display: flex;
   align-items: center;
@@ -630,6 +638,24 @@ body {
   border: none;
   border-radius: 10px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-btn svg,
+.edit-btn svg,
+.delete-btn svg,
+.letter-btn svg,
+.menu-item svg,
+.logout-btn svg,
+.manage-depts-row-buttons button svg,
+.leave-actions button svg,
+.approve-btn svg,
+.reject-btn svg,
+.document-actions button svg,
+.document-icon svg {
+  flex-shrink: 0;
 }
 
 .view-btn {
@@ -1104,6 +1130,9 @@ body {
   background: #f8fafc;
   color: #475569;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .document-actions button:hover {
@@ -1141,8 +1170,8 @@ body {
 }
 
 .letter-btn {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
 
   border: none;
   border-radius: 10px;
