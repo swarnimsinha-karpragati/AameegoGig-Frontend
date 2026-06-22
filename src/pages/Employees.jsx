@@ -33,6 +33,7 @@ import {
 } from "../services/letterService";
 
 import "./Employees.css";
+import { getDepartmentName } from "../services/departmentService";
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -154,7 +155,9 @@ function EmployeeFormFields({
   employees,
   excludeEmployeeId,
   emailRequired,
+  department
 }) {
+  console.log(department)
   const renderInput = (field) => {
     const id = `emp-field-${field.key}`;
     const common = {
@@ -163,6 +166,18 @@ function EmployeeFormFields({
       value: values[field.key] || "",
       onChange: onFieldChange,
     };
+    if (field.key === "department") {
+      return (
+        <select {...common}>
+          <option value="">Select Department</option>
+          {department && department.map((dept) => (
+            <option key={dept?._id} value={dept?.name}>
+              {dept?.name}
+            </option>
+          ))}
+        </select>
+      );
+    }
 
     if (field.type === "manager") {
       return (
@@ -334,6 +349,9 @@ function Employees() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [department,setDepartment] = useState(null)
+  const [vendorId,setVendorId] = useState(null)
+
   const [
     showDocumentsModal,
     setShowDocumentsModal,
@@ -424,8 +442,25 @@ function Employees() {
   };
 
   useEffect(() => {
+    const loggedUser = localStorage.getItem('user')
+    const {vendorId} = JSON.parse(loggedUser)
+    setVendorId(vendorId)
+
     fetchEmployees();
+    fetchDepartment(vendorId);
   }, []);
+
+  const fetchDepartment = async(vendorId) =>{
+    try{
+      if(!vendorId) return
+      const res = await getDepartmentName(vendorId);
+      setDepartment(res.data)
+      
+    }catch(err){
+      console.log(err)
+    }
+  }
+  
 
   const loadEmployeeDocuments =
   async (employeeId) => {
@@ -1066,6 +1101,7 @@ function Employees() {
                 onFieldChange={handleChange}
                 employees={employees}
                 emailRequired={form.createAppLogin}
+                department={department}
               />
               <FormSection title="App Access">
                 <AppLoginSection
@@ -1181,6 +1217,7 @@ function Employees() {
                     employees={employees}
                     excludeEmployeeId={selectedEmployee._id}
                     emailRequired={enableLoginOnUpdate}
+                    department={department}
                   />
                   <FormSection title="App Access">
                     <AppLoginSection
