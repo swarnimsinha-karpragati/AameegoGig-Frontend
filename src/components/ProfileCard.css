@@ -25,7 +25,7 @@
   margin-top:6px;
 }
 
-.edit-btn,
+.profile-card .edit-btn,
 .camera-btn{
   width:48px;
   height:48px;
@@ -38,7 +38,7 @@
   cursor:pointer;
 }
 
-.edit-btn:hover,
+.profile-card .edit-btn:hover,
 .camera-btn:hover{
   background:#e2e8f0;
 }

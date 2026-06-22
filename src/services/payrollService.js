@@ -1,33 +1,61 @@
 import API from "./apiClient";
 
-// export const getPayrollById = (
-//   payrollId
-// ) => {
-//   return axios.get(
-//     `/api/payroll/${payrollId}`
-//   );
-// };
+/* ==========================================
+   1. PREVIEW SALARY DATA (generate-no-save)
+   ========================================== */
+export const previewPayroll = async (params) => {
+  // params: { employeeId, vendorId, month, year }
+  return API.get("/payroll/generate", { params });
+};
 
-/* =========================
-   ADD SINGLE EMPLOYEE
-========================= */
+/* ==========================================
+   2. CALCULATE & SAVE SINGLE EMPLOYEE PAYROLL
+   ========================================== */
+export const calculateSinglePayroll = async (data) => {
+  // data: { employeeId, vendorId, month, year }
+  return API.post("/payroll/calculate", data);
+};
+
+/* ==========================================
+   3. CALCULATE & SAVE BULK PAYROLL (ALL EMPLOYEES)
+   ========================================== */
+export const calculateBulkPayroll = async (data) => {
+  // data: { vendorId, month, year }
+  return API.post("/payroll/calculate-bulk", data);
+};
+
+/* ==========================================
+   4. MANUAL PAYROLL ENTRY CREATION
+   ========================================== */
 export const createPayrollEntry = async (data) => {
   return API.post("/payroll/entries", data);
 };
 
-/* =========================
-   BULK UPLOAD PAYROLL ENTRIES
-========================= */
-// export const createBulkPayrollEntry = async (data) => {
-//   return API.post("/payroll/bulk", data);
-// };
+/* ==========================================
+   5. GET ALL PAYROLL RECORDS (WITH FILTERS)
+   ========================================== */
+export const getAllPayrollRecords = async (params) => {
+  // params: { vendorId, month, year }
+  return API.get("/payroll/all", { params });
+};
 
-// export const createBulkPayrollEntry = async (data) => {
-//   return API.post("/payroll/bulkPayrollUpload", data);
-// };
+/* ==========================================
+   6. GET PAYROLL BY EMPLOYEE CODE
+   ========================================== */
+export const getPayrollByEmployee = async (employeeCode) => {
+  return API.get(`/payroll/employee/${employeeCode}`);
+};
 
+/* ==========================================
+   7. GET SINGLE PAYROLL BY ID
+   ========================================== */
+export const getPayrollById = async (id) => {
+  return API.get(`/payroll/${id}`);
+};
 
-
+/* ==========================================
+   8. BULK UPLOAD PAYROLL VIA EXCEL FILE
+   ========================================== */
 export const bulkUploadPayrollEntries = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
@@ -37,17 +65,8 @@ export const bulkUploadPayrollEntries = async (file) => {
     formData,
     {
       headers: {
-        "Content-Type":
-          "multipart/form-data",
+        "Content-Type": "multipart/form-data",
       },
     }
   );
 };
-
-export const getPaymentHistory = () => {
-  return API.get("/payments/all");
-};
-
-export const getSalarySlip = (data) => {
-  return API.get("/payroll/generate", data)
-}
