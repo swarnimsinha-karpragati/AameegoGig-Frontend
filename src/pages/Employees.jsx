@@ -35,12 +35,18 @@ import {
 import "./Employees.css";
 import { getDepartmentName } from "../services/departmentService";
 
+export const generateClientEmpCode = (prefix = "EMP") => {
+  const randomDigits = Math.floor(10000 + Math.random() * 90000);
+  return `${prefix}-${randomDigits}`;
+};
+
 const EMPLOYEE_FORM_SECTIONS = [
   {
     id: "basic",
     title: "Basic Information",
     description: "Primary contact and role details",
     fields: [
+      { key: "employeeCode", label: "Employee Code", required: true },
       { key: "name", label: "Full Name", required: true },
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
@@ -307,6 +313,7 @@ function Employees() {
   ========================= */
 
   const initialForm = {
+    employeeCode:generateClientEmpCode(),
     name: "",
     email: "",
     phone: "",
