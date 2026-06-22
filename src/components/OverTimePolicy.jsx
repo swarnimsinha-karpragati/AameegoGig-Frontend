@@ -34,7 +34,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
       setPolicyData(initialFormState);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingPolicy, initialFormState]);
+  }, [editingPolicy]);
 
   useEffect(() => {
     if (submitStatus.message) {

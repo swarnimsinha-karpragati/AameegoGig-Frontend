@@ -296,7 +296,7 @@ body {
 .sidebar nav {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 1px;
 }
 
 .sidebar a {
