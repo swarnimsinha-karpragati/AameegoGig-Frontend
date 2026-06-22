@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo} from 'react';
 import './OverTimePolicy.css';
 import { createOvertimePolicy, updateOvertimePolicy } from '../services/settingService';
 
 export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel }) => {
-  const initialFormState = {
+  const initialFormState = useMemo(() => ({
     policyName: 'General',
     OverTimeAction: 'Incentive',
     triggerType: 'Daily',
     halfDayThresholdHours: 4,
     fullDayThresholdHours: 8,
-    minHours: 0, // In hours for UI tracking
+    minHours: 0,
     perHourRate: 0,
     applicableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-  };
+  }), []);
 
   const [policyData, setPolicyData] = useState(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
