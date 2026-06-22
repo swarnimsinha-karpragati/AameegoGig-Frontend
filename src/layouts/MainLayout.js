@@ -14,12 +14,15 @@ import {
 
 import "../pages/Dashboard.css";
 import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
+import { useEffect, useState } from "react";
+import { getVendorName } from "../services/employeeService";
 
 function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
 
   const user = getStoredUser();
+  const[vendorName , setVendorName] = useState('')
 
   const pageMeta = {
     "/dashboard": {
@@ -111,6 +114,16 @@ function MainLayout({ children }) {
     },
   ].filter((item) => canAccessRoute(user?.role, item.path));
 
+  const getVendor = async(vendorId)=>{
+    const res = await getVendorName(vendorId)
+    setVendorName(res.data.name)
+  }
+
+  useEffect(()=>{
+    if(!user) return
+    getVendor(user?.vendorId)
+  },[user])
+
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
@@ -125,7 +138,7 @@ function MainLayout({ children }) {
           </div>
 
           <div className="client-info">
-    Threye Interactive Pvt. Ltd.
+    {vendorName}
   </div>
           <nav className="sidebar-menu">
             {menuItems.map((item) => {

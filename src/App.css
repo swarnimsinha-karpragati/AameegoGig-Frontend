@@ -188,8 +188,6 @@ body {
 
   display: flex;
   flex-direction: column;
-
-  gap: 18px;
 }
 
 /* INPUTS */
@@ -240,7 +238,6 @@ body {
   transition: 0.25s ease;
 }
 
-/* LINKS */
 .auth-links {
   margin-top: 24px;
 
@@ -253,7 +250,6 @@ body {
   width: 100%;
 }
 
-/* MESSAGES */
 .error {
   color: #e11d48;
   margin-top: 12px;
@@ -262,6 +258,29 @@ body {
 .success {
   color: #16a34a;
   margin-top: 12px;
+}
+
+.form-group {
+  margin-bottom: 10px;
+  margin-top: 0px;
+  width: 100%;
+}
+
+.field-helper {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding: 0px 5px;
+}
+
+.forgot-link {
+  font-size: 0.85rem;
+  color: #0066cc;
+  text-decoration: none;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
 }
 
 /* =========================

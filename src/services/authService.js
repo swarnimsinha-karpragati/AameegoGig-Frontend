@@ -17,7 +17,27 @@ export const createVendor = async (payload) => {
   return res.data;
 };
 
+export const sendOtp = async (payload) => {
+  const res = await API.post(authPath('send-otp'), payload);
+  return res.data;
+};
+
+export const verifyOtp = async ({emailOrPhone,otp}) => {
+  const res = await API.get(authPath(`verify-otp?emailOrPhone=${emailOrPhone}&otp=${otp}`));
+  return res.data;
+};
+
+export const updatePassword = async (payload) => {
+  const res = await API.patch(authPath("update-password"), payload);
+  return res.data;
+};
+
 export const getCurrentUser = async () => {
   const res = await API.get('/auth/me');
+  return res.data;
+};
+
+export const verifyOtpGetCode = async ({emailOrPhone,otp}) => {
+  const res = await API.get(authPath(`verify-otp-sendCode?emailOrPhone=${emailOrPhone}&otp=${otp}`));
   return res.data;
 };
