@@ -31,22 +31,19 @@ body {
   z-index: 100;
   width: var(--sidebar-width);
   height: 100vh;
-  flex-shrink: 0;
   background: white;
   border-right: 1px solid #e5e7eb;
-
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;
 
   padding: 30px 20px;
 
-  overflow-y: auto;
+
   overflow-x: hidden;
 }
 
 .sidebar-top {
-  flex: 1;
   min-height: 0;
 }
 
@@ -82,10 +79,10 @@ body {
 
 .sidebar-menu {
   margin-top: 40px;
-
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .menu-item {
@@ -97,7 +94,6 @@ body {
 
   display: flex;
   align-items: center;
-  gap: 14px;
 
   padding: 0 18px;
 
