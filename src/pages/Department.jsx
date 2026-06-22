@@ -122,6 +122,7 @@ function Departments() {
 
   useEffect(() => {
     fetchAllData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
 
   const handleChange = (e) => {

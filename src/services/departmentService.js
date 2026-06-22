@@ -29,3 +29,7 @@ export const getEmployees = async (vendorId) => {
   return API.get(`/department/getEmployees/${vendorId}`);
 };
 
+export const getDepartmentName = async (vendorId) => {
+  return API.get(`/department/getDepartmentName/${vendorId}`);
+};
+
