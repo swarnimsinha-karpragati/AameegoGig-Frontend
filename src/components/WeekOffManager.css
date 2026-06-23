@@ -1,0 +1,208 @@
+.weekoff-manager-container {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 32px;
+  width: 100%;
+  margin-top: 24px;
+}
+
+.weekoff-form-section,
+.weekoff-list-section {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid #eef2f5;
+}
+
+.weekoff-list-header h2,
+.weekoff-form-section h2 {
+  margin: 0 0 8px;
+  color: #1e293b;
+  font-size: 1.35rem;
+}
+
+.weekoff-list-header p {
+  margin: 0 0 20px;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.weekoff-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.weekoff-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weekoff-form label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.weekoff-form select {
+  padding: 10px 12px;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.weekoff-field-hint {
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.weekoff-days-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.weekoff-day-btn {
+  min-width: 54px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ea;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.weekoff-day-btn.active {
+  background: linear-gradient(135deg, #2ed8a3, #1e6bd6);
+  color: #fff;
+  border-color: transparent;
+}
+
+.weekoff-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.weekoff-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.weekoff-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.weekoff-btn--primary {
+  background: linear-gradient(135deg, #2ed8a3, #1e6bd6);
+  color: #fff;
+}
+
+.weekoff-btn--ghost {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #dbe3ea;
+}
+
+.weekoff-btn--danger {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+.weekoff-table-wrap {
+  overflow-x: auto;
+}
+
+.weekoff-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.weekoff-table th,
+.weekoff-table td {
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 1px solid #eef2f5;
+  vertical-align: top;
+}
+
+.weekoff-table th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.weekoff-table td strong {
+  display: block;
+  color: #0f172a;
+}
+
+.weekoff-table td small {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.weekoff-day-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.weekoff-day-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.weekoff-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weekoff-empty {
+  color: #64748b;
+  margin: 0;
+}
+
+.weekoff-status {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.weekoff-status--success {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #bbf7d0;
+}
+
+.weekoff-status--error {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+@media (max-width: 768px) {
+  .weekoff-days-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

@@ -33,6 +33,12 @@ import {
 } from "../services/letterService";
 
 import "./Employees.css";
+import { getDepartmentName } from "../services/departmentService";
+
+export const generateClientEmpCode = (prefix = "EMP") => {
+  const randomDigits = Math.floor(10000 + Math.random() * 90000);
+  return `${prefix}-${randomDigits}`;
+};
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -40,6 +46,7 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Basic Information",
     description: "Primary contact and role details",
     fields: [
+      { key: "employeeCode", label: "Employee Code", required: true },
       { key: "name", label: "Full Name", required: true },
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
@@ -154,7 +161,9 @@ function EmployeeFormFields({
   employees,
   excludeEmployeeId,
   emailRequired,
+  department
 }) {
+  console.log(department)
   const renderInput = (field) => {
     const id = `emp-field-${field.key}`;
     const common = {
@@ -163,6 +172,18 @@ function EmployeeFormFields({
       value: values[field.key] || "",
       onChange: onFieldChange,
     };
+    if (field.key === "department") {
+      return (
+        <select {...common}>
+          <option value="">Select Department</option>
+          {department && department.map((dept) => (
+            <option key={dept?._id} value={dept?.name}>
+              {dept?.name}
+            </option>
+          ))}
+        </select>
+      );
+    }
 
     if (field.type === "manager") {
       return (
@@ -292,6 +313,7 @@ function Employees() {
   ========================= */
 
   const initialForm = {
+    employeeCode:generateClientEmpCode(),
     name: "",
     email: "",
     phone: "",
@@ -333,6 +355,9 @@ function Employees() {
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [department,setDepartment] = useState(null)
+  const [,setVendorId] = useState(null)
 
   const [
     showDocumentsModal,
@@ -424,8 +449,25 @@ function Employees() {
   };
 
   useEffect(() => {
+    const loggedUser = localStorage.getItem('user')
+    const {vendorId} = JSON.parse(loggedUser)
+    setVendorId(vendorId)
+
     fetchEmployees();
+    fetchDepartment(vendorId);
   }, []);
+
+  const fetchDepartment = async(vendorId) =>{
+    try{
+      if(!vendorId) return
+      const res = await getDepartmentName(vendorId);
+      setDepartment(res.data)
+      
+    }catch(err){
+      console.log(err)
+    }
+  }
+  
 
   const loadEmployeeDocuments =
   async (employeeId) => {
@@ -921,28 +963,28 @@ function Employees() {
                     </td>
 
                     <td>
-                      <div className="action-buttons">
+                      <div className="emp-action-buttons">
 
                         <button
-                          className="view-btn"
+                          className="emp-grid-btn"
                           onClick={() =>
                             handleView(emp)
                           }
                         >
-                          <Eye size={16} />
+                          <Eye />
                         </button>
 
                         <button
-                          className="edit-btn"
+                          className="emp-grid-btn"
                           onClick={() =>
                             handleEdit(emp)
                           }
                         >
-                          <Pencil size={16} />
+                          <Pencil />
                         </button>
 
                         <button
-  className="letter-btn"
+  className="emp-grid-btn"
   onClick={() => {
     setLetterData({
       employeeName:
@@ -981,11 +1023,11 @@ function Employees() {
     setShowLetterModal(true);
   }}
 >
-  <FileText size={16} />
+  <FileText />
 </button>
 
 <button
-  className="view-btn"
+  className="emp-grid-btn"
   onClick={async () => {
 
     setSelectedEmployeeForDocs(
@@ -1001,18 +1043,18 @@ function Employees() {
     );
   }}
 >
-  <FolderOpen size={16} />
+  <FolderOpen />
 </button>
 
                         <button
-                          className="delete-btn"
+                          className=" emp-grid-btn"
                           onClick={() =>
                             handleDelete(
                               emp._id
                             )
                           }
                         >
-                          <Trash2 size={16} />
+                          <Trash2 />
                         </button>
 
                       </div>
@@ -1066,6 +1108,7 @@ function Employees() {
                 onFieldChange={handleChange}
                 employees={employees}
                 emailRequired={form.createAppLogin}
+                department={department}
               />
               <FormSection title="App Access">
                 <AppLoginSection
@@ -1181,6 +1224,7 @@ function Employees() {
                     employees={employees}
                     excludeEmployeeId={selectedEmployee._id}
                     emailRequired={enableLoginOnUpdate}
+                    department={department}
                   />
                   <FormSection title="App Access">
                     <AppLoginSection

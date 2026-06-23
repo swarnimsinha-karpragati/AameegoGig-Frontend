@@ -1259,6 +1259,46 @@
   color: #1d4ed8;
 }
 
+.calendar-day.holiday {
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+
+.calendar-day.holiday:not(:disabled) {
+  cursor: pointer;
+}
+
+.calendar-day.week-off {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px dashed #cbd5e1;
+}
+
+.calendar-day.week-off:not(:disabled) {
+  cursor: pointer;
+}
+
+.calendar-day-holiday {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.58rem;
+  line-height: 1.1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.calendar-day-weekoff {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
 .calendar-day.today {
   box-shadow: 0 0 0 2px #6366f1;
   border-color: #6366f1;
@@ -1306,6 +1346,55 @@
 
 .legend-dot.late {
   background: #3b82f6;
+}
+
+.legend-dot.holiday {
+  background: #6366f1;
+}
+
+.legend-dot.week-off {
+  background: #94a3b8;
+}
+
+.attendance-holiday-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #312e81;
+}
+
+.attendance-holiday-banner span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.attendance-weekoff-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #334155;
+}
+
+.attendance-weekoff-banner span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
 }
 
 /* Table */

@@ -15,6 +15,8 @@ import {
 import "../pages/Dashboard.css";
 import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
 
+
+
 function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -111,6 +113,7 @@ function MainLayout({ children }) {
     },
   ].filter((item) => canAccessRoute(user?.role, item.path));
 
+
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
@@ -125,7 +128,7 @@ function MainLayout({ children }) {
           </div>
 
           <div className="client-info">
-    Threye Interactive Pvt. Ltd.
+    {user?.vendorName}
   </div>
           <nav className="sidebar-menu">
             {menuItems.map((item) => {

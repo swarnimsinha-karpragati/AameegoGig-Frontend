@@ -469,6 +469,121 @@
   word-break: break-all;
 }
 
+/* Container for the action buttons */
+.emp-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Space between buttons */
+  flex-wrap: wrap; /* Prevents breaking on tight screens */
+}
+
+/* Base style for individual grid action buttons */
+.emp-grid-btn {
+  /* Layout & Sizing */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+
+  /* Aesthetics */
+  background-color: #f3f4f6; /* Light gray background */
+  color: #4b5563; /* Medium gray icon color */
+  border: 1px solid #e5e7eb;
+  border-radius: 6px; /* Smooth rounded corners */
+  
+  /* UX & Interaction */
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Sizing constraints for Lucide React Icons inside the buttons */
+.emp-grid-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2px;
+}
+
+/* Hover State */
+.emp-grid-btn:hover {
+  background-color: #e5e7eb; /* Darken slightly on hover */
+  color: #1f2937; /* Darker icon color */
+  border-color: #d1d5db;
+}
+
+/* Active / Pressed State */
+.emp-grid-btn:active {
+  transform: scale(0.95); /* Subtle press-down animation */
+}
+
+/* Focus indicator for accessibility */
+.emp-grid-btn:focus-visible {
+  outline: 2px solid #3b82f6; /* Blue ring */
+  outline-offset: 2px;
+}
+
+/* Optional: Contextual Styling for the Trash/Delete button */
+.emp-action-buttons button:last-child:hover {
+  background-color: #fee2e2; /* Soft red tint */
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.emp-action-buttons button:nth-child(1) {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+.emp-action-buttons button:nth-child(1):hover {
+  background-color: #bae6fd;
+  color: #0c4a6e;
+}
+
+/* 2. Edit Button (Pencil) - Warm Amber */
+.emp-action-buttons button:nth-child(2) {
+  background-color: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+.emp-action-buttons button:nth-child(2):hover {
+  background-color: #fde68a;
+  color: #78350f;
+}
+
+/* 3. Letter/Salary Generator Button (FileText) - Vibrant Emerald */
+.emp-action-buttons button:nth-child(3) {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.emp-action-buttons button:nth-child(3):hover {
+  background-color: #bbf7d0;
+  color: #14532d;
+}
+
+/* 4. Documents Folder Button (FolderOpen) - Electric Indigo */
+.emp-action-buttons button:nth-child(4) {
+  background-color: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+.emp-action-buttons button:nth-child(4):hover {
+  background-color: #c7d2fe;
+  color: #312e81;
+}
+
+/* 5. Delete Button (Trash2) - Warning Red */
+.emp-action-buttons button:nth-child(5) {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+.emp-action-buttons button:nth-child(5):hover {
+  background-color: #fca5a5;
+  color: #7f1d1d;
+}
+
 /* ─── View profile (read-only) ─── */
 
 .emp-view-body .profile-section {

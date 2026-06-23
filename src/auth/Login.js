@@ -87,32 +87,46 @@ function Login() {
           </p>
 
           <form onSubmit={handleSubmit}>
-            <input
-              name="emailOrPhone"
-              type="text"
-              placeholder="Email or Mobile Number"
-              value={formData.emailOrPhone}
-              onChange={handleChange}
-              required
-            />
+            <div className="form-group">
+              <input
+                name="emailOrPhone"
+                type="text"
+                placeholder="Email or Mobile Number"
+                value={formData.emailOrPhone}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-            <input
-              name="password"
-              type="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-            />
+            <div className="form-group">
+              <input
+                name="password"
+                type="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-            <input
-              name="vendorCode"
-              type="text"
-              placeholder="Organization Code"
-              value={formData.vendorCode}
-              onChange={handleChange}
-              required
-            />
+            <div className="form-group">
+              <input
+                name="vendorCode"
+                type="text"
+                placeholder="Organization Code"
+                value={formData.vendorCode}
+                onChange={handleChange}
+                required
+              />
+              <div className="field-helper">
+                <Link to="/forgot-password" className="forgot-link">
+                  Forgot Password?
+                </Link>
+                <Link to="/forgot-org-code" className="forgot-link">
+                  Forgot Organization Code?
+                </Link>
+              </div>
+            </div>
 
             <button
               type="submit"

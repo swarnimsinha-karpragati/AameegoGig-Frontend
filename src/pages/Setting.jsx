@@ -11,6 +11,8 @@ import EmployeeProfileCard from "../components/EmployeeProfileCard";
 import ShiftManager from "../components/ShiftManager";
 import { OverTimePolicy } from "../components/OverTimePolicy";
 import { OverTimePolicyList } from "../components/OverTimePolicyList";
+import HolidayManager from "../components/HolidayManager";
+import WeekOffManager from "../components/WeekOffManager";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("admin");
@@ -69,6 +71,10 @@ export default function Settings() {
           { user?.role === "Admin" || user?.role === "HR" ? (
             <div className="settings-bottom-grid">
               <ShiftManager vendorId={user?.vendorId} />
+
+              <WeekOffManager vendorId={user?.vendorId} />
+
+              <HolidayManager vendorId={user?.vendorId} />
               
               <OverTimePolicyList 
                 vendorId={user?.vendorId} 

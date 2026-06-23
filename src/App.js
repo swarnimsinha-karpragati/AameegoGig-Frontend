@@ -13,6 +13,8 @@ import Attendance from "./pages/Attendance";
 import Leave from "./pages/Leave";
 import Departments from './pages/Department';
 import Expense from "./pages/Expense";
+import ForgotPassword from './pages/ForgotPassword';
+import ForgotOrgCode from './pages/ForgotOrgCode';
 
 function App() {
   return (
@@ -22,6 +24,8 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/create-org" element={<CreateOrg />} />
         <Route path="/join" element={<JoinOrg />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/forgot-org-code" element={<ForgotOrgCode />} />
         <Route
           path="/dashboard"
           element={

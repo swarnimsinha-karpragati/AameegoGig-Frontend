@@ -204,7 +204,7 @@ function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions re
   );
 }
 
-function DaySessionsPanel({ day, monthLabel, records = [], showEmployee = false }) {
+function DaySessionsPanel({ day, monthLabel, records = [], showEmployee = false, holiday = null, weekOff = null }) {
   if (!day) return null;
 
   return (
@@ -212,8 +212,26 @@ function DaySessionsPanel({ day, monthLabel, records = [], showEmployee = false 
       <h2>
         Sessions — {monthLabel} {day}
       </h2>
+      {holiday ? (
+        <div className="attendance-holiday-banner">
+          <strong>{holiday.name}</strong>
+          <span>{holiday.type || "Holiday"}</span>
+        </div>
+      ) : null}
+      {weekOff && !holiday ? (
+        <div className="attendance-weekoff-banner">
+          <strong>{weekOff.dayName} — Weekly Off</strong>
+          <span>Non-working day</span>
+        </div>
+      ) : null}
       {!records.length ? (
-        <p className="attendance-sessions-empty">No attendance sessions for this day.</p>
+        <p className="attendance-sessions-empty">
+          {holiday
+            ? "Paid holiday — no attendance sessions recorded."
+            : weekOff
+              ? "Weekly off — no attendance sessions recorded."
+              : "No attendance sessions for this day."}
+        </p>
       ) : (
         <div className="attendance-day-records">
           {records.map((record) => (
@@ -286,12 +304,32 @@ function AttendanceCalendar({
               type="button"
               className={`calendar-day ${cell.status} ${cell.isToday ? "today" : ""} ${
                 cell.hasSessions ? "has-sessions" : ""
-              } ${selectedDay === cell.day ? "selected" : ""}`}
-              onClick={() => (cell.hasSessions ? onDaySelect(cell.day) : onDaySelect(null))}
-              disabled={!cell.hasSessions}
-              aria-label={`Day ${cell.day}${cell.hasSessions ? ", view sessions" : ""}`}
+              } ${cell.holiday ? "holiday" : ""} ${cell.weekOff ? "week-off" : ""} ${
+                selectedDay === cell.day ? "selected" : ""
+              }`}
+              onClick={() =>
+                cell.hasSessions || cell.holiday || cell.weekOff
+                  ? onDaySelect(cell.day)
+                  : onDaySelect(null)
+              }
+              disabled={!cell.hasSessions && !cell.holiday && !cell.weekOff}
+              aria-label={`Day ${cell.day}${cell.holiday ? `, ${cell.holiday.name}` : ""}${
+                cell.weekOff ? `, ${cell.weekOff.dayName} week off` : ""
+              }${cell.hasSessions ? ", view sessions" : ""}`}
+              title={
+                cell.holiday
+                  ? cell.holiday.name
+                  : cell.weekOff
+                    ? `${cell.weekOff.dayName} — Weekly Off`
+                    : undefined
+              }
             >
               {cell.day}
+              {cell.holiday ? (
+                <small className="calendar-day-holiday">{cell.holiday.name}</small>
+              ) : cell.weekOff ? (
+                <small className="calendar-day-weekoff">Off</small>
+              ) : null}
               {cell.hasSessions ? (
                 <small className="calendar-day-sessions">
                   {cell.sessionCount || 1}
@@ -319,7 +357,15 @@ function AttendanceCalendar({
           <i className="legend-dot late" />
           Late
         </span>
-        <span className="calendar-legend-hint">Click a highlighted day to view sessions</span>
+        <span>
+          <i className="legend-dot holiday" />
+          Holiday
+        </span>
+        <span>
+          <i className="legend-dot week-off" />
+          Week Off
+        </span>
+        <span className="calendar-legend-hint">Click a highlighted day to view sessions, holidays, or week-offs</span>
       </div>
     </section>
   );
@@ -430,6 +476,8 @@ function Attendance() {
   const [viewDate, setViewDate] = useState(() => new Date());
   const [summaryStats, setSummaryStats] = useState(EMPTY_STATS);
   const [calendarMap, setCalendarMap] = useState({});
+  const [holidayMap, setHolidayMap] = useState({});
+  const [weekOffMap, setWeekOffMap] = useState({});
   const [dayRecords, setDayRecords] = useState({});
   const [selectedDay, setSelectedDay] = useState(null);
   const [todayRows, setTodayRows] = useState([]);
@@ -485,6 +533,8 @@ function Attendance() {
       ]);
 
       setCalendarMap(monthData.calendar || {});
+      setHolidayMap(monthData.holidays || {});
+      setWeekOffMap(monthData.weekOffs || {});
       setSummaryStats(monthData.stats || EMPTY_STATS);
       setDayRecords(monthData.dayRecords || {});
       setTodayRows(todayData.rows || []);
@@ -547,6 +597,8 @@ function Attendance() {
         key: `day-${day}`,
         day,
         status: calendarMap[day] || "neutral",
+        holiday: holidayMap[day] || null,
+        weekOff: !holidayMap[day] ? weekOffMap[day] || null : null,
         isToday,
         hasSessions: dayEntries.length > 0,
         sessionCount,
@@ -554,7 +606,7 @@ function Attendance() {
     }
 
     return cells;
-  }, [viewDate, calendarMap, dayRecords]);
+  }, [viewDate, calendarMap, dayRecords, holidayMap, weekOffMap]);
 
   const myTodayRow = useMemo(() => {
     const byEmployee = todayRows.find(
@@ -758,6 +810,8 @@ console.log(myLatestCheckInSelfieUrl);
         monthLabel={monthLabel}
         records={selectedDayRecords}
         showEmployee={!isEmployeeView}
+        holiday={selectedDay ? holidayMap[selectedDay] || null : null}
+        weekOff={selectedDay ? weekOffMap[selectedDay] || null : null}
       />
     </>
   );

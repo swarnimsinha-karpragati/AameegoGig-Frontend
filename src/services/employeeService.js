@@ -1,6 +1,7 @@
 import API from "./apiClient";
 
 const EMPLOYEE_PAYLOAD_FIELDS = [
+  "employeeCode",
   "name",
   "email",
   "phone",
@@ -126,3 +127,8 @@ export const getUnlinkedUsers = async () => {
 export const linkUserToEmployee = async (employeeId, userId) => {
   return API.patch(`/employees/${employeeId}/link-user`, { userId });
 };
+
+export const getVendorName = async (vendorId) => {
+  return API.get(`/employees/get-vendor-name/${vendorId}`);
+};
+
