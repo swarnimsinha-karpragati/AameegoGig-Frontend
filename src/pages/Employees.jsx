@@ -357,7 +357,7 @@ function Employees() {
   const [loading, setLoading] = useState(false);
 
   const [department,setDepartment] = useState(null)
-  const [vendorId,setVendorId] = useState(null)
+  const [,setVendorId] = useState(null)
 
   const [
     showDocumentsModal,
