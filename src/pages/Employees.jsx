@@ -163,7 +163,6 @@ function EmployeeFormFields({
   emailRequired,
   department
 }) {
-  console.log(department)
   const renderInput = (field) => {
     const id = `emp-field-${field.key}`;
     const common = {
@@ -175,7 +174,6 @@ function EmployeeFormFields({
     if (field.key === "department") {
       return (
         <select {...common}>
-          <option value="">Select Department</option>
           {department && department.map((dept) => (
             <option key={dept?._id} value={dept?.name}>
               {dept?.name}
@@ -357,7 +355,6 @@ function Employees() {
   const [loading, setLoading] = useState(false);
 
   const [department,setDepartment] = useState(null)
-  const [,setVendorId] = useState(null)
 
   const [
     showDocumentsModal,
@@ -451,7 +448,6 @@ function Employees() {
   useEffect(() => {
     const loggedUser = localStorage.getItem('user')
     const {vendorId} = JSON.parse(loggedUser)
-    setVendorId(vendorId)
 
     fetchEmployees();
     fetchDepartment(vendorId);
