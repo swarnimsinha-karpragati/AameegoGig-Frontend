@@ -32,3 +32,19 @@ export const deleteOvertimePolicy = async (policyId) => {
 export const updateOvertimePolicy = async (policyId, data) => {
   return API.put(`/setting/updateOvertimePolicy/${policyId}`, data);
 };
+
+export const getWeekOffs = (vendorId) => {
+  return API.get(`/setting/getWeekOffs/${vendorId}`);
+};
+
+export const createWeekOff = async (data) => {
+  return API.post("/setting/createWeekOff", data);
+};
+
+export const updateWeekOff = async (weekOffId, data) => {
+  return API.put(`/setting/updateWeekOff/${weekOffId}`, data);
+};
+
+export const deleteWeekOff = async (weekOffId) => {
+  return API.delete(`/setting/deleteWeekOff/${weekOffId}`);
+};
