@@ -21,7 +21,8 @@
     "react-webcam": "^7.2.0",
     "recharts": "^3.8.1",
     "web-vitals": "^2.1.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "yup": "^1.7.1"
   },
   "scripts": {
     "start": "react-scripts start",
