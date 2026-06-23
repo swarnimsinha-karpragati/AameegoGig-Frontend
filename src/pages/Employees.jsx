@@ -354,7 +354,7 @@ function Employees() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [department,setDepartment] = useState(null)
+  const [department,setDepartment] = useState(null);
 
   const [
     showDocumentsModal,
@@ -406,6 +406,7 @@ function Employees() {
     
     const [letterData, setLetterData] =
   useState({
+    employeeId:"",
     employeeName: "",
     designation: "",
     joiningDate: "",
@@ -448,7 +449,6 @@ function Employees() {
   useEffect(() => {
     const loggedUser = localStorage.getItem('user')
     const {vendorId} = JSON.parse(loggedUser)
-
     fetchEmployees();
     fetchDepartment(vendorId);
   }, []);
@@ -761,7 +761,6 @@ function Employees() {
 
     try {
       setLoading(true);
-
       await generateAppointmentLetter(
         letterData
       );
@@ -983,6 +982,7 @@ function Employees() {
   className="emp-grid-btn"
   onClick={() => {
     setLetterData({
+      employeeId:emp?._id,
       employeeName:
         emp.name || "",
     
