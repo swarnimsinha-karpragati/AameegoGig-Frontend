@@ -7,17 +7,18 @@
  * 2. .env / .env.local — named preset:
  *    REACT_APP_API_ENV=local        (or: production)
  *
- * 3. Edit API_ENVIRONMENTS or DEFAULT_API_ENV below (fallback when env is unset)
+ * 3. Default (no env set): production URL below
  */
 
+export const PRODUCTION_API_URL = "https://backend-gig.aameego.com/api";
+
 export const API_ENVIRONMENTS = {
-  production: "https://backend-gig.aameego.com/api",
+  production: PRODUCTION_API_URL,
   local: "http://localhost:5001/api",
 };
 
 /** Fallback preset when no env variable is set */
-export const DEFAULT_API_ENV = "local";
-// export const DEFAULT_API_ENV = "production";
+export const DEFAULT_API_ENV = "production";
 
 const trimTrailingSlash = (url) => url.replace(/\/$/, "");
 
@@ -35,13 +36,10 @@ const resolveApiBaseUrl = () => {
     return { url: trimTrailingSlash(presetUrl), source: "env-preset", envName };
   }
 
-  const fallback =
-    API_ENVIRONMENTS[DEFAULT_API_ENV] || API_ENVIRONMENTS.production;
-
   return {
-    url: trimTrailingSlash(fallback),
+    url: trimTrailingSlash(PRODUCTION_API_URL),
     source: "default",
-    envName: DEFAULT_API_ENV,
+    envName: "production",
   };
 };
 
