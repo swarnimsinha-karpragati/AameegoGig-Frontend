@@ -720,25 +720,42 @@ console.log(myLatestCheckInSelfieUrl);
   };
 
   const handleMarkAttendance = async (e) => {
-    e.preventDefault();
-    if (!markForm.employeeId) {
-      toast.warning("Please select an employee");
+  e.preventDefault();
+  
+  if (!markForm.employeeId) {
+    toast.warning("Please select an employee");
+    return;
+  }
+
+
+  if (markForm.checkIn && markForm.checkOut) {
+    const timeToMinutes = (timeStr) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const checkInMinutes = timeToMinutes(markForm.checkIn);
+    const checkOutMinutes = timeToMinutes(markForm.checkOut);
+
+    if (checkOutMinutes <= checkInMinutes) {
+      toast.warning("Check-out time must be later than Check-in time.");
       return;
     }
+  }
 
-    try {
-      await markAttendance({
-        ...markForm,
-        checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
-        checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
-        date: new Date().toISOString(),
-      });
-      toast.success("Attendance saved successfully");
-      loadMonthData();
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Unable to save attendance");
-    }
-  };
+  try {
+    await markAttendance({
+      ...markForm,
+      checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
+      checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
+      date: new Date().toISOString(),
+    });
+    toast.success("Attendance saved successfully");
+    loadMonthData();
+  } catch (err) {
+    toast.error(err.response?.data?.message || "Unable to save attendance");
+  }
+};
 
   const handleCheckIn = () => {
     setCheckInMessage("");
@@ -1024,6 +1041,7 @@ console.log(myLatestCheckInSelfieUrl);
             onChange={(e) =>
               setMarkForm((prev) => ({ ...prev, checkIn: e.target.value }))
             }
+            disabled={markForm?.status == 'Absent'}
           />
         </div>
 
@@ -1036,6 +1054,7 @@ console.log(myLatestCheckInSelfieUrl);
             onChange={(e) =>
               setMarkForm((prev) => ({ ...prev, checkOut: e.target.value }))
             }
+            disabled={markForm?.status == 'Absent'}
           />
         </div>
 
