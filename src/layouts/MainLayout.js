@@ -107,6 +107,11 @@ function MainLayout({ children }) {
       icon: FileText,
     },
     {
+      label: "Resignation",
+      path: "/resignation",
+      icon: FileText,
+    },
+    {
       label: "Settings",
       path: "/settings",
       icon: Settings,
