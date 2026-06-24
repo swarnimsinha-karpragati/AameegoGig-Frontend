@@ -27,6 +27,18 @@ export const verifyOtp = async ({emailOrPhone,otp}) => {
   return res.data;
 };
 
+export const enable2FA = async ({emailOrPhone,otp}) => {
+  const res = await API.patch(authPath(`enable-2fa?emailOrPhone=${emailOrPhone}&otp=${otp}`));
+  return res.data;
+};
+
+export const remove2FA = async () => {
+  const res = await API.patch(authPath(`remove-2fa`));
+  return res.data;
+};
+
+
+
 export const updatePassword = async (payload) => {
   const res = await API.patch(authPath("update-password"), payload);
   return res.data;
