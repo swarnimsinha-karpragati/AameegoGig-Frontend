@@ -26,9 +26,10 @@ export default function SecurityCard() {
   const reqOtp = async (e) => {
      try{
       e.preventDefault();
-      if(!emailOrPhone)(
-        alert('Email or phone is required')
-      )
+      if(!emailOrPhone.trim()){
+        alert('Email or phone is required');
+        return;
+      }
       const res = await sendOtp({emailOrPhone})
       setOtpSent(true)
       setMessage(res.message)
@@ -41,9 +42,10 @@ export default function SecurityCard() {
   const handleEnable2FA = async (e)=>{
     try{
       e.preventDefault();
-      if(!otp)(
+      if(!otp.trim()){
         alert('Otp is required')
-      )
+        return
+      }
       const data = await enable2FA({emailOrPhone,otp})
       setMessage('')
       setOtpSent(false)
