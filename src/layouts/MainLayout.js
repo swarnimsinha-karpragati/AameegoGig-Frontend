@@ -124,7 +124,7 @@ function MainLayout({ children }) {
               Aameego <span>Gig</span>
             </h1>
 
-            <p>Human Resource Management</p>
+            <p style={{fontSize:'12px',fontWeight:'700'}}>Human Resource Management System</p>
           </div>
 
           <div className="client-info">

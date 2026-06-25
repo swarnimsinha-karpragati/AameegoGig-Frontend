@@ -66,16 +66,31 @@ export const viewDocument =
 /* =========================
    DOWNLOAD DOCUMENT
 ========================= */
-export const downloadDocument =
-  (id) => {
-    const token =
-      localStorage.getItem("token");
+export const downloadDocument = async (id) => {
+  const token = localStorage.getItem("token");
+  const url = getApiUrl(`/documents/view/${id}?token=${token}`);
 
-    window.open(
-      getApiUrl(`/documents/view/${id}?token=${token}`),
-      "_blank"
-    );
-  };
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Download failed");
+
+    const blob = await response.blob();
+    
+    const blobUrl = window.URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    
+    link.setAttribute("download", `document-${id}.pdf`); 
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error("Error downloading the file:", error);
+  }
+};
 
 
   export const uploadEmployeeDocument =
