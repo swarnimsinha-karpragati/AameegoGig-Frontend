@@ -966,6 +966,12 @@
   cursor: pointer;
 }
 
+.selfie-modal-close svg {
+  width: 24px;  
+  height: 24px;  
+  stroke: #000; 
+  flex-shrink: 0;
+}
 .selfie-btn.primary {
   background: #16a34a;
   color: #ffffff;

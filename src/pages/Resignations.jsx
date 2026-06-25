@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
-import { createResignation, getResignation, rejectResignation, updateResignation, viewLetter } from "../services/resignationService";
+import { createResignation, finalApproval, getResignation, rejectResignation, updateResignation, viewLetter } from "../services/resignationService";
 import {
   Search,
   Plus,
@@ -10,7 +10,8 @@ import {
   Upload,
   FileText,
   X,
-  Edit
+  Edit,
+  ShieldCheck
 } from "lucide-react";
 
 import "./Resignation.css";
@@ -65,17 +66,20 @@ function Resignations() {
 
   const [myRecords, setMyRecords] = useState([]);
   const [underMeRecords, setUnderMeRecords] = useState([]);
+  const [finalApprovalRecords, setFinalApprovalRecords] = useState([]);
   
   const [search, setSearch] = useState("");
+  const [hrSearch, setHrSearch] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [selectedResignation, setSelectedResignation] = useState(null);
   const [isViewing, setIsViewing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Checklist Approval/Editing States
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approvingRecordId, setApprovingRecordId] = useState(null);
+  const [isHrFinalizing, setIsHrFinalizing] = useState(false);
+  
   const [checklistForm, setChecklistForm] = useState({
     isExitChecklistCleared: false,
     isAssetRecovered: false,
@@ -104,25 +108,26 @@ function Resignations() {
     }
   }, []);
 
-const fetchAllData = useCallback(async () => {
-  if (!vendorId || !currentUser?.employeeId) return;
-  try {
-    setLoading(true);
-    const res = await getResignation(vendorId, currentUser.employeeId);
-    setMyRecords(res.data.myrecords || []);
-    setUnderMeRecords(res.data.underMe || []);
-  } catch (error) {
-    console.error("Error standardizing resignation view initialization:", error);
-  } finally {
-    setLoading(false);
-  }
-}, [vendorId, currentUser?.employeeId]);
+  const fetchAllData = useCallback(async () => {
+    if (!vendorId || !currentUser?.employeeId) return;
+    try {
+      setLoading(true);
+      const res = await getResignation(vendorId, currentUser.employeeId);
+      setMyRecords(res.data.myrecords || []);
+      setUnderMeRecords(res.data.underMe || []);
+      setFinalApprovalRecords(res.data.finalApproval || []);
+    } catch (error) {
+      console.error("Error standardizing resignation view initialization:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [vendorId, currentUser?.employeeId]);
 
   useEffect(() => {
     if (vendorId && currentUser) {
       fetchAllData();
     }
-  }, [vendorId, currentUser,fetchAllData]);
+  }, [vendorId, currentUser, fetchAllData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -149,6 +154,7 @@ const fetchAllData = useCallback(async () => {
     setShowApproveModal(false);
     setSelectedResignation(null);
     setApprovingRecordId(null);
+    setIsHrFinalizing(false);
     setForm(initialForm);
     setChecklistForm({
       isExitChecklistCleared: false,
@@ -187,8 +193,9 @@ const fetchAllData = useCallback(async () => {
     }
   };
 
-  const handleApproveOrEditClick = (record) => {
+  const handleApproveOrEditClick = (record, isHrAction = false) => {
     setApprovingRecordId(record._id);
+    setIsHrFinalizing(isHrAction);
     setChecklistForm({
       isExitChecklistCleared: record.isExitChecklistCleared || false,
       isAssetRecovered: record.isAssetRecovered || false,
@@ -204,20 +211,31 @@ const fetchAllData = useCallback(async () => {
 
   const processChecklistSubmission = async () => {
     try {
-      const payload = {
-        status: "Verified",
-        isExitApproved:false,
-        approvedBy: currentUser?.employeeId,
-        ...checklistForm,
-        fnfAmount: Number(checklistForm.fnfAmount)
-      };
-
-      await updateResignation(approvingRecordId,payload)
-
-      fetchAllData();
-
-      alert(`Checklist metrics successfully saved with configuration status: Verified.`);
-      handleModalClose();
+        if(isHrFinalizing){
+            const payload = {
+                status:"Approved",
+                isExitApproved: true,
+                approvedBy: currentUser?.employeeId,
+                ...checklistForm,
+                fnfAmount: Number(checklistForm.fnfAmount)
+            };
+            await finalApproval(approvingRecordId,payload)
+            fetchAllData();
+            alert(`Checklist metrics successfully saved with configuration status: ${payload.status}.`);
+            handleModalClose();
+        }else{
+            const payload = {
+                status: "Verified",
+                isExitApproved:  false,
+                verifiedBy: currentUser?.employeeId,
+                ...checklistForm,
+                fnfAmount: Number(checklistForm.fnfAmount)
+            };
+            await updateResignation(approvingRecordId, payload);
+            fetchAllData();
+            alert(`Checklist metrics successfully saved with configuration status: ${payload.status}.`);
+            handleModalClose();
+        }
     } catch (error) {
       alert(error.response?.data?.message || "Checklist pipeline save operation failed.");
     }
@@ -226,8 +244,7 @@ const fetchAllData = useCallback(async () => {
   const handleRejectStatus = async (id) => {
     if (!window.confirm("Are you sure you want to reject this resignation request?")) return;
     try {
-        
-      await rejectResignation(id,currentUser?.employeeId)
+      await rejectResignation(id, currentUser?.employeeId);
       fetchAllData();
       alert("Request marked as Rejected");
     } catch (error) {
@@ -247,16 +264,23 @@ const fetchAllData = useCallback(async () => {
       .includes(search.toLowerCase())
   );
 
+  const filteredFinalApprovals = finalApprovalRecords.filter((res) =>
+    [res.employeeId?.name, res.reasonForLeaving, res.status]
+      .join(" ")
+      .toLowerCase()
+      .includes(hrSearch.toLowerCase())
+  );
+
+  const isHrOrAdmin = currentUser?.role === "HR" || currentUser?.role === "Admin";
+
   return (
     <MainLayout>
       <div className="exit-mgmt-container">
-        
-        {/* 1. SECTION: MY PERSONAL RESIGNATION TRACKER */}
         <div className="exit-mgmt-header-row">
           <h2 className="exit-mgmt-title">My Resignation Status</h2>
-            <button className="exit-mgmt-add-trigger" onClick={() => setShowAddModal(true)}>
-              <Plus size={22} /> Apply for Resignation
-            </button>
+          <button className="exit-mgmt-add-trigger" onClick={() => setShowAddModal(true)}>
+            <Plus size={22} /> Apply for Resignation
+          </button>
         </div>
 
         <div className="exit-mgmt-card exit-mgmt-card--mb-large">
@@ -302,7 +326,6 @@ const fetchAllData = useCallback(async () => {
           </div>
         </div>
 
-        {/* 2. SECTION: SUBORDINATES REQUISITIONS */}
         <div className="exit-mgmt-header-block">
           <h2 className="exit-mgmt-title">Team Resignation Approvals</h2>
           <p className="exit-mgmt-subtitle">
@@ -324,7 +347,7 @@ const fetchAllData = useCallback(async () => {
               </div>
             </div>
 
-            <div className="exit-mgmt-card">
+            <div className="exit-mgmt-card exit-mgmt-card--mb-large">
               <div className="exit-mgmt-scrollable">
                 <table className="exit-mgmt-table">
                   <thead>
@@ -356,19 +379,28 @@ const fetchAllData = useCallback(async () => {
                                 <Eye size={15} />
                               </button>
                               
-                              {(res.status === "Pending" || res.status === "Verified") && (
+                              {res.status === "Pending" && (
                                 <>
                                   <button 
                                     className="exit-mgmt-btn-approve" 
-                                    title={res.status === "Verified" ? "Edit Checklist Fields" : "Process Checklist Fields"} 
-                                    onClick={() => handleApproveOrEditClick(res)}
+                                    title="Process Checklist Fields" 
+                                    onClick={() => handleApproveOrEditClick(res, false)}
                                   >
-                                    {res.status === "Verified" ? <Edit size={15} /> : <CheckCircle size={15} />}
+                                    <CheckCircle size={15} />
                                   </button>
                                   <button className="exit-mgmt-btn-reject" title="Reject Notice" onClick={() => handleRejectStatus(res._id)}>
                                     <XCircle size={15} />
                                   </button>
                                 </>
+                              )}
+                              {res.status === "Verified" && (
+                                <button 
+                                  className="exit-mgmt-btn-approve" 
+                                  title="Edit Checklist Fields" 
+                                  onClick={() => handleApproveOrEditClick(res, false)}
+                                >
+                                  <Edit size={15} />
+                                </button>
                               )}
                             </div>
                           </td>
@@ -385,12 +417,94 @@ const fetchAllData = useCallback(async () => {
             </div>
           </>
         ) : (
-          <div className="exit-mgmt-card exit-mgmt-card--empty-state">
+          <div className="exit-mgmt-card exit-mgmt-card--mb-large exit-mgmt-card--empty-state">
             You are not currently assigned as a reporting manager to any active processing records.
           </div>
         )}
 
-        {/* SUBMIT RESIGNATION MODAL */}
+        {isHrOrAdmin && (
+          <>
+            <div className="exit-mgmt-header-block" style={{ marginTop: "2rem" }}>
+              <h2 className="exit-mgmt-title" style={{ color: "#c53030", display: "flex", alignItems: "center", gap: "8px" }}>
+                <ShieldCheck size={24} /> HR / Corporate Final Sign-off
+              </h2>
+              <p className="exit-mgmt-subtitle">
+                Authorized administrative scope over verified manager checklists to execute absolute departure settlement.
+              </p>
+            </div>
+
+            <div className="exit-mgmt-toolbar">
+              <div className="exit-mgmt-search">
+                <Search size={22} />
+                <input
+                  type="text"
+                  placeholder="Search verified corporate records..."
+                  value={hrSearch}
+                  onChange={(e) => setHrSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="exit-mgmt-card">
+              <div className="exit-mgmt-scrollable">
+                <table className="exit-mgmt-table">
+                  <thead>
+                    <tr>
+                      <th>Employee Name</th>
+                      <th>Submission Date</th>
+                      <th>Final LWD</th>
+                      <th>Reason</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredFinalApprovals.length > 0 ? (
+                      filteredFinalApprovals.map((res) => (
+                        <tr key={res._id}>
+                          <td className="exit-mgmt-employee-name">{res.employeeId?.name || "Unknown Staff"}</td>
+                          <td>{new Date(res.submissionDate).toLocaleDateString()}</td>
+                          <td>{res.lastWorkingDay ? new Date(res.lastWorkingDay).toLocaleDateString() : "N/A"}</td>
+                          <td className="exit-mgmt-truncated-cell">{res.reasonForLeaving}</td>
+                          <td>
+                            <span className={`exit-badge badge--${res.status?.toLowerCase()}`}>
+                              {res.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="exit-mgmt-row-buttons">
+                              <button className="exit-mgmt-btn-view" title="View Details" onClick={() => handleView(res)}>
+                                <Eye size={15} />
+                              </button>
+                              
+                              {res.status === "Verified" && (
+                                <button 
+                                  className="exit-mgmt-btn-approve" 
+                                  style={{ backgroundColor: "#2f855a", color: "#fff" }}
+                                  title="Complete Final HR Approval" 
+                                  onClick={() => handleApproveOrEditClick(res, true)}
+                                >
+                                  <ShieldCheck size={15} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="6" className="exit-mgmt-empty">
+                          No resignation accounts are currently waiting for absolute HR sign-off.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
         {showAddModal ? (
           <ResModal
             title="Register Resignation Notice"
@@ -454,10 +568,9 @@ const fetchAllData = useCallback(async () => {
           </ResModal>
         ) : null}
 
-        {/* EXIT CHECKLIST EDIT / APPROVAL POPUP MODAL */}
         {showApproveModal ? (
           <ResModal
-            title="Update Exit Checklist Configuration"
+            title={isHrFinalizing ? "Execute Absolute Exit Sign-off" : "Update Exit Checklist Configuration"}
             onClose={handleModalClose}
             size="lg"
             footer={
@@ -465,8 +578,12 @@ const fetchAllData = useCallback(async () => {
                 <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
                   Cancel
                 </button>
-                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--verify" onClick={() => processChecklistSubmission()}>
-                  Save Progress (Verify)
+                <button 
+                  type="button" 
+                  className={`exit-mgmt-control-btn ${isHrFinalizing ? 'exit-mgmt-control-btn--primary' : 'exit-mgmt-control-btn--verify'}`} 
+                  onClick={() => processChecklistSubmission()}
+                >
+                  {isHrFinalizing ? "Confirm Final Approval" : "Save Progress (Verify)"}
                 </button>
               </div>
             }
@@ -474,7 +591,6 @@ const fetchAllData = useCallback(async () => {
             <form onSubmit={(e) => e.preventDefault()}>
               <FormSection title="Clearance Criteria Checkmarks" description="Review separation checklist flags before completing action processing profiles">
                 <div className="exit-mgmt-checkbox-list">
-                  
                   <label className="exit-mgmt-checkbox-label">
                     <input 
                       type="checkbox" 
@@ -504,7 +620,6 @@ const fetchAllData = useCallback(async () => {
                     />
                     <strong>Overall Exit Checklist Master Flag Cleared</strong>
                   </label>
-                  
                 </div>
               </FormSection>
 
@@ -568,7 +683,6 @@ const fetchAllData = useCallback(async () => {
           </ResModal>
         ) : null}
 
-        {/* VIEW DETAILS MODAL */}
         {isViewing && selectedResignation ? (
           <ResModal title="Resignation Audit Metrics" onClose={handleModalClose} size="lg">
             <FormSection title="Employee & Timing Details">

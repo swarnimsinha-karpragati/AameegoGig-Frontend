@@ -1041,7 +1041,7 @@ console.log(myLatestCheckInSelfieUrl);
             onChange={(e) =>
               setMarkForm((prev) => ({ ...prev, checkIn: e.target.value }))
             }
-            disabled={markForm?.status == 'Absent'}
+            disabled={markForm?.status === 'Absent'}
           />
         </div>
 
@@ -1054,7 +1054,7 @@ console.log(myLatestCheckInSelfieUrl);
             onChange={(e) =>
               setMarkForm((prev) => ({ ...prev, checkOut: e.target.value }))
             }
-            disabled={markForm?.status == 'Absent'}
+            disabled={markForm?.status === 'Absent'}
           />
         </div>
 
