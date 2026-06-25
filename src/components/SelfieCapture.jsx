@@ -152,7 +152,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
             disabled={submitting}
             aria-label="Close"
           >
-            <X size={18} />
+            <X/>
           </button>
         </div>
 

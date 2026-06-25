@@ -217,8 +217,7 @@
 }
 
 .leave-request-form button,
-.balance-editor button,
-.cancel-btn {
+.balance-editor button {
   border: none;
   border-radius: 10px;
   min-height: 42px;
@@ -226,6 +225,19 @@
   color: #fff;
   font-weight: 600;
   cursor: pointer;
+}
+
+.leave-cancel-btn{
+  border: 1px solid white;
+  border-radius: 10px;
+  height: 26px;
+  width: 5rem;
+  background-color: #b91c1c;
+  color: white;
+  font-size: .7rem;
+  text-align: center;
+  padding: none;
+  
 }
 
 .leave-list {
