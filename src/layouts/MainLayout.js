@@ -10,6 +10,7 @@ import {
   Settings,
   Building2,
   ReceiptText,
+  FileSignature
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
@@ -51,6 +52,10 @@ function MainLayout({ children }) {
     "/expenses": {
       title: "Expenses",
       subtitle: "Submit and manage expense claims.",
+    },
+    "/resignation": {
+      title: "Resignation",
+      subtitle: "Submit and manage resignation.",
     },
     "/documents": {
       title: "Documents",
@@ -107,6 +112,11 @@ function MainLayout({ children }) {
       icon: FileText,
     },
     {
+      label: "Resignation",
+      path: "/resignation",
+      icon: FileSignature,
+    },
+    {
       label: "Settings",
       path: "/settings",
       icon: Settings,
@@ -124,7 +134,7 @@ function MainLayout({ children }) {
               Aameego <span>Gig</span>
             </h1>
 
-            <p>Human Resource Management</p>
+            <p style={{fontSize:'12px',fontWeight:'700'}}>Human Resource Management System</p>
           </div>
 
           <div className="client-info">

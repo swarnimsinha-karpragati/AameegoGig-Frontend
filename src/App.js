@@ -15,6 +15,7 @@ import Departments from './pages/Department';
 import Expense from "./pages/Expense";
 import ForgotPassword from './pages/ForgotPassword';
 import ForgotOrgCode from './pages/ForgotOrgCode';
+import Resignations from './pages/Resignations';
 
 function App() {
   return (
@@ -95,6 +96,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Expense />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/resignation"
+          element={
+            <ProtectedRoute>
+              <Resignations />
             </ProtectedRoute>
           }
         />
