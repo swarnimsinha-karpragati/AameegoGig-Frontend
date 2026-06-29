@@ -89,7 +89,7 @@ input:focus {
 }
 
 .btn-primary {
-  background-color: #2563eb;
+  background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
   color: white;
   padding: 0.625rem 1.25rem;
 }

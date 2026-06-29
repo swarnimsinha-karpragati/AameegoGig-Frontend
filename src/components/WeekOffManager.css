@@ -77,7 +77,7 @@
 }
 
 .weekoff-day-btn.active {
-  background: linear-gradient(135deg, #2ed8a3, #1e6bd6);
+  background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
   color: #fff;
   border-color: transparent;
 }
@@ -102,7 +102,7 @@
 }
 
 .weekoff-btn--primary {
-  background: linear-gradient(135deg, #2ed8a3, #1e6bd6);
+  background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
   color: #fff;
 }
 
