@@ -22,6 +22,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getDashboard } from "../services/dashboardService";
 import { getStoredUser, getRoleLabel } from "../utils/roles";
@@ -166,10 +167,10 @@ function Dashboard() {
                   </div>
                 )}
                 {data.payrollPending > 0 && (
-                  <div className="insight-chip warning">
+                  <Link to="/payroll?tab=review" className="insight-chip warning">
                     <Wallet size={16} />
                     <span>{data.payrollPending} payroll record{data.payrollPending !== 1 ? "s" : ""} pending processing</span>
-                  </div>
+                  </Link>
                 )}
               </div>
             )}

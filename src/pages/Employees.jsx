@@ -31,6 +31,10 @@ import {
 import {
   generateAppointmentLetter,
 } from "../services/letterService";
+import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
+import EmployeeSalaryStructureView from "../components/EmployeeSalaryStructureView";
+import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
+import { saveEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
 import { getDepartmentName } from "../services/departmentService";
@@ -94,6 +98,13 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "highestQualification", label: "Highest Qualification", fullWidth: true },
     ],
   },
+  {
+    id: "employment",
+    title: "Employment",
+    fields: [
+      { key: "relievingDate", label: "Relieving Date", type: "date" },
+    ],
+  },
 ];
 
 
@@ -129,14 +140,14 @@ function EmpModal({ title, onClose, size = "lg", children, footer }) {
   );
 }
 
-function FormSection({ title, description, children }) {
+function FormSection({ title, description, children, fullWidth = false }) {
   return (
     <section className="emp-form-section">
       <div className="emp-form-section__head">
         <h4>{title}</h4>
         {description ? <p>{description}</p> : null}
       </div>
-      <div className="emp-form-grid">{children}</div>
+      {fullWidth ? children : <div className="emp-form-grid">{children}</div>}
     </section>
   );
 }
@@ -259,6 +270,8 @@ function AppLoginSection({
     );
   }
 
+
+
   return (
     <div className="emp-login-card">
       <label className="emp-login-card__toggle">
@@ -339,7 +352,14 @@ function Employees() {
     highestQualification: "",
   
     dateOfJoining: "",
+    relievingDate: "",
     managerId: "",
+    basicSalary: "",
+    hra: "",
+    conveyanceAllowance: "",
+    incentive: "",
+    otherAllowance: "",
+    professionalTax: "",
     createAppLogin: false,
     userRole: "Employee",
     userPassword: "",
@@ -396,6 +416,9 @@ function Employees() {
   const [showAddModal, setShowAddModal] =
     useState(false);
 
+  const initialSalaryDraft = { ctcAnnual: 0, components: [] };
+  const [salaryDraft, setSalaryDraft] = useState(initialSalaryDraft);
+
   const [showUploadModal, setShowUploadModal] =
     useState(false);
 
@@ -412,20 +435,10 @@ function Employees() {
     annualCTC: "",
     monthlySalary: "",
     workLocation: "Gurgaon",
-
-    salaryComponents: [
-      {
-        componentName: "Basic Salary",
-        monthly: "",
-        annual: "",
-      },
-      {
-        componentName: "HRA",
-        monthly: "",
-        annual: "",
-      },
-    ],
+    salaryComponents: [],
   });
+
+  const [letterEmployeeId, setLetterEmployeeId] = useState(null);
 
   /* =========================
      FETCH EMPLOYEES
@@ -532,6 +545,18 @@ function Employees() {
 
       const res = await addEmployee(payload);
       const data = res.data;
+      const newEmployeeId = data.employee?._id;
+
+      if (newEmployeeId && hasSalaryData(salaryDraft)) {
+        try {
+          await saveEmployeeStructure(newEmployeeId, salaryDraft);
+        } catch (structureError) {
+          alert(
+            structureError.response?.data?.message ||
+              "Employee was created but salary structure could not be saved. Edit the employee to set salary."
+          );
+        }
+      }
 
       if (data.loginInfo) {
         showLoginCredentials(form.name, data.loginInfo);
@@ -545,6 +570,7 @@ function Employees() {
       }
 
       setForm(initialForm);
+      setSalaryDraft(initialSalaryDraft);
       setShowAddModal(false);
 
       fetchEmployees();
@@ -630,6 +656,16 @@ function Employees() {
           ? emp.dateOfJoining
               .split("T")[0]
           : "",
+      relievingDate:
+        emp.relievingDate
+          ? emp.relievingDate.split("T")[0]
+          : "",
+      basicSalary: emp.basicSalary ?? "",
+      hra: emp.hra ?? "",
+      conveyanceAllowance: emp.conveyanceAllowance ?? "",
+      incentive: emp.incentive ?? "",
+      otherAllowance: emp.otherAllowance ?? "",
+      professionalTax: emp.professionalTax ?? "",
     });
 
     setEnableLoginOnUpdate(false);
@@ -710,33 +746,8 @@ function Employees() {
      Generate Employee Appointment letter
   ======================================== */
 
-  const addSalaryComponent = () => {
-    setLetterData({
-      ...letterData,
-      salaryComponents: [
-        ...letterData.salaryComponents,
-        {
-          componentName: "",
-          monthly: "",
-          annual: "",
-        },
-      ],
-    });
-  };
-  
-  const removeSalaryComponent = (
-    index
-  ) => {
-    const updated = [
-      ...letterData.salaryComponents,
-    ];
-  
-    updated.splice(index, 1);
-  
-    setLetterData({
-      ...letterData,
-      salaryComponents: updated,
-    });
+  const patchLetterData = (patch) => {
+    setLetterData((prev) => ({ ...prev, ...patch }));
   };
 
 
@@ -749,10 +760,11 @@ function Employees() {
       !letterData.joiningDate ||
       !letterData.annualCTC ||
       !letterData.monthlySalary ||
-      !letterData.workLocation
+      !letterData.workLocation ||
+      !letterData.salaryComponents?.length
     ) {
       alert(
-        "Please fill all mandatory fields"
+        "Please fill all mandatory fields and apply a CTC split or enter salary components"
       );
       return;
     }
@@ -762,9 +774,14 @@ function Employees() {
     try {
       setLoading(true);
 
-      await generateAppointmentLetter(
-        letterData
-      );
+      await generateAppointmentLetter({
+        ...letterData,
+        salaryComponents: (letterData.salaryComponents || []).map((c) => ({
+          componentName: c.componentName || c.name,
+          monthly: c.monthly,
+          annual: c.annual,
+        })),
+      });
 
       alert(
         "Appointment Letter Generated Successfully"
@@ -980,67 +997,34 @@ function Employees() {
                         </button>
 
                         <button
-  className="emp-grid-btn"
-  onClick={() => {
-    setLetterData({
-      employeeName:
-        emp.name || "",
-    
-      designation:
-        emp.designation || "",
-    
-      joiningDate:
-        emp.dateOfJoining
-          ?.split("T")[0] || "",
-    
-      annualCTC: "",
-      monthlySalary: "",
-    
-      workLocation:
-        emp.location ||
-        "Gurgaon",
-    
-      salaryComponents: [
-        {
-          componentName:
-            "Basic Salary",
-          monthly: "",
-          annual: "",
-        },
-        {
-          componentName:
-            "HRA",
-          monthly: "",
-          annual: "",
-        },
-      ],
-    });
+                          className="emp-grid-btn"
+                          onClick={() => {
+                            setLetterEmployeeId(emp._id);
+                            setLetterData({
+                              employeeName: emp.name || "",
+                              designation: emp.designation || "",
+                              joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                              annualCTC: "",
+                              monthlySalary: "",
+                              workLocation: emp.location || "Gurgaon",
+                              salaryComponents: [],
+                            });
+                            setShowLetterModal(true);
+                          }}
+                        >
+                          <FileText />
+                        </button>
 
-    setShowLetterModal(true);
-  }}
->
-  <FileText />
-</button>
-
-<button
-  className="emp-grid-btn"
-  onClick={async () => {
-
-    setSelectedEmployeeForDocs(
-      emp
-    );
-  
-    await loadEmployeeDocuments(
-      emp._id
-    );
-  
-    setShowDocumentsModal(
-      true
-    );
-  }}
->
-  <FolderOpen />
-</button>
+                        <button
+                          className="emp-grid-btn"
+                          onClick={async () => {
+                            setSelectedEmployeeForDocs(emp);
+                            await loadEmployeeDocuments(emp._id);
+                            setShowDocumentsModal(true);
+                          }}
+                        >
+                          <FolderOpen />
+                        </button>
 
                         <button
                           className=" emp-grid-btn"
@@ -1076,14 +1060,20 @@ function Employees() {
         {showAddModal ? (
           <EmpModal
             title="Add Employee"
-            onClose={() => setShowAddModal(false)}
+            onClose={() => {
+              setShowAddModal(false);
+              setSalaryDraft(initialSalaryDraft);
+            }}
             size="lg"
             footer={
               <>
                 <button
                   type="button"
                   className="emp-btn emp-btn--secondary"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setSalaryDraft(initialSalaryDraft);
+                  }}
                 >
                   Cancel
                 </button>
@@ -1123,6 +1113,17 @@ function Employees() {
                   onPasswordChange={(e) =>
                     setForm({ ...form, userPassword: e.target.value })
                   }
+                />
+              </FormSection>
+              <FormSection
+                title="Salary Structure"
+                description="Set earnings and deductions from your organization component library"
+                fullWidth
+              >
+                <EmployeeSalaryStructureEditor
+                  draftValue={salaryDraft}
+                  onDraftChange={setSalaryDraft}
+                  hideActions
                 />
               </FormSection>
             </form>
@@ -1245,6 +1246,13 @@ function Employees() {
                       alreadyEnabled={selectedEmployee.hasAppLogin}
                       linkedEmail={selectedEmployee.linkedUser?.email}
                     />
+                  </FormSection>
+                  <FormSection
+                    title="Salary Structure"
+                    description="Dynamic earnings and deductions from your organization library"
+                    fullWidth
+                  >
+                    <EmployeeSalaryStructureEditor employeeId={selectedEmployee._id} />
                   </FormSection>
                 </>
               ) : (
@@ -1405,6 +1413,10 @@ function Employees() {
                     </div>
                   </div>
                 </div>
+                <div className="profile-section">
+                  <h4>Salary Structure</h4>
+                  <EmployeeSalaryStructureView employeeId={selectedEmployee._id} />
+                </div>
                 </div>
               )}
           </EmpModal>
@@ -1414,16 +1426,22 @@ function Employees() {
         {showLetterModal ? (
           <EmpModal
             title="Generate Appointment Letter"
-            onClose={() => setShowLetterModal(false)}
+            onClose={() => {
+              setShowLetterModal(false);
+              setLetterEmployeeId(null);
+            }}
             size="xl"
             footer={
               <>
                 <button
                   type="button"
                   className="emp-btn emp-btn--secondary"
-                  onClick={addSalaryComponent}
+                  onClick={() => {
+                    setShowLetterModal(false);
+                    setLetterEmployeeId(null);
+                  }}
                 >
-                  + Add Component
+                  Cancel
                 </button>
                 <button
                   type="button"
@@ -1503,8 +1521,7 @@ function Employees() {
                   type="number"
                   value={letterData.annualCTC}
                   onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
+                    patchLetterData({
                       annualCTC: e.target.value,
                     })
                   }
@@ -1518,81 +1535,26 @@ function Employees() {
                   type="number"
                   value={letterData.monthlySalary}
                   onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
+                    patchLetterData({
                       monthlySalary: e.target.value,
                     })
                   }
-                  placeholder="e.g. 50000"
+                  placeholder="Auto-filled from components"
+                  readOnly
                 />
               </FormField>
             </FormSection>
 
-            <FormSection title="Salary Structure">
-              <div className="emp-field emp-field--full">
-                <div className="emp-salary-list">
-                  {letterData.salaryComponents.map((item, index) => (
-                    <div key={index} className="emp-salary-row">
-                      <FormField label="Component" htmlFor={`salary-name-${index}`}>
-                        <input
-                          id={`salary-name-${index}`}
-                          value={item.componentName}
-                          onChange={(e) => {
-                            const updated = [...letterData.salaryComponents];
-                            updated[index].componentName = e.target.value;
-                            setLetterData({
-                              ...letterData,
-                              salaryComponents: updated,
-                            });
-                          }}
-                          placeholder="Basic, HRA…"
-                        />
-                      </FormField>
-                      <FormField label="Monthly" htmlFor={`salary-m-${index}`}>
-                        <input
-                          id={`salary-m-${index}`}
-                          type="number"
-                          value={item.monthly}
-                          onChange={(e) => {
-                            const updated = [...letterData.salaryComponents];
-                            updated[index].monthly = e.target.value;
-                            setLetterData({
-                              ...letterData,
-                              salaryComponents: updated,
-                            });
-                          }}
-                          placeholder="0"
-                        />
-                      </FormField>
-                      <FormField label="Annual" htmlFor={`salary-a-${index}`}>
-                        <input
-                          id={`salary-a-${index}`}
-                          type="number"
-                          value={item.annual}
-                          onChange={(e) => {
-                            const updated = [...letterData.salaryComponents];
-                            updated[index].annual = e.target.value;
-                            setLetterData({
-                              ...letterData,
-                              salaryComponents: updated,
-                            });
-                          }}
-                          placeholder="0"
-                        />
-                      </FormField>
-                      <button
-                        type="button"
-                        className="emp-btn emp-btn--danger-ghost"
-                        onClick={() => removeSalaryComponent(index)}
-                        aria-label="Remove component"
-                        title="Remove"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <FormSection
+              title="Salary Structure"
+              description="From your organization component library — split from CTC or apply to employee record"
+              fullWidth
+            >
+              <AppointmentLetterSalary
+                employeeId={letterEmployeeId}
+                letterData={letterData}
+                onChange={patchLetterData}
+              />
             </FormSection>
           </EmpModal>
         ) : null}

@@ -22,7 +22,14 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "ifscCode",
   "highestQualification",
   "dateOfJoining",
+  "relievingDate",
   "managerId",
+  "basicSalary",
+  "hra",
+  "conveyanceAllowance",
+  "incentive",
+  "otherAllowance",
+  "professionalTax",
 ];
 
 export const buildEmployeePayload = (data, extras = {}) => {
