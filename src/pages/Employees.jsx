@@ -38,6 +38,7 @@ import { saveEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
 import { getDepartmentName } from "../services/departmentService";
+import { employeeValidationSchema } from "../validators/employeeValidation";
 
 export const generateClientEmpCode = (prefix = "EMP") => {
   const randomDigits = Math.floor(10000 + Math.random() * 90000);
@@ -172,7 +173,8 @@ function EmployeeFormFields({
   employees,
   excludeEmployeeId,
   emailRequired,
-  department
+  department,
+  errors
 }) {
   const renderInput = (field) => {
     const id = `emp-field-${field.key}`;
@@ -184,6 +186,7 @@ function EmployeeFormFields({
     };
     if (field.key === "department") {
       return (
+        <>
         <select {...common}>
           {department && department.map((dept) => (
             <option key={dept?._id} value={dept?.name}>
@@ -191,11 +194,18 @@ function EmployeeFormFields({
             </option>
           ))}
         </select>
+        {errors[field.key] && (
+          <p style={{ color: "red", margin: "4px 0 0", fontSize: "14px" }}>
+            {errors[field.key]}
+          </p>
+        )}
+        </>
       );
     }
 
     if (field.type === "manager") {
       return (
+        <>
         <select {...common} value={values.managerId || ""}>
           <option value="">Select manager (optional)</option>
           {employees
@@ -206,20 +216,41 @@ function EmployeeFormFields({
               </option>
             ))}
         </select>
+        {errors[field.key] && (
+          <p style={{ color: "red", margin: "4px 0 0", fontSize: "14px" }}>
+            {errors[field.key]}
+          </p>
+        )}
+        </>
       );
     }
 
     if (field.type === "date") {
-      return <input {...common} type="date" />;
+      return (
+        <>
+        <input {...common} type="date" />
+        {errors[field.key] && (
+            <p style={{ color: "red", margin: "4px 0 0", fontSize: "14px" }}>
+              {errors[field.key]}
+            </p>
+          )}
+        </>
+      );
     }
 
     return (
+      <>
       <input
         {...common}
         type={field.type || "text"}
-        required={field.required || (field.key === "email" && emailRequired)}
         placeholder={`Enter ${field.label.toLowerCase()}`}
       />
+      {errors[field.key] && (
+          <p style={{ color: "red", margin: "4px 0 0", fontSize: "14px" }}>
+            {errors[field.key]}
+          </p>
+        )}
+      </>
     );
   };
 
@@ -374,7 +405,7 @@ function Employees() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [department,setDepartment] = useState(null)
+  const [department,setDepartment] = useState(null);
 
   const [
     showDocumentsModal,
@@ -429,6 +460,7 @@ function Employees() {
     
     const [letterData, setLetterData] =
   useState({
+    employeeId:"",
     employeeName: "",
     designation: "",
     joiningDate: "",
@@ -461,7 +493,6 @@ function Employees() {
   useEffect(() => {
     const loggedUser = localStorage.getItem('user')
     const {vendorId} = JSON.parse(loggedUser)
-
     fetchEmployees();
     fetchDepartment(vendorId);
   }, []);
@@ -511,6 +542,9 @@ function Employees() {
       ...form,
       [name]: type === "checkbox" ? checked : value,
     });
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   };
 
   /* =========================
@@ -530,6 +564,8 @@ function Employees() {
     });
   };
 
+  const [errors, setErrors] = useState({});
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -543,6 +579,10 @@ function Employees() {
         createAppLogin: form.createAppLogin,
       });
 
+      await employeeValidationSchema.validate(payload, {
+        abortEarly: false,
+      });
+      setErrors({});
       const res = await addEmployee(payload);
       const data = res.data;
       const newEmployeeId = data.employee?._id;
@@ -575,11 +615,21 @@ function Employees() {
 
       fetchEmployees();
     } catch (error) {
-      alert(
-        error.response?.data
-          ?.message ||
-          "Failed to add employee"
-      );
+      if (error.inner) {
+        const newErrors = {};
+        error.inner.forEach((err) => {
+          newErrors[err.path] = err.message;
+        });
+        setErrors(newErrors);
+        console.log("Validation Errors:", newErrors);
+      } 
+      else {
+        setErrors({});
+        console.error("Server/Network Error:", error);
+        
+        const serverMessage = error.response?.data?.message || "Failed to add employee";
+        alert(serverMessage);
+      }
     }
   };
 
@@ -683,6 +733,11 @@ function Employees() {
         createAppLogin: enableLoginOnUpdate,
       });
 
+      await employeeValidationSchema.validate(payload, {
+        abortEarly: false,
+      });
+      setErrors({});
+
       const res = await updateEmployee(
         selectedEmployee._id,
         payload
@@ -705,11 +760,21 @@ function Employees() {
 
       fetchEmployees();
     } catch (error) {
-      alert(
-        error.response?.data
-          ?.message ||
-          "Update failed"
-      );
+      if (error.inner) {
+        const newErrors = {};
+        error.inner.forEach((err) => {
+          newErrors[err.path] = err.message;
+        });
+        setErrors(newErrors);
+        console.log("Validation Errors:", newErrors);
+      } 
+      else {
+        setErrors({});
+        console.error("Server/Network Error:", error);
+        
+        const serverMessage = error.response?.data?.message || "Failed to update employee";
+        alert(serverMessage);
+      }
     }
   };
 
@@ -773,7 +838,6 @@ function Employees() {
 
     try {
       setLoading(true);
-
       await generateAppointmentLetter({
         ...letterData,
         salaryComponents: (letterData.salaryComponents || []).map((c) => ({
@@ -853,6 +917,8 @@ function Employees() {
       await uploadEmployeeDocument(
         formData
       );
+
+      loadEmployeeDocuments(selectedEmployeeForDocs._id);
 
       alert(
         "Document uploaded successfully"
@@ -1001,6 +1067,7 @@ function Employees() {
                           onClick={() => {
                             setLetterEmployeeId(emp._id);
                             setLetterData({
+                              employeeId: emp._id,
                               employeeName: emp.name || "",
                               designation: emp.designation || "",
                               joiningDate: emp.dateOfJoining?.split("T")[0] || "",
@@ -1063,6 +1130,7 @@ function Employees() {
             onClose={() => {
               setShowAddModal(false);
               setSalaryDraft(initialSalaryDraft);
+              setErrors({});
             }}
             size="lg"
             footer={
@@ -1073,6 +1141,7 @@ function Employees() {
                   onClick={() => {
                     setShowAddModal(false);
                     setSalaryDraft(initialSalaryDraft);
+                    setErrors({});
                   }}
                 >
                   Cancel
@@ -1095,6 +1164,7 @@ function Employees() {
                 employees={employees}
                 emailRequired={form.createAppLogin}
                 department={department}
+                errors={errors}
               />
               <FormSection title="App Access">
                 <AppLoginSection
@@ -1134,7 +1204,7 @@ function Employees() {
         {showUploadModal ? (
           <EmpModal
             title="Bulk Upload Employees"
-            onClose={() => setShowUploadModal(false)}
+            onClose={() => {setShowUploadModal(false); setErrors({})}}
             size="md"
             footer={
               <button
@@ -1192,7 +1262,7 @@ function Employees() {
                   <button
                     type="button"
                     className="emp-btn emp-btn--secondary"
-                    onClick={() => setSelectedEmployee(null)}
+                    onClick={() => {setSelectedEmployee(null); setErrors({})}}
                   >
                     Cancel
                   </button>
@@ -1222,6 +1292,7 @@ function Employees() {
                     excludeEmployeeId={selectedEmployee._id}
                     emailRequired={enableLoginOnUpdate}
                     department={department}
+                    errors={errors}
                   />
                   <FormSection title="App Access">
                     <AppLoginSection

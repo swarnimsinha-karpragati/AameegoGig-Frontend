@@ -520,7 +520,8 @@ function LeaveInner() {
                   ) : mode === "employee" && item.status === "Pending" ? (
                     <button
                       type="button"
-                      className="cancel-btn"
+                      id='leave-cancel-btn'
+                      className="leave-cancel-btn"
                       onClick={() => handleCancel(item._id)}
                     >
                       Cancel

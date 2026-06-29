@@ -10,7 +10,12 @@ function Login() {
     emailOrPhone: "",
     password: "",
     vendorCode: "",
+    otp:""
   });
+
+  const [is2FA, setIs2FA] = useState(false);
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
 
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -37,6 +42,12 @@ function Login() {
 
     try {
       const res = await loginUser(formData);
+      if (res?.twoFactorRequired ) {
+          setIs2FA(true);
+          setOtpEmail(res.sendTo || "");
+          setOtpSent(true)
+          return
+      }
 
       localStorage.setItem("token", res.token);
       localStorage.setItem("user", JSON.stringify(res.user));
@@ -128,13 +139,34 @@ function Login() {
               </div>
             </div>
 
+            {is2FA && otpSent &&(
+              <div className="form-group 2fa-otp-section" style={{ marginTop: "1rem" }}>
+                
+                <p className="auth-hint" style={{ color: "#2563eb", padding: 0, marginBottom: "0.5rem" }}>
+                  🔐 Verification Code sent to:<strong>{otpEmail}</strong>
+                </p>
+                
+                <input
+                  name="otp"
+                  type="text"
+                  placeholder="Enter 6-Digit OTP"
+                  maxLength="6"
+                  value={formData?.otp}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isLoading}
             >
               {isLoading
                 ? "Logging in..."
-                : "Login"}
+                : is2FA 
+                  ? "Verify & Confirm Login" 
+                  : "Login"}
             </button>
           </form>
 
