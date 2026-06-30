@@ -11,7 +11,6 @@ import {
   calculatePayrollRun,
   processPayrollRun,
   getAllPayrollRecords,
-  getPayrollByEmployee,
   listPayrollRuns,
   getPayrollRun,
   approvePayrollRun,
@@ -127,9 +126,9 @@ export default function Payroll() {
   const [payrollHistory, setPayrollHistory] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
 
-  const [payrollRuns, setPayrollRuns] = useState([]);
+  const [, setPayrollRuns] = useState([]);
   const [activeRun, setActiveRun] = useState(null);
-  const [runPayrolls, setRunPayrolls] = useState([]);
+  const [, setRunPayrolls] = useState([]);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [approvalAction, setApprovalAction] = useState("approve");
   const [approvalComment, setApprovalComment] = useState("");
