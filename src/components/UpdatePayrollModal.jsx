@@ -154,8 +154,7 @@ const UpdatePayrollModal = ({ isOpen, onClose, itemToEdit, onSave }) => {
                 required
               >
                 <option value="Pending">Pending</option>
-                <option value="Processing">Processing</option>
-                <option value="Success">Success</option>
+                <option value="Processed">Processed</option>
                 <option value="Failed">Failed</option>
               </select>
             </div>
