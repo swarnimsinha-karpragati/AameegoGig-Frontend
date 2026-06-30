@@ -13,6 +13,8 @@ import { OverTimePolicy } from "../components/OverTimePolicy";
 import { OverTimePolicyList } from "../components/OverTimePolicyList";
 import HolidayManager from "../components/HolidayManager";
 import WeekOffManager from "../components/WeekOffManager";
+import PayrollConfigCard from "../components/PayrollConfigCard";
+import SalaryComponentManager from "../components/SalaryComponentManager";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("admin");
@@ -75,6 +77,10 @@ export default function Settings() {
               <WeekOffManager vendorId={user?.vendorId} />
 
               <HolidayManager vendorId={user?.vendorId} />
+
+              <PayrollConfigCard />
+
+              <SalaryComponentManager />
               
               <OverTimePolicyList 
                 vendorId={user?.vendorId} 

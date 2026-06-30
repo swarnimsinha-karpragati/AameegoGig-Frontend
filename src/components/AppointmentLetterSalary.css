@@ -1,0 +1,136 @@
+.appt-letter-salary {
+  width: 100%;
+}
+
+.appt-letter-salary__split-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.appt-letter-salary__preset {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+}
+
+.appt-letter-salary__preset label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.appt-letter-salary__preset select {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #d1d9e6;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+}
+
+.appt-letter-salary__table-head,
+.appt-letter-salary__row {
+  display: grid;
+  grid-template-columns: 1fr 120px 120px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.appt-letter-salary__table-head {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  padding-top: 0;
+}
+
+.appt-letter-salary__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.appt-letter-salary__row input {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #d1d9e6;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+.appt-letter-salary__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #065f46;
+}
+
+.appt-letter-salary__msg {
+  font-size: 0.8125rem;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.appt-letter-salary__msg.success {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.appt-letter-salary__msg.error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.emp-salary-view__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.8125rem;
+}
+
+.emp-salary-view__row:last-child {
+  border-bottom: none;
+}
+
+.emp-salary-view__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.emp-salary-view__stat strong {
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+@media (max-width: 600px) {
+  .appt-letter-salary__table-head,
+  .appt-letter-salary__row {
+    grid-template-columns: 1fr 100px;
+  }
+
+  .appt-letter-salary__table-head span:last-child,
+  .appt-letter-salary__row input:last-child {
+    display: none;
+  }
+}

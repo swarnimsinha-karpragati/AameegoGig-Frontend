@@ -394,6 +394,8 @@ function LeaveInner() {
           <option value="SL">Sick Leave (SL)</option>
           <option value="EL">Earned Leave (EL)</option>
           <option value="CO">Comp Off (CO)</option>
+          <option value="LOP">Loss of Pay (LOP)</option>
+          <option value="LWP">Leave Without Pay (LWP)</option>
           <option value="WFH">WFH</option>
         </select>
         <input

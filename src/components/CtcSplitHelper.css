@@ -1,0 +1,72 @@
+.ctc-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  margin-bottom: 14px;
+}
+
+.ctc-split__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.ctc-split__field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.ctc-split__field select,
+.ctc-split__field input {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #d1d9e6;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  background: #fff;
+}
+
+.ctc-split__btn {
+  height: 38px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ctc-split__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ctc-split__btn--secondary {
+  background: #fff;
+  color: #334155;
+  border: 1px solid #d1d9e6;
+}
+
+.ctc-split__hint {
+  flex: 1 1 100%;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.ctc-split__error {
+  flex: 1 1 100%;
+  font-size: 0.75rem;
+  color: #b91c1c;
+  margin: 0;
+}
