@@ -23,10 +23,10 @@ export const finalApproval = async (id,payload) => {
 
 
 
-export const viewLetter = (id) => {
+export const viewLetter = (id,type) => {
 
     window.open(
-      getApiUrl(`/resignation/getResignationLetter/${id}`),
+      getApiUrl(`/resignation/getResignationLetter/?id=${id}&type=${type}`),
       "_blank"
     );
   };
