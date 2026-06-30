@@ -139,7 +139,7 @@
 
 .ot-select, .ot-input {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 2rem 0.5rem 0.5rem;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   background-color: #ffffff;
@@ -182,7 +182,7 @@
 }
 
 .ot-relative-input input {
-  padding-right: 4.5rem;
+  padding-right: 5.5rem;
 }
 
 .ot-unit-badge {
