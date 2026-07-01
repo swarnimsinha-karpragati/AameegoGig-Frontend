@@ -11,7 +11,8 @@ import {
   FileText,
   X,
   Edit,
-  ShieldCheck
+  ShieldCheck,
+  UserX
 } from "lucide-react";
 
 import "./Resignation.css";
@@ -79,6 +80,8 @@ function Resignations() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approvingRecordId, setApprovingRecordId] = useState(null);
   const [isHrFinalizing, setIsHrFinalizing] = useState(false);
+
+  const [isLoading,setIsLoading] = useState(false)
   
   const [checklistForm, setChecklistForm] = useState({
     isExitChecklistCleared: false,
@@ -89,10 +92,15 @@ function Resignations() {
     fnfAmount: 0,
     isExperienceLetterIssued: false,
     isRelievingLetterIssued: false,
+    deleteEmployeeAccount: false,
+    finalSettlementDate:"",
+    rolesAndResponsibilities:"",
+    conductEvaluation:""
   });
 
   const initialForm = {
     reasonForLeaving: "",
+    hrMail:"",
     requestedLastWorkingDay: "",
     resignationLetter: null,
   };
@@ -140,6 +148,7 @@ function Resignations() {
     }
   };
 
+
   const handleChecklistChange = (e) => {
     const { name, type, checked, value } = e.target;
     setChecklistForm({
@@ -165,6 +174,7 @@ function Resignations() {
       fnfAmount: 0,
       isExperienceLetterIssued: false,
       isRelievingLetterIssued: false,
+      deleteEmployeeAccount: false,
     });
   };
 
@@ -174,7 +184,7 @@ function Resignations() {
       alert("Please fill in all required fields.");
       return;
     }
-
+    setIsLoading(true)
     const formData = new FormData();
     formData.append("vendorId", vendorId);
     formData.append("reasonForLeaving", form.reasonForLeaving);
@@ -188,7 +198,9 @@ function Resignations() {
       alert("Resignation request submitted successfully.");
       handleModalClose();
       fetchAllData(); 
+      setIsLoading(false)
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Submission failed");
     }
   };
@@ -205,28 +217,32 @@ function Resignations() {
       fnfAmount: record.fnfAmount || 0,
       isExperienceLetterIssued: record.isExperienceLetterIssued || false,
       isRelievingLetterIssued: record.isRelievingLetterIssued || false,
+      deleteEmployeeAccount: record.deleteEmployeeAccount || false,
+      finalSettlementDate: record.finalSettlementDate || null,
     });
     setShowApproveModal(true);
   };
 
   const processChecklistSubmission = async () => {
     try {
-        if(isHrFinalizing){
+      setIsLoading(true)
+        if (isHrFinalizing) {
             const payload = {
-                status:"Approved",
+                status: "Approved",
                 isExitApproved: true,
                 approvedBy: currentUser?.employeeId,
                 ...checklistForm,
                 fnfAmount: Number(checklistForm.fnfAmount)
             };
-            await finalApproval(approvingRecordId,payload)
+            console.log(payload)
+            await finalApproval(approvingRecordId, payload);
             fetchAllData();
-            alert(`Checklist metrics successfully saved with configuration status: ${payload.status}.`);
+            alert(`Checklist metrics successfully saved with configuration status: Approved.`);
             handleModalClose();
-        }else{
+        } else {
             const payload = {
                 status: "Verified",
-                isExitApproved:  false,
+                isExitApproved: false,
                 verifiedBy: currentUser?.employeeId,
                 ...checklistForm,
                 fnfAmount: Number(checklistForm.fnfAmount)
@@ -236,18 +252,23 @@ function Resignations() {
             alert(`Checklist metrics successfully saved with configuration status: ${payload.status}.`);
             handleModalClose();
         }
+        setIsLoading(false)
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Checklist pipeline save operation failed.");
     }
   };
 
   const handleRejectStatus = async (id) => {
     if (!window.confirm("Are you sure you want to reject this resignation request?")) return;
+    setIsLoading(true)
     try {
       await rejectResignation(id, currentUser?.employeeId);
       fetchAllData();
+      setIsLoading(false)
       alert("Request marked as Rejected");
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Status operation failed");
     }
   };
@@ -425,8 +446,8 @@ function Resignations() {
         {isHrOrAdmin && (
           <>
             <div className="exit-mgmt-header-block" style={{ marginTop: "2rem" }}>
-              <h2 className="exit-mgmt-title" style={{ color: "#c53030", display: "flex", alignItems: "center", gap: "8px" }}>
-                <ShieldCheck size={24} /> HR / Corporate Final Sign-off
+              <h2 className="exit-mgmt-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                HR / Corporate Final Sign-off
               </h2>
               <p className="exit-mgmt-subtitle">
                 Authorized administrative scope over verified manager checklists to execute absolute departure settlement.
@@ -512,10 +533,10 @@ function Resignations() {
             size="lg"
             footer={
               <>
-                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
+                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose} disabled={isLoading}>
                   Cancel
                 </button>
-                <button type="submit" form="resignation-core-form" className="exit-mgmt-control-btn exit-mgmt-control-btn--primary">
+                <button type="submit" form="resignation-core-form" className="exit-mgmt-control-btn exit-mgmt-control-btn--primary" disabled={isLoading}>
                   Submit Notice
                 </button>
               </>
@@ -542,6 +563,15 @@ function Resignations() {
                     onChange={handleChange}
                     placeholder="Provide context regarding resignation drivers..."
                     required
+                  />
+                </FormField>
+                <FormField label="Your HR Mail(Optional)" htmlFor="res-hr" fullWidth>
+                  <input
+                    id="res-hr"
+                    name="hrMail"
+                    value={form.hrMail}
+                    onChange={handleChange}
+                    placeholder=""
                   />
                 </FormField>
               </FormSection>
@@ -575,13 +605,14 @@ function Resignations() {
             size="lg"
             footer={
               <div className="exit-mgmt-modal-actions">
-                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
+                <button type="button" disabled={isLoading} className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
                   Cancel
                 </button>
                 <button 
                   type="button" 
                   className={`exit-mgmt-control-btn ${isHrFinalizing ? 'exit-mgmt-control-btn--primary' : 'exit-mgmt-control-btn--verify'}`} 
                   onClick={() => processChecklistSubmission()}
+                  disabled={isLoading}
                 >
                   {isHrFinalizing ? "Confirm Final Approval" : "Save Progress (Verify)"}
                 </button>
@@ -679,6 +710,57 @@ function Resignations() {
                   </label>
                 </div>
               </FormSection>
+
+             
+              {isHrFinalizing && (
+                <>
+                  <FormField label="Final Settlement Date" htmlFor="finalSettlementDate" required fullWidth>
+                    <input
+                      id="finalSettlementDate"
+                      name="finalSettlementDate"
+                      type="date"
+                      value={checklistForm.finalSettlementDate}
+                      onChange={handleChecklistChange}
+                      required
+                    />
+                  </FormField>
+                  <br/>
+                  <FormField label="Roles and Responsiblity" htmlFor="rolesAndResponsibilities" required fullWidth>
+                    <input
+                      id="rolesAndResponsibilities"
+                      name="rolesAndResponsibilities"
+                      type="text"
+                      value={checklistForm.rolesAndResponsibilities}
+                      onChange={handleChecklistChange}
+                      required
+                    />
+                  </FormField>
+                  <br/>
+                  <FormField label="Conduct Evaluation" htmlFor="conductEvaluation" required fullWidth>
+                    <input
+                      id="conductEvaluation"
+                      name="conductEvaluation"
+                      type="text"
+                      value={checklistForm.conductEvaluation}
+                      onChange={handleChecklistChange}
+                      required
+                    />
+                  </FormField>
+                  <br/>
+                  <FormField label="System Account Action" fullWidth>
+                    <label className="exit-mgmt-checkbox-label" style={{ color: "#c53030", marginTop: "8px" }}>
+                      <input 
+                        type="checkbox" 
+                        name="deleteEmployeeAccount" 
+                        checked={checklistForm.deleteEmployeeAccount} 
+                        onChange={handleChecklistChange} 
+                      />
+                      <UserX size={16} style={{ inlineSize: "auto" }} />
+                      <strong>Permanently delete employee account after final settlement</strong>
+                    </label>
+                  </FormField>
+                </>
+              )}
             </form>
           </ResModal>
         ) : null}
@@ -699,7 +781,9 @@ function Resignations() {
                 <FormField label="Overall Exit Checklist"><input type="text" value={selectedResignation.isExitChecklistCleared ? "✅ Cleared" : "❌ Not Cleared"} disabled /></FormField>
                 <FormField label="F&F Status"><input type="text" value={selectedResignation.isFullAndFinalSettled ? `✅ Settled ($${selectedResignation.fnfAmount})` : "❌ Processing"} disabled /></FormField>
                 <FormField label="Certificates Issued"><input type="text" value={`${selectedResignation.isExperienceLetterIssued ? "Experience" : ""} ${selectedResignation.isRelievingLetterIssued ? "Relieving" : ""}`.trim() || "None"} disabled /></FormField>
-                 <FormField label="Asset recovery notes"><input type="text" value={selectedResignation.assetRecoveryNotes ? selectedResignation.assetRecoveryNotes : "No Notes"} disabled /></FormField>
+                <FormField label="Asset recovery notes"><input type="text" value={selectedResignation.assetRecoveryNotes ? selectedResignation.assetRecoveryNotes : "No Notes"} disabled /></FormField>
+                <FormField label="Approved Date"><input type="text" value={selectedResignation.approvedDate ? new Date(selectedResignation.approvedDate).toLocaleDateString() : "N/A"} disabled /></FormField>
+                <FormField label="Final Settlement Date"><input type="text" value={selectedResignation.finalSettlementDate ? new Date(selectedResignation.finalSettlementDate).toLocaleDateString() : "N/A"} disabled /></FormField>
               </FormSection>
             )}
 
@@ -712,13 +796,43 @@ function Resignations() {
                   <button
                     type="button"
                     className="document-download-link document-download-link--btn"
-                    onClick={() => viewLetter(selectedResignation._id)}
+                    onClick={() => viewLetter(selectedResignation._id,'resignationLetterUrl')}
                   >
                     <FileText size={18} />
                     <span>View Document Record</span>
                   </button>
                 ) : (
                   <span className="no-document-msg">No physical letter attached to this profile entry.</span>
+                )}
+              </FormField>
+
+              <FormField label="Issued Experience letter" fullWidth>
+                {selectedResignation.experienceLetter ? (
+                  <button
+                    type="button"
+                    className="document-download-link document-download-link--btn"
+                    onClick={() => viewLetter(selectedResignation._id,'experienceLetter')}
+                  >
+                    <FileText size={18} />
+                    <span>View Document Record</span>
+                  </button>
+                ) : (
+                  <span className="no-document-msg">Experience Letter is not issued.</span>
+                )}
+              </FormField>
+
+              <FormField label=" Issued Relieving Letter" fullWidth>
+                {selectedResignation.relievingLetter ? (
+                  <button
+                    type="button"
+                    className="document-download-link document-download-link--btn"
+                    onClick={() => viewLetter(selectedResignation._id,'relievingLetter')}
+                  >
+                    <FileText size={18} />
+                    <span>View Document Record</span>
+                  </button>
+                ) : (
+                  <span className="no-document-msg">Relieving Letter is not issued.</span>
                 )}
               </FormField>
             </FormSection>

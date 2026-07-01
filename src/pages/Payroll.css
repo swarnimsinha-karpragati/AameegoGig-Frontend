@@ -462,6 +462,20 @@
   color: #b45309;
 }
 
+.badge-status.fail {
+  background-color: #fee2e2;
+  color: #991b1b;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.badge-status.warn {
+  background-color: #fef3c7;
+  color: #92400e;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
 /* Custom action buttons inside table rows */
 .row-action-buttons {
   display: flex;

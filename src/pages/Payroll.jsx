@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import kpLogo from "../assets/kpLogo.png";
@@ -6,12 +7,29 @@ import {
   bulkUploadPayrollEntries,
   previewPayroll,
   calculateSinglePayroll,
-  calculateBulkPayroll,
+  createPayrollRun,
+  calculatePayrollRun,
+  processPayrollRun,
   getAllPayrollRecords,
-  getPayrollByEmployee,
+  listPayrollRuns,
+  getPayrollRun,
+  approvePayrollRun,
+  rejectPayrollRun,
+  sendRunPayslips,
+  downloadServerPayslip,
+  sendPayslipEmail,
+  reopenPayroll,
+  getPayments,
+  updatePayment,
+  addPayrollAdjustment,
+  removePayrollAdjustment,
+  getPayrollSummary,
+  exportPayrollSummary,
 } from "../services/payrollService";
 import { getEmployees } from "../services/employeeService";
+import { getCurrentUser } from "../services/authService";
 import { getStoredUser } from "../utils/roles";
+import UpdatePayrollModal from "../components/UpdatePayrollModal";
 import {
   Wallet,
   TrendingUp,
@@ -27,9 +45,15 @@ import {
   RefreshCw,
   Info,
   Users,
+  ShieldCheck,
+  XCircle,
+  Mail,
+  Pencil,
 } from "lucide-react";
 import "./Payroll.css";
 import MainLayout from "../layouts/MainLayout";
+import PayrollBreakdown from "../components/PayrollBreakdown";
+import { resolvePayrollLines, buildPairedPdfRows } from "../utils/payrollLines";
 import {
   ResponsiveContainer,
   BarChart,
@@ -86,20 +110,33 @@ str += (Number(n[5]) !== 0) ? ((str !== '') ? 'and ' : '') + (a[Number(n[5])] ||
 export default function Payroll() {
   const user = getStoredUser();
   const isAdminOrHR = user?.role === "Admin" || user?.role === "HR";
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
 
-  // Tab views: 'ops', 'slips', 'upload' for Admin; 'my_slips', 'my_analytics' for Employee
-  const [activeTab, setActiveTab] = useState(isAdminOrHR ? "ops" : "my_slips");
+  const [activeTab, setActiveTab] = useState(
+    tabFromUrl || (isAdminOrHR ? "ops" : "my_slips")
+  );
 
-  // Filter & Processor states
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedEmp, setSelectedEmp] = useState(""); // Stores JSON string of employee metadata
+  const [selectedEmp, setSelectedEmp] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Data states
   const [employees, setEmployees] = useState([]);
   const [payrollHistory, setPayrollHistory] = useState([]);
-  const [paymentHistory, setPaymentHistory] = useState([]); // original bank upload records
+  const [paymentHistory, setPaymentHistory] = useState([]);
+
+  const [, setPayrollRuns] = useState([]);
+  const [activeRun, setActiveRun] = useState(null);
+  const [, setRunPayrolls] = useState([]);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalAction, setApprovalAction] = useState("approve");
+  const [approvalComment, setApprovalComment] = useState("");
+  const [payrollSummary, setPayrollSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   
   // Loading & Popup states
   const [loading, setLoading] = useState(false);
@@ -123,24 +160,52 @@ export default function Payroll() {
 
     try {
       if (isAdminOrHR) {
-        // Load all active employees for selection dropdown
         const empRes = await getEmployees();
         setEmployees(empRes.data?.employees || []);
 
-        // Load payroll records for current filter
         const params = {
-          vendorId: user.vendorId,
           month: MONTH_NUMBER_TO_NAME[selectedMonth],
           year: selectedYear,
         };
         const payrollRes = await getAllPayrollRecords(params);
         setPayrollHistory(payrollRes.data?.data || []);
-      } else {
-        // Load personal history by employeeCode
-        if (user.employeeCode) {
-          const payrollRes = await getPayrollByEmployee(user.employeeCode);
-          setPayrollHistory(payrollRes.data?.data || []);
+
+        const paymentsRes = await getPayments({
+          month: MONTH_NUMBER_TO_NAME[selectedMonth],
+          year: selectedYear,
+        });
+        setPaymentHistory(paymentsRes.data?.data || []);
+
+        const runsRes = await listPayrollRuns({ year: selectedYear });
+        setPayrollRuns(runsRes.data?.data || []);
+
+        const matchingRun = (runsRes.data?.data || []).find(
+          (r) => r.month === MONTH_NUMBER_TO_NAME[selectedMonth] && r.year === selectedYear
+        );
+        if (matchingRun) {
+          const runDetail = await getPayrollRun(matchingRun._id);
+          setActiveRun(runDetail.data?.data?.run || matchingRun);
+          setRunPayrolls(runDetail.data?.data?.payrolls || []);
+        } else {
+          setActiveRun(null);
+          setRunPayrolls([]);
         }
+
+        try {
+          setSummaryLoading(true);
+          const summaryRes = await getPayrollSummary({
+            month: selectedMonth,
+            year: selectedYear,
+          });
+          setPayrollSummary(summaryRes.data?.data || null);
+        } catch {
+          setPayrollSummary(null);
+        } finally {
+          setSummaryLoading(false);
+        }
+      } else {
+        const payrollRes = await getAllPayrollRecords();
+        setPayrollHistory(payrollRes.data?.data || []);
       }
     } catch (error) {
       console.error("Error loading payroll dashboard data:", error);
@@ -154,9 +219,28 @@ export default function Payroll() {
   };
 
   useEffect(() => {
-    loadInitialData();
+    const bootstrap = async () => {
+      if (!isAdminOrHR) {
+        try {
+          const me = await getCurrentUser();
+          if (me?.user) {
+            localStorage.setItem("user", JSON.stringify(me.user));
+          }
+        } catch {
+          // keep stored user if refresh fails
+        }
+      }
+      loadInitialData();
+    };
+    bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedYear, user?.vendorId, user?.employeeCode]);
+
+  useEffect(() => {
+    if (tabFromUrl && isAdminOrHR) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl, isAdminOrHR]);
 
   // Handle previewing single employee payroll
   const handlePreview = async () => {
@@ -173,7 +257,6 @@ export default function Payroll() {
       const monthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
       const res = await previewPayroll({
         employeeId: code,
-        vendorId: user.vendorId,
         month: monthStr,
       });
 
@@ -202,7 +285,6 @@ export default function Payroll() {
     try {
       const res = await calculateSinglePayroll({
         employeeId: selectedRecord.employeeId,
-        vendorId: user.vendorId,
         month: selectedMonth,
         year: selectedYear,
       });
@@ -212,7 +294,9 @@ export default function Payroll() {
           type: "success",
           text: `Successfully computed and saved payroll for ${selectedRecord.employeeName}.`,
         });
-        setShowDetailsPopup(false);
+        if (res.data?.data) {
+          setSelectedRecord(res.data.data);
+        }
         loadInitialData();
       } else {
         throw new Error(res.data?.message || "Calculation failed");
@@ -227,9 +311,9 @@ export default function Payroll() {
     }
   };
 
-  // Process bulk payroll calculation
+  // Process bulk payroll calculation via approval workflow
   const handleCalculateBulk = async () => {
-    if (!window.confirm(`Are you sure you want to run bulk payroll calculation for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear}?`)) {
+    if (!window.confirm(`Create payroll run and calculate for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear}?`)) {
       return;
     }
 
@@ -237,21 +321,17 @@ export default function Payroll() {
     setStatusMessage({ type: "", text: "" });
 
     try {
-      const res = await calculateBulkPayroll({
-        vendorId: user.vendorId,
-        month: selectedMonth,
-        year: selectedYear,
+      const createRes = await createPayrollRun({ month: selectedMonth, year: selectedYear });
+      const runId = createRes.data?.data?._id;
+      const calcRes = await calculatePayrollRun(runId);
+      setActiveRun(calcRes.data?.data?.run);
+      setRunPayrolls(calcRes.data?.data?.results?.success || []);
+      setStatusMessage({
+        type: "success",
+        text: "Bulk payroll calculated. Review and approve in the Payroll Review tab.",
       });
-
-      if (res.data?.success) {
-        setStatusMessage({
-          type: "success",
-          text: res.data.message || `Bulk payroll calculation completed successfully.`,
-        });
-        loadInitialData();
-      } else {
-        throw new Error(res.data?.message || "Bulk payroll calculation failed.");
-      }
+      setActiveTab("review");
+      loadInitialData();
     } catch (error) {
       setStatusMessage({
         type: "error",
@@ -272,7 +352,11 @@ export default function Payroll() {
     setUploadMessage("");
     try {
       setLoading(true);
-      const res = await bulkUploadPayrollEntries(uploadFile);
+      const res = await bulkUploadPayrollEntries(
+        uploadFile,
+        MONTH_NUMBER_TO_NAME[selectedMonth],
+        selectedYear
+      );
       setPaymentHistory(res.data.data || []);
       const errorList = res.data.errors || [];
       let message = `Upload Complete: ${res.data.inserted} inserted, ${res.data.skipped} skipped`;
@@ -355,14 +439,10 @@ export default function Payroll() {
       theme: "grid",
       head: [["EARNINGS (Rs.)", "Amount", "DEDUCTIONS (Rs.)", "Amount"]],
       headStyles: { fillColor: [30, 107, 214] },
-      body: [
-        ["Basic Salary", `Rs. ${data.basicSalary.toLocaleString()}`, "Provident Fund", `Rs. ${data.pf.toLocaleString()}`],
-        ["House Rent Allowance", `Rs. ${data.hra.toLocaleString()}`, "Professional Tax", `Rs. ${data.professionalTax.toLocaleString()}`],
-        ["Conveyance Allowance", `Rs. ${data.conveyance.toLocaleString()}`, "ESIC", `Rs. ${data.esicDeduction.toLocaleString()}`],
-        ["Performance Incentive", `Rs. ${data.incentive.toLocaleString()}`, "Loan Recovery/Other", `Rs. ${data.loanRecovery.toLocaleString()}`],
-        ["Other Allowance", `Rs. ${data.otherAllowance.toLocaleString()}`, "Other Deductions", `Rs. ${data.otherDeduction.toLocaleString()}`],
-        ["Gross Earnings", `Rs. ${data.grossSalary.toLocaleString()}`, "Total Deductions", `Rs. ${data.totalDeduction.toLocaleString()}`],
-      ],
+      body: buildPairedPdfRows(
+        data.earnings || [],
+        data.deductions || []
+      ),
     });
 
     // Net Salary
@@ -397,15 +477,31 @@ export default function Payroll() {
   // Download PDF slip trigger
   const handleDownloadPDF = async (record) => {
     try {
+      if (record._id && (record.status === "Processed" || isAdminOrHR)) {
+        try {
+          const res = await downloadServerPayslip(record._id);
+          const blob = new Blob([res.data], { type: "application/pdf" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${record.employeeCode}-SalarySlip-${record.month}.pdf`;
+          link.click();
+          URL.revokeObjectURL(url);
+          return;
+        } catch {
+          // fallback to client PDF
+        }
+      }
+
       const monthNum = MONTH_NAME_TO_NUMBER[record.month] || 1;
       const monthStr = `${record.year}-${String(monthNum).padStart(2, "0")}`;
       const previewRes = await previewPayroll({
         employeeId: record.employeeCode,
-        vendorId: record.vendorId,
         month: monthStr,
       });
 
       const details = previewRes.data.data;
+      const { earnings, deductions } = resolvePayrollLines(details);
       const pdfData = {
         month: `${details.month} ${details.year}`,
         name: details.employeeName,
@@ -422,17 +518,9 @@ export default function Payroll() {
         daysWorked: details.presentDays + (details.halfDays * 0.5),
         paidLeave: details.paidLeaveDays,
         lop: details.lopDays,
-        basicSalary: details.basicSalary,
-        hra: details.hra,
-        conveyance: details.conveyanceAllowance,
-        incentive: details.incentive + (details.overtimePay || 0),
-        loanRecovery: 0,
-        otherAllowance: details.otherAllowance,
+        earnings,
+        deductions,
         grossSalary: details.grossSalary + (details.overtimePay || 0),
-        pf: details.pfDeduction,
-        professionalTax: details.professionalTax,
-        esicDeduction: details.esicDeduction,
-        otherDeduction: details.lopDeduction + details.otherDeduction,
         totalDeduction: details.totalDeduction,
         netSalary: details.netSalary,
         salaryInWords: convertNumberToWords(details.netSalary) + "Only",
@@ -451,14 +539,46 @@ export default function Payroll() {
       const monthStr = `${record.year}-${String(monthNum).padStart(2, "0")}`;
       const previewRes = await previewPayroll({
         employeeId: record.employeeCode,
-        vendorId: record.vendorId,
         month: monthStr,
       });
 
-      setSelectedRecord(previewRes.data.data);
+      setSelectedRecord({
+        ...previewRes.data.data,
+        _id: record._id,
+        status: record.status,
+        oneOffAdjustments: record.oneOffAdjustments || [],
+        payrollCode: record.payrollCode,
+      });
       setShowDetailsPopup(true);
     } catch (err) {
       alert("Failed to load slip breakdown: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleAddAdjustment = async (payload) => {
+    if (!selectedRecord?._id) throw new Error("Save payroll before adding adjustments");
+    setActionLoading(true);
+    try {
+      const res = await addPayrollAdjustment(selectedRecord._id, payload);
+      if (res.data?.data) setSelectedRecord(res.data.data);
+      loadInitialData();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRemoveAdjustment = async (adjId) => {
+    if (!selectedRecord?._id) return;
+    if (!window.confirm("Remove this one-off adjustment and recalculate?")) return;
+    setActionLoading(true);
+    try {
+      const res = await removePayrollAdjustment(selectedRecord._id, adjId);
+      if (res.data?.data) setSelectedRecord(res.data.data);
+      loadInitialData();
+    } catch (err) {
+      alert(err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -479,10 +599,10 @@ export default function Payroll() {
       item.refNo || "",
       item.beneficiaryName || "",
       item.amount || "",
-      item.accountNo || "",
+      item.beneficiaryAccountNo || "",
       item.ifsc || "",
       item.paymentDate || "",
-      item.year || "",
+      item.payrollYear || "",
       item.status || "",
     ]);
 
@@ -543,6 +663,165 @@ export default function Payroll() {
       })).reverse(); // chronological order
     }
   }, [filteredHistory, isAdminOrHR]);
+
+  const handleCreateAndCalculateRun = async () => {
+    if (!window.confirm(`Create payroll run for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear}?`)) return;
+    setActionLoading(true);
+    try {
+      const createRes = await createPayrollRun({ month: selectedMonth, year: selectedYear });
+      const runId = createRes.data?.data?._id;
+      const calcRes = await calculatePayrollRun(runId);
+      setActiveRun(calcRes.data?.data?.run);
+      setRunPayrolls(calcRes.data?.data?.results?.success || []);
+      setStatusMessage({ type: "success", text: "Payroll run calculated. Review exceptions before approving." });
+      setActiveTab("review");
+      loadInitialData();
+    } catch (error) {
+      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApprovalSubmit = async () => {
+    if (!activeRun) return;
+    setActionLoading(true);
+    try {
+      if (approvalAction === "approve") {
+        await approvePayrollRun(activeRun._id, approvalComment);
+        setStatusMessage({ type: "success", text: "Payroll run approved." });
+      } else {
+        await rejectPayrollRun(activeRun._id, approvalComment);
+        setStatusMessage({ type: "success", text: "Payroll run rejected." });
+      }
+      setShowApprovalModal(false);
+      setApprovalComment("");
+      loadInitialData();
+    } catch (error) {
+      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleProcessRun = async () => {
+    if (!activeRun) return;
+    if (!window.confirm("Generate payslip PDFs and mark this payroll run as processed?")) return;
+    setActionLoading(true);
+    try {
+      const res = await processPayrollRun(activeRun._id);
+      setActiveRun(res.data?.data?.run || res.data?.data);
+      setStatusMessage({
+        type: "success",
+        text: `Payroll processed. ${res.data?.data?.payslips?.generated || 0} payslip(s) generated.`,
+      });
+      loadInitialData();
+    } catch (error) {
+      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEmailPayslips = async () => {
+    if (!activeRun) return;
+    if (!window.confirm("Email payslips to all employees with processed payroll?")) return;
+    setActionLoading(true);
+    try {
+      const res = await sendRunPayslips(activeRun._id);
+      setStatusMessage({
+        type: "success",
+        text: `Emails sent: ${res.data?.data?.sent || 0}, skipped: ${res.data?.data?.skipped || 0}, failed: ${res.data?.data?.failed || 0}`,
+      });
+      loadInitialData();
+    } catch (error) {
+      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSendPayslipEmail = async (record) => {
+    if (!record?._id) return;
+    setActionLoading(true);
+    try {
+      await sendPayslipEmail(record._id);
+      setStatusMessage({ type: "success", text: `Payslip emailed to ${record.employeeName}.` });
+      loadInitialData();
+    } catch (error) {
+      alert(error.response?.data?.message || error.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReopenPayroll = async (record) => {
+    if (!record?._id) return;
+    if (!window.confirm(`Reopen processed payroll for ${record.employeeName}?`)) return;
+    setActionLoading(true);
+    try {
+      await reopenPayroll(record._id);
+      setStatusMessage({ type: "success", text: `Payroll reopened for ${record.employeeName}.` });
+      loadInitialData();
+    } catch (error) {
+      alert(error.response?.data?.message || error.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleExportSummary = async () => {
+    try {
+      const res = await exportPayrollSummary({ month: selectedMonth, year: selectedYear });
+      const blob = new Blob([res.data], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `payroll-summary-${MONTH_NUMBER_TO_NAME[selectedMonth]}-${selectedYear}.csv`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert(error.response?.data?.message || "Failed to export summary");
+    }
+  };
+
+  const handleSavePayment = async (payment) => {
+    try {
+      await updatePayment(payment._id, {
+        refNo: payment.refNo,
+        beneficiaryName: payment.beneficiaryName,
+        beneficiaryAccountNo: payment.accountNo || payment.beneficiaryAccountNo,
+        ifsc: payment.ifsc,
+        amount: payment.amount,
+        status: payment.status,
+        remark: payment.comment,
+      });
+      loadInitialData();
+    } catch (error) {
+      alert(error.response?.data?.message || "Failed to update payment");
+    }
+  };
+
+  const MonthYearFilter = () => (
+    <div className="processor-controls" style={{ marginBottom: "1rem" }}>
+      <div className="control-group">
+        <label>Year</label>
+        <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="control-select">
+          {[2024, 2025, 2026, 2027, 2028].map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+      </div>
+      <div className="control-group">
+        <label>Month</label>
+        <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="control-select">
+          {MONTHS.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
 
   return (
     <MainLayout>
@@ -608,11 +887,25 @@ export default function Payroll() {
                 <span>Payroll Processor</span>
               </button>
               <button
+                className={`tab-btn ${activeTab === "review" ? "active" : ""}`}
+                onClick={() => setActiveTab("review")}
+              >
+                <ShieldCheck size={16} />
+                <span>Payroll Review</span>
+              </button>
+              <button
                 className={`tab-btn ${activeTab === "slips" ? "active" : ""}`}
                 onClick={() => setActiveTab("slips")}
               >
                 <FileText size={16} />
                 <span>Payslips Database</span>
+              </button>
+              <button
+                className={`tab-btn ${activeTab === "summary" ? "active" : ""}`}
+                onClick={() => setActiveTab("summary")}
+              >
+                <FileSpreadsheet size={16} />
+                <span>Payroll Summary</span>
               </button>
               <button
                 className={`tab-btn ${activeTab === "analytics" ? "active" : ""}`}
@@ -772,6 +1065,127 @@ export default function Payroll() {
           </div>
         )}
 
+        {/* PAYROLL REVIEW TAB */}
+        {isAdminOrHR && activeTab === "review" && (
+          <div className="payroll-processor-card glass-morphism">
+            <div className="processor-head">
+              <h2>Payroll Review & Approval</h2>
+              <p>Validate payroll run, review exceptions, approve or reject before releasing payslips.</p>
+            </div>
+
+            <MonthYearFilter />
+
+            {activeRun ? (
+              <>
+                <div className="drawer-meta-grid" style={{ marginBottom: "1rem" }}>
+                  <div className="meta-item">
+                    <span className="meta-lbl">Run Status</span>
+                    <strong>{activeRun.status}</strong>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-lbl">Employees</span>
+                    <strong>{activeRun.processedCount}/{activeRun.totalEmployees}</strong>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-lbl">Total Net</span>
+                    <strong>₹{(activeRun.totalNet || 0).toLocaleString("en-IN")}</strong>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-lbl">Validation</span>
+                    <strong>
+                      {activeRun.validationSummary?.pass || 0} pass / {activeRun.validationSummary?.warn || 0} warn / {activeRun.validationSummary?.fail || 0} fail
+                    </strong>
+                  </div>
+                </div>
+
+                {activeRun.approverComment && (
+                  <p className="emp-field-hint">Last comment: {activeRun.approverComment}</p>
+                )}
+
+                {(activeRun.exceptions || []).length > 0 && (
+                  <div className="history-table-container" style={{ marginBottom: "1rem" }}>
+                    <h3>Exceptions</h3>
+                    <table className="payroll-custom-table">
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Name</th>
+                          <th>Severity</th>
+                          <th>Message</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(activeRun.exceptions || []).map((ex, idx) => (
+                          <tr key={idx}>
+                            <td>{ex.employeeCode}</td>
+                            <td>{ex.employeeName}</td>
+                            <td>{ex.severity}</td>
+                            <td>{ex.message}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="processor-actions-footer">
+                  {activeRun.status === "PendingReview" && (
+                    <>
+                      <button
+                        className="btn-primary-custom"
+                        onClick={() => { setApprovalAction("approve"); setShowApprovalModal(true); }}
+                        disabled={actionLoading || (activeRun.validationSummary?.fail || 0) > 0}
+                      >
+                        <CheckCircle size={16} />
+                        <span>Approve Run</span>
+                      </button>
+                      <button
+                        className="btn-secondary-custom"
+                        onClick={() => { setApprovalAction("reject"); setShowApprovalModal(true); }}
+                        disabled={actionLoading}
+                      >
+                        <XCircle size={16} />
+                        <span>Reject Run</span>
+                      </button>
+                    </>
+                  )}
+                  {activeRun.status === "Approved" && (
+                    <>
+                      <button className="btn-primary-custom" onClick={handleProcessRun} disabled={actionLoading}>
+                        <CheckCircle size={16} />
+                        <span>Process & Generate Payslips</span>
+                      </button>
+                      <button className="btn-secondary-custom" onClick={handleEmailPayslips} disabled={actionLoading}>
+                        <Mail size={16} />
+                        <span>Email Payslips</span>
+                      </button>
+                    </>
+                  )}
+                  {activeRun.status === "Processed" && (
+                    <button className="btn-primary-custom" onClick={handleEmailPayslips} disabled={actionLoading}>
+                      <Mail size={16} />
+                      <span>Email Payslips</span>
+                    </button>
+                  )}
+                  {(activeRun.status === "Draft" || activeRun.status === "Rejected") && (
+                    <button className="btn-primary-custom" onClick={handleCreateAndCalculateRun} disabled={actionLoading}>
+                      <RefreshCw size={16} />
+                      <span>Recalculate Run</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="processor-actions-footer">
+                <button className="btn-primary-custom" onClick={handleCreateAndCalculateRun} disabled={actionLoading}>
+                  <Layers size={16} />
+                  <span>Create & Calculate Payroll Run</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* PAYSLIPS DATABASE TAB */}
         {activeTab === (isAdminOrHR ? "slips" : "my_slips") && (
           <div className="history-table-container glass-morphism">
@@ -779,6 +1193,7 @@ export default function Payroll() {
               <h2>Calculated Monthly Salary slips</h2>
 
               <div className="filter-actions-row">
+                {isAdminOrHR && <MonthYearFilter />}
                 <div className="table-search-bar">
                   <Search size={18} />
                   <input
@@ -799,6 +1214,49 @@ export default function Payroll() {
                 )}
               </div>
             </div>
+
+            {isAdminOrHR && paymentHistory.length > 0 && (
+              <div style={{ marginBottom: "1.5rem" }}>
+                <h3>Payment Records</h3>
+                <div className="scrollable-table-wrapper">
+                  <table className="payroll-custom-table">
+                    <thead>
+                      <tr>
+                        <th>Ref No</th>
+                        <th>Beneficiary</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentHistory.map((p) => (
+                        <tr key={p._id}>
+                          <td>{p.refNo}</td>
+                          <td>{p.beneficiaryName}</td>
+                          <td>₹{(p.amount || 0).toLocaleString("en-IN")}</td>
+                          <td>{p.status}</td>
+                          <td>
+                            <button
+                              className="action-btn-view"
+                              onClick={() => {
+                                setEditingPayment({
+                                  ...p,
+                                  accountNo: p.beneficiaryAccountNo,
+                                });
+                                setShowPaymentModal(true);
+                              }}
+                            >
+                              <Pencil size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <div className="scrollable-table-wrapper">
               <table className="payroll-custom-table">
@@ -842,6 +1300,19 @@ export default function Payroll() {
                           >
                             {item.status}
                           </span>
+                          {item.calculationBreakdown?.validationIssues?.some(
+                            (i) => i.severity === "fail"
+                          ) ? (
+                            <span className="badge-status fail" style={{ marginLeft: 6 }} title="Validation failed">
+                              !
+                            </span>
+                          ) : item.calculationBreakdown?.validationIssues?.some(
+                            (i) => i.severity === "warn"
+                          ) ? (
+                            <span className="badge-status warn" style={{ marginLeft: 6 }} title="Validation warning">
+                              ⚠
+                            </span>
+                          ) : null}
                         </td>
                         <td>
                           <div className="row-action-buttons">
@@ -856,9 +1327,30 @@ export default function Payroll() {
                               className="action-btn-pdf"
                               onClick={() => handleDownloadPDF(item)}
                               title="Download PDF"
+                              disabled={!isAdminOrHR && item.status !== "Processed"}
                             >
                               <Download size={15} />
                             </button>
+                            {isAdminOrHR && item.status === "Processed" && (
+                              <>
+                                <button
+                                  className="action-btn-view"
+                                  onClick={() => handleSendPayslipEmail(item)}
+                                  title="Email Payslip"
+                                  disabled={actionLoading}
+                                >
+                                  <Mail size={15} />
+                                </button>
+                                <button
+                                  className="action-btn-view"
+                                  onClick={() => handleReopenPayroll(item)}
+                                  title="Reopen Payroll"
+                                  disabled={actionLoading}
+                                >
+                                  <RefreshCw size={15} />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -866,13 +1358,143 @@ export default function Payroll() {
                   ) : (
                     <tr>
                       <td colSpan="10" className="empty-table-cell">
-                        No payroll documents compiled for this query session.
+                        {isAdminOrHR
+                          ? "No payroll documents compiled for this query session."
+                          : "No payslips released yet. Approved payslips appear here after HR processes payroll."}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* PAYROLL SUMMARY REPORT TAB */}
+        {activeTab === "summary" && isAdminOrHR && (
+          <div className="history-table-container glass-morphism">
+            <div className="table-header-filters">
+              <div>
+                <h2>Payroll Summary Report</h2>
+                <p>Organization-wide payroll totals, statutory breakdown, and department analysis.</p>
+              </div>
+              <div className="filter-actions-row">
+                <MonthYearFilter />
+                <button className="btn-csv" onClick={handleExportSummary}>
+                  <Download size={15} />
+                  <span>Export CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {summaryLoading ? (
+              <div className="empty-table-cell">Loading summary…</div>
+            ) : payrollSummary ? (
+              <>
+                <div className="payroll-metrics-grid" style={{ marginBottom: "1.5rem" }}>
+                  <div className="metric-card">
+                    <span>Employees</span>
+                    <strong>{payrollSummary.totals.headcount}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Total Net Payout</span>
+                    <strong>₹{(payrollSummary.totals.totalNet || 0).toLocaleString("en-IN")}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Total Gross</span>
+                    <strong>₹{(payrollSummary.totals.totalGross || 0).toLocaleString("en-IN")}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Total Deductions</span>
+                    <strong>₹{(payrollSummary.totals.totalDeductions || 0).toLocaleString("en-IN")}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Employer Contributions</span>
+                    <strong>₹{(payrollSummary.totals.totalEmployerContributions || 0).toLocaleString("en-IN")}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Processed / Pending</span>
+                    <strong>{payrollSummary.totals.processedCount} / {payrollSummary.totals.pendingCount}</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+                  <div>
+                    <h3>Statutory Deductions</h3>
+                    <table className="payroll-custom-table">
+                      <tbody>
+                        <tr><td>Provident Fund (Employee)</td><td>₹{(payrollSummary.statutory.PF_EE || 0).toLocaleString("en-IN")}</td></tr>
+                        <tr><td>ESIC (Employee)</td><td>₹{(payrollSummary.statutory.ESIC_EE || 0).toLocaleString("en-IN")}</td></tr>
+                        <tr><td>Professional Tax</td><td>₹{(payrollSummary.statutory.PT || 0).toLocaleString("en-IN")}</td></tr>
+                        <tr><td>TDS</td><td>₹{(payrollSummary.statutory.TDS || 0).toLocaleString("en-IN")}</td></tr>
+                        <tr><td>Loss of Pay</td><td>₹{(payrollSummary.statutory.LOP || 0).toLocaleString("en-IN")}</td></tr>
+                        <tr><td>Other Deductions</td><td>₹{(payrollSummary.statutory.otherDeductions || 0).toLocaleString("en-IN")}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div>
+                    <h3>Employer Contributions</h3>
+                    <table className="payroll-custom-table">
+                      <tbody>
+                        <tr><td>PF (Employer)</td><td>₹{(payrollSummary.employerStatutory.PF_ER || 0).toLocaleString("en-IN")}</td></tr>
+                        <tr><td>ESIC (Employer)</td><td>₹{(payrollSummary.employerStatutory.ESIC_ER || 0).toLocaleString("en-IN")}</td></tr>
+                      </tbody>
+                    </table>
+                    <h3 style={{ marginTop: "1rem" }}>By Department</h3>
+                    <table className="payroll-custom-table">
+                      <thead>
+                        <tr><th>Department</th><th>Count</th><th>Net</th></tr>
+                      </thead>
+                      <tbody>
+                        {(payrollSummary.byDepartment || []).map((d) => (
+                          <tr key={d.department}>
+                            <td>{d.department}</td>
+                            <td>{d.headcount}</td>
+                            <td>₹{(d.totalNet || 0).toLocaleString("en-IN")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <h3>Employee Breakdown</h3>
+                <div className="scrollable-table-wrapper">
+                  <table className="payroll-custom-table">
+                    <thead>
+                      <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Gross</th>
+                        <th>Net</th>
+                        <th>PF</th>
+                        <th>ESIC</th>
+                        <th>PT</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(payrollSummary.employees || []).map((e) => (
+                        <tr key={e.payrollId || e.employeeCode}>
+                          <td>{e.employeeCode}</td>
+                          <td>{e.employeeName}</td>
+                          <td>{e.department}</td>
+                          <td>₹{(e.totalEarnings || 0).toLocaleString("en-IN")}</td>
+                          <td>₹{(e.netSalary || 0).toLocaleString("en-IN")}</td>
+                          <td>₹{(e.pfDeduction || 0).toLocaleString("en-IN")}</td>
+                          <td>₹{(e.esicDeduction || 0).toLocaleString("en-IN")}</td>
+                          <td>₹{(e.professionalTax || 0).toLocaleString("en-IN")}</td>
+                          <td>{e.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="empty-table-cell">No payroll data for this period. Run payroll calculation first.</div>
+            )}
           </div>
         )}
 
@@ -1002,72 +1624,20 @@ export default function Payroll() {
                 )}
               </div>
 
-              {/* Financial Calculations Sheet */}
-              <div className="earnings-deductions-sheet">
-                {/* Earnings List */}
-                <div className="sheet-column">
-                  <h4>Gross Earnings</h4>
-                  <div className="item-row">
-                    <span>Basic Salary</span>
-                    <strong>₹{selectedRecord.basicSalary.toLocaleString()}</strong>
-                  </div>
-                  <div className="item-row">
-                    <span>House Rent Allowance (HRA)</span>
-                    <strong>₹{selectedRecord.hra.toLocaleString()}</strong>
-                  </div>
-                  <div className="item-row">
-                    <span>Conveyance Allowance</span>
-                    <strong>₹{selectedRecord.conveyanceAllowance.toLocaleString()}</strong>
-                  </div>
-                  <div className="item-row">
-                    <span>Incentive</span>
-                    <strong>₹{selectedRecord.incentive.toLocaleString()}</strong>
-                  </div>
-                  <div className="item-row">
-                    <span>Other Allowance</span>
-                    <strong>₹{selectedRecord.otherAllowance.toLocaleString()}</strong>
-                  </div>
-                  {selectedRecord.overtimePay > 0 && (
-                    <div className="item-row highlight-green">
-                      <span>Overtime Payout</span>
-                      <strong>₹{selectedRecord.overtimePay.toLocaleString()}</strong>
-                    </div>
-                  )}
-                  <div className="total-summary-row">
-                    <span>Gross Earnings</span>
-                    <strong>₹{selectedRecord.totalEarnings.toLocaleString()}</strong>
-                  </div>
-                </div>
-
-                {/* Deductions List */}
-                <div className="sheet-column">
-                  <h4>Clawed Deductions</h4>
-                  <div className="item-row">
-                    <span>Provident Fund (PF)</span>
-                    <strong>₹{selectedRecord.pfDeduction.toLocaleString()}</strong>
-                  </div>
-                  <div className="item-row">
-                    <span>ESIC Contribution</span>
-                    <strong>₹{selectedRecord.esicDeduction.toLocaleString()}</strong>
-                  </div>
-                  <div className="item-row">
-                    <span>Professional Tax (PT)</span>
-                    <strong>₹{selectedRecord.professionalTax.toLocaleString()}</strong>
-                  </div>
-                  <div className="item-row highlight-red">
-                    <span>Loss of Pay (LOP) Deduction</span>
-                    <strong>₹{selectedRecord.lopDeduction.toLocaleString()}</strong>
-                  </div>
-                  <div className="item-row">
-                    <span>Other Deduction</span>
-                    <strong>₹{selectedRecord.otherDeduction.toLocaleString()}</strong>
-                  </div>
-                  <div className="total-summary-row red-total">
-                    <span>Total Deductions</span>
-                    <strong>₹{selectedRecord.totalDeduction.toLocaleString()}</strong>
-                  </div>
-                </div>
-              </div>
+              {/* Financial Calculations Sheet — dynamic component breakdown */}
+              <PayrollBreakdown
+                record={selectedRecord}
+                adjustmentProps={
+                  isAdminOrHR && selectedRecord.status !== "Processed"
+                    ? {
+                        canEdit: true,
+                        onAdd: handleAddAdjustment,
+                        onRemove: handleRemoveAdjustment,
+                        loading: actionLoading,
+                      }
+                    : null
+                }
+              />
 
               {/* Net Payout Bar */}
               <div className="net-payout-banner">
@@ -1082,29 +1652,7 @@ export default function Payroll() {
                 </h2>
               </div>
 
-              {/* Calculations audit info */}
-              {selectedRecord.calculationBreakdown?.formula && (
-                <div className="formula-audit-card">
-                  <div className="formula-head">
-                    <Info size={16} />
-                    <span>Calculation Formula Audit Trail</span>
-                  </div>
-                  <div className="formula-body">
-                    <p>
-                      <strong>Gross Earnings:</strong>{" "}
-                      <code>{selectedRecord.calculationBreakdown.formula.totalEarnings}</code>
-                    </p>
-                    <p>
-                      <strong>Total Deductions:</strong>{" "}
-                      <code>{selectedRecord.calculationBreakdown.formula.totalDeduction}</code>
-                    </p>
-                    <p>
-                      <strong>Net Payout:</strong>{" "}
-                      <code>{selectedRecord.calculationBreakdown.formula.netSalary}</code>
-                    </p>
-                  </div>
-                </div>
-              )}
+              {/* Calculations audit — shown inside PayrollBreakdown */}
 
               {/* Admin Save Action */}
               {isAdminOrHR && selectedRecord.status === "Pending" && (
@@ -1129,6 +1677,35 @@ export default function Payroll() {
             </div>
           </div>
         )}
+
+        {/* APPROVAL COMMENT MODAL */}
+        {showApprovalModal && (
+          <div className="upload-overlay" onClick={() => setShowApprovalModal(false)}>
+            <div className="upload-modal glass-morphism" onClick={(e) => e.stopPropagation()}>
+              <h2>{approvalAction === "approve" ? "Approve Payroll Run" : "Reject Payroll Run"}</h2>
+              <textarea
+                rows={4}
+                placeholder="Add a comment (optional)"
+                value={approvalComment}
+                onChange={(e) => setApprovalComment(e.target.value)}
+                style={{ width: "100%", marginBottom: "1rem" }}
+              />
+              <div className="processor-actions-footer">
+                <button className="btn-secondary-custom" onClick={() => setShowApprovalModal(false)}>Cancel</button>
+                <button className="btn-primary-custom" onClick={handleApprovalSubmit} disabled={actionLoading}>
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <UpdatePayrollModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          itemToEdit={editingPayment}
+          onSave={handleSavePayment}
+        />
 
         {/* UPLOAD EXCEL BANK SHEETS POPUP */}
         {showUploadPopup && (

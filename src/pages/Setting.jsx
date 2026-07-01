@@ -13,14 +13,18 @@ import { OverTimePolicy } from "../components/OverTimePolicy";
 import { OverTimePolicyList } from "../components/OverTimePolicyList";
 import HolidayManager from "../components/HolidayManager";
 import WeekOffManager from "../components/WeekOffManager";
+import PayrollConfigCard from "../components/PayrollConfigCard";
+import SalaryComponentManager from "../components/SalaryComponentManager";
 
 export default function Settings() {
+  
   const [activeTab, setActiveTab] = useState("admin");
   const [user, setUser] = useState(null);
   const [editingPolicy, setEditingPolicy] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const formRef = useRef(null);
+  const listRef = useRef(null);
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -41,10 +45,16 @@ export default function Settings() {
   const handleFormSuccess = () => {
     setEditingPolicy(null);
     setRefreshTrigger(prev => prev + 1);
+    if (listRef.current) {
+      listRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   const handleCancelEdit = () => {
     setEditingPolicy(null);
+    if (listRef.current) {
+      listRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   return (
@@ -75,12 +85,18 @@ export default function Settings() {
               <WeekOffManager vendorId={user?.vendorId} />
 
               <HolidayManager vendorId={user?.vendorId} />
+
+              <PayrollConfigCard />
+
+              <SalaryComponentManager />
               
-              <OverTimePolicyList 
-                vendorId={user?.vendorId} 
-                onEditPolicy={handleEditClick}
-                refreshTrigger={refreshTrigger}
-              />
+              <div ref={listRef} className="ot-list-scroll-target">
+                <OverTimePolicyList 
+                  vendorId={user?.vendorId} 
+                  onEditPolicy={handleEditClick}
+                  refreshTrigger={refreshTrigger}
+                />
+              </div>
               
               <div ref={formRef} className="ot-form-scroll-target">
                 <OverTimePolicy 
