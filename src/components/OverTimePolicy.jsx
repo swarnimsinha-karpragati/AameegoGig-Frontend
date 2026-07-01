@@ -153,6 +153,10 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
     }
   };
 
+  const resetFrom = ()=>{
+    setPolicyData(initialFormState)
+  }
+
   return (
     <div className="ot-container">
       <div className="ot-header">
@@ -347,7 +351,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
           <button
             type="button"
             className="ot-btn-secondary"
-            onClick={editingPolicy ? onCancel : undefined}
+            onClick={editingPolicy ? onCancel : resetFrom}
             disabled={isSubmitting}
           >
             {editingPolicy ? 'Cancel Edit' : 'Cancel'}
