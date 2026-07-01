@@ -139,7 +139,7 @@
 
 .ot-select, .ot-input {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 2rem 0.5rem 0.5rem;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   background-color: #ffffff;
@@ -182,7 +182,7 @@
 }
 
 .ot-relative-input input {
-  padding-right: 4.5rem;
+  padding-right: 5.5rem;
 }
 
 .ot-unit-badge {
@@ -218,7 +218,7 @@
 }
 
 .ot-day-btn.active {
-  background-color: #2563eb;
+  background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
   color: #ffffff;
   border-color: #2563eb;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -259,7 +259,7 @@
   font-size: 0.875rem;
   font-weight: 500;
   color: #ffffff;
-  background-color: #2563eb;
+  background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
   border: 1px solid transparent;
   border-radius: 0.5rem;
   cursor: pointer;
