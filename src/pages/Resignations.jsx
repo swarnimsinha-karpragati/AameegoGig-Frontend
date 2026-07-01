@@ -80,6 +80,8 @@ function Resignations() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approvingRecordId, setApprovingRecordId] = useState(null);
   const [isHrFinalizing, setIsHrFinalizing] = useState(false);
+
+  const [isLoading,setIsLoading] = useState(false)
   
   const [checklistForm, setChecklistForm] = useState({
     isExitChecklistCleared: false,
@@ -182,7 +184,7 @@ function Resignations() {
       alert("Please fill in all required fields.");
       return;
     }
-
+    setIsLoading(true)
     const formData = new FormData();
     formData.append("vendorId", vendorId);
     formData.append("reasonForLeaving", form.reasonForLeaving);
@@ -196,7 +198,9 @@ function Resignations() {
       alert("Resignation request submitted successfully.");
       handleModalClose();
       fetchAllData(); 
+      setIsLoading(false)
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Submission failed");
     }
   };
@@ -221,6 +225,7 @@ function Resignations() {
 
   const processChecklistSubmission = async () => {
     try {
+      setIsLoading(true)
         if (isHrFinalizing) {
             const payload = {
                 status: "Approved",
@@ -247,18 +252,23 @@ function Resignations() {
             alert(`Checklist metrics successfully saved with configuration status: ${payload.status}.`);
             handleModalClose();
         }
+        setIsLoading(false)
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Checklist pipeline save operation failed.");
     }
   };
 
   const handleRejectStatus = async (id) => {
     if (!window.confirm("Are you sure you want to reject this resignation request?")) return;
+    setIsLoading(true)
     try {
       await rejectResignation(id, currentUser?.employeeId);
       fetchAllData();
+      setIsLoading(false)
       alert("Request marked as Rejected");
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Status operation failed");
     }
   };
@@ -523,10 +533,10 @@ function Resignations() {
             size="lg"
             footer={
               <>
-                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
+                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose} disabled={isLoading}>
                   Cancel
                 </button>
-                <button type="submit" form="resignation-core-form" className="exit-mgmt-control-btn exit-mgmt-control-btn--primary">
+                <button type="submit" form="resignation-core-form" className="exit-mgmt-control-btn exit-mgmt-control-btn--primary" disabled={isLoading}>
                   Submit Notice
                 </button>
               </>
@@ -595,13 +605,14 @@ function Resignations() {
             size="lg"
             footer={
               <div className="exit-mgmt-modal-actions">
-                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
+                <button type="button" disabled={isLoading} className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
                   Cancel
                 </button>
                 <button 
                   type="button" 
                   className={`exit-mgmt-control-btn ${isHrFinalizing ? 'exit-mgmt-control-btn--primary' : 'exit-mgmt-control-btn--verify'}`} 
                   onClick={() => processChecklistSubmission()}
+                  disabled={isLoading}
                 >
                   {isHrFinalizing ? "Confirm Final Approval" : "Save Progress (Verify)"}
                 </button>
