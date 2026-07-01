@@ -325,7 +325,7 @@
 .table-header-filters {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   margin-bottom: 22px;
   flex-wrap: wrap;
   gap: 16px;
@@ -340,7 +340,8 @@
 .filter-actions-row {
   display: flex;
   gap: 12px;
-  align-items: center;
+  align-items: flex-end;
+  flex-wrap: wrap;
 }
 
 .table-search-bar {
@@ -657,6 +658,16 @@
   font-weight: 700;
   color: #0f172a;
   margin-bottom: 14px;
+}
+
+.breakdown-period-note {
+  font-size: 12px;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: -4px 0 12px;
 }
 
 .grid-4-cols {
@@ -1169,6 +1180,11 @@
 
 .filter-actions-row .processor-controls.compact {
   margin-bottom: 0;
+}
+
+.filter-actions-row .table-search-bar,
+.filter-actions-row .btn-csv {
+  flex-shrink: 0;
 }
 
 .amount-cell {

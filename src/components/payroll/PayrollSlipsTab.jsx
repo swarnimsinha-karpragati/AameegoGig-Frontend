@@ -1,7 +1,7 @@
 import React from "react";
 import { Search, Download, Eye, Mail, RefreshCw, Pencil } from "lucide-react";
 import MonthYearFilter from "./MonthYearFilter";
-import { formatInr } from "../../utils/payrollConstants";
+import { formatInr, formatStatusLabel } from "../../utils/payrollConstants";
 
 function ValidationBadge({ issues }) {
   if (!issues?.length) return null;
@@ -81,7 +81,7 @@ export default function PayrollSlipsTab({
                     <td>{p.refNo}</td>
                     <td>{p.beneficiaryName}</td>
                     <td>{formatInr(p.amount)}</td>
-                    <td>{p.status}</td>
+                    <td>{formatStatusLabel(p.status)}</td>
                     <td>
                       <button className="action-btn-view" onClick={() => onEditPayment(p)} type="button">
                         <Pencil size={15} />
@@ -118,7 +118,7 @@ export default function PayrollSlipsTab({
                   <td className="amount-cell net-salary-val">{formatInr(item.netSalary)}</td>
                   <td>
                     <span className={`badge-status ${item.status === "Processed" ? "processed" : "pending"}`}>
-                      {item.status}
+                      {formatStatusLabel(item.status)}
                     </span>
                     <ValidationBadge issues={item.calculationBreakdown?.validationIssues} />
                   </td>

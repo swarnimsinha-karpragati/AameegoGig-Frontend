@@ -28,4 +28,26 @@ export const MONTH_NUMBER_TO_NAME = {
 export const runStatusClass = (status) =>
   String(status || "draft").toLowerCase().replace(/\s+/g, "");
 
+const PAYROLL_STATUS_LABELS = {
+  Draft: "Draft",
+  PendingReview: "Pending Review",
+  Approved: "Approved",
+  Rejected: "Rejected",
+  Processed: "Processed",
+  Pending: "Pending",
+  Failed: "Failed",
+};
+
+/** Human-readable label for payroll run / slip status values. */
+export const formatStatusLabel = (status) => {
+  if (status == null || status === "") return "—";
+  const key = String(status).trim();
+  if (PAYROLL_STATUS_LABELS[key]) return PAYROLL_STATUS_LABELS[key];
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .trim();
+};
+
 export const formatInr = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;

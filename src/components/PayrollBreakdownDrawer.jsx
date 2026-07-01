@@ -34,6 +34,11 @@ export default function PayrollBreakdownDrawer({
     (record.paidLeaveDays || 0) + (record.weekOffDays || 0) + (record.holidays || 0);
   const lopDays = (record.lopDays || 0) + (record.absentDays || 0);
   const netSalary = Number(record.netSalary || 0);
+  const breakdown = record.calculationBreakdown || {};
+  const cappedToToday = Boolean(breakdown.cappedToToday);
+  const windowDays = breakdown.salaryEngine?.windowDays;
+  const periodDays =
+    cappedToToday && windowDays ? windowDays : record.totalDaysInMonth;
 
   return (
     <div className="details-overlay" onClick={onClose}>
@@ -78,10 +83,16 @@ export default function PayrollBreakdownDrawer({
 
             <div className="details-card-block">
               <h3>Attendance Summary</h3>
+              {cappedToToday && (
+                <p className="breakdown-period-note">
+                  In-progress month — calculated through today only (
+                  {periodDays} of {record.totalDaysInMonth} calendar days).
+                </p>
+              )}
               <div className="grid-4-cols">
                 <div className="att-box">
-                  <span>Total Days</span>
-                  <strong>{record.totalDaysInMonth}</strong>
+                  <span>{cappedToToday ? "Period Days (till date)" : "Total Days"}</span>
+                  <strong>{periodDays}</strong>
                 </div>
                 <div className="att-box present">
                   <span>Present Days</span>

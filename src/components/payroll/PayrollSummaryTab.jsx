@@ -1,7 +1,7 @@
 import React from "react";
 import { Download } from "lucide-react";
 import MonthYearFilter from "./MonthYearFilter";
-import { formatInr } from "../../utils/payrollConstants";
+import { formatInr, formatStatusLabel } from "../../utils/payrollConstants";
 
 export default function PayrollSummaryTab({
   selectedMonth,
@@ -97,7 +97,7 @@ export default function PayrollSummaryTab({
                     <td className="amount-cell">{formatInr(e.esicDeduction)}</td>
                     <td className="amount-cell">{formatInr(e.professionalTax)}</td>
                     <td>
-                      <span className={`badge-status ${e.status === "Processed" ? "processed" : "pending"}`}>{e.status}</span>
+                      <span className={`badge-status ${e.status === "Processed" ? "processed" : "pending"}`}>{formatStatusLabel(e.status)}</span>
                     </td>
                   </tr>
                 ))}

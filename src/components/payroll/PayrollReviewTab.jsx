@@ -3,7 +3,7 @@ import {
   Eye, CheckCircle, XCircle, Mail, RefreshCw, Layers,
 } from "lucide-react";
 import MonthYearFilter from "./MonthYearFilter";
-import { formatInr, runStatusClass } from "../../utils/payrollConstants";
+import { formatInr, formatStatusLabel, runStatusClass } from "../../utils/payrollConstants";
 
 export default function PayrollReviewTab({
   activeRun,
@@ -39,7 +39,7 @@ export default function PayrollReviewTab({
             <div className="run-summary-card">
               <span className="meta-lbl">Run Status</span>
               <span className={`run-status-badge ${runStatusClass(activeRun.status)}`}>
-                {activeRun.status}
+                {formatStatusLabel(activeRun.status)}
               </span>
             </div>
             <div className="run-summary-card">
@@ -88,7 +88,7 @@ export default function PayrollReviewTab({
                         <td className="amount-cell net-salary-val">{formatInr(item.netSalary)}</td>
                         <td>
                           <span className={`badge-status ${item.status === "Processed" ? "processed" : "pending"}`}>
-                            {item.status || "Pending"}
+                            {formatStatusLabel(item.status || "Pending")}
                           </span>
                         </td>
                         <td>
