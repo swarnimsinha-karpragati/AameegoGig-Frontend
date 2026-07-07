@@ -10,6 +10,7 @@ import {
 } from "../services/salaryComponentService";
 import { getPtStates } from "../services/payrollService";
 import "./SalaryComponentManager.css";
+import Button from "./Button";
 
 const CALC_LABELS = {
   FixedMonthly: "Fixed monthly",
@@ -157,6 +158,7 @@ export default function SalaryComponentManager() {
   };
 
   const renderRow = (comp) => (
+    
     <div key={comp.code} className={`salary-cm__row ${!comp.isActive ? "salary-cm__inactive" : ""}`}>
       <div>
         <div className="salary-cm__row-name">
@@ -171,16 +173,16 @@ export default function SalaryComponentManager() {
         </div>
       </div>
       <div className="salary-cm__row-actions">
-        <button className="salary-cm__icon-btn" onClick={() => openEdit(comp)} title="Edit">
+        <Button className='action-btn-edit' onClick={() => openEdit(comp)} title="Edit" >
           <Pencil size={15} />
-        </button>
-        <button
-          className="salary-cm__icon-btn danger"
+        </Button>
+        <Button
+          className="action-btn-delete"
           onClick={() => handleDelete(comp.code, comp.isSystem)}
           title="Delete"
         >
           <Trash2 size={15} />
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -209,10 +211,9 @@ export default function SalaryComponentManager() {
               ))}
             </select>
           )}
-          <button className="salary-cm__btn salary-cm__btn--primary" onClick={openCreate}>
-            <Plus size={15} />
-            <span>Add Component</span>
-          </button>
+          <Button onClick={openCreate}>
+            Add Component
+          </Button>
         </div>
       </div>
 
@@ -405,9 +406,10 @@ export default function SalaryComponentManager() {
                         />
                       </div>
                     ))}
-                    <button
+                    <Button
                       type="button"
-                      className="salary-cm__btn"
+                      icon={<Plus size={12} />}
+                      iconPosition="left"
                       style={{ marginTop: 8 }}
                       onClick={() =>
                         handleChange("slabs", [
@@ -416,8 +418,8 @@ export default function SalaryComponentManager() {
                         ])
                       }
                     >
-                      + Add slab row
-                    </button>
+                      Add slab row
+                    </Button>
                   </div>
                 </>
               )}
@@ -507,10 +509,10 @@ export default function SalaryComponentManager() {
               </label>
             </div>
             <div className="salary-cm__modal-foot">
-              <button className="salary-cm__btn" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="salary-cm__btn salary-cm__btn--primary" onClick={handleSave}>
+              <Button className="secondary-btn" onClick={() => setShowModal(false)}>Cancel</Button>
+              <Button  onClick={handleSave}>
                 {editing ? "Update" : "Add Component"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

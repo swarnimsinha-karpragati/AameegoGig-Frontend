@@ -39,6 +39,7 @@ import { saveEmployeeStructure } from "../services/salaryComponentService";
 import "./Employees.css";
 import { getDepartmentName } from "../services/departmentService";
 import { employeeValidationSchema } from "../validators/employeeValidation";
+import Button from "../components/Button";
 
 export const generateClientEmpCode = (prefix = "EMP") => {
   const randomDigits = Math.floor(10000 + Math.random() * 90000);
@@ -307,11 +308,11 @@ function AppLoginSection({
     <div className="emp-login-card">
       <label className="emp-login-card__toggle">
         <input type="checkbox" checked={enabled} onChange={onToggle} />
-        <span>Enable app login for this employee</span>
+        <div>
+          <span>Enable app login for this employee</span>
+          <span>Unchecked employees are managed by HR only (no mobile app access).</span>
+        </div>
       </label>
-      <p className="emp-field-hint">
-        Unchecked employees are managed by HR only (no mobile app access).
-      </p>
       {enabled ? (
         <>
           <p className="employee-login-warning">
@@ -1504,24 +1505,23 @@ function Employees() {
             size="xl"
             footer={
               <>
-                <button
+                <Button
                   type="button"
-                  className="emp-btn emp-btn--secondary"
+                  className="secondary-btn"
                   onClick={() => {
                     setShowLetterModal(false);
                     setLetterEmployeeId(null);
                   }}
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="emp-btn emp-btn--primary"
                   onClick={handleGenerateLetter}
                   disabled={loading}
                 >
                   {loading ? "Generating…" : "Generate Letter"}
-                </button>
+                </Button>
               </>
             }
           >

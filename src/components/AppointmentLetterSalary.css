@@ -25,11 +25,11 @@
   font-size: 0.75rem;
   font-weight: 600;
   color: #334155;
+  padding-left: 4px;
 }
 
 .appt-letter-salary__preset select {
   height: 38px;
-  padding: 0 10px;
   border: 1px solid #d1d9e6;
   border-radius: 8px;
   font-size: 0.8125rem;
@@ -48,10 +48,14 @@
 .appt-letter-salary__table-head {
   font-size: 0.75rem;
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #64748b;
   padding-top: 0;
+}
+
+.head-label {
+  width: 100%;
+  padding-left: 3px;
 }
 
 .appt-letter-salary__name {
@@ -103,7 +107,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
+  padding: 10px 0px;
   border-bottom: 1px solid #f1f5f9;
   font-size: 0.8125rem;
 }
@@ -121,6 +125,23 @@
 .emp-salary-view__stat strong {
   font-size: 1rem;
   color: #0f172a;
+}
+
+.custom-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236c757d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  padding:10px 12px;
+  border-radius: 5px;
+  background-color: #ffffff;
+  cursor: pointer;
+}
+
+.custom-select:focus {
+  outline: none;
 }
 
 @media (max-width: 600px) {

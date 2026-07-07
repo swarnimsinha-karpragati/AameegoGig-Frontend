@@ -103,7 +103,7 @@
   background-color: #f9fafb;
 }
 
-.ot-card.active {
+.ot-card.Active {
   border-color: #2563eb;
   background-color: rgba(239, 246, 255, 0.5);
   box-shadow: 0 0 0 1px #3b82f6;
@@ -217,7 +217,7 @@
   background-color: #f9fafb;
 }
 
-.ot-day-btn.active {
+.ot-day-btn.Active {
   background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
   color: #ffffff;
   border-color: #2563eb;

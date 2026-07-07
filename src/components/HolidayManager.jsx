@@ -7,6 +7,7 @@ import {
   getHolidays,
   updateHoliday,
 } from "../services/holidayService";
+import Button from "./Button";
 
 const HOLIDAY_TYPES = ["National", "Festival", "Restricted", "Company"];
 
@@ -291,22 +292,22 @@ const HolidayManager = ({ vendorId }) => {
                       </span>
                     </td>
                     <td className="holiday-actions">
-                      <button
+                      <Button
                         type="button"
-                        className="holiday-btn holiday-btn--ghost"
+                        className="action-btn-edit"
                         onClick={() => handleEditClick(holiday)}
                         disabled={holiday.source === "weekOff"}
                       >
                         Edit
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
-                        className="holiday-btn holiday-btn--danger"
+                        className="action-btn-delete"
                         onClick={() => handleDeleteClick(holiday)}
                         disabled={holiday.source === "weekOff"}
                       >
                         Delete
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -391,18 +392,17 @@ const HolidayManager = ({ vendorId }) => {
 
           <div className="holiday-form-actions">
             {editingHolidayId ? (
-              <button
+              <Button
                 type="button"
-                className="holiday-btn holiday-btn--ghost"
+                className="secondary-btn"
                 onClick={resetForm}
                 disabled={isActionLoading}
               >
                 Cancel
-              </button>
+              </Button>
             ) : null}
-            <button
+            <Button
               type="submit"
-              className="holiday-btn holiday-btn--primary"
               disabled={isActionLoading}
             >
               {isActionLoading
@@ -410,7 +410,7 @@ const HolidayManager = ({ vendorId }) => {
                 : editingHolidayId
                   ? "Update Holiday"
                   : "Add Holiday"}
-            </button>
+            </Button>
           </div>
         </form>
       </section>
