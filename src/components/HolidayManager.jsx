@@ -165,6 +165,7 @@ const HolidayManager = ({ vendorId }) => {
       return;
     }
     if (!formData.name.trim() || !formData.date) {
+      alert("Holiday name and date are required.")
       setStatusMessage({ type: "error", text: "Holiday name and date are required." });
       return;
     }
@@ -193,6 +194,7 @@ const HolidayManager = ({ vendorId }) => {
         } else {
           await fetchHolidays();
         }
+        alert('Holiday updated successfully.')
         setStatusMessage({ type: "success", text: "Holiday updated successfully." });
         resetForm();
       } else {
@@ -207,10 +209,12 @@ const HolidayManager = ({ vendorId }) => {
         } else {
           await fetchHolidays();
         }
+        alert('Holiday created successfully.')
         setStatusMessage({ type: "success", text: "Holiday created successfully." });
         setFormData(initialFormState);
       }
     } catch (error) {
+      alert(error?.response?.data?.message)
       setStatusMessage({
         type: "error",
         text: error?.response?.data?.message || "Failed to save holiday.",
