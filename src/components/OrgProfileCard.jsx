@@ -1,0 +1,176 @@
+import React, { useEffect, useRef, useState } from "react";
+import { Building2, Upload } from "lucide-react";
+import {
+  getOrgProfile,
+  updateOrgProfile,
+  uploadOrgLogo,
+} from "../services/vendorService";
+import "./OrgProfileCard.css";
+
+export default function OrgProfileCard() {
+  const fileRef = useRef(null);
+  const [profile, setProfile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const loadProfile = () => {
+    getOrgProfile()
+      .then((res) => setProfile(res.data?.data || null))
+      .catch(() => setError("Failed to load organization profile"));
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const handleChange = (field, value) => {
+    setProfile((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      const res = await updateOrgProfile({
+        name: profile.name,
+        companyAddress: profile.companyAddress,
+        contactEmail: profile.contactEmail,
+      });
+      setProfile(res.data?.data);
+      setMessage("Organization profile saved. New payslips will use these details.");
+      setTimeout(() => setMessage(""), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await uploadOrgLogo(file);
+      setProfile((prev) => ({
+        ...prev,
+        logoUrl: res.data?.data?.logoUrl,
+        logoDisplayUrl: res.data?.data?.logoDisplayUrl,
+      }));
+      setMessage("Logo uploaded. Re-download payslips to see the new branding.");
+      setTimeout(() => setMessage(""), 3500);
+    } catch (err) {
+      setError(err.response?.data?.message || "Logo upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  if (!profile) {
+    return (
+      <div className="org-profile-card">
+        <div className="org-profile-card__loading">Loading organization profile…</div>
+      </div>
+    );
+  }
+
+  const logoSrc = profile.logoDisplayUrl || profile.logoUrl;
+
+  return (
+    <div className="org-profile-card">
+      <div className="org-profile-card__head">
+        <Building2 size={20} />
+        <div>
+          <h3>Organization Profile</h3>
+          <p>Company details and logo shown on salary slips and letters.</p>
+        </div>
+      </div>
+
+      <div className="org-profile-card__logo-row">
+        <div className="org-profile-card__logo-preview">
+          {logoSrc ? (
+            <img src={logoSrc} alt={`${profile.name} logo`} />
+          ) : (
+            <div className="org-profile-card__logo-fallback">
+              {(profile.name || "ORG")
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div>
+          <button
+            type="button"
+            className="org-profile-card__upload-btn"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+          >
+            <Upload size={15} />
+            {uploading ? "Uploading…" : "Upload Logo"}
+          </button>
+          <p className="org-profile-card__hint">PNG or JPG, max 2 MB. Used on all payslips for this organization.</p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={handleLogoUpload}
+          />
+        </div>
+      </div>
+
+      <div className="org-profile-card__grid">
+        <label>
+          Organization Name
+          <input
+            value={profile.name || ""}
+            onChange={(e) => handleChange("name", e.target.value)}
+          />
+        </label>
+        <label>
+          Org Code
+          <input value={profile.code || ""} disabled />
+        </label>
+        <label className="full-width">
+          Company Address
+          <textarea
+            rows={2}
+            value={profile.companyAddress || ""}
+            onChange={(e) => handleChange("companyAddress", e.target.value)}
+            placeholder="Registered office address for payslip header"
+          />
+        </label>
+        <label className="full-width">
+          HR / Payroll Contact Email
+          <input
+            type="email"
+            value={profile.contactEmail || ""}
+            onChange={(e) => handleChange("contactEmail", e.target.value)}
+            placeholder="hr@company.com"
+          />
+        </label>
+      </div>
+
+      {message && <p className="org-profile-card__msg success">{message}</p>}
+      {error && <p className="org-profile-card__msg error">{error}</p>}
+
+      <button
+        type="button"
+        className="org-profile-card__save"
+        onClick={handleSave}
+        disabled={saving}
+      >
+        {saving ? "Saving…" : "Save Organization Profile"}
+      </button>
+    </div>
+  );
+}
