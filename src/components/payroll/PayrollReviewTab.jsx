@@ -20,53 +20,32 @@ export default function PayrollReviewTab({
   onCreateRun,
 }) {
   return (
-    <div className="payroll-processor-card glass-morphism">
-      <div className="processor-head">
-        <h2>Payroll Review & Approval</h2>
-        <p>Validate payroll run, review exceptions, approve or reject before releasing payslips.</p>
+    <div className="history-table-container glass-morphism">
+      <div className="table-header-filters">
+        <div>
+          <h2>
+            Payroll Review & Approval
+            {activeRun && (
+              <span className={`run-status-badge ${runStatusClass(activeRun.status)}`} style={{ marginLeft: 10, verticalAlign: "middle" }}>
+                {formatStatusLabel(activeRun.status)}
+              </span>
+            )}
+          </h2>
+          <p className="subtitle">Validate payroll run, review exceptions, approve or reject before releasing payslips</p>
+        </div>
+        <div className="filter-actions-row">
+          <MonthYearFilter
+            compact
+            month={selectedMonth}
+            year={selectedYear}
+            onMonthChange={onMonthChange}
+            onYearChange={onYearChange}
+          />
+        </div>
       </div>
-
-      <MonthYearFilter
-        month={selectedMonth}
-        year={selectedYear}
-        onMonthChange={onMonthChange}
-        onYearChange={onYearChange}
-      />
 
       {activeRun ? (
         <>
-          <div className="run-summary-grid">
-            <div className="run-summary-card">
-              <span className="meta-lbl">Run Status</span>
-              <span className={`run-status-badge ${runStatusClass(activeRun.status)}`}>
-                {formatStatusLabel(activeRun.status)}
-              </span>
-            </div>
-            <div className="run-summary-card">
-              <span className="meta-lbl">Employees</span>
-              <strong>{activeRun.processedCount}/{activeRun.totalEmployees}</strong>
-            </div>
-            <div className="run-summary-card">
-              <span className="meta-lbl">Total Net</span>
-              <strong>{formatInr(activeRun.totalNet)}</strong>
-            </div>
-            <div className="run-summary-card">
-              <span className="meta-lbl">Validation</span>
-              <strong>
-                <span style={{ color: "#059669" }}>{activeRun.validationSummary?.pass || 0}</span>
-                {" / "}
-                <span style={{ color: "#d97706" }}>{activeRun.validationSummary?.warn || 0}</span>
-                {" / "}
-                <span style={{ color: "#dc2626" }}>{activeRun.validationSummary?.fail || 0}</span>
-              </strong>
-              <span className="meta-lbl" style={{ marginTop: 4 }}>pass / warn / fail</span>
-            </div>
-          </div>
-
-          {activeRun.approverComment && (
-            <p className="run-comment">Last comment: {activeRun.approverComment}</p>
-          )}
-
           {reviewPayrolls.length > 0 && (
             <div style={{ marginBottom: "1.5rem" }}>
               <h3 className="section-title">Run Payroll Records</h3>
@@ -74,8 +53,8 @@ export default function PayrollReviewTab({
                 <table className="payroll-custom-table">
                   <thead>
                     <tr>
-                      <th>Code</th><th>Name</th><th>Gross</th><th>Deductions</th><th>Net</th><th>Status</th>
-                      <th style={{ textAlign: "center" }}>Actions</th>
+                      <th>Code</th><th>Name</th><th>Gross</th><th>Deductions</th><th>Net</th><th className="col-center">Status</th>
+                      <th className="col-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -86,12 +65,12 @@ export default function PayrollReviewTab({
                         <td className="amount-cell">{formatInr(item.totalEarnings)}</td>
                         <td className="amount-cell deduction-val">{formatInr(item.totalDeduction)}</td>
                         <td className="amount-cell net-salary-val">{formatInr(item.netSalary)}</td>
-                        <td>
+                        <td className="col-center">
                           <span className={`badge-status ${item.status === "Processed" ? "processed" : "pending"}`}>
                             {formatStatusLabel(item.status || "Pending")}
                           </span>
                         </td>
-                        <td>
+                        <td className="col-center">
                           <div className="row-action-buttons">
                             <button className="action-btn-view" onClick={() => onViewBreakdown(item)} title="View Breakdown" type="button">
                               <Eye size={15} />
@@ -111,14 +90,18 @@ export default function PayrollReviewTab({
               <h3 className="section-title">Exceptions</h3>
               <table className="payroll-custom-table">
                 <thead>
-                  <tr><th>Code</th><th>Name</th><th>Severity</th><th>Message</th></tr>
+                  <tr><th>Code</th><th>Name</th><th className="col-center">Severity</th><th>Message</th></tr>
                 </thead>
                 <tbody>
                   {activeRun.exceptions.map((ex, idx) => (
                     <tr key={idx}>
-                      <td>{ex.employeeCode}</td>
-                      <td>{ex.employeeName}</td>
-                      <td>{ex.severity}</td>
+                      <td className="emp-code-cell">{ex.employeeCode}</td>
+                      <td className="emp-name-cell">{ex.employeeName}</td>
+                      <td className="col-center">
+                        <span className={`badge-status severity-${ex.severity}`}>
+                          {formatStatusLabel(ex.severity)}
+                        </span>
+                      </td>
                       <td>{ex.message}</td>
                     </tr>
                   ))}

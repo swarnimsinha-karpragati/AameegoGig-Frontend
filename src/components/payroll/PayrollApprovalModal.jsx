@@ -20,8 +20,8 @@ export default function PayrollApprovalModal({
       title={isApprove ? "Approve Payroll Run" : "Reject Payroll Run"}
       description={
         isApprove
-          ? "Confirm approval for this payroll run. Payslip processing can begin after approval."
-          : "Reject this payroll run and return it for recalculation."
+          ? "Confirm approval for this payroll run. Payslip processing can begin after approval"
+          : "Reject this payroll run and return it for recalculation"
       }
     >
       <textarea

@@ -17,7 +17,7 @@ export default function PayrollUploadModal({
         <FileSpreadsheet size={28} />
       </div>
       <h2>Bulk Upload Payments Sheet</h2>
-      <p>Upload your Excel file containing bank transaction references for payroll reconciliation.</p>
+      <p>Upload your Excel file containing bank transaction references for payroll reconciliation</p>
 
       <label className="upload-dropzone">
         <input type="file" accept=".xlsx,.xls" hidden onChange={(e) => onFileChange(e.target.files[0])} />
