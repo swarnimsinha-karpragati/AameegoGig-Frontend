@@ -18,6 +18,7 @@ function ValidationBadge({ issues }) {
 
 export default function PayrollSlipsTab({
   isAdminOrHR,
+  notLinkedToEmployee,
   selectedMonth,
   selectedYear,
   searchQuery,
@@ -68,6 +69,12 @@ export default function PayrollSlipsTab({
           )}
         </div>
       </div>
+
+      {!isAdminOrHR && notLinkedToEmployee && (
+        <div className="breakdown-period-note">
+          Your login isn't linked to an employee profile yet, so there's no payroll data to show. Ask HR/Admin to link your account to your employee record.
+        </div>
+      )}
 
       {isAdminOrHR && paymentHistory.length > 0 && (
         <div style={{ marginBottom: "1.5rem" }}>
@@ -157,7 +164,9 @@ export default function PayrollSlipsTab({
                 <td colSpan="10" className="empty-table-cell">
                   {isAdminOrHR
                     ? "No payroll documents compiled for this query session."
-                    : "No payslips released yet. Approved payslips appear here after HR processes payroll."}
+                    : notLinkedToEmployee
+                      ? "No employee profile linked to your account."
+                      : "No payslips released yet. Approved payslips appear here after HR processes payroll."}
                 </td>
               </tr>
             )}

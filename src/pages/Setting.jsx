@@ -33,7 +33,6 @@ export default function Settings() {
     const parsedUser = JSON.parse(loggedInUser);
     setUser(parsedUser);
   }, []);
-  console.log(user);
 
   const handleEditClick = (policy) => {
     setEditingPolicy(policy);
