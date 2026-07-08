@@ -212,7 +212,7 @@
 
 .emp-login-card__toggle {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   cursor: pointer;
   font-size: 0.875rem;
@@ -226,6 +226,19 @@
   margin-top: 2px;
   flex-shrink: 0;
   accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.employee-login-warning{
+   font-size: .8rem;
+}
+.emp-login-card__toggle div{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .7rem;
+  color: #475569;
+  padding-bottom: 4px;
 }
 
 .emp-login-card__fields {

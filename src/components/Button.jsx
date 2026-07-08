@@ -1,9 +1,12 @@
 import React from 'react';
 import './Button.css';
 
-const Button = ({ children, icon, iconPosition = 'left', className = '', ...props }) => {
+const Button = ({ children, icon, iconPosition = 'left' ,className = '', ...props }) => {
   return (
-    <button className={`generic-btn ${className}`} {...props}>
+    <button 
+      className={`generic-btn ${className}`} 
+      {...props} 
+    >
       {icon && iconPosition === 'left' && (
         <span className="btn-icon">{icon}</span>
       )}

@@ -56,7 +56,7 @@ label {
   color: #475569;
 }
 
-input {
+.shift-input {
   padding: 10px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
@@ -65,7 +65,7 @@ input {
   transition: border-color 0.2s;
 }
 
-input:focus {
+.shift-input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
