@@ -99,6 +99,45 @@
   color: #991b1b;
 }
 
+.appt-letter-salary__preview {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.appt-letter-salary__preview h4 {
+  margin: 0 0 10px;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+
+.appt-letter-salary__preview-section {
+  margin-bottom: 10px;
+  font-size: 0.8125rem;
+}
+
+.appt-letter-salary__preview-section > span {
+  display: block;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.appt-letter-salary__preview-section ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+}
+
+.appt-letter-salary__preview-note {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
 .emp-salary-view__row {
   display: flex;
   justify-content: space-between;

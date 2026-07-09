@@ -50,7 +50,7 @@ export default function PayrollAdjustments({
   return (
     <div className="payroll-adj">
       <div className="payroll-adj__head">
-        <h5>One-off Adjustments</h5>
+        <h5>One-off adjustments</h5>
         {canEdit && record?._id ? (
           <button
             type="button"
@@ -64,43 +64,45 @@ export default function PayrollAdjustments({
         ) : null}
       </div>
 
-      {!record?._id && canEdit ? (
-        <p className="payroll-adj__hint">Save payroll first to add bonus, reimbursement, or other one-off lines.</p>
-      ) : null}
+      <div className="payroll-adj__body">
+        {!record?._id && canEdit ? (
+          <p className="payroll-adj__hint">Save payroll first to add bonus, reimbursement, or other one-off lines.</p>
+        ) : null}
 
-      {adjustments.length > 0 ? (
-        <ul className="payroll-adj__list">
-          {adjustments.map((adj) => (
-            <li key={adj._id || `${adj.code}-${adj.name}`}>
-              <div>
-                <strong>{adj.name}</strong>
-                <span className="payroll-adj__meta">
-                  {adj.code} · {adj.category}
-                  {adj.note ? ` · ${adj.note}` : ""}
-                </span>
-              </div>
-              <div className="payroll-adj__actions">
-                <span className={adj.category === "Earning" ? "earn" : "ded"}>
-                  {adj.category === "Earning" ? "+" : "−"}₹{Number(adj.amount).toLocaleString("en-IN")}
-                </span>
-                {canEdit && adj._id ? (
-                  <button
-                    type="button"
-                    className="payroll-adj__remove"
-                    onClick={() => onRemove(adj._id)}
-                    disabled={loading}
-                    title="Remove"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="payroll-adj__empty">No one-off adjustments for this month.</p>
-      )}
+        {adjustments.length > 0 ? (
+          <ul className="payroll-adj__list">
+            {adjustments.map((adj) => (
+              <li key={adj._id || `${adj.code}-${adj.name}`}>
+                <div>
+                  <strong>{adj.name}</strong>
+                  <span className="payroll-adj__meta">
+                    {adj.code} · {adj.category}
+                    {adj.note ? ` · ${adj.note}` : ""}
+                  </span>
+                </div>
+                <div className="payroll-adj__actions">
+                  <span className={adj.category === "Earning" ? "earn" : "ded"}>
+                    {adj.category === "Earning" ? "+" : "−"}₹{Number(adj.amount).toLocaleString("en-IN")}
+                  </span>
+                  {canEdit && adj._id ? (
+                    <button
+                      type="button"
+                      className="payroll-adj__remove"
+                      onClick={() => onRemove(adj._id)}
+                      disabled={loading}
+                      title="Remove"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="payroll-adj__empty">No one-off adjustments for this month.</p>
+        )}
+      </div>
 
       {showForm && canEdit ? (
         <form className="payroll-adj__form" onSubmit={handleSubmit}>

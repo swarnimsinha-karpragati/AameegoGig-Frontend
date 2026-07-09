@@ -841,6 +841,7 @@ function Employees() {
       await generateAppointmentLetter({
         ...letterData,
         salaryComponents: (letterData.salaryComponents || []).map((c) => ({
+          code: c.code,
           componentName: c.componentName || c.name,
           monthly: c.monthly,
           annual: c.annual,

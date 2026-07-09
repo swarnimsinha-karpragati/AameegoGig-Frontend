@@ -6,6 +6,7 @@ import {
   getSalaryComponents,
 } from "../services/salaryComponentService";
 import CtcSplitHelper from "./CtcSplitHelper";
+import { validateStructureDraft, validateAnnualCtc } from "../utils/salaryValidation";
 import "./EmployeeSalaryStructureEditor.css";
 
 const calcHint = (comp) => {
@@ -173,6 +174,28 @@ export default function EmployeeSalaryStructureEditor({
     setSaving(true);
     setError("");
     setMsg("");
+
+    const ctcErr = validateAnnualCtc(ctcAnnual);
+    if (ctcErr) {
+      setError(ctcErr);
+      setSaving(false);
+      return;
+    }
+
+    const draftErrors = validateStructureDraft({
+      ctcAnnual,
+      components: components.map((c) => ({
+        ...c,
+        monthlyAmount: c.monthlyAmount,
+        enabled: c.enabled,
+      })),
+    });
+    if (draftErrors.length) {
+      setError(draftErrors.join("; "));
+      setSaving(false);
+      return;
+    }
+
     try {
       await saveEmployeeStructure(employeeId, {
         ctcAnnual: Number(ctcAnnual) || 0,
@@ -235,7 +258,9 @@ export default function EmployeeSalaryStructureEditor({
         </div>
         <div className="emp-salary-row__label">
           <span className="emp-salary-row__name">{c.name}</span>
-          {hint ? <span className="emp-field-hint">{hint}</span> : null}
+          <span className={`emp-field-hint${hint ? "" : " emp-field-hint--placeholder"}`}>
+            {hint || "\u00a0"}
+          </span>
         </div>
         <div className="emp-salary-row__amount">
           {isSystem || isPercentBased ? (

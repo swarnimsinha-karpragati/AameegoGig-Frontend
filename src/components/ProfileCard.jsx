@@ -9,6 +9,7 @@ import {
   LocateIcon,
   User,
 } from "lucide-react";
+import useFormValidation from "../hooks/useFormValidation";
 import "./ProfileCard.css";
 function InputField({
   icon,
@@ -72,8 +73,28 @@ export default function ProfileCard() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
-  const [errors, setErrors] = useState({});
+  const { errors, validateOne, validateAll, clearAll } = useFormValidation();
   const [showSavePopup, setShowSavePopup] = useState(false);
+
+  const profileFields = (values) => [
+    { name: "fullName", label: "Full Name", value: values.fullName, kind: "person_name", required: true },
+    { name: "email", label: "Email", value: values.email, inputType: "email", required: true },
+    { name: "phone", label: "Phone", value: values.phone, inputType: "tel", required: true },
+    { name: "location", label: "Location", value: values.location, required: true },
+    { name: "department", label: "Department", value: values.department, required: true },
+    { name: "role", label: "Role", value: values.role, required: true },
+  ];
+
+  const validateForm = () => {
+    const result = validateAll(
+      profileFields({ fullName, email, phone, location, department, role })
+    );
+    return result.valid;
+  };
+
+  const handleFieldChange = (name, label, value, extra = {}) => {
+    validateOne({ name, label, value, required: true, ...extra });
+  };
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -138,96 +159,6 @@ export default function ProfileCard() {
     setProfileImage(null);
   };
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!fullName.trim()) {
-      newErrors.fullName = "Full Name is required";
-    }
-
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Enter a valid email";
-    }
-
-    if (!phone.trim()) {
-      newErrors.phone = "Phone number is required";
-    } else if (!/^\d{10}$/.test(phone)) {
-      newErrors.phone = "Phone must be 10 digits";
-    }
-
-    if (!location.trim()) {
-      newErrors.location = "Location is required";
-    }
-
-    if (!department.trim()) {
-      newErrors.department = "Department is required";
-    }
-
-    if (!role.trim()) {
-      newErrors.role = "Role is required";
-    }
-
-    setErrors(newErrors);
-
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateField = (name, value) => {
-    let error = "";
-
-    switch (name) {
-      case "fullName":
-        if (!value.trim()) {
-          error = "Full Name is required";
-        }
-        break;
-
-      case "email":
-        if (!value.trim()) {
-          error = "Email is required";
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-          error = "Enter a valid email";
-        }
-        break;
-
-      case "phone":
-        if (!value.trim()) {
-          error = "Phone number is required";
-        } else if (!/^\d{10}$/.test(value)) {
-          error = "Phone must be 10 digits";
-        }
-        break;
-
-      case "location":
-        if (!value.trim()) {
-          error = "Location is required";
-        }
-        break;
-
-      case "department":
-        if (!value.trim()) {
-          error = "Department is required";
-        }
-        break;
-
-      case "role":
-        if (!value.trim()) {
-          error = "Role is required";
-        }
-        break;
-
-      default:
-        break;
-    }
-
-    setErrors((prev) => ({
-      ...prev,
-      [name]: error,
-    }));
-  };
-
   const handleSave = () => {
     if (!validateForm()) {
       return;
@@ -246,7 +177,7 @@ export default function ProfileCard() {
   setDepartment("");
   setRole("");
   setProfileImage(null);
-  setErrors({});
+  clearAll();
 };
   return (
     <div className="profile-card">
@@ -315,7 +246,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value.replace(/^\s+/, "");;
               setFullName(value);
-              validateField("fullName", value);
+              handleFieldChange("fullName", "Full Name", value, { kind: "person_name" });
             }}
             placeholder="Enter your full name"
             error={errors.fullName}
@@ -330,7 +261,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value;
               setEmail(value);
-              validateField("email", value);
+              handleFieldChange("email", "Email", value, { inputType: "email" });
             }}
             placeholder="Enter your email"
             error={errors.email}
@@ -345,7 +276,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value;
               setPhone(value);
-              validateField("phone", value);
+              handleFieldChange("phone", "Phone", value, { inputType: "tel" });
             }}
             placeholder="Enter phone number"
             error={errors.phone}
@@ -360,7 +291,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value;
               setLocation(value);
-              validateField("location", value);
+              handleFieldChange("location", "Location", value);
             }}
             placeholder="Enter location"
             error={errors.location}
@@ -375,7 +306,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value;
               setDepartment(value);
-              validateField("department", value);
+              handleFieldChange("department", "Department", value);
             }}
             placeholder="Enter department"
             error={errors.department}
@@ -390,7 +321,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value;
               setRole(value);
-              validateField("role", value);
+              handleFieldChange("role", "Role", value);
             }}
             placeholder="Enter role"
             error={errors.role}

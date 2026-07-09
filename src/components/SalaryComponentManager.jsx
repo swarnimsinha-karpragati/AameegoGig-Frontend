@@ -9,6 +9,7 @@ import {
   getSalaryTemplates,
 } from "../services/salaryComponentService";
 import { getPtStates } from "../services/payrollService";
+import { validateField } from "../utils/inputValidation";
 import "./SalaryComponentManager.css";
 
 const CALC_LABELS = {
@@ -93,6 +94,18 @@ export default function SalaryComponentManager() {
 
   const handleSave = async () => {
     setError("");
+    const fields = [
+      { name: "code", label: "Component code", value: form.code, kind: "identifier_code", required: !editing },
+      { name: "name", label: "Display name", value: form.name, kind: "display_name", required: true },
+      { name: "defaultValue", label: "Default monthly amount", value: form.defaultValue, kind: "currency_monthly" },
+    ];
+    for (const field of fields) {
+      const err = validateField(field);
+      if (err) {
+        setError(err);
+        return;
+      }
+    }
     if (!form.code && !editing) {
       setError("Component code is required");
       return;
