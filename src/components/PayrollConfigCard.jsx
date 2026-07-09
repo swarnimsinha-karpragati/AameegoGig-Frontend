@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Settings2 } from "lucide-react";
 import { getPayrollConfig, updatePayrollConfig, getPtStates } from "../services/payrollService";
 import "./PayrollConfigCard.css";
+import Button from "./Button";
 
 export default function PayrollConfigCard() {
   const [config, setConfig] = useState(null);
@@ -201,10 +201,9 @@ export default function PayrollConfigCard() {
           {message ? <span className="payroll-config-card__msg payroll-config-card__msg--success">{message}</span> : null}
           {error ? <span className="payroll-config-card__msg payroll-config-card__msg--error">{error}</span> : null}
         </div>
-        <button type="button" className="emp-btn emp-btn--primary" onClick={handleSave} disabled={saving}>
-          <Settings2 size={16} />
-          {saving ? "Saving…" : "Save Payroll Settings"}
-        </button>
+        <Button type="button"  onClick={handleSave} disabled={saving}>
+          {saving ? "Saving…" : "Save Payroll"}
+        </Button>
       </div>
     </div>
   );

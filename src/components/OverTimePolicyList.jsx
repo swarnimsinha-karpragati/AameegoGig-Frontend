@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './OverTimePolicy.css';
 import { deleteOvertimePolicy, getOvertimePolicies } from '../services/settingService';
+import Button from './Button';
 
 export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) => {
   const [policies, setPolicies] = useState({ success: false, count: 0, data: [] });
@@ -141,22 +142,22 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
                     </td>
                     <td>
                       <div className="ot-action-buttons-group">
-                        <button
+                        <Button
                           type="button"
                           onClick={() => onEditPolicy && onEditPolicy(policy)}
                           disabled={isActionLoading}
-                          className="ot-row-btn-edit"
+                          className="action-btn-edit"
                         >
                           Edit
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           onClick={() => handleDelete(currentId)}
                           disabled={isActionLoading}
-                          className="ot-row-btn-delete"
+                          className="action-btn-delete"
                         >
                           Delete
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Save, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import {
   getSalaryComponents,
   getEmployeeStructure,
@@ -9,6 +9,7 @@ import {
 } from "../services/salaryComponentService";
 import { validateAnnualCtc, validateStructureDraft } from "../utils/salaryValidation";
 import "./AppointmentLetterSalary.css";
+import Button from "./Button";
 
 const formatInr = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
@@ -212,26 +213,25 @@ export default function AppointmentLetterSalary({
     <div className="appt-letter-salary">
       <div className="appt-letter-salary__split-bar">
         <div className="appt-letter-salary__preset">
-          <label>CTC split preset</label>
-          <select value={preset} onChange={(e) => setPreset(e.target.value)}>
+          <label>CTC Split Preset</label>
+          <select className="custom-select" value={preset} onChange={(e) => setPreset(e.target.value)} style={{ backgroundPosition: 'right 16px center' }}>
             <option value="india_standard">India Standard (40/40)</option>
             <option value="india_50_50">50% Basic, 50% HRA</option>
             <option value="basic_heavy">Basic Heavy (60/30)</option>
           </select>
         </div>
-        <button type="button" className="emp-btn emp-btn--secondary" onClick={handleCtcSplit}>
+        
+        <Button type="button" className="secondary-btn" onClick={handleCtcSplit}>
           Split from CTC
-        </button>
+        </Button>
         {employeeId ? (
-          <button
+          <Button
             type="button"
-            className="emp-btn emp-btn--primary"
             onClick={handleSaveToStructure}
             disabled={saving}
           >
-            <Save size={15} />
             {saving ? "Saving…" : "Apply to Salary Structure"}
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -240,8 +240,8 @@ export default function AppointmentLetterSalary({
 
       <div className="appt-letter-salary__table-head">
         <span>Component</span>
-        <span>Monthly (₹)</span>
-        <span>Annual (₹)</span>
+        <span className='head-label'>Monthly (₹)</span>
+        <span className='head-label'>Annual (₹)</span>
       </div>
       {(letterData.salaryComponents || []).map((item, index) => (
         <div className="appt-letter-salary__row" key={item.code || index}>

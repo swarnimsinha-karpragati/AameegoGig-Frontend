@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import "./Resignation.css";
+import Button from "../components/Button";
 
 function ResModal({ title, onClose, size = "md", children, footer }) {
   return (
@@ -299,9 +300,9 @@ function Resignations() {
       <div className="exit-mgmt-container">
         <div className="exit-mgmt-header-row">
           <h2 className="exit-mgmt-title">My Resignation Status</h2>
-          <button className="exit-mgmt-add-trigger" onClick={() => setShowAddModal(true)}>
-            <Plus size={22} /> Apply for Resignation
-          </button>
+          <Button icon={ <Plus size={22} />} iconPosition="left" onClick={() => setShowAddModal(true)}>
+            Apply for Resignation
+          </Button>
         </div>
 
         <div className="exit-mgmt-card exit-mgmt-card--mb-large">
@@ -533,12 +534,12 @@ function Resignations() {
             size="lg"
             footer={
               <>
-                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose} disabled={isLoading}>
+                <Button type="button" className="secondary-btn" onClick={handleModalClose} disabled={isLoading}>
                   Cancel
-                </button>
-                <button type="submit" form="resignation-core-form" className="exit-mgmt-control-btn exit-mgmt-control-btn--primary" disabled={isLoading}>
+                </Button>
+                <Button type="submit" form="resignation-core-form" disabled={isLoading}>
                   Submit Notice
-                </button>
+                </Button>
               </>
             }
           >
@@ -605,17 +606,16 @@ function Resignations() {
             size="lg"
             footer={
               <div className="exit-mgmt-modal-actions">
-                <button type="button" disabled={isLoading} className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
+                <Button type="button" disabled={isLoading} onClick={handleModalClose} className="secondary-btn">
                   Cancel
-                </button>
-                <button 
-                  type="button" 
-                  className={`exit-mgmt-control-btn ${isHrFinalizing ? 'exit-mgmt-control-btn--primary' : 'exit-mgmt-control-btn--verify'}`} 
+                </Button>
+                <Button 
+                  type="button"  
                   onClick={() => processChecklistSubmission()}
                   disabled={isLoading}
                 >
-                  {isHrFinalizing ? "Confirm Final Approval" : "Save Progress (Verify)"}
-                </button>
+                  {isHrFinalizing ? "Approve" : "Verify"}
+                </Button>
               </div>
             }
           >

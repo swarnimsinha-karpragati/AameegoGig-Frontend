@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import useFormValidation from "../hooks/useFormValidation";
 import "./ProfileCard.css";
+import Button from "./Button";
 function InputField({
   icon,
   label,
@@ -332,14 +333,14 @@ export default function ProfileCard() {
       </div>
 
       <div className="button-row">
-        <button 
-        className="discard-btn"
+        <Button 
+        className="secondary-btn"
         onClick={handleDiscard}
-        >Discard</button>
+        >Discard</Button>
 
-        <button className="save-btn" onClick={handleSave}>
+        <Button onClick={handleSave}>
           Save Changes
-        </button>
+        </Button>
       </div>
 
       {/* Popup */}
@@ -360,25 +361,25 @@ export default function ProfileCard() {
             <p>Select how you want to upload your profile picture</p>
 
             <div className="camera-options">
-              <button
-                className="upload-submit-btn"
+              <Button
+                
                 onClick={() => {
                   galleryInputRef.current?.click();
                   setShowOptions(false);
                 }}
               >
                 Choose From Gallery
-              </button>
+              </Button>
 
-              <button
-                className="upload-submit-btn"
+              <Button
+                
                 onClick={() => {
                   setShowCamera(true);
                   setShowOptions(false);
                 }}
               >
                 Open Camera
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -409,14 +410,13 @@ export default function ProfileCard() {
               <p style={{ textAlign: "center", color: "#888", marginTop: 8 }}>Starting camera…</p>
             )}
 
-            <button
-              className="upload-submit-btn"
+            <Button
               style={{ marginTop: "16px" }}
               onClick={captureNativePhoto}
               disabled={!cameraReady}
             >
               Capture Photo
-            </button>
+            </Button>
           </div>
         </div>
       )}
