@@ -14,6 +14,7 @@ import { OverTimePolicyList } from "../components/OverTimePolicyList";
 import HolidayManager from "../components/HolidayManager";
 import WeekOffManager from "../components/WeekOffManager";
 import PayrollConfigCard from "../components/PayrollConfigCard";
+import OrgProfileCard from "../components/OrgProfileCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
 
 export default function Settings() {
@@ -32,7 +33,6 @@ export default function Settings() {
     const parsedUser = JSON.parse(loggedInUser);
     setUser(parsedUser);
   }, []);
-  console.log(user);
 
   const handleEditClick = (policy) => {
     setEditingPolicy(policy);
@@ -87,6 +87,8 @@ export default function Settings() {
               <HolidayManager vendorId={user?.vendorId} />
 
               <PayrollConfigCard />
+
+              <OrgProfileCard />
 
               <SalaryComponentManager />
               
