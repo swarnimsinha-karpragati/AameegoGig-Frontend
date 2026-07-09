@@ -34,6 +34,39 @@ export const summarizeAttendanceSessions = (sessions = []) => {
   };
 };
 
+export const toLocalDateString = (date = new Date()) =>
+  new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+
+export const buildTodayRowFromAttendanceResponse = (response, user) => {
+  const sessions = response.sessions || [];
+  const summary = summarizeAttendanceSessions(sessions);
+  const initials = String(user?.name || "YO")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return {
+    id: user?.employeeCode || user?.employeeId || "—",
+    employeeId: user?.employeeId,
+    recordId: response.record?._id || response.recordId || null,
+    name: user?.name || "You",
+    initials,
+    checkIn: response.checkIn || summary.checkIn,
+    checkOut: response.checkOut || summary.checkOut,
+    hours: response.hours || summary.hours,
+    status: response.status || "Present",
+    isCheckedIn: response.isCheckedIn ?? summary.isCheckedIn,
+    sessionCount: response.sessionNumber || sessions.length || summary.sessionCount,
+    sessions,
+  };
+};
+
 export const getMonthlyAttendance = async (year, month) => {
   const res = await API.get("/attendance/month", {
     params: { year, month },
@@ -74,50 +107,22 @@ export const checkInAttendance = async (selfieFile, options = {}) => {
   return res.data;
 };
 
-export const checkOutAttendance = async (
-  selfieFile,
-  location
-) => {
+export const checkOutAttendance = async (selfieFile, location) => {
+  const formData = new FormData();
 
-  const formData =
-    new FormData();
+  formData.append("selfie", selfieFile, "selfie.jpg");
+  formData.append("latitude", location.latitude);
+  formData.append("longitude", location.longitude);
 
-  formData.append(
-    "selfie",
-    selfieFile,
-    "selfie.jpg"
-  );
-
-  formData.append(
-    "latitude",
-    location.latitude
-  );
-
-  formData.append(
-    "longitude",
-    location.longitude
-  );
-
-  if (
-    location.accuracy != null
-  ) {
-    formData.append(
-      "accuracy",
-      location.accuracy
-    );
+  if (location.accuracy != null) {
+    formData.append("accuracy", location.accuracy);
   }
 
-  const res =
-    await API.post(
-      "/attendance/check-out",
-      formData,
-      {
-        headers: {
-          "Content-Type":
-            "multipart/form-data",
-        },
-      }
-    );
+  const res = await API.post("/attendance/check-out", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
 
   return res.data;
 };
@@ -126,8 +131,6 @@ export const bulkMarkToday = async (records) => {
   const res = await API.post("/attendance/bulk-mark-today", { records });
   return res.data;
 };
-
-
 
 export const getCheckInSelfieUrl = (selfiePath) => {
   if (!selfiePath) return null;

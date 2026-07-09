@@ -5,7 +5,6 @@ import {
   Clock3,
   CheckCircle2,
   Banknote,
-  Plus,
   Check,
   X,
   Trash2,
@@ -36,6 +35,8 @@ import {
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import "./Expense.css";
+import Card from "../components/Card";
+import Button from "../components/Button";
 
 const CATEGORIES = [
   "Travel",
@@ -90,7 +91,7 @@ function ExpenseSummaryCards({ summary, labels = {} }) {
     {
       key: "pending",
       icon: Clock3,
-      iconClass: "amber",
+      iconClass: "orange",
       value: formatCurrency(summary.totalPending),
       label: labels.pending || "Pending",
     },
@@ -106,15 +107,10 @@ function ExpenseSummaryCards({ summary, labels = {} }) {
   return (
     <div className="expense-summary-grid">
       {cards.map(({ key, icon: Icon, iconClass, value, label }) => (
-        <article key={key} className="expense-summary-card">
-          <div className={`expense-icon ${iconClass}`}>
-            <Icon size={20} />
-          </div>
-          <div>
-            <h3>{value}</h3>
-            <p>{label}</p>
-          </div>
-        </article>
+        <Card key={key} icon={<Icon size={22} />} iconClassName={`${iconClass}`} isInteractive={true}>
+          <Card.Header>{label}</Card.Header>
+          <Card.Body>{value}</Card.Body>
+        </Card>
       ))}
     </div>
   );
@@ -386,7 +382,7 @@ function ExpenseInner() {
   const renderCreateForm = (showEmployeeSelect = false, forSelf = false) => (
     <section className="expense-card">
       <h3>
-        <Plus size={16} /> {forSelf ? "Submit My Expense" : "Submit Expense"}
+        {forSelf ? "Submit My Expense" : "Submit Expense"}
       </h3>
       <form className="expense-form" onSubmit={(e) => handleCreate(e, forSelf)}>
         {showEmployeeSelect && employees.length > 0 ? (
@@ -486,9 +482,9 @@ function ExpenseInner() {
           </label>
         </div>
 
-        <button type="submit">
+        <Button type="submit">
           {form.submitDirectly ? "Submit Expense" : "Save as Draft"}
-        </button>
+        </Button>
       </form>
     </section>
   );
@@ -600,20 +596,22 @@ function ExpenseInner() {
                         {/* Owner: Draft actions */}
                         {actionMode === "owner" && exp.status === "Draft" ? (
                           <>
-                            <button
-                              className="edit-expense-btn"
+                            <Button
+                              icon={<Send size={14} />}
+                              className="action-btn-edit edit-expense-btn"
                               title="Submit for approval"
                               onClick={() => handleSubmitDraft(exp._id)}
                             >
-                              <Send size={12} /> Submit
-                            </button>
-                            <button
-                              className="delete-expense-btn"
+                               Submit
+                            </Button>
+                            <Button
+                              className="action-btn-delete"
+                              icon={<Trash2 size={14} />}
                               title="Delete draft"
                               onClick={() => handleDelete(exp._id)}
                             >
-                              <Trash2 size={12} />
-                            </button>
+                              Delete
+                            </Button>
                           </>
                         ) : null}
 
@@ -626,55 +624,61 @@ function ExpenseInner() {
                         {/* Approver: Pending actions */}
                         {actionMode === "approve" && exp.status === "Pending" ? (
                           <>
-                            <button
-                              className="approve-expense-btn"
+                            <Button
+                              className="action-btn-edit approve-expense-btn"
+                              icon={<Check size={14} /> }
                               onClick={() => handleApprove(exp._id, empName)}
                             >
-                              <Check size={12} /> Approve
-                            </button>
-                            <button
-                              className="reject-expense-btn"
+                              Approve
+                            </Button>
+                            <Button
+                              icon={<X size={14} /> }
+                              className=" action-btn-edit reject-expense-btn"
                               onClick={() => handleReject(exp._id, empName)}
                             >
-                              <X size={12} /> Reject
-                            </button>
+                              Reject
+                            </Button>
                           </>
                         ) : null}
 
                         {/* Reimburse only */}
                         {actionMode === "reimburse" && exp.status === "Approved" ? (
-                          <button
-                            className="reimburse-btn"
+                          <Button
+                            className="reimburse-btn action-btn-edit"
+                            icon={<Banknote size={14} />}
                             onClick={() => handleReimburse(exp._id, empName)}
                           >
-                            <Banknote size={12} /> Reimburse
-                          </button>
+                             Reimburse
+                          </Button>
                         ) : null}
 
                         {/* Full: approve + reimburse */}
                         {actionMode === "full" && exp.status === "Pending" ? (
                           <>
-                            <button
-                              className="approve-expense-btn"
+                            <Button
+                              className="approve-expense-btn action-btn-edit"
+                              icon={<Check size={14} />}
                               onClick={() => handleApprove(exp._id, empName)}
                             >
-                              <Check size={12} /> Approve
-                            </button>
-                            <button
-                              className="reject-expense-btn"
+                               Approve
+                            </Button>
+                            <Button
+                              className="reject-expense-btn action-btn-edit"
+                              icon={<X size={14} />}
                               onClick={() => handleReject(exp._id, empName)}
                             >
-                              <X size={12} /> Reject
-                            </button>
+                               Reject
+                            </Button>
                           </>
                         ) : null}
                         {actionMode === "full" && exp.status === "Approved" ? (
-                          <button
-                            className="reimburse-btn"
+                          <Button
+                            className="reimburse-btn action-btn-edit"
+                            icon={<Banknote size={14} />}
                             onClick={() => handleReimburse(exp._id, empName)}
                           >
-                            <Banknote size={12} /> Reimburse
-                          </button>
+                             Reimburse
+                          </Button>
                         ) : null}
                       </div>
                     </td>
@@ -832,7 +836,7 @@ function ExpenseInner() {
         {renderCategoryBreakdown()}
       </div>
 
-      <div className="expense-layout-grid">
+      <div className="expense-layout-grid-1">
         {renderExpenseTable({
           title: "Pending Approvals",
           items: pendingExpenses,

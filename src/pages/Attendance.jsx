@@ -14,11 +14,14 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
+  ClipboardCheck,
+  Check,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
 import SelfieCapture from "../components/SelfieCapture";
+import Button from "../components/Button";
 import { getEmployees } from "../services/employeeService";
 import {
   getMonthlyAttendance,
@@ -28,6 +31,8 @@ import {
   checkOutAttendance,
   summarizeAttendanceSessions,
   getCheckInSelfieUrl,
+  buildTodayRowFromAttendanceResponse,
+  toLocalDateString,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -37,6 +42,7 @@ import {
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
 import "./Attendance.css";
+import Card from "../components/Card";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -68,7 +74,7 @@ const EMPTY_MY_ROW = {
   checkIn: "—",
   checkOut: "—",
   hours: "—",
-  status: "Absent",
+  status: "Not Marked",
   sessions: [],
   isCheckedIn: false,
   sessionCount: 0,
@@ -94,37 +100,22 @@ function SessionLocationLink({ location, prefix }) {
   );
 }
 
-const ATTENDANCE_STAT_THEMES = {
-  Present: { bg: "green-bg", color: "#10b981" },
-  Absent: { bg: "red-bg", color: "#ef4444" },
-  "Half Day": { bg: "amber-bg", color: "#f59e0b" },
-  Late: { bg: "indigo-bg", color: "#3b82f6" },
-};
-
 function AttendanceStats({ stats, labels }) {
   const items = [
-    { key: "Present", icon: UserCheck, label: labels?.Present || "Present" },
-    { key: "Absent", icon: UserX, label: labels?.Absent || "Absent" },
-    { key: "Half Day", icon: TriangleAlert, label: labels?.["Half Day"] || "Half Day" },
-    { key: "Late", icon: Clock, label: labels?.Late || "Late" },
+    { key: "Present", icon: UserCheck, className: "green", label: labels?.Present || "Present" },
+    { key: "Absent", icon: UserX, className: "orange", label: labels?.Absent || "Absent" },
+    { key: "Half Day", icon: TriangleAlert, className: "blue", label: labels?.["Half Day"] || "Half Day" },
+    { key: "Late", icon: Clock, className: "purple", label: labels?.Late || "Late" },
   ];
 
   return (
     <div className="payroll-stats-grid">
-      {items.map(({ key, icon: Icon, label }) => {
-        const theme = ATTENDANCE_STAT_THEMES[key];
-        return (
-          <div key={key} className="stat-card glass-morphism">
-            <div className={`stat-icon-wrapper ${theme.bg}`}>
-              <Icon size={18} color={theme.color} />
-            </div>
-            <div>
-              <p className="stat-label">{label}</p>
-              <h3 className="stat-value">{stats[key] || 0}</h3>
-            </div>
-          </div>
-        );
-      })}
+      {items.map(({ key, icon: Icon, className, label }) => (
+        <Card key={key} icon={<Icon size={22} strokeWidth={2} />} iconClassName={className} isInteractive>
+          <Card.Header>{label}</Card.Header>
+          <Card.Body>{stats[key] || 0}</Card.Body>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -133,15 +124,10 @@ function TodayMetricsGrid({ metrics }) {
   return (
     <div className="attendance-metrics-grid">
       {metrics.map(({ key, label, value, icon: Icon, accent }) => (
-        <article key={key} className={`attendance-metric-card ${accent}`}>
-          <div className="attendance-metric-icon">
-            <Icon size={18} strokeWidth={2} />
-          </div>
-          <div className="attendance-metric-body">
-            <span className="attendance-metric-label">{label}</span>
-            <strong className="attendance-metric-value">{value}</strong>
-          </div>
-        </article>
+        <Card key={key} icon={<Icon size={18} />} className={accent} isInteractive> 
+          <Card.Header>{label}</Card.Header>
+          <Card.Body><strong className="attendance-metric-value">{value}</strong></Card.Body>
+        </Card>
       ))}
     </div>
   );
@@ -461,9 +447,9 @@ function TodayAttendanceTable({ title, rows, loading, showActions = false }) {
                     </td>
                     {showActions ? (
                       <td>
-                        <button type="button" className="attendance-action-btn">
+                        <Button type="button" className="action-btn-edit attendance-action-btn" >
                           Review
-                        </button>
+                        </Button>
                       </td>
                     ) : null}
                   </tr>
@@ -533,6 +519,16 @@ function Attendance() {
     month: "long",
     year: "numeric",
   });
+
+  const applyTodayRowUpdate = (response) => {
+    if (!user?.employeeId) return;
+
+    const nextRow = buildTodayRowFromAttendanceResponse(response, user);
+    setTodayRows((prev) => [
+      ...prev.filter((row) => String(row.employeeId) !== String(user.employeeId)),
+      nextRow,
+    ]);
+  };
 
   const loadMonthData = async () => {
     setLoading(true);
@@ -762,7 +758,7 @@ console.log(myLatestCheckInSelfieUrl);
       ...markForm,
       checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
       checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
-      date: new Date().toISOString(),
+      date: toLocalDateString(new Date()),
     });
     toast.success("Attendance saved successfully");
     loadMonthData();
@@ -802,9 +798,10 @@ console.log(myLatestCheckInSelfieUrl);
             ? "Checked in successfully"
             : "Checked out successfully")
       );
-  
+
+      applyTodayRowUpdate(res);
       setShowSelfieModal(false);
-  
+
       await loadMonthData();
   
     } catch (err) {
@@ -922,24 +919,23 @@ console.log(myLatestCheckInSelfieUrl);
         />
 
         <div className="attendance-checkin-actions attendance-checkin-actions--center">
-          <button
+          <Button
             type="button"
-            className="checkin-btn present"
+            icon={<LogIn size={18} />}
             onClick={handleCheckIn}
             disabled={actionLoading || myTodayRow.isCheckedIn}
           >
-            <LogIn size={18} />
             {actionLoading ? "Processing..." : "Check In"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="checkin-btn outline"
+            className="secondary-btn"
+            icon={<LogOut size={18} />}
             onClick={handleCheckOut}
             disabled={actionLoading || !myTodayRow.isCheckedIn}
           >
-            <LogOut size={18} />
             {actionLoading ? "Processing..." : "Check Out"}
-          </button>
+          </Button>
         </div>
         {checkInMessage ? <p className="attendance-save-msg">{checkInMessage}</p> : null}
         {myLatestCheckInSelfieUrl ||
@@ -1011,91 +1007,109 @@ console.log(myLatestCheckInSelfieUrl);
 
   const renderMarkForm = (employeeList, title) => (
     <section className="attendance-panel attendance-glass attendance-mark-card">
-      <header className="attendance-panel__head">
-        <h2>{title}</h2>
+      <header className="attendance-panel__head attendance-mark-form__head">
+        <div className="attendance-mark-form__title-wrap">
+          <h2>
+            <ClipboardCheck size={18} strokeWidth={2} />
+            {title}
+          </h2>
+          <p className="attendance-mark-form__subtitle">
+            Record or update attendance status, session times, and optional notes
+          </p>
+        </div>
       </header>
       <form className="attendance-mark-form" onSubmit={handleMarkAttendance}>
-        <div className="attendance-field">
-          <label htmlFor="mark-employee">Employee</label>
-          <select
-            id="mark-employee"
-            className="attendance-control"
-            value={markForm.employeeId}
-            onChange={(e) =>
-              setMarkForm((prev) => ({ ...prev, employeeId: e.target.value }))
-            }
-          >
-            {employeeList.map((emp) => (
-              <option key={emp._id} value={emp._id}>
-                {emp.employeeCode} - {emp.name}
-              </option>
-            ))}
-          </select>
+        <div className="attendance-mark-form__row">
+          <div className="attendance-field attendance-field--employee">
+            <label htmlFor="mark-employee">Employee</label>
+            <select
+              id="mark-employee"
+              className="attendance-control"
+              value={markForm.employeeId}
+              onChange={(e) =>
+                setMarkForm((prev) => ({ ...prev, employeeId: e.target.value }))
+              }
+            >
+              {employeeList.map((emp) => (
+                <option key={emp._id} value={emp._id}>
+                  {emp.employeeCode} - {emp.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="attendance-field attendance-field--status">
+            <label htmlFor="mark-status">Status</label>
+            <select
+              id="mark-status"
+              className={`attendance-control attendance-control--status attendance-control--status-${markForm.status.replace(/\s+/g, "-").toLowerCase()}`}
+              value={markForm.status}
+              onChange={(e) =>
+                setMarkForm((prev) => ({ ...prev, status: e.target.value }))
+              }
+            >
+              <option>Present</option>
+              <option>Absent</option>
+              <option>Half Day</option>
+              <option>Late</option>
+            </select>
+          </div>
         </div>
 
-        <div className="attendance-field">
-          <label htmlFor="mark-status">Status</label>
-          <select
-            id="mark-status"
-            className="attendance-control"
-            value={markForm.status}
-            onChange={(e) =>
-              setMarkForm((prev) => ({ ...prev, status: e.target.value }))
-            }
-          >
-            <option>Present</option>
-            <option>Absent</option>
-            <option>Half Day</option>
-            <option>Late</option>
-          </select>
+        <div className="attendance-mark-form__row attendance-mark-form__row--details">
+          <div className="attendance-field">
+            <label htmlFor="mark-check-in">Check In</label>
+            <input
+              id="mark-check-in"
+              type="time"
+              className="attendance-control"
+              value={markForm.checkIn}
+              onChange={(e) =>
+                setMarkForm((prev) => ({ ...prev, checkIn: e.target.value }))
+              }
+              disabled={markForm?.status === "Absent"}
+            />
+          </div>
+
+          <div className="attendance-field">
+            <label htmlFor="mark-check-out">Check Out</label>
+            <input
+              id="mark-check-out"
+              type="time"
+              className="attendance-control"
+              value={markForm.checkOut}
+              onChange={(e) =>
+                setMarkForm((prev) => ({ ...prev, checkOut: e.target.value }))
+              }
+              disabled={markForm?.status === "Absent"}
+            />
+          </div>
+
+          <div className="attendance-field attendance-field--notes">
+            <label htmlFor="mark-notes">Notes</label>
+            <input
+              id="mark-notes"
+              type="text"
+              className="attendance-control"
+              placeholder="Optional notes for this entry"
+              value={markForm.notes}
+              onChange={(e) =>
+                setMarkForm((prev) => ({ ...prev, notes: e.target.value }))
+              }
+            />
+          </div>
         </div>
 
-        <div className="attendance-field">
-          <label htmlFor="mark-check-in">Check In</label>
-          <input
-            id="mark-check-in"
-            type="time"
-            className="attendance-control"
-            value={markForm.checkIn}
-            onChange={(e) =>
-              setMarkForm((prev) => ({ ...prev, checkIn: e.target.value }))
-            }
-            disabled={markForm?.status === "Absent"}
-          />
-        </div>
-
-        <div className="attendance-field">
-          <label htmlFor="mark-check-out">Check Out</label>
-          <input
-            id="mark-check-out"
-            type="time"
-            className="attendance-control"
-            value={markForm.checkOut}
-            onChange={(e) =>
-              setMarkForm((prev) => ({ ...prev, checkOut: e.target.value }))
-            }
-            disabled={markForm?.status === "Absent"}
-          />
-        </div>
-
-        <div className="attendance-field attendance-field--full">
-          <label htmlFor="mark-notes">Notes</label>
-          <input
-            id="mark-notes"
-            type="text"
-            className="attendance-control"
-            placeholder="Optional notes"
-            value={markForm.notes}
-            onChange={(e) =>
-              setMarkForm((prev) => ({ ...prev, notes: e.target.value }))
-            }
-          />
-        </div>
+        {markForm.status === "Absent" ? (
+          <p className="attendance-mark-form__hint">
+            Check-in and check-out times are not required when status is Absent.
+          </p>
+        ) : null}
 
         <div className="attendance-form-actions">
-          <button type="submit" className="attendance-btn attendance-btn--primary">
-            Save
-          </button>
+          <Button type="submit" icon={<Check size={16} />}>
+            Save Attendance
+          </Button>
         </div>
       </form>
     </section>
@@ -1116,15 +1130,13 @@ console.log(myLatestCheckInSelfieUrl);
 
   const renderHRView = () => (
     <>
-      <div className="attendance-hr-actions">
-        <button type="button" className="attendance-hr-btn">
-          <ShieldCheck size={16} />
+      <div className="attendance-hr-actions" >
+        <Button type="button" icon ={<ShieldCheck size={16} />}>
           Review Corrections
-        </button>
-        <button type="button" className="attendance-hr-btn secondary">
-          <Download size={16} />
+        </Button>
+        <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
           Export Report
-        </button>
+        </Button>
       </div>
       <AttendanceStats
         stats={summaryStats}
@@ -1223,6 +1235,7 @@ console.log(myLatestCheckInSelfieUrl);
 
         <SelfieCapture
           open={showSelfieModal}
+          mode={attendanceAction}
           onClose={() => {
             if (!checkInSubmitting) {
               setShowSelfieModal(false);

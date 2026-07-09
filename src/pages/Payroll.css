@@ -119,17 +119,17 @@
 /* Metrics Dashboard Grid */
 .payroll-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
 
-.stat-card,
-.metric-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--radius-card);
-  padding: 16px 18px;
+.payroll-stats-grid .generic-card {
+  max-width: none;
+}
+
+.payroll-stats-grid .stat-card {
+  padding: 22px 24px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -550,6 +550,29 @@
   transition: all 0.2s ease;
 }
 
+.row-action-buttons .generic-btn.action-btn-view,
+.row-action-buttons .generic-btn.action-btn-pdf {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.row-action-buttons .generic-btn.action-btn-view:hover,
+.row-action-buttons .generic-btn.action-btn-pdf:hover,
+.row-action-buttons .generic-btn.action-btn-view:active,
+.row-action-buttons .generic-btn.action-btn-pdf:active {
+  transform: none;
+  opacity: 1;
+}
+
+.row-action-buttons .generic-btn.action-btn-view > span:not(.btn-icon),
+.row-action-buttons .generic-btn.action-btn-pdf > span:not(.btn-icon) {
+  display: none;
+}
+
 .action-btn-view svg,
 .action-btn-pdf svg {
   flex-shrink: 0;
@@ -560,6 +583,11 @@
   background-color: #eff6ff;
 }
 
+.row-action-buttons .generic-btn.action-btn-view {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
 .action-btn-view:hover {
   background-color: #dbeafe;
 }
@@ -567,6 +595,11 @@
 .action-btn-pdf {
   color: #10b981;
   background-color: #ecfdf5;
+}
+
+.row-action-buttons .generic-btn.action-btn-pdf {
+  background: #ecfdf5;
+  color: #10b981;
 }
 
 .action-btn-pdf:hover {
@@ -1012,6 +1045,11 @@
   transition: opacity 0.2s ease;
 }
 
+.generic-btn.upload-submit-btn {
+  width: 100%;
+  height: 46px;
+}
+
 .upload-submit-btn:hover:not(:disabled) {
   opacity: 0.92;
 }
@@ -1115,12 +1153,26 @@
   margin: 0 0 10px;
 }
 
-/* Summary report metrics */
-.payroll-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
+/* Summary report metrics — uses shared Card component */
+.payroll-summary-stats .generic-card {
+  max-width: none;
+}
+
+.payroll-summary-stats .card-header {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.payroll-summary-stats .card-body {
+  font-size: 20px;
+}
+
+.payroll-summary-stats .card-icon-sidebar {
+  width: 52px;
+  height: 52px;
 }
 
 .summary-panels-grid {
@@ -1236,13 +1288,13 @@
   .grid-4-cols {
     grid-template-columns: repeat(2, 1fr);
   }
-  .payroll-metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .payroll-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 1200px) and (min-width: 769px) {
-  .payroll-metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
+@media (max-width: 600px) {
+  .payroll-stats-grid {
+    grid-template-columns: 1fr;
   }
 }

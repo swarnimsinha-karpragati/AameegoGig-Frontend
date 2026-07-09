@@ -67,9 +67,13 @@
 
 .leave-page .payroll-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.leave-page .payroll-stats-grid .generic-card {
+  max-width: none;
 }
 
 .leave-page .stat-card {
@@ -461,6 +465,29 @@ select.leave-control {
   transition: opacity 0.15s ease;
 }
 
+.leave-actions .generic-btn.approve-btn,
+.leave-actions .generic-btn.reject-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.leave-actions .generic-btn.approve-btn:hover,
+.leave-actions .generic-btn.reject-btn:hover,
+.leave-actions .generic-btn.approve-btn:active,
+.leave-actions .generic-btn.reject-btn:active {
+  transform: none;
+  opacity: 0.85;
+}
+
+.leave-actions .generic-btn.approve-btn > span:not(.btn-icon),
+.leave-actions .generic-btn.reject-btn > span:not(.btn-icon) {
+  display: none;
+}
+
 .approve-btn:hover,
 .reject-btn:hover {
   opacity: 0.85;
@@ -468,6 +495,16 @@ select.leave-control {
 
 .approve-btn { background: #dcfce7; color: #15803d; }
 .reject-btn { background: #fee2e2; color: #b91c1c; }
+
+.leave-actions .generic-btn.approve-btn {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.leave-actions .generic-btn.reject-btn {
+  background: #fee2e2;
+  color: #b91c1c;
+}
 
 .leave-cancel-btn {
   height: 30px;
@@ -503,6 +540,7 @@ select.leave-control {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  padding-left: 5px;
 }
 
 .leave-hr-btn {
@@ -555,11 +593,19 @@ select.leave-control {
   .leave-field--wide {
     grid-column: span 1;
   }
+
+  .leave-page .payroll-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
   .leave-page {
     padding: 16px;
+  }
+
+  .leave-page .payroll-stats-grid {
+    grid-template-columns: 1fr;
   }
 
   .leave-form-grid {

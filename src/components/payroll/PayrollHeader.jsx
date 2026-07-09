@@ -1,5 +1,6 @@
 import React from "react";
 import { FileSpreadsheet, RefreshCw } from "lucide-react";
+import Button from "../Button";
 
 export default function PayrollHeader({
   isAdminOrHR,
@@ -19,19 +20,17 @@ export default function PayrollHeader({
       </div>
       {isAdminOrHR && (
         <div className="payroll-header-actions">
-          <button className="gradient-btn" onClick={onUploadClick} type="button">
-            <FileSpreadsheet size={16} />
-            <span>Upload Payments Sheet</span>
-          </button>
-          <button
-            className="gradient-btn"
+          <Button type="button" icon={<FileSpreadsheet size={16} />} onClick={onUploadClick}>
+            Upload Payments Sheet
+          </Button>
+          <Button
+            type="button"
+            icon={<RefreshCw size={16} className={actionLoading ? "spin" : ""} />}
             onClick={onBulkProcess}
             disabled={actionLoading}
-            type="button"
           >
-            <RefreshCw size={16} className={actionLoading ? "spin" : ""} />
-            <span>Process Bulk Payroll</span>
-          </button>
+            Process Bulk Payroll
+          </Button>
         </div>
       )}
     </div>
