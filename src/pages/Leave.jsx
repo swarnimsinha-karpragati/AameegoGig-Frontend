@@ -48,51 +48,61 @@ const leaveStatusClass = {
   Cancelled: "leave-status cancelled",
 };
 
+const LEAVE_STAT_THEMES = {
+  wfh: { bg: "indigo-bg", color: "#3b82f6" },
+  leave: { bg: "green-bg", color: "#10b981" },
+  pending: { bg: "red-bg", color: "#ef4444" },
+  balance: { bg: "amber-bg", color: "#f59e0b" },
+};
+
 function LeaveSummaryCards({ summary, labels }) {
   const cards = [
     {
       key: "wfh",
+      themeKey: "wfh",
       icon: Home,
-      iconClass: "blue",
       value: summary.wfhDaysThisMonth || 0,
       label: labels?.wfh || "WFH Days (This Month)",
     },
     {
       key: "leave",
+      themeKey: "leave",
       icon: Calendar,
-      iconClass: "green",
       value: summary.leaveDaysThisMonth || 0,
       label: labels?.leave || "Leave Days (This Month)",
     },
     {
       key: "pending",
+      themeKey: "pending",
       icon: Clock3,
-      iconClass: "amber",
       value: summary.pendingRequests || 0,
       label: labels?.pending || "Pending Requests",
     },
     {
       key: "balance",
+      themeKey: "balance",
       icon: UserCheck2,
-      iconClass: "purple",
       value: summary.totalBalance || 0,
       label: labels?.balance || "Total Balance",
     },
   ];
 
   return (
-    <div className="leave-summary-grid">
-      {cards.map(({ key, icon: Icon, iconClass, value, label }) => (
-        <article key={key} className="leave-summary-card">
-          <div className={`leave-icon ${iconClass}`}>
-            <Icon size={20} />
+    <div className="payroll-stats-grid">
+      {cards.map(({ key, themeKey, icon: Icon, value, label }) => {
+        const theme = LEAVE_STAT_THEMES[themeKey];
+        return (
+          <div key={key} className="stat-card glass-morphism">
+            <div className={`stat-icon-wrapper ${theme.bg}`}>
+              <Icon size={18} color={theme.color} />
+            </div>
+            <div>
+              <p className="stat-label">{label}</p>
+              <h3 className="stat-value">{value}</h3>
+            </div>
           </div>
-          <div>
-            <h3>{value}</h3>
-            <p>{label}</p>
-          </div>
-        </article>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -186,14 +196,34 @@ function LeaveInner() {
     setLoading(true);
     setError("");
     try {
-      const [dashRes, reqRes, balRes] = await Promise.all([
+      const [dashResult, reqResult, balResult] = await Promise.allSettled([
         getLeaveDashboard(),
         getLeaveRequests(),
         getLeaveBalances(),
       ]);
-      setDashboard(dashRes);
-      setRequests(reqRes.requests || []);
-      setBalances(Array.isArray(balRes.balances) ? balRes.balances : []);
+
+      if (dashResult.status === "rejected") {
+        throw dashResult.reason;
+      }
+      if (reqResult.status === "rejected") {
+        throw reqResult.reason;
+      }
+
+      setDashboard(dashResult.value);
+      setRequests(reqResult.value.requests || []);
+
+      if (balResult.status === "fulfilled") {
+        const balRes = balResult.value;
+        setBalances(Array.isArray(balRes.balances) ? balRes.balances : []);
+      } else {
+        setBalances([]);
+        const balanceMessage =
+          balResult.reason?.response?.data?.message ||
+          balResult.reason?.message;
+        if (balanceMessage && balanceMessage !== "Route not found") {
+          console.warn("Leave balances unavailable:", balanceMessage);
+        }
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load leave data");
     } finally {
@@ -352,84 +382,122 @@ function LeaveInner() {
     showEmployeeSelect,
     forSelf = false
   ) => (
-    <section className="leave-card">
-      <h3>
-        <Plus size={16} />{" "}
-        {forSelf ? "Apply for My Leave" : "Create Request"}
-      </h3>
+    <section className="leave-panel leave-glass">
+      <header className="leave-panel__head">
+        <h3>
+          <Plus size={16} />
+          {forSelf ? "Apply for My Leave" : "Create Request"}
+        </h3>
+      </header>
       <form
-        className="leave-request-form"
+        className="leave-form-grid"
         onSubmit={(e) => handleCreateRequest(e, forSelf)}
       >
         {showEmployeeSelect ? (
+          <div className="leave-field leave-field--wide">
+            <label htmlFor="leave-employee">Employee</label>
+            <select
+              id="leave-employee"
+              className="leave-control"
+              value={leaveForm.employeeId}
+              onChange={(e) =>
+                setLeaveForm((p) => ({ ...p, employeeId: e.target.value }))
+              }
+            >
+              {employeeList.map((emp) => (
+                <option key={emp._id} value={emp._id}>
+                  {emp.employeeCode} - {emp.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        <div className="leave-field">
+          <label htmlFor="leave-request-type">Request Type</label>
           <select
-            value={leaveForm.employeeId}
+            id="leave-request-type"
+            className="leave-control"
+            value={leaveForm.requestType}
             onChange={(e) =>
-              setLeaveForm((p) => ({ ...p, employeeId: e.target.value }))
+              setLeaveForm((p) => ({ ...p, requestType: e.target.value }))
             }
           >
-            {employeeList.map((emp) => (
-              <option key={emp._id} value={emp._id}>
-                {emp.employeeCode} - {emp.name}
-              </option>
-            ))}
+            <option value="Leave">Leave</option>
+            <option value="WFH">WFH</option>
           </select>
-        ) : null}
-        <select
-          value={leaveForm.requestType}
-          onChange={(e) =>
-            setLeaveForm((p) => ({ ...p, requestType: e.target.value }))
-          }
-        >
-          <option value="Leave">Leave</option>
-          <option value="WFH">WFH</option>
-        </select>
-        <select
-          value={leaveForm.leaveType}
-          onChange={(e) =>
-            setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))
-          }
-        >
-          <option value="CL">Casual Leave (CL)</option>
-          <option value="SL">Sick Leave (SL)</option>
-          <option value="EL">Earned Leave (EL)</option>
-          <option value="CO">Comp Off (CO)</option>
-          <option value="LOP">Loss of Pay (LOP)</option>
-          <option value="LWP">Leave Without Pay (LWP)</option>
-          <option value="WFH">WFH</option>
-        </select>
-        <input
-          type="date"
-          value={leaveForm.startDate}
-          onChange={(e) =>
-            setLeaveForm((p) => ({ ...p, startDate: e.target.value }))
-          }
-          required
-        />
-        <input
-          type="date"
-          value={leaveForm.endDate}
-          onChange={(e) =>
-            setLeaveForm((p) => ({ ...p, endDate: e.target.value }))
-          }
-          required
-        />
-        <input
-          type="text"
-          placeholder="Reason"
-          value={leaveForm.reason}
-          onChange={(e) =>
-            setLeaveForm((p) => ({ ...p, reason: e.target.value }))
-          }
-        />
-        <button type="submit">Submit Request</button>
+        </div>
+        <div className="leave-field">
+          <label htmlFor="leave-type">Leave Type</label>
+          <select
+            id="leave-type"
+            className="leave-control"
+            value={leaveForm.leaveType}
+            onChange={(e) =>
+              setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))
+            }
+          >
+            <option value="CL">Casual Leave (CL)</option>
+            <option value="SL">Sick Leave (SL)</option>
+            <option value="EL">Earned Leave (EL)</option>
+            <option value="CO">Comp Off (CO)</option>
+            <option value="LOP">Loss of Pay (LOP)</option>
+            <option value="LWP">Leave Without Pay (LWP)</option>
+            <option value="WFH">WFH</option>
+          </select>
+        </div>
+        <div className="leave-field">
+          <label htmlFor="leave-start">Start Date</label>
+          <input
+            id="leave-start"
+            type="date"
+            className="leave-control"
+            value={leaveForm.startDate}
+            onChange={(e) =>
+              setLeaveForm((p) => ({ ...p, startDate: e.target.value }))
+            }
+            required
+          />
+        </div>
+        <div className="leave-field">
+          <label htmlFor="leave-end">End Date</label>
+          <input
+            id="leave-end"
+            type="date"
+            className="leave-control"
+            value={leaveForm.endDate}
+            onChange={(e) =>
+              setLeaveForm((p) => ({ ...p, endDate: e.target.value }))
+            }
+            required
+          />
+        </div>
+        <div className="leave-field leave-field--full">
+          <label htmlFor="leave-reason">Reason</label>
+          <input
+            id="leave-reason"
+            type="text"
+            className="leave-control"
+            placeholder="Optional reason for leave"
+            value={leaveForm.reason}
+            onChange={(e) =>
+              setLeaveForm((p) => ({ ...p, reason: e.target.value }))
+            }
+          />
+        </div>
+        <div className="leave-form-actions">
+          <button type="submit" className="leave-btn leave-btn--primary">
+            Submit Request
+          </button>
+        </div>
       </form>
     </section>
   );
 
   const renderUpcomingList = (items, emptyText = "No upcoming schedule") => (
-    <section className="leave-card">
-      <h3>Upcoming (Next 7 Days)</h3>
+    <section className="leave-panel leave-glass">
+      <header className="leave-panel__head">
+        <h3>Upcoming (Next 7 Days)</h3>
+      </header>
       <div className="leave-list">
         {items.length === 0 ? (
           <p className="leave-empty">{emptyText}</p>
@@ -454,8 +522,11 @@ function LeaveInner() {
   );
 
   const renderRequestsTable = ({ title, items, mode }) => (
-    <section className="leave-card">
-      <h3>{title}</h3>
+    <section className="leave-panel leave-glass">
+      <header className="leave-panel__head">
+        <h3>{title}</h3>
+      </header>
+      <div className="leave-table-wrap">
       <table className="leave-table">
         <thead>
           <tr>
@@ -520,7 +591,6 @@ function LeaveInner() {
                   ) : mode === "employee" && item.status === "Pending" ? (
                     <button
                       type="button"
-                      id='leave-cancel-btn'
                       className="leave-cancel-btn"
                       onClick={() => handleCancel(item._id)}
                     >
@@ -535,16 +605,19 @@ function LeaveInner() {
           })}
         </tbody>
       </table>
+      </div>
     </section>
   );
 
   const renderBalanceEditor = (balanceList, readOnly = false) => (
-    <section className="leave-card">
-      <h3>
-        {readOnly || !canEditBalances
-          ? "Team Leave Balances"
-          : "Manage Leave Balances"}
-      </h3>
+    <section className="leave-panel leave-glass">
+      <header className="leave-panel__head">
+        <h3>
+          {readOnly || !canEditBalances
+            ? "Team Leave Balances"
+            : "Manage Leave Balances"}
+        </h3>
+      </header>
       {readOnly || !canEditBalances ? (
         <div className="leave-balance-list">
           {balanceList.length === 0 ? (
@@ -572,52 +645,75 @@ function LeaveInner() {
         </div>
       ) : (
         <form className="balance-editor" onSubmit={handleSaveBalances}>
-          <select
-            value={selectedBalanceEmployee}
-            onChange={(e) => setSelectedBalanceEmployee(e.target.value)}
-          >
-            {balanceList.map((b) => (
-              <option key={b.employeeId} value={b.employeeId}>
-                {b.employeeCode} - {b.name}
-              </option>
-            ))}
-          </select>
+          <div className="leave-field">
+            <label htmlFor="balance-employee">Employee</label>
+            <select
+              id="balance-employee"
+              className="leave-control"
+              value={selectedBalanceEmployee}
+              onChange={(e) => setSelectedBalanceEmployee(e.target.value)}
+            >
+              {balanceList.map((b) => (
+                <option key={b.employeeId} value={b.employeeId}>
+                  {b.employeeCode} - {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="leave-balance-grid">
           {["CL", "SL", "EL", "CO"].map((type) => (
             <div key={type} className="balance-row">
-              <label>{type}</label>
-              <input
-                type="number"
-                placeholder="Total"
-                value={balanceForm[type]?.total ?? ""}
-                onChange={(e) =>
-                  setBalanceForm((prev) => ({
-                    ...prev,
-                    [type]: { ...prev[type], total: e.target.value },
-                  }))
-                }
-              />
-              <input
-                type="number"
-                placeholder="Used"
-                value={balanceForm[type]?.used ?? ""}
-                onChange={(e) =>
-                  setBalanceForm((prev) => ({
-                    ...prev,
-                    [type]: { ...prev[type], used: e.target.value },
-                  }))
-                }
-              />
+              <span className="balance-row__type">{type}</span>
+              <div className="leave-field balance-row__field">
+                <label htmlFor={`balance-${type}-total`}>Total</label>
+                <input
+                  id={`balance-${type}-total`}
+                  type="number"
+                  className="leave-control"
+                  placeholder="0"
+                  value={balanceForm[type]?.total ?? ""}
+                  onChange={(e) =>
+                    setBalanceForm((prev) => ({
+                      ...prev,
+                      [type]: { ...prev[type], total: e.target.value },
+                    }))
+                  }
+                />
+              </div>
+              <div className="leave-field balance-row__field">
+                <label htmlFor={`balance-${type}-used`}>Used</label>
+                <input
+                  id={`balance-${type}-used`}
+                  type="number"
+                  className="leave-control"
+                  placeholder="0"
+                  value={balanceForm[type]?.used ?? ""}
+                  onChange={(e) =>
+                    setBalanceForm((prev) => ({
+                      ...prev,
+                      [type]: { ...prev[type], used: e.target.value },
+                    }))
+                  }
+                />
+              </div>
             </div>
           ))}
-          <button type="submit">Save Balances</button>
+          </div>
+          <div className="leave-form-actions">
+            <button type="submit" className="leave-btn leave-btn--primary">
+              Save Balances
+            </button>
+          </div>
         </form>
       )}
     </section>
   );
 
   const renderPersonalBalances = () => (
-    <section className="leave-card">
-      <h3>My Leave Balances</h3>
+    <section className="leave-panel leave-glass">
+      <header className="leave-panel__head">
+        <h3>My Leave Balances</h3>
+      </header>
       <div className="leave-balance-list">
         {(dashboard?.balances || []).length === 0 ? (
           <p className="leave-empty">No balance data available</p>
@@ -638,9 +734,11 @@ function LeaveInner() {
   const renderMyLeaveSection = () => {
     if (!canApplyForSelf) {
       return (
-        <section className="leave-card leave-self-notice">
-          <h3>My Leave</h3>
-          <p className="leave-empty">
+        <section className="leave-panel leave-glass leave-self-notice">
+          <header className="leave-panel__head">
+            <h3>My Leave</h3>
+          </header>
+          <p className="leave-empty leave-empty--inline">
             Link your user account to an employee profile to apply for leave and
             view your personal balances.
           </p>
@@ -666,8 +764,11 @@ function LeaveInner() {
   };
 
   const renderAllRequestsTable = (items, title = "All Requests") => (
-    <section className="leave-card">
-      <h3>{title}</h3>
+    <section className="leave-panel leave-glass leave-panel--wide">
+      <header className="leave-panel__head">
+        <h3>{title}</h3>
+      </header>
+      <div className="leave-table-wrap">
       <table className="leave-table">
         <thead>
           <tr>
@@ -706,10 +807,9 @@ function LeaveInner() {
           ))}
         </tbody>
       </table>
+      </div>
     </section>
   );
-
-  /* ── Role views ── */
   const renderOrganizationView = () => (
     <>
       <LeaveSummaryCards summary={summary} />
@@ -827,14 +927,14 @@ function LeaveInner() {
   return (
     <MainLayout>
       <div className="leave-page">
-        <div className="leave-view-toolbar">
-          <div className="leave-view-toolbar-text">
-            <h1>Leave</h1>
-            <p>{ROLE_DESCRIPTIONS[viewRole]}</p>
+        <div className="leave-header-banner">
+          <div>
+            <h1 className="leave-title">Leave</h1>
+            <p className="leave-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
           </div>
         </div>
 
-        {error ? <p className="leave-error">{error}</p> : null}
+        {error ? <p className="leave-alert leave-alert--error">{error}</p> : null}
 
         {roleViews[viewRole]?.()}
 

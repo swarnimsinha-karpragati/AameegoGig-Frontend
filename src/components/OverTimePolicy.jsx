@@ -161,15 +161,15 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
   return (
     <div className="ot-container">
       <div className="ot-header">
-        <h1>{editingPolicy ? 'Modify Overtime Policy' : 'Overtime Policy Configuration'}</h1>
-        <p>Define triggers and compensation actions matching your organizational schema rules.</p>
+        <h3>{editingPolicy ? "Modify Overtime Policy" : "Overtime Policy Configuration"}</h3>
+        <p>Define triggers and compensation actions for overtime hours.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="ot-form">
 
         <div className="ot-section">
-          <h3>1. Tracking Metrics</h3>
-          <div className="ot-bg-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h4 className="ot-section-title">1. Tracking Metrics</h4>
+          <div className="ot-bg-box">
             <div>
               <label className="ot-label">Policy Name</label>
               <input
@@ -207,7 +207,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         <hr className="ot-divider" />
 
         <div className="ot-section">
-          <h3>2. Overtime Action Rules</h3>
+          <h4 className="ot-section-title">2. Overtime Action Rules</h4>
 
           <div className="ot-strategy-group">
             <label className={`ot-card ${policyData.OverTimeAction === 'Incentive' ? 'Active' : ''}`}>
@@ -324,7 +324,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         <hr className="ot-divider" />
 
         <div className="ot-section">
-          <h3>3. Applicable Custom Shift Days</h3>
+          <h4 className="ot-section-title">3. Applicable Days</h4>
           <div className="ot-days-flex">
             {daysOfWeek.map((day) => {
               const isSelected = policyData.applicableDays.includes(day);

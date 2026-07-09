@@ -94,27 +94,37 @@ function SessionLocationLink({ location, prefix }) {
   );
 }
 
+const ATTENDANCE_STAT_THEMES = {
+  Present: { bg: "green-bg", color: "#10b981" },
+  Absent: { bg: "red-bg", color: "#ef4444" },
+  "Half Day": { bg: "amber-bg", color: "#f59e0b" },
+  Late: { bg: "indigo-bg", color: "#3b82f6" },
+};
+
 function AttendanceStats({ stats, labels }) {
   const items = [
-    { key: "Present", icon: UserCheck, className: "present", label: labels?.Present || "Present" },
-    { key: "Absent", icon: UserX, className: "absent", label: labels?.Absent || "Absent" },
-    { key: "Half Day", icon: TriangleAlert, className: "half-day", label: labels?.["Half Day"] || "Half Day" },
-    { key: "Late", icon: Clock, className: "late", label: labels?.Late || "Late" },
+    { key: "Present", icon: UserCheck, label: labels?.Present || "Present" },
+    { key: "Absent", icon: UserX, label: labels?.Absent || "Absent" },
+    { key: "Half Day", icon: TriangleAlert, label: labels?.["Half Day"] || "Half Day" },
+    { key: "Late", icon: Clock, label: labels?.Late || "Late" },
   ];
 
   return (
-    <div className="attendance-stats">
-      {items.map(({ key, icon: Icon, className, label }) => (
-        <article key={key} className="attendance-stat-card">
-          <div className={`attendance-stat-icon ${className}`}>
-            <Icon size={22} strokeWidth={2} />
+    <div className="payroll-stats-grid">
+      {items.map(({ key, icon: Icon, label }) => {
+        const theme = ATTENDANCE_STAT_THEMES[key];
+        return (
+          <div key={key} className="stat-card glass-morphism">
+            <div className={`stat-icon-wrapper ${theme.bg}`}>
+              <Icon size={18} color={theme.color} />
+            </div>
+            <div>
+              <p className="stat-label">{label}</p>
+              <h3 className="stat-value">{stats[key] || 0}</h3>
+            </div>
           </div>
-          <div className="attendance-stat-body">
-            <span className="attendance-stat-label">{label}</span>
-            <strong>{stats[key] || 0}</strong>
-          </div>
-        </article>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -208,10 +218,12 @@ function DaySessionsPanel({ day, monthLabel, records = [], showEmployee = false,
   if (!day) return null;
 
   return (
-    <section className="attendance-day-sessions-card">
-      <h2>
-        Sessions — {monthLabel} {day}
-      </h2>
+    <section className="attendance-panel attendance-glass attendance-day-sessions-card">
+      <header className="attendance-panel__head">
+        <h2>
+          Sessions — {monthLabel} {day}
+        </h2>
+      </header>
       {holiday ? (
         <div className="attendance-holiday-banner">
           <strong>{holiday.name}</strong>
@@ -275,8 +287,8 @@ function AttendanceCalendar({
   onNext,
 }) {
   return (
-    <section className="attendance-calendar-card">
-      <div className="calendar-toolbar">
+    <section className="attendance-panel attendance-glass attendance-calendar-card">
+      <header className="attendance-panel__head calendar-toolbar">
         <h2>{monthLabel}</h2>
         <div className="calendar-nav">
           <button type="button" aria-label="Previous month" onClick={onPrev}>
@@ -286,7 +298,7 @@ function AttendanceCalendar({
             <ChevronRight size={18} />
           </button>
         </div>
-      </div>
+      </header>
 
       <div className="calendar-weekdays">
         {WEEKDAYS.map((day) => (
@@ -375,8 +387,10 @@ function TodayAttendanceTable({ title, rows, loading, showActions = false }) {
   const [expandedRowId, setExpandedRowId] = useState(null);
 
   return (
-    <section className="attendance-table-card">
-      <h2>{title}</h2>
+    <section className="attendance-panel attendance-glass attendance-table-card">
+      <header className="attendance-panel__head">
+        <h2>{title}</h2>
+      </header>
       <div className="attendance-table-wrap">
         <table className="attendance-table">
           <thead>
@@ -996,13 +1010,16 @@ console.log(myLatestCheckInSelfieUrl);
   };
 
   const renderMarkForm = (employeeList, title) => (
-    <section className="attendance-mark-card">
-      <h2>{title}</h2>
+    <section className="attendance-panel attendance-glass attendance-mark-card">
+      <header className="attendance-panel__head">
+        <h2>{title}</h2>
+      </header>
       <form className="attendance-mark-form" onSubmit={handleMarkAttendance}>
-        <div className="attendance-form-field">
+        <div className="attendance-field">
           <label htmlFor="mark-employee">Employee</label>
           <select
             id="mark-employee"
+            className="attendance-control"
             value={markForm.employeeId}
             onChange={(e) =>
               setMarkForm((prev) => ({ ...prev, employeeId: e.target.value }))
@@ -1016,10 +1033,11 @@ console.log(myLatestCheckInSelfieUrl);
           </select>
         </div>
 
-        <div className="attendance-form-field">
+        <div className="attendance-field">
           <label htmlFor="mark-status">Status</label>
           <select
             id="mark-status"
+            className="attendance-control"
             value={markForm.status}
             onChange={(e) =>
               setMarkForm((prev) => ({ ...prev, status: e.target.value }))
@@ -1032,37 +1050,40 @@ console.log(myLatestCheckInSelfieUrl);
           </select>
         </div>
 
-        <div className="attendance-form-field">
+        <div className="attendance-field">
           <label htmlFor="mark-check-in">Check In</label>
           <input
             id="mark-check-in"
             type="time"
+            className="attendance-control"
             value={markForm.checkIn}
             onChange={(e) =>
               setMarkForm((prev) => ({ ...prev, checkIn: e.target.value }))
             }
-            disabled={markForm?.status === 'Absent'}
+            disabled={markForm?.status === "Absent"}
           />
         </div>
 
-        <div className="attendance-form-field">
+        <div className="attendance-field">
           <label htmlFor="mark-check-out">Check Out</label>
           <input
             id="mark-check-out"
             type="time"
+            className="attendance-control"
             value={markForm.checkOut}
             onChange={(e) =>
               setMarkForm((prev) => ({ ...prev, checkOut: e.target.value }))
             }
-            disabled={markForm?.status === 'Absent'}
+            disabled={markForm?.status === "Absent"}
           />
         </div>
 
-        <div className="attendance-form-field">
+        <div className="attendance-field attendance-field--full">
           <label htmlFor="mark-notes">Notes</label>
           <input
             id="mark-notes"
             type="text"
+            className="attendance-control"
             placeholder="Optional notes"
             value={markForm.notes}
             onChange={(e) =>
@@ -1071,11 +1092,10 @@ console.log(myLatestCheckInSelfieUrl);
           />
         </div>
 
-        <div className="attendance-form-field attendance-form-submit">
-          <span className="attendance-form-label-spacer" aria-hidden="true">
-            &nbsp;
-          </span>
-          <button type="submit">Save</button>
+        <div className="attendance-form-actions">
+          <button type="submit" className="attendance-btn attendance-btn--primary">
+            Save
+          </button>
         </div>
       </form>
     </section>
@@ -1191,14 +1211,14 @@ console.log(myLatestCheckInSelfieUrl);
   return (
     <MainLayout>
       <div className="attendance-page">
-        <div className="attendance-view-toolbar">
-          <div className="attendance-view-toolbar-text">
-            <h1>Attendance</h1>
-            <p>{ROLE_DESCRIPTIONS[viewRole]}</p>
+        <div className="attendance-header-banner">
+          <div>
+            <h1 className="attendance-title">Attendance</h1>
+            <p className="attendance-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
           </div>
         </div>
 
-        {error ? <p className="attendance-error">{error}</p> : null}
+        {error ? <p className="attendance-alert attendance-alert--error">{error}</p> : null}
         {roleViews[viewRole]?.()}
 
         <SelfieCapture

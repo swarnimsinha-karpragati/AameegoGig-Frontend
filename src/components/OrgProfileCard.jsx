@@ -117,7 +117,9 @@ export default function OrgProfileCard() {
             <Upload size={15} />
             {uploading ? "Uploading…" : "Upload Logo"}
           </button>
-          <p className="org-profile-card__hint">PNG or JPG, max 2 MB. Used on all payslips for this organization.</p>
+            <p className="org-profile-card__hint">
+              PNG or JPG, max 2 MB. Used on all payslips for this organization.
+            </p>
           <input
             ref={fileRef}
             type="file"
@@ -160,17 +162,20 @@ export default function OrgProfileCard() {
         </label>
       </div>
 
-      {message && <p className="org-profile-card__msg success">{message}</p>}
-      {error && <p className="org-profile-card__msg error">{error}</p>}
-
-      <button
-        type="button"
-        className="org-profile-card__save"
-        onClick={handleSave}
-        disabled={saving}
-      >
-        {saving ? "Saving…" : "Save Organization Profile"}
-      </button>
+      <div className="org-profile-card__footer">
+        <div>
+          {message ? <p className="org-profile-card__msg success">{message}</p> : null}
+          {error ? <p className="org-profile-card__msg error">{error}</p> : null}
+        </div>
+        <button
+          type="button"
+          className="org-profile-card__save"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "Saving…" : "Save Organization Profile"}
+        </button>
+      </div>
     </div>
   );
 }
