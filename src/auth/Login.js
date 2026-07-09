@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { loginUser } from "../services/authService";
 import logo from "../assets/logo.png";
+import Button from "../components/Button";
 
 function Login() {
   const navigate = useNavigate();
@@ -158,7 +159,7 @@ function Login() {
               </div>
             )}
 
-            <button
+            <Button
               type="submit"
               disabled={isLoading}
             >
@@ -167,7 +168,7 @@ function Login() {
                 : is2FA 
                   ? "Verify & Confirm Login" 
                   : "Login"}
-            </button>
+            </Button>
           </form>
 
           {error && (

@@ -22,6 +22,7 @@ import {
     downloadDocument,
     getEmployeeDocuments,
   } from "../services/documentService";
+import Button from "../components/Button";
   
   function Documents() {
     /* =========================
@@ -333,15 +334,15 @@ import {
                   (
                     category
                   ) => (
-                    <button
+                    <Button
                       key={
                         category
                       }
-                      className={`filter-btn ${
+                      className={`${
                         activeCategory ===
                         category
                           ? "active"
-                          : ""
+                          : "not-active"
                       }`}
                       onClick={() =>
                         setActiveCategory(
@@ -352,7 +353,7 @@ import {
                       {
                         category
                       }
-                    </button>
+                    </Button>
                   )
                 )}
               </div>

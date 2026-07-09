@@ -15,7 +15,8 @@ import {
   Eye,
   Pencil,
   Trash2,
-  X
+  X,
+  Plus
 } from "lucide-react";
 
 import "./Department.css";
@@ -298,7 +299,7 @@ function Departments() {
           </div>
 
           <div className="manage-depts-actions">
-            <Button  onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
+            <Button  icon={<Plus size={20} />} onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
               Add Department
             </Button>
           </div>

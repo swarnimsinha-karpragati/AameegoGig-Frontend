@@ -963,27 +963,26 @@ function Employees() {
           {/* ACTION BUTTONS */}
           <div className="toolbar-actions">
 
-            <button
-              className="upload-btn"
+            <Button
+              className="secondary-btn"
+              icon={<Upload size={18} />}
               onClick={() => {
                 setShowUploadModal(true)
                 setUploadMessage("")
                 setUploadFile(null)
               }}
             >
-              <Upload size={18} />
               Bulk Upload
-            </button>
+            </Button>
 
-            <button
-              className="add-btn"
+            <Button
+              icon={<Plus size={18} />}
               onClick={() =>
                 setShowAddModal(true)
               }
             >
-              <Plus size={18} />
               Add Employee
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -1136,9 +1135,9 @@ function Employees() {
             size="lg"
             footer={
               <>
-                <button
+                <Button
                   type="button"
-                  className="emp-btn emp-btn--secondary"
+                  className="secondary-btn"
                   onClick={() => {
                     setShowAddModal(false);
                     setSalaryDraft(initialSalaryDraft);
@@ -1146,14 +1145,14 @@ function Employees() {
                   }}
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   form="add-employee-form"
-                  className="emp-btn emp-btn--primary"
+                  
                 >
                   Save Employee
-                </button>
+                </Button>
               </>
             }
           >
@@ -1260,20 +1259,20 @@ function Employees() {
             footer={
               isEditing ? (
                 <>
-                  <button
+                  <Button
                     type="button"
-                    className="emp-btn emp-btn--secondary"
+                    className="secondary-btn"
                     onClick={() => {setSelectedEmployee(null); setErrors({})}}
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="emp-btn emp-btn--primary"
+                   
                     onClick={handleUpdate}
                   >
                     Save Changes
-                  </button>
+                  </Button>
                 </>
               ) : null
             }
@@ -1638,15 +1637,16 @@ function Employees() {
             onClose={() => setShowDocumentsModal(false)}
             size="md"
             footer={
-              <button
+              <Button
                 type="button"
-                className="emp-btn emp-btn--primary emp-btn--block"
+                icon={<Upload size={16} />}
                 onClick={handleUploadDocument}
                 disabled={!documentFile}
+                style={{flex:1}}
               >
-                <Upload size={16} />
+                
                 Upload Document
-              </button>
+              </Button>
             }
           >
             <div className="emp-doc-hero">
