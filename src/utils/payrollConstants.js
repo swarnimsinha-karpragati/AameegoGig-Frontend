@@ -36,6 +36,9 @@ const PAYROLL_STATUS_LABELS = {
   Processed: "Processed",
   Pending: "Pending",
   Failed: "Failed",
+  pass: "Pass",
+  warn: "Warn",
+  fail: "Fail",
 };
 
 /** Human-readable label for payroll run / slip status values. */

@@ -15,10 +15,12 @@ export default function PayrollProcessorTab({
   onBulkCalculate,
 }) {
   return (
-    <div className="payroll-processor-card glass-morphism">
-      <div className="processor-head">
-        <h2>Run Engine Calculation</h2>
-        <p>Select time parameters and choose whether to preview a single resource or calculate in bulk.</p>
+    <div className="history-table-container glass-morphism">
+      <div className="table-header-filters">
+        <div>
+          <h2>Run Engine Calculation</h2>
+          <p className="subtitle">Select time parameters and choose whether to preview a single resource or calculate in bulk</p>
+        </div>
       </div>
 
       <div className="processor-controls">

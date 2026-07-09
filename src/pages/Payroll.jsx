@@ -58,6 +58,7 @@ export default function Payroll() {
 
   const [employees, setEmployees] = useState([]);
   const [payrollHistory, setPayrollHistory] = useState([]);
+  const [notLinkedToEmployee, setNotLinkedToEmployee] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [activeRun, setActiveRun] = useState(null);
   const [runPayrolls, setRunPayrolls] = useState([]);
@@ -129,6 +130,7 @@ export default function Payroll() {
       } else {
         const payrollRes = await getAllPayrollRecords();
         setPayrollHistory(payrollRes.data?.data || []);
+        setNotLinkedToEmployee(Boolean(payrollRes.data?.notLinked));
       }
     } catch (error) {
       console.error("Error loading payroll dashboard data:", error);
@@ -536,6 +538,7 @@ export default function Payroll() {
         {activeTab === (isAdminOrHR ? "slips" : "my_slips") && (
           <PayrollSlipsTab
             isAdminOrHR={isAdminOrHR}
+            notLinkedToEmployee={notLinkedToEmployee}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             searchQuery={searchQuery}

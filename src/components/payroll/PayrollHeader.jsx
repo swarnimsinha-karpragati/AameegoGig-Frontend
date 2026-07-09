@@ -13,8 +13,8 @@ export default function PayrollHeader({
         <h1 className="payroll-title">Payroll Hub</h1>
         <p className="payroll-subtitle">
           {isAdminOrHR
-            ? "Configure, run and reconcile employee payroll disbursements."
-            : "View your historical salary payslips and earnings trends."}
+            ? "Configure, run and reconcile employee payroll disbursements"
+            : "View your historical salary payslips and earnings trends"}
         </p>
       </div>
       {isAdminOrHR && (

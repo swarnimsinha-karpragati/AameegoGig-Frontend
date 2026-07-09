@@ -196,7 +196,7 @@ export default function SalaryComponentManager() {
       <div className="salary-cm__head">
         <div>
           <h3>Salary Components</h3>
-          <p>Define your organization's earnings and deductions. Fully dynamic per client.</p>
+          <p>Set up what gets added to salary (earnings) and what gets taken out (deductions).</p>
         </div>
         <div className="salary-cm__actions">
           {templates.length > 0 && (
@@ -294,7 +294,7 @@ export default function SalaryComponentManager() {
                   </select>
                 </div>
                 <div className="salary-cm__field">
-                  <label>Calculation Type</label>
+                  <label>How is it calculated?</label>
                   <select
                     value={form.calculationType}
                     onChange={(e) => handleChange("calculationType", e.target.value)}
@@ -321,7 +321,7 @@ export default function SalaryComponentManager() {
               {form.calculationType === "PercentOfComponent" && (
                 <div className="salary-cm__grid2">
                   <div className="salary-cm__field">
-                    <label>Base Component Code</label>
+                    <label>Percentage of which component?</label>
                     <input
                       value={form.baseComponent}
                       onChange={(e) => handleChange("baseComponent", e.target.value.toUpperCase())}
@@ -329,7 +329,7 @@ export default function SalaryComponentManager() {
                     />
                   </div>
                   <div className="salary-cm__field">
-                    <label>Rate (e.g. 0.12 = 12%)</label>
+                    <label>Percentage (enter 0.12 for 12%)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -342,7 +342,7 @@ export default function SalaryComponentManager() {
 
               {(form.calculationType === "PercentOfGross" || form.calculationType === "PercentOfCTC") && (
                 <div className="salary-cm__field">
-                  <label>Rate (e.g. 0.0075 = 0.75%)</label>
+                  <label>Percentage (enter 0.0075 for 0.75%)</label>
                   <input
                     type="number"
                     step="0.0001"
@@ -355,7 +355,7 @@ export default function SalaryComponentManager() {
               {form.calculationType === "SlabBased" && (
                 <>
                   <div className="salary-cm__field">
-                    <label>PT State (when no custom slabs)</label>
+                    <label>State (for standard tax slabs)</label>
                     <select
                       value={form.slabStateKey || ""}
                       onChange={(e) => handleChange("slabStateKey", e.target.value)}
@@ -367,8 +367,8 @@ export default function SalaryComponentManager() {
                     </select>
                   </div>
                   <div className="salary-cm__field">
-                    <label>Custom Slabs (optional)</label>
-                    <div className="salary-cm__hint">Leave empty to use state PT slabs. Format: from-to=fixed per row.</div>
+                    <label>Custom slabs (optional)</label>
+                    <div className="salary-cm__hint">Leave empty to use the state's standard slabs. Each row is a salary range with a fixed deduction.</div>
                     {(form.slabs || []).map((slab, idx) => (
                       <div key={idx} className="salary-cm__grid2" style={{ marginTop: 8 }}>
                         <input
@@ -426,20 +426,20 @@ export default function SalaryComponentManager() {
 
               {form.calculationType === "Formula" && (
                 <div className="salary-cm__field">
-                  <label>Formula Expression</label>
+                  <label>Custom formula (advanced)</label>
                   <input
                     value={form.formulaExpression || ""}
                     onChange={(e) => handleChange("formulaExpression", e.target.value)}
                     placeholder="e.g. min(0.12 * BASIC, 1800)"
                   />
                   <div className="salary-cm__hint">
-                    Use component codes (BASIC, HRA), GROSS, CTC, and min/max operators.
+                    Use component codes (BASIC, HRA), GROSS, CTC, and min/max.
                   </div>
                 </div>
               )}
 
               <div className="salary-cm__field">
-                <label>Departments (comma-separated, empty = all)</label>
+                <label>Only for these departments (leave blank for everyone)</label>
                 <input
                   value={
                     form.departmentsText ??
@@ -452,7 +452,7 @@ export default function SalaryComponentManager() {
 
               <div className="salary-cm__grid2">
                 <div className="salary-cm__field">
-                  <label>Threshold (apply only if base ≤)</label>
+                  <label>Only applies below this salary (optional)</label>
                   <input
                     type="number"
                     value={form.threshold ?? ""}
@@ -461,7 +461,7 @@ export default function SalaryComponentManager() {
                   />
                 </div>
                 <div className="salary-cm__field">
-                  <label>Cap (max amount)</label>
+                  <label>Maximum amount (optional)</label>
                   <input
                     type="number"
                     value={form.cap ?? ""}
@@ -478,17 +478,17 @@ export default function SalaryComponentManager() {
                     checked={Boolean(form.isEmployerContribution)}
                     onChange={(e) => handleChange("isEmployerContribution", e.target.checked)}
                   />
-                  Employer contribution (info on payslip, not deducted from net)
+                  Paid by the company — shown on payslip, not deducted from employee's pay
                 </label>
               )}
               <label className="salary-cm__check">
                 <input type="checkbox" checked={form.isStatutory} onChange={(e) => handleChange("isStatutory", e.target.checked)} />
-                Statutory (PF/ESIC/PT/TDS)
+                Required by law (like PF, ESIC, professional tax)
               </label>
               {form.category === "Earning" && (
                 <label className="salary-cm__check">
                   <input type="checkbox" checked={form.isProRata} onChange={(e) => handleChange("isProRata", e.target.checked)} />
-                  Apply LOP pro-rata to this earning
+                  Reduce this amount for unpaid / absent days
                 </label>
               )}
               <label className="salary-cm__check">

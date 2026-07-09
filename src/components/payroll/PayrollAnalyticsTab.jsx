@@ -6,10 +6,12 @@ import {
 
 export default function PayrollAnalyticsTab({ chartData }) {
   return (
-    <div className="analytics-card glass-morphism">
-      <div className="chart-card-head">
-        <h2>Payroll Expense Analysis</h2>
-        <p>Visual overview of salary payouts, allowances, and statutory claws.</p>
+    <div className="history-table-container glass-morphism">
+      <div className="table-header-filters">
+        <div>
+          <h2>Payroll Expense Analysis</h2>
+          <p className="subtitle">Visual overview of salary payouts, allowances, and statutory claws</p>
+        </div>
       </div>
 
       {chartData.length > 0 ? (
