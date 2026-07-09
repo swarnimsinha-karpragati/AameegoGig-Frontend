@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 import "./ConfirmModal.css";
+import Button from "./Button";
 
 /**
  * Reusable confirmation modal.
@@ -117,23 +118,23 @@ function ConfirmModal({
 
         {/* Actions */}
         <div className="confirm-modal-actions">
-          <button
+          <Button
             ref={cancelRef}
             type="button"
-            className="confirm-modal-btn cancel"
+            className="secondary-btn"
             onClick={onCancel}
             disabled={loading}
           >
             {cancelLabel}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={`confirm-modal-btn confirm confirm--${variant}`}
+            
             onClick={onConfirm}
             disabled={loading}
           >
             {loading ? "Processing..." : confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import {
 } from "../services/salaryComponentService";
 import CtcSplitHelper from "./CtcSplitHelper";
 import "./EmployeeSalaryStructureEditor.css";
+import Button from "./Button";
 
 const calcHint = (comp) => {
   if (comp.calculationType === "AttendanceBased") return "Computed from attendance";
@@ -326,14 +327,13 @@ export default function EmployeeSalaryStructureEditor({
             </button>
           ) : null}
           {!isDraftMode ? (
-            <button
+            <Button
               type="button"
-              className="emp-btn emp-btn--primary"
               onClick={handleSave}
               disabled={saving}
             >
               {saving ? "Saving…" : "Save Salary Structure"}
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Calculator } from "lucide-react";
 import { getCtcPresets, suggestCtcSplit } from "../services/salaryComponentService";
 import "./CtcSplitHelper.css";
+import Button from "./Button";
 
 /**
  * Suggests monthly earning amounts from annual CTC using org library + preset split.
@@ -71,15 +72,15 @@ export default function CtcSplitHelper({
             {!presets.length ? <option value="india_standard">India Standard</option> : null}
           </select>
         </div>
-        <button
+        <Button
           type="button"
-          className="ctc-split__btn"
+          icon={<Calculator size={14} />}
           onClick={handleSuggest}
           disabled={loading}
         >
-          <Calculator size={14} style={{ marginRight: 4, verticalAlign: "middle" }} />
+          
           {loading ? "Calculating…" : "Split from CTC"}
-        </button>
+        </Button>
         {error ? <p className="ctc-split__error">{error}</p> : (
           <p className="ctc-split__hint">Auto-fills Basic, HRA, Conveyance &amp; Special from annual CTC</p>
         )}

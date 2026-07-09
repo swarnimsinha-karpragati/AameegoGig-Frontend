@@ -121,7 +121,7 @@
   margin-bottom: 28px;
 }
 
-.stat-card {
+.payroll-stats-grid .stat-card {
   padding: 22px 24px;
   display: flex;
   align-items: center;

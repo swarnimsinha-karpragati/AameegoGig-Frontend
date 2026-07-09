@@ -27,43 +27,43 @@ function MainLayout({ children }) {
   const pageMeta = {
     "/dashboard": {
       title: "Dashboard",
-      subtitle: "Welcome back! Here's what's happening today.",
+      subtitle: "Welcome back! Here's what's happening today",
     },
     "/departments": {
       title: "Departments",
-      subtitle: "Manage your organization departments.",
+      subtitle: "Manage your organization departments",
     },
     "/employees": {
       title: "Employees",
-      subtitle: "Manage your organization workforce.",
+      subtitle: "Manage your organization workforce",
     },
     "/attendance": {
       title: "Attendance",
-      subtitle: "Track and manage employee attendance.",
+      subtitle: "Track and manage employee attendance",
     },
     "/leave": {
       title: "Leave",
-      subtitle: "Review and approve employee leave requests.",
+      subtitle: "Review and approve employee leave requests",
     },
     "/payroll": {
       title: "Payroll",
-      subtitle: "Manage salaries and payroll processing.",
+      subtitle: "Manage salaries and payroll processing",
     },
     "/expenses": {
       title: "Expenses",
-      subtitle: "Submit and manage expense claims.",
+      subtitle: "Submit and manage expense claims",
     },
     "/resignation": {
       title: "Resignation",
-      subtitle: "Submit and manage resignation.",
+      subtitle: "Submit and manage resignation",
     },
     "/documents": {
       title: "Documents",
-      subtitle: "Store and manage company documents.",
+      subtitle: "Store and manage company documents",
     },
     "/settings": {
       title: "Settings",
-      subtitle: "Configure your HRMS preferences.",
+      subtitle: "Configure your HRMS preferences",
     },
   };
 

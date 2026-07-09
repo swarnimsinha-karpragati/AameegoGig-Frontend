@@ -25,6 +25,7 @@ export const getRoleLabel = (role) => {
 
 export const ROUTE_ACCESS = {
   "/dashboard": ["Admin", "HR", "Manager", "Employee"],
+  "/departments":["Admin", "HR"],
   "/employees": ["Admin", "HR"],
   "/attendance": ["Admin", "HR", "Manager", "Employee"],
   "/leave": ["Admin", "HR", "Manager", "Employee"],

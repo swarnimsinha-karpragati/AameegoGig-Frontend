@@ -37,6 +37,8 @@ import {
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
 import "./Attendance.css";
+import Card from "../components/Card";
+import Button from "../components/Button";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -96,24 +98,19 @@ function SessionLocationLink({ location, prefix }) {
 
 function AttendanceStats({ stats, labels }) {
   const items = [
-    { key: "Present", icon: UserCheck, className: "present", label: labels?.Present || "Present" },
-    { key: "Absent", icon: UserX, className: "absent", label: labels?.Absent || "Absent" },
-    { key: "Half Day", icon: TriangleAlert, className: "half-day", label: labels?.["Half Day"] || "Half Day" },
-    { key: "Late", icon: Clock, className: "late", label: labels?.Late || "Late" },
+    { key: "Present", icon: UserCheck, className: "green", label: labels?.Present || "Present" },
+    { key: "Absent", icon: UserX, className: "orange", label: labels?.Absent || "Absent" },
+    { key: "Half Day", icon: TriangleAlert, className: "blue", label: labels?.["Half Day"] || "Half Day" },
+    { key: "Late", icon: Clock, className: "purple", label: labels?.Late || "Late" },
   ];
 
   return (
     <div className="attendance-stats">
       {items.map(({ key, icon: Icon, className, label }) => (
-        <article key={key} className="attendance-stat-card">
-          <div className={`attendance-stat-icon ${className}`}>
-            <Icon size={22} strokeWidth={2} />
-          </div>
-          <div className="attendance-stat-body">
-            <span className="attendance-stat-label">{label}</span>
-            <strong>{stats[key] || 0}</strong>
-          </div>
-        </article>
+        <Card key={key} icon={<Icon size={22} strokeWidth={2} />} iconClassName={`${className}`} isInteractive={true}>
+          <Card.Header>{label}</Card.Header>
+          <Card.Body>{stats[key] || 0}</Card.Body>
+        </Card>
       ))}
     </div>
   );
@@ -447,9 +444,9 @@ function TodayAttendanceTable({ title, rows, loading, showActions = false }) {
                     </td>
                     {showActions ? (
                       <td>
-                        <button type="button" className="attendance-action-btn">
+                        <Button type="button" className="action-btn-edit attendance-action-btn" >
                           Review
-                        </button>
+                        </Button>
                       </td>
                     ) : null}
                   </tr>
@@ -1071,11 +1068,11 @@ console.log(myLatestCheckInSelfieUrl);
           />
         </div>
 
-        <div className="attendance-form-field attendance-form-submit">
+        <div className="attendance-form-field">
           <span className="attendance-form-label-spacer" aria-hidden="true">
             &nbsp;
           </span>
-          <button type="submit">Save</button>
+          <Button className = 'attendance-form-submit' stype="submit">Save</Button>
         </div>
       </form>
     </section>
@@ -1096,15 +1093,13 @@ console.log(myLatestCheckInSelfieUrl);
 
   const renderHRView = () => (
     <>
-      <div className="attendance-hr-actions">
-        <button type="button" className="attendance-hr-btn">
-          <ShieldCheck size={16} />
+      <div className="attendance-hr-actions" >
+        <Button type="button" icon ={<ShieldCheck size={16} />}>
           Review Corrections
-        </button>
-        <button type="button" className="attendance-hr-btn secondary">
-          <Download size={16} />
+        </Button>
+        <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
           Export Report
-        </button>
+        </Button>
       </div>
       <AttendanceStats
         stats={summaryStats}

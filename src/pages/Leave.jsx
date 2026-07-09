@@ -33,6 +33,8 @@ import {
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import "./Leave.css";
+import Button from "../components/Button";
+import Card from "../components/Card";
 
 const ROLE_DESCRIPTIONS = {
   Organization: "Organization-wide leave overview and management",
@@ -67,7 +69,7 @@ function LeaveSummaryCards({ summary, labels }) {
     {
       key: "pending",
       icon: Clock3,
-      iconClass: "amber",
+      iconClass: "orange",
       value: summary.pendingRequests || 0,
       label: labels?.pending || "Pending Requests",
     },
@@ -83,15 +85,10 @@ function LeaveSummaryCards({ summary, labels }) {
   return (
     <div className="leave-summary-grid">
       {cards.map(({ key, icon: Icon, iconClass, value, label }) => (
-        <article key={key} className="leave-summary-card">
-          <div className={`leave-icon ${iconClass}`}>
-            <Icon size={20} />
-          </div>
-          <div>
-            <h3>{value}</h3>
-            <p>{label}</p>
-          </div>
-        </article>
+        <Card key={key} icon={ <Icon size={20} />} iconClassName={`${iconClass}`} isInteractive={true}>
+          <Card.Header>{label}</Card.Header>
+          <Card.Body>{value}</Card.Body>
+        </Card>
       ))}
     </div>
   );
@@ -422,7 +419,7 @@ function LeaveInner() {
             setLeaveForm((p) => ({ ...p, reason: e.target.value }))
           }
         />
-        <button type="submit">Submit Request</button>
+        <Button type="submit">Submit Request</Button>
       </form>
     </section>
   );
@@ -518,14 +515,14 @@ function LeaveInner() {
                       </button>
                     </div>
                   ) : mode === "employee" && item.status === "Pending" ? (
-                    <button
+                    <Button
                       type="button"
                       id='leave-cancel-btn'
-                      className="leave-cancel-btn"
+                      className="action-btn-delete"
                       onClick={() => handleCancel(item._id)}
                     >
                       Cancel
-                    </button>
+                    </Button>
                   ) : (
                     "-"
                   )}
@@ -609,7 +606,7 @@ function LeaveInner() {
               />
             </div>
           ))}
-          <button type="submit">Save Balances</button>
+          <Button type="submit">Save Balances</Button>
         </form>
       )}
     </section>
@@ -733,14 +730,12 @@ function LeaveInner() {
     <>
       {renderMyLeaveSection()}
       <div className="leave-hr-actions">
-        <button type="button" className="leave-hr-btn">
-          <ShieldCheck size={16} />
+        <Button type="button" icon={ <ShieldCheck size={16} />}>
           Leave Policy Settings
-        </button>
-        <button type="button" className="leave-hr-btn secondary">
-          <Download size={16} />
+        </Button>
+        <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
           Export Leave Report
-        </button>
+        </Button>
       </div>
       <LeaveSummaryCards
         summary={summary}
