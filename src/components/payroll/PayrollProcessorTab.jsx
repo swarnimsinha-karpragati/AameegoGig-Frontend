@@ -9,6 +9,7 @@ export default function PayrollProcessorTab({
   selectedEmp,
   employees,
   actionLoading,
+  runIsFinalized,
   onYearChange,
   onMonthChange,
   onEmployeeChange,
@@ -20,9 +21,21 @@ export default function PayrollProcessorTab({
       <div className="table-header-filters">
         <div>
           <h2>Run Engine Calculation</h2>
-          <p className="subtitle">Select time parameters and choose whether to preview a single resource or calculate in bulk</p>
+          <p className="subtitle">
+            {runIsFinalized
+              ? "This month is finalized — calculate one employee at a time"
+              : "Preview one employee or calculate payroll for all employees"}
+          </p>
         </div>
       </div>
+
+      {runIsFinalized ? (
+        <p className="payroll-processor-hint">
+          <strong>Bulk calculation is disabled</strong> because this month&apos;s payroll run is already finalized.
+          Select an employee below → Preview Calculation → save from the breakdown drawer.
+          If the payslip stays pending, release it from Payslips Database.
+        </p>
+      ) : null}
 
       <div className="processor-controls">
         <div className="control-group">
@@ -57,21 +70,23 @@ export default function PayrollProcessorTab({
       <div className="processor-actions-footer">
         <Button
           type="button"
-          className="secondary-btn"
           icon={<Eye size={16} />}
           onClick={onPreview}
           disabled={actionLoading || !selectedEmp}
+          title={!selectedEmp ? "Select an employee first" : "Preview payroll calculation"}
         >
           Preview Calculation
         </Button>
-        <Button
-          type="button"
-          icon={<RefreshCw size={16} className={actionLoading ? "spin" : ""} />}
-          onClick={onBulkCalculate}
-          disabled={actionLoading}
-        >
-          Run Bulk Calculation
-        </Button>
+        {!runIsFinalized ? (
+          <Button
+            type="button"
+            icon={<RefreshCw size={16} className={actionLoading ? "spin" : ""} />}
+            onClick={onBulkCalculate}
+            disabled={actionLoading}
+          >
+            Run Bulk Calculation
+          </Button>
+        ) : null}
       </div>
     </div>
   );

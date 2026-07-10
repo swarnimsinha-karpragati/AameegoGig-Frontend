@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Download, Eye, Mail, RefreshCw, Pencil } from "lucide-react";
+import { Search, Download, Eye, Mail, RefreshCw, Pencil, Send } from "lucide-react";
 import Button from "../Button";
 import MonthYearFilter from "./MonthYearFilter";
 import { formatInr, formatStatusLabel } from "../../utils/payrollConstants";
@@ -20,6 +20,7 @@ function ValidationBadge({ issues }) {
 export default function PayrollSlipsTab({
   isAdminOrHR,
   notLinkedToEmployee,
+  runIsFinalized,
   selectedMonth,
   selectedYear,
   searchQuery,
@@ -35,15 +36,21 @@ export default function PayrollSlipsTab({
   onDownloadPdf,
   onEmailPayslip,
   onReopenPayroll,
+  onReleasePayroll,
 }) {
   return (
     <div className="history-table-container glass-morphism">
       <div className="table-header-filters">
         <div>
           <h2>Calculated Monthly Salary Slips</h2>
-          <p className="subtitle">Browse, download and manage employee payslips for the selected period</p>
+          <p className="subtitle">
+            {isAdminOrHR
+              ? "Processed = visible to employee. Pending = not released yet. Reopen unlocks a processed slip for correction."
+              : "Browse and download your released payslips"}
+          </p>
         </div>
         <div className="filter-actions-row">
+          <div className="filter-actions-row-left">
           {isAdminOrHR && (
             <MonthYearFilter
               compact
@@ -62,11 +69,15 @@ export default function PayrollSlipsTab({
               onChange={(e) => onSearchChange(e.target.value)}
             />
           </div>
+          </div>
+          <div className="filter-actions-row-right">
           {isAdminOrHR && (
             <Button type="button" className="secondary-btn" icon={<Download size={15} />} onClick={onDownloadCsv}>
               Download Transaction CSV
             </Button>
           )}
+          </div>
+          
         </div>
       </div>
 
@@ -114,7 +125,7 @@ export default function PayrollSlipsTab({
             <tr>
               <th>PAYROLL ID</th><th>EMP CODE</th><th>EMPLOYEE NAME</th><th>PERIOD</th>
               <th>DAYS PAYABLE</th><th>GROSS SALARY</th><th>DEDUCTIONS</th><th>NET PAYOUT</th>
-              <th className="col-center">STATUS</th><th className="col-center">ACTIONS</th>
+              <th className="col-center">PAYSLIP STATUS</th><th className="col-center">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
@@ -170,11 +181,22 @@ export default function PayrollSlipsTab({
                             className="action-btn-view"
                             icon={<RefreshCw size={15} />}
                             onClick={() => onReopenPayroll(item)}
-                            title="Reopen Payroll"
+                            title="Reopen for correction"
                             disabled={actionLoading}
-                            aria-label="Reopen Payroll"
+                            aria-label="Reopen Payslip"
                           />
                         </>
+                      )}
+                      {isAdminOrHR && item.status !== "Processed" && runIsFinalized && (
+                        <Button
+                          type="button"
+                          className="action-btn-view"
+                          icon={<Send size={15} />}
+                          onClick={() => onReleasePayroll(item)}
+                          title="Release payslip to employee"
+                          disabled={actionLoading}
+                          aria-label="Release Payslip"
+                        />
                       )}
                     </div>
                   </td>

@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  Eye, CheckCircle, XCircle, Mail, RefreshCw, Layers,
+  Eye, CheckCircle, XCircle, Mail, RefreshCw, Layers, Send,
 } from "lucide-react";
 import Button from "../Button";
 import MonthYearFilter from "./MonthYearFilter";
@@ -9,6 +9,7 @@ import { formatInr, formatStatusLabel, runStatusClass } from "../../utils/payrol
 export default function PayrollReviewTab({
   activeRun,
   reviewPayrolls,
+  runSummary,
   selectedMonth,
   selectedYear,
   actionLoading,
@@ -19,6 +20,7 @@ export default function PayrollReviewTab({
   onProcessRun,
   onEmailPayslips,
   onCreateRun,
+  onReleaseAllPending,
 }) {
   return (
     <div className="history-table-container glass-morphism">
@@ -28,11 +30,13 @@ export default function PayrollReviewTab({
             Payroll Review & Approval
             {activeRun && (
               <span className={`run-status-badge ${runStatusClass(activeRun.status)}`} style={{ marginLeft: 10, verticalAlign: "middle" }}>
-                {formatStatusLabel(activeRun.status)}
+                Monthly run: {formatStatusLabel(activeRun.status)}
               </span>
             )}
           </h2>
-          <p className="subtitle">Validate payroll run, review exceptions, approve or reject before releasing payslips</p>
+          <p className="subtitle">
+            The badge above is the <strong>monthly batch</strong> status. Each row&apos;s status is that employee&apos;s <strong>payslip</strong> status.
+          </p>
         </div>
         <div className="filter-actions-row">
           <MonthYearFilter
@@ -45,16 +49,25 @@ export default function PayrollReviewTab({
         </div>
       </div>
 
+      {activeRun && runSummary ? (
+        <div className="payroll-run-meta">
+          <span><strong>Released payslips:</strong> {runSummary.processedSlips}</span>
+          <span><strong>Pending payslips:</strong> {runSummary.pendingSlips}</span>
+          <span><strong>Total in run:</strong> {runSummary.totalSlips}</span>
+        </div>
+      ) : null}
+
       {activeRun ? (
         <>
           {reviewPayrolls.length > 0 && (
             <div style={{ marginBottom: "1.5rem" }}>
-              <h3 className="section-title">Run Payroll Records</h3>
+              <h3 className="section-title">Employee Payslips</h3>
               <div className="scrollable-table-wrapper">
                 <table className="payroll-custom-table">
                   <thead>
                     <tr>
-                      <th>Code</th><th>Name</th><th>Gross</th><th>Deductions</th><th>Net</th><th className="col-center">Status</th>
+                      <th>Code</th><th>Name</th><th>Gross</th><th>Deductions</th><th>Net</th>
+                      <th className="col-center">Payslip Status</th>
                       <th className="col-center">Actions</th>
                     </tr>
                   </thead>
@@ -148,9 +161,21 @@ export default function PayrollReviewTab({
               </>
             )}
             {activeRun.status === "Processed" && (
-              <Button type="button" icon={<Mail size={16} />} onClick={onEmailPayslips} disabled={actionLoading}>
-                Email Payslips
-              </Button>
+              <>
+                {runSummary?.pendingSlips > 0 ? (
+                  <Button
+                    type="button"
+                    icon={<Send size={16} />}
+                    onClick={onReleaseAllPending}
+                    disabled={actionLoading}
+                  >
+                    Release {runSummary.pendingSlips} Pending Payslip{runSummary.pendingSlips === 1 ? "" : "s"}
+                  </Button>
+                ) : null}
+                <Button type="button" icon={<Mail size={16} />} onClick={onEmailPayslips} disabled={actionLoading}>
+                  Email Payslips
+                </Button>
+              </>
             )}
             {(activeRun.status === "Draft" || activeRun.status === "Rejected") && (
               <Button type="button" icon={<RefreshCw size={16} />} onClick={onCreateRun} disabled={actionLoading}>

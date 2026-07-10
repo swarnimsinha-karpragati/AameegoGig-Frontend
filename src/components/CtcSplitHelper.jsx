@@ -63,7 +63,7 @@ export default function CtcSplitHelper({
   if (compact) {
     return (
       <div className="ctc-split">
-        <div className="ctc-split__field">
+        <div className="ctc-split__field ctc-split__field--preset">
           <label>Preset</label>
           <select value={preset} onChange={(e) => setPreset(e.target.value)}>
             {presets.map((p) => (
@@ -103,7 +103,7 @@ export default function CtcSplitHelper({
           placeholder="600000"
         />
       </div>
-      <div className="ctc-split__field">
+      <div className="ctc-split__field ctc-split__field--preset">
         <label>Split preset</label>
         <select value={preset} onChange={(e) => setPreset(e.target.value)}>
           {presets.map((p) => (

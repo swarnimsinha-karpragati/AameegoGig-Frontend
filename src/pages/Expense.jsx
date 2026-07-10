@@ -69,6 +69,16 @@ const ROLE_DESCRIPTIONS = {
 const formatCurrency = (amount) =>
   `₹${Number(amount || 0).toLocaleString("en-IN")}`;
 
+function ExpenseFormField({ label, htmlFor, hint, fullWidth, children }) {
+  return (
+    <div className={`expense-field${fullWidth ? " expense-field--full" : ""}`}>
+      {label ? <label htmlFor={htmlFor}>{label}</label> : null}
+      {children}
+      {hint ? <span className="expense-field-hint">{hint}</span> : null}
+    </div>
+  );
+}
+
 /* ===========================
    SUMMARY CARDS
 =========================== */
@@ -168,6 +178,13 @@ function ExpenseInner() {
   const summary = dashboard?.summary || {};
   const pendingExpenses = dashboard?.pendingExpenses || [];
   const categoryBreakdown = dashboard?.categoryBreakdown || [];
+
+  const teamMembers = useMemo(() => {
+    if (!user?.employeeId) return employees;
+    return employees.filter(
+      (emp) => String(emp._id) !== String(user.employeeId)
+    );
+  }, [employees, user?.employeeId]);
 
   /* ── Helpers ── */
   const matchesUser = useCallback(
@@ -380,111 +397,145 @@ function ExpenseInner() {
      RENDER: Create Form
   =========================== */
   const renderCreateForm = (showEmployeeSelect = false, forSelf = false) => (
-    <section className="expense-card">
-      <h3>
-        {forSelf ? "Submit My Expense" : "Submit Expense"}
-      </h3>
+    <section className="expense-card expense-card--form">
+      <div className="expense-card__head">
+        <h3>{forSelf ? "Submit My Expense" : "Submit Expense"}</h3>
+        <p>Fill in the details and attach a receipt when available.</p>
+      </div>
       <form className="expense-form" onSubmit={(e) => handleCreate(e, forSelf)}>
         {showEmployeeSelect && employees.length > 0 ? (
-          <select
-            value={form.employeeId}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, employeeId: e.target.value }))
-            }
-          >
-            {employees.map((emp) => (
-              <option key={emp._id} value={emp._id}>
-                {emp.employeeCode} - {emp.name}
-              </option>
-            ))}
-          </select>
+          <ExpenseFormField label="Employee" htmlFor="expense-employee">
+            <select
+              id="expense-employee"
+              className="expense-control"
+              value={form.employeeId}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, employeeId: e.target.value }))
+              }
+            >
+              {employees.map((emp) => (
+                <option key={emp._id} value={emp._id}>
+                  {emp.employeeCode} — {emp.name}
+                </option>
+              ))}
+            </select>
+          </ExpenseFormField>
         ) : null}
 
-        <input
-          type="text"
-          placeholder="Expense title (e.g. Client meeting cab)"
-          value={form.title}
-          onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-          required
-        />
+        <ExpenseFormField label="Expense Title" htmlFor="expense-title">
+          <input
+            id="expense-title"
+            className="expense-control"
+            type="text"
+            placeholder="e.g. Client meeting cab fare"
+            value={form.title}
+            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+            required
+          />
+        </ExpenseFormField>
 
         <div className="expense-form-row">
-          <select
-            value={form.category}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, category: e.target.value }))
-            }
+          <ExpenseFormField label="Category" htmlFor="expense-category">
+            <select
+              id="expense-category"
+              className="expense-control"
+              value={form.category}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, category: e.target.value }))
+              }
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </ExpenseFormField>
+
+          <ExpenseFormField label="Amount (₹)" htmlFor="expense-amount">
+            <input
+              id="expense-amount"
+              className="expense-control"
+              type="number"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              value={form.amount}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, amount: e.target.value }))
+              }
+              required
+            />
+          </ExpenseFormField>
+        </div>
+
+        <div className="expense-form-row">
+          <ExpenseFormField label="Expense Date" htmlFor="expense-date">
+            <input
+              id="expense-date"
+              className="expense-control"
+              type="date"
+              value={form.expenseDate}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, expenseDate: e.target.value }))
+              }
+              required
+            />
+          </ExpenseFormField>
+
+          <ExpenseFormField
+            label="Receipt"
+            htmlFor="expense-receipt"
+            hint="PDF, PNG, or JPG — max 10 MB"
           >
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
+            <div className="expense-file-zone">
+              <input
+                id="expense-receipt"
+                className="expense-file-input"
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    receipt: e.target.files?.[0] || null,
+                  }))
+                }
+              />
+              <span className="expense-file-zone__label">
+                {form.receipt ? form.receipt.name : "Choose file"}
+              </span>
+            </div>
+          </ExpenseFormField>
+        </div>
 
-          <input
-            type="number"
-            placeholder="Amount (₹)"
-            min="0"
-            step="0.01"
-            value={form.amount}
+        <ExpenseFormField label="Description" htmlFor="expense-description" fullWidth>
+          <textarea
+            id="expense-description"
+            className="expense-control expense-control--textarea"
+            placeholder="Add context for approvers (optional)"
+            value={form.description}
             onChange={(e) =>
-              setForm((p) => ({ ...p, amount: e.target.value }))
+              setForm((p) => ({ ...p, description: e.target.value }))
             }
-            required
           />
-        </div>
+        </ExpenseFormField>
 
-        <div className="expense-form-row">
+        <label className="expense-checkbox">
           <input
-            type="date"
-            value={form.expenseDate}
+            type="checkbox"
+            checked={form.submitDirectly}
             onChange={(e) =>
-              setForm((p) => ({ ...p, expenseDate: e.target.value }))
+              setForm((p) => ({ ...p, submitDirectly: e.target.checked }))
             }
-            required
           />
+          <span>Submit for approval immediately</span>
+        </label>
 
-          <div className="file-input-wrapper">
-            <input
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg"
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  receipt: e.target.files?.[0] || null,
-                }))
-              }
-            />
-            <small>Receipt (PDF, PNG, JPG — max 10 MB)</small>
-          </div>
+        <div className="expense-form-actions">
+          <Button type="submit">
+            {form.submitDirectly ? "Submit Expense" : "Save as Draft"}
+          </Button>
         </div>
-
-        <textarea
-          placeholder="Description (optional)"
-          value={form.description}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, description: e.target.value }))
-          }
-        />
-
-        <div className="expense-form-row">
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={form.submitDirectly}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, submitDirectly: e.target.checked }))
-              }
-              style={{ width: "auto" }}
-            />
-            Submit for approval immediately
-          </label>
-        </div>
-
-        <Button type="submit">
-          {form.submitDirectly ? "Submit Expense" : "Save as Draft"}
-        </Button>
       </form>
     </section>
   );
@@ -494,9 +545,12 @@ function ExpenseInner() {
   =========================== */
   const renderCategoryBreakdown = () => (
     <section className="expense-card">
-      <h3>
-        <IndianRupee size={16} /> Category Breakdown (This Month)
-      </h3>
+      <div className="expense-card__head">
+        <h3>
+          <IndianRupee size={16} /> Category Breakdown (This Month)
+        </h3>
+        <p>Spending distribution across expense categories.</p>
+      </div>
       {categoryBreakdown.length === 0 ? (
         <p className="expense-empty">No expense data this month</p>
       ) : (
@@ -746,13 +800,15 @@ function ExpenseInner() {
     <>
       {renderMySection()}
 
+      {teamMembers.length > 0 ? (
       <div className="expense-role-banner manager">
         <Users size={18} />
         <span>
-          Team view — managing {employees.length} team member
-          {employees.length === 1 ? "" : "s"}
+          Team view — managing {teamMembers.length} team member
+          {teamMembers.length === 1 ? "" : "s"}
         </span>
       </div>
+      ) : null}
 
       <ExpenseSummaryCards
         summary={summary}
@@ -874,12 +930,7 @@ function ExpenseInner() {
   return (
     <MainLayout>
       <div className="expense-page">
-        <div className="expense-view-toolbar">
-          <div className="expense-view-toolbar-text">
-            <h1>Expenses</h1>
-            <p>{ROLE_DESCRIPTIONS[viewRole]}</p>
-          </div>
-        </div>
+        <p className="expense-context-line">{ROLE_DESCRIPTIONS[viewRole]}</p>
 
         {error ? <p className="expense-error">{error}</p> : null}
 
