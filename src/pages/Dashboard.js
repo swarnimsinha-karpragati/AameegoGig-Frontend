@@ -298,7 +298,6 @@ function Dashboard() {
               (data.pendingApprovals.leave.length > 0 ||
                 data.pendingApprovals.expense.length > 0) && (
                 <div className="approvals-section">
-                  <h3>Pending Approvals</h3>
                   <div className="approvals-grid">
                     {data.pendingApprovals.leave.length > 0 && (
                       <div className="approval-card">

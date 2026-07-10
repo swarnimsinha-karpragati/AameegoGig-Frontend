@@ -217,11 +217,11 @@ body {
 
   height: 58px;
 
-  border-radius: 18px;
+  border-radius: 10px;
 
   font-size: 17px;
 
-  font-weight: 700;
+  font-weight: 500;
 
   color: white;
 
@@ -249,6 +249,7 @@ body {
   align-items: center;
 
   width: 100%;
+  padding: 0px 2px;
 }
 
 .error {
