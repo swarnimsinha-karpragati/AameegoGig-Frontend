@@ -1,29 +1,35 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { FileText } from "lucide-react";
 import {
   getSalaryComponents,
   getEmployeeStructure,
   saveEmployeeStructure,
   suggestCtcSplit,
+  previewEmployeeStructure,
 } from "../services/salaryComponentService";
+import { validateAnnualCtc, validateStructureDraft } from "../utils/salaryValidation";
 import "./AppointmentLetterSalary.css";
 import Button from "./Button";
 
+const formatInr = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+
 /**
  * Dynamic salary section for appointment letter — uses org component library,
- * supports CTC split, and can save to employee salary structure.
+ * supports CTC split, preview breakdown, and can save to employee salary structure.
  */
 export default function AppointmentLetterSalary({
   employeeId,
   letterData,
   onChange,
   onStructureSaved,
+  onPreviewChange,
 }) {
   const [library, setLibrary] = useState([]);
   const [preset, setPreset] = useState("india_standard");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState(null);
 
   const loadLibrary = async () => {
     try {
@@ -78,6 +84,45 @@ export default function AppointmentLetterSalary({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId]);
 
+  const buildPreviewPayload = useCallback(() => {
+    const allComponents = library.map((comp) => {
+      const line = letterData.salaryComponents?.find((c) => c.code === comp.code);
+      return {
+        code: comp.code,
+        category: comp.category,
+        monthlyAmount: line ? Number(line.monthly) || 0 : 0,
+        enabled: line ? true : comp.isOptional ? false : true,
+      };
+    });
+    return {
+      ctcAnnual: Number(letterData.annualCTC) || 0,
+      components: allComponents,
+    };
+  }, [library, letterData.annualCTC, letterData.salaryComponents]);
+
+  const refreshPreview = useCallback(async () => {
+    if (!employeeId || !library.length) return;
+    const payload = buildPreviewPayload();
+    if (!payload.components.some((c) => c.category === "Earning" && c.enabled && c.monthlyAmount > 0)) {
+      setPreview(null);
+      if (onPreviewChange) onPreviewChange(null);
+      return;
+    }
+    try {
+      const res = await previewEmployeeStructure(employeeId, payload);
+      const data = res.data?.data || null;
+      setPreview(data);
+      if (onPreviewChange) onPreviewChange(data);
+    } catch {
+      setPreview(null);
+      if (onPreviewChange) onPreviewChange(null);
+    }
+  }, [employeeId, library, buildPreviewPayload, onPreviewChange]);
+
+  useEffect(() => {
+    refreshPreview();
+  }, [refreshPreview]);
+
   const updateComponent = (index, field, value) => {
     const updated = [...letterData.salaryComponents];
     updated[index] = { ...updated[index], [field]: value };
@@ -94,8 +139,9 @@ export default function AppointmentLetterSalary({
   const handleCtcSplit = async () => {
     setError("");
     const annual = Number(letterData.annualCTC);
-    if (!annual) {
-      setError("Enter annual CTC first");
+    const ctcErr = validateAnnualCtc(annual);
+    if (ctcErr) {
+      setError(ctcErr);
       return;
     }
     try {
@@ -128,19 +174,30 @@ export default function AppointmentLetterSalary({
     }
     setSaving(true);
     setError("");
+
+    const payload = buildPreviewPayload();
+    const draftErrors = validateStructureDraft({
+      ctcAnnual: payload.ctcAnnual,
+      components: payload.components.map((c) => {
+        const lib = library.find((x) => x.code === c.code);
+        return { ...c, name: lib?.name, category: lib?.category };
+      }),
+    });
+    if (draftErrors.length) {
+      setError(draftErrors.join("; "));
+      setSaving(false);
+      return;
+    }
+
     try {
-      const allComponents = library.map((comp) => {
-        const line = letterData.salaryComponents.find((c) => c.code === comp.code);
-        return {
-          code: comp.code,
-          monthlyAmount: line ? Number(line.monthly) || 0 : 0,
-          enabled: line ? true : comp.isOptional ? false : true,
-        };
-      });
       await saveEmployeeStructure(employeeId, {
-        ctcAnnual: Number(letterData.annualCTC) || 0,
+        ctcAnnual: payload.ctcAnnual,
         effectiveFrom: letterData.joiningDate || new Date().toISOString().split("T")[0],
-        components: allComponents,
+        components: payload.components.map((c) => ({
+          code: c.code,
+          monthlyAmount: c.monthlyAmount,
+          enabled: c.enabled,
+        })),
       });
       setMsg("Saved to employee salary structure");
       if (onStructureSaved) onStructureSaved();
@@ -210,9 +267,40 @@ export default function AppointmentLetterSalary({
       ))}
 
       <div className="appt-letter-salary__total">
-        <span>Monthly Gross</span>
-        <strong>₹{Number(letterData.monthlySalary || 0).toLocaleString("en-IN")}</strong>
+        <span>Monthly Gross (Earnings)</span>
+        <strong>{formatInr(letterData.monthlySalary)}</strong>
       </div>
+
+      {preview ? (
+        <div className="appt-letter-salary__preview">
+          <h4>Estimated CTC Breakdown (for annexure)</h4>
+          {preview.employerContributions?.length ? (
+            <div className="appt-letter-salary__preview-section">
+              <span>Employer contributions (included in CTC)</span>
+              <ul>
+                {preview.employerContributions.map((line) => (
+                  <li key={line.code}>
+                    {line.name}: {formatInr(line.amount)}/mo
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {preview.deductions?.length ? (
+            <div className="appt-letter-salary__preview-section">
+              <span>Illustrative employee deductions (not guaranteed in-hand)</span>
+              <ul>
+                {preview.deductions.map((line) => (
+                  <li key={line.code}>
+                    {line.name}: {formatInr(line.amount)}/mo
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <p className="appt-letter-salary__preview-note">{preview.disclaimer}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

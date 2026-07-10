@@ -74,12 +74,15 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
   return (
     <div className="ot-container">
       <div className="ot-header">
-        <h1>Configured Overtime Policies {policies?.data?.length > 0 ? `(${policies?.data?.length})` : ''}</h1>
-        <p>Review and manage all active operational strategy matrix rules assigned to your organization.</p>
+        <h3>
+          Configured Overtime Policies
+          {policies?.data?.length > 0 ? ` (${policies.data.length})` : ""}
+        </h3>
+        <p>Review and manage overtime rules for your organization.</p>
       </div>
 
       {error && (
-        <div className="ot-submit-status error" style={{ marginBottom: '1.5rem' }}>
+        <div className="ot-submit-status error" style={{ marginBottom: "12px" }}>
           {error}
         </div>
       )}

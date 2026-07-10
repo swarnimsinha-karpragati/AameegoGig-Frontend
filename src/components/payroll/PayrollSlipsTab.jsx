@@ -1,5 +1,6 @@
 import React from "react";
 import { Search, Download, Eye, Mail, RefreshCw, Pencil } from "lucide-react";
+import Button from "../Button";
 import MonthYearFilter from "./MonthYearFilter";
 import { formatInr, formatStatusLabel } from "../../utils/payrollConstants";
 
@@ -62,10 +63,9 @@ export default function PayrollSlipsTab({
             />
           </div>
           {isAdminOrHR && (
-            <button className="btn-csv" onClick={onDownloadCsv} type="button">
-              <Download size={15} />
-              <span>Download Transaction CSV</span>
-            </button>
+            <Button type="button" className="secondary-btn" icon={<Download size={15} />} onClick={onDownloadCsv}>
+              Download Transaction CSV
+            </Button>
           )}
         </div>
       </div>
@@ -92,9 +92,13 @@ export default function PayrollSlipsTab({
                     <td className="amount-cell">{formatInr(p.amount)}</td>
                     <td className="col-center">{formatStatusLabel(p.status)}</td>
                     <td className="col-center">
-                      <button className="action-btn-view" onClick={() => onEditPayment(p)} type="button">
-                        <Pencil size={15} />
-                      </button>
+                      <Button
+                        type="button"
+                        className="action-btn-view"
+                        icon={<Pencil size={15} />}
+                        onClick={() => onEditPayment(p)}
+                        aria-label="Edit payment"
+                      />
                     </td>
                   </tr>
                 ))}
@@ -133,26 +137,43 @@ export default function PayrollSlipsTab({
                   </td>
                   <td className="col-center">
                     <div className="row-action-buttons">
-                      <button className="action-btn-view" onClick={() => onViewBreakdown(item)} title="View Breakdown" type="button">
-                        <Eye size={15} />
-                      </button>
-                      <button
+                      <Button
+                        type="button"
+                        className="action-btn-view"
+                        icon={<Eye size={15} />}
+                        onClick={() => onViewBreakdown(item)}
+                        title="View Breakdown"
+                        aria-label="View Breakdown"
+                      />
+                      <Button
+                        type="button"
                         className="action-btn-pdf"
+                        icon={<Download size={15} />}
                         onClick={() => onDownloadPdf(item)}
                         title="Download PDF"
                         disabled={!isAdminOrHR && item.status !== "Processed"}
-                        type="button"
-                      >
-                        <Download size={15} />
-                      </button>
+                        aria-label="Download PDF"
+                      />
                       {isAdminOrHR && item.status === "Processed" && (
                         <>
-                          <button className="action-btn-view" onClick={() => onEmailPayslip(item)} title="Email Payslip" disabled={actionLoading} type="button">
-                            <Mail size={15} />
-                          </button>
-                          <button className="action-btn-view" onClick={() => onReopenPayroll(item)} title="Reopen Payroll" disabled={actionLoading} type="button">
-                            <RefreshCw size={15} />
-                          </button>
+                          <Button
+                            type="button"
+                            className="action-btn-view"
+                            icon={<Mail size={15} />}
+                            onClick={() => onEmailPayslip(item)}
+                            title="Email Payslip"
+                            disabled={actionLoading}
+                            aria-label="Email Payslip"
+                          />
+                          <Button
+                            type="button"
+                            className="action-btn-view"
+                            icon={<RefreshCw size={15} />}
+                            onClick={() => onReopenPayroll(item)}
+                            title="Reopen Payroll"
+                            disabled={actionLoading}
+                            aria-label="Reopen Payroll"
+                          />
                         </>
                       )}
                     </div>

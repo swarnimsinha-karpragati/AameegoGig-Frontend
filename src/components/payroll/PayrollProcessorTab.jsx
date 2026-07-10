@@ -1,5 +1,6 @@
 import React from "react";
 import { Eye, RefreshCw } from "lucide-react";
+import Button from "../Button";
 import { MONTHS, PAYROLL_YEARS } from "../../utils/payrollConstants";
 
 export default function PayrollProcessorTab({
@@ -54,14 +55,23 @@ export default function PayrollProcessorTab({
       </div>
 
       <div className="processor-actions-footer">
-        <button className="btn-secondary-custom" onClick={onPreview} disabled={actionLoading || !selectedEmp} type="button">
-          <Eye size={16} />
-          <span>Preview Calculation</span>
-        </button>
-        <button className="btn-primary-custom" onClick={onBulkCalculate} disabled={actionLoading} type="button">
-          <RefreshCw size={16} className={actionLoading ? "spin" : ""} />
-          <span>Run Bulk Calculation</span>
-        </button>
+        <Button
+          type="button"
+          className="secondary-btn"
+          icon={<Eye size={16} />}
+          onClick={onPreview}
+          disabled={actionLoading || !selectedEmp}
+        >
+          Preview Calculation
+        </Button>
+        <Button
+          type="button"
+          icon={<RefreshCw size={16} className={actionLoading ? "spin" : ""} />}
+          onClick={onBulkCalculate}
+          disabled={actionLoading}
+        >
+          Run Bulk Calculation
+        </Button>
       </div>
     </div>
   );

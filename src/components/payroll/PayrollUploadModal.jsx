@@ -1,5 +1,6 @@
 import React from "react";
 import { FileSpreadsheet } from "lucide-react";
+import Button from "../Button";
 import PayrollModal from "./PayrollModal";
 
 export default function PayrollUploadModal({
@@ -24,9 +25,14 @@ export default function PayrollUploadModal({
         <span>{uploadFile ? uploadFile.name : "Choose file or drag here"}</span>
       </label>
 
-      <button className="upload-submit-btn" type="button" onClick={onUpload} disabled={loading || !uploadFile}>
+      <Button
+        className="upload-submit-btn"
+        type="button"
+        onClick={onUpload}
+        disabled={loading || !uploadFile}
+      >
         {loading ? "Reconciling..." : "Upload and Parse Excel"}
-      </button>
+      </Button>
 
       {uploadMessage && (
         <div className="upload-results-box">

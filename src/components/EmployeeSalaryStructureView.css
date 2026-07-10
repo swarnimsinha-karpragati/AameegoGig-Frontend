@@ -1,0 +1,293 @@
+/**
+ * Read-only salary breakdown (Employee Details modal).
+ * All rules scoped under .emp-salary-view — does not affect the editor.
+ */
+
+.emp-salary-view {
+  --ess-gap: 12px;
+  --ess-gap-lg: 16px;
+  --ess-radius: 10px;
+  --ess-radius-lg: 12px;
+  --ess-pad-x: 16px;
+  --ess-pad-y: 12px;
+  --ess-border: #e2e8f0;
+  --ess-text: #0f172a;
+  --ess-muted: #64748b;
+  --ess-amount-col: 7.5rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--ess-gap-lg);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ess-text);
+}
+
+.emp-salary-view--loading,
+.emp-salary-view__state {
+  padding: 24px var(--ess-pad-x);
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--ess-muted);
+  border: 1px dashed #d1d9e6;
+  border-radius: var(--ess-radius-lg);
+  background: #fafbfc;
+}
+
+.emp-salary-view__state--error {
+  text-align: left;
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.emp-salary-view__state--warn {
+  text-align: left;
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.emp-salary-view__state--empty {
+  color: #1e40af;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+/* ─── Top metrics ─── */
+
+.emp-salary-view__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ess-gap);
+}
+
+.emp-salary-view__metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ess-gap);
+  min-height: 52px;
+  padding: var(--ess-pad-y) var(--ess-pad-x);
+  border: 1px solid var(--ess-border);
+  border-radius: var(--ess-radius);
+  background: #f8fafc;
+}
+
+.emp-salary-view__metric--highlight {
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
+  border-color: #bbf7d0;
+}
+
+.emp-salary-view__metric-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ess-muted);
+  white-space: nowrap;
+}
+
+.emp-salary-view__metric--highlight .emp-salary-view__metric-label {
+  color: #059669;
+}
+
+.emp-salary-view__metric-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ess-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.emp-salary-view__metric--highlight .emp-salary-view__metric-value {
+  color: #065f46;
+}
+
+/* ─── Two-column panels ─── */
+
+.emp-salary-view__panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ess-gap);
+  align-items: start;
+}
+
+.emp-salary-view__panel {
+  border: 1px solid var(--ess-border);
+  border-radius: var(--ess-radius-lg);
+  overflow: hidden;
+  background: #fff;
+}
+
+.emp-salary-view__panel-head {
+  padding: 10px var(--ess-pad-x);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--ess-border);
+}
+
+.emp-salary-view__panel--earning .emp-salary-view__panel-head {
+  background: #ecfdf5;
+  color: #047857;
+  border-bottom-color: #bbf7d0;
+}
+
+.emp-salary-view__panel--deduction .emp-salary-view__panel-head {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-bottom-color: #fecaca;
+}
+
+.emp-salary-view__panel--employer .emp-salary-view__panel-head {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-bottom-color: #bfdbfe;
+}
+
+.emp-salary-view__panel-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.emp-salary-view__panel-empty {
+  padding: 20px var(--ess-pad-x);
+  text-align: center;
+  color: #94a3b8;
+}
+
+.emp-salary-view__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ess-amount-col);
+  gap: var(--ess-gap);
+  align-items: center;
+  padding: 11px var(--ess-pad-x);
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.emp-salary-view__line:last-child {
+  border-bottom: none;
+}
+
+.emp-salary-view__line-name {
+  min-width: 0;
+  font-weight: 500;
+  color: #334155;
+  word-break: break-word;
+}
+
+.emp-salary-view__line-amount {
+  justify-self: end;
+  font-weight: 700;
+  color: var(--ess-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.emp-salary-view__panel--deduction .emp-salary-view__line-amount {
+  color: #b91c1c;
+}
+
+.emp-salary-view__panel-note {
+  margin: 0;
+  padding: 10px var(--ess-pad-x) 12px;
+  font-size: 0.75rem;
+  color: var(--ess-muted);
+  border-top: 1px dashed var(--ess-border);
+  background: #fafbfc;
+}
+
+/* ─── Summary footer ─── */
+
+.emp-salary-view__summary {
+  border: 1px solid var(--ess-border);
+  border-radius: var(--ess-radius-lg);
+  overflow: hidden;
+  background: #fff;
+}
+
+.emp-salary-view__summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ess-amount-col);
+  gap: var(--ess-gap);
+  align-items: center;
+  padding: var(--ess-pad-y) var(--ess-pad-x);
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.emp-salary-view__summary-row:last-of-type {
+  border-bottom: none;
+}
+
+.emp-salary-view__summary-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.emp-salary-view__summary-value {
+  justify-self: end;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.emp-salary-view__summary-value--deduction {
+  color: #b91c1c;
+}
+
+.emp-salary-view__summary-row--net {
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.emp-salary-view__summary-row--net .emp-salary-view__summary-value {
+  font-size: 1.125rem;
+  color: #065f46;
+}
+
+.emp-salary-view__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.emp-salary-view__disclaimer {
+  margin: 0;
+  padding: 10px var(--ess-pad-x) 12px;
+  font-size: 0.75rem;
+  color: var(--ess-muted);
+  background: #f8fafc;
+  border-top: 1px dashed var(--ess-border);
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .emp-salary-view__metrics,
+  .emp-salary-view__panels {
+    grid-template-columns: 1fr;
+  }
+
+  .emp-salary-view {
+    --ess-amount-col: 6.25rem;
+  }
+}

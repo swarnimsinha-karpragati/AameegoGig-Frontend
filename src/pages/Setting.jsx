@@ -64,7 +64,7 @@ export default function Settings() {
           <div>
             <h1 className="settings-title">Settings</h1>
             <p className="settings-subtitle">
-              Manage account preferences & system settings
+              Configure your HRMS preferences
             </p>
           </div>
           <RoleTabs activeTab={activeTab} setActiveTab={setActiveTab} role={user?.role} />
@@ -86,9 +86,9 @@ export default function Settings() {
 
               <HolidayManager vendorId={user?.vendorId} />
 
-              <PayrollConfigCard />
-
               <OrgProfileCard />
+
+              <PayrollConfigCard />
 
               <SalaryComponentManager />
               

@@ -2,6 +2,7 @@ import React from "react";
 import {
   Eye, CheckCircle, XCircle, Mail, RefreshCw, Layers,
 } from "lucide-react";
+import Button from "../Button";
 import MonthYearFilter from "./MonthYearFilter";
 import { formatInr, formatStatusLabel, runStatusClass } from "../../utils/payrollConstants";
 
@@ -72,9 +73,13 @@ export default function PayrollReviewTab({
                         </td>
                         <td className="col-center">
                           <div className="row-action-buttons">
-                            <button className="action-btn-view" onClick={() => onViewBreakdown(item)} title="View Breakdown" type="button">
-                              <Eye size={15} />
-                            </button>
+                            <Button
+                              type="button"
+                              className="action-btn-view"
+                              icon={<Eye size={15} />}
+                              onClick={() => onViewBreakdown(item)}
+                              aria-label="View Breakdown"
+                            />
                           </div>
                         </td>
                       </tr>
@@ -113,58 +118,52 @@ export default function PayrollReviewTab({
           <div className="processor-actions-footer">
             {activeRun.status === "PendingReview" && (
               <>
-                <button
-                  className="btn-primary-custom"
+                <Button
+                  type="button"
+                  icon={<CheckCircle size={16} />}
                   onClick={() => onOpenApproval("approve")}
                   disabled={actionLoading || (activeRun.validationSummary?.fail || 0) > 0}
-                  type="button"
                 >
-                  <CheckCircle size={16} />
-                  <span>Approve Run</span>
-                </button>
-                <button
-                  className="btn-secondary-custom"
+                  Approve Run
+                </Button>
+                <Button
+                  type="button"
+                  className="secondary-btn"
+                  icon={<XCircle size={16} />}
                   onClick={() => onOpenApproval("reject")}
                   disabled={actionLoading}
-                  type="button"
                 >
-                  <XCircle size={16} />
-                  <span>Reject Run</span>
-                </button>
+                  Reject Run
+                </Button>
               </>
             )}
             {activeRun.status === "Approved" && (
               <>
-                <button className="btn-primary-custom" onClick={onProcessRun} disabled={actionLoading} type="button">
-                  <CheckCircle size={16} />
-                  <span>Process & Generate Payslips</span>
-                </button>
-                <button className="btn-secondary-custom" onClick={onEmailPayslips} disabled={actionLoading} type="button">
-                  <Mail size={16} />
-                  <span>Email Payslips</span>
-                </button>
+                <Button type="button" icon={<CheckCircle size={16} />} onClick={onProcessRun} disabled={actionLoading}>
+                  Process & Generate Payslips
+                </Button>
+                <Button type="button" className="secondary-btn" icon={<Mail size={16} />} onClick={onEmailPayslips} disabled={actionLoading}>
+                  Email Payslips
+                </Button>
               </>
             )}
             {activeRun.status === "Processed" && (
-              <button className="btn-primary-custom" onClick={onEmailPayslips} disabled={actionLoading} type="button">
-                <Mail size={16} />
-                <span>Email Payslips</span>
-              </button>
+              <Button type="button" icon={<Mail size={16} />} onClick={onEmailPayslips} disabled={actionLoading}>
+                Email Payslips
+              </Button>
             )}
             {(activeRun.status === "Draft" || activeRun.status === "Rejected") && (
-              <button className="btn-primary-custom" onClick={onCreateRun} disabled={actionLoading} type="button">
-                <RefreshCw size={16} />
-                <span>Recalculate Run</span>
-              </button>
+              <Button type="button" icon={<RefreshCw size={16} />} onClick={onCreateRun} disabled={actionLoading}>
+                Recalculate Run
+              </Button>
             )}
           </div>
         </>
       ) : (
         <div className="processor-actions-footer">
-          <button className="btn-primary-custom" onClick={onCreateRun} disabled={actionLoading} type="button">
-            <Layers size={16} />
-            <span>Create & Calculate Payroll Run</span>
-          </button>
+          <Button type="button" icon={<Layers size={16} />} onClick={onCreateRun} disabled={actionLoading}>
+            Create & Calculate Payroll Run
+          </Button>
         </div>
       )}
     </div>

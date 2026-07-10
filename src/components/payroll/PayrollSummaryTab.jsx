@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Download, Users, Wallet, TrendingUp, TrendingDown, Landmark, CheckCircle2 } from "lucide-react";
+import Button from "../Button";
+import Card from "../Card";
 import MonthYearFilter from "./MonthYearFilter";
 import { formatInr, formatStatusLabel } from "../../utils/payrollConstants";
 
@@ -12,6 +14,56 @@ export default function PayrollSummaryTab({
   onYearChange,
   onExport,
 }) {
+  const summaryCards = useMemo(() => {
+    if (!payrollSummary) return [];
+
+    const { totals } = payrollSummary;
+    return [
+      {
+        key: "headcount",
+        icon: Users,
+        iconClassName: "blue",
+        label: "Employees",
+        value: totals.headcount,
+      },
+      {
+        key: "totalNet",
+        icon: Wallet,
+        iconClassName: "purple",
+        label: "Total Net Payout",
+        value: formatInr(totals.totalNet),
+      },
+      {
+        key: "totalGross",
+        icon: TrendingUp,
+        iconClassName: "green",
+        label: "Total Gross",
+        value: formatInr(totals.totalGross),
+      },
+      {
+        key: "totalDeductions",
+        icon: TrendingDown,
+        iconClassName: "orange",
+        label: "Total Deductions",
+        value: formatInr(totals.totalDeductions),
+      },
+      {
+        key: "employerContributions",
+        icon: Landmark,
+        iconClassName: "blue",
+        label: "Employer Contributions",
+        value: formatInr(totals.totalEmployerContributions),
+      },
+      {
+        key: "processedPending",
+        icon: CheckCircle2,
+        iconClassName: "purple",
+        label: "Processed / Pending",
+        value: `${totals.processedCount} / ${totals.pendingCount}`,
+      },
+    ];
+  }, [payrollSummary]);
+
   return (
     <div className="history-table-container glass-morphism">
       <div className="table-header-filters">
@@ -21,10 +73,9 @@ export default function PayrollSummaryTab({
         </div>
         <div className="filter-actions-row">
           <MonthYearFilter compact month={selectedMonth} year={selectedYear} onMonthChange={onMonthChange} onYearChange={onYearChange} />
-          <button className="btn-csv" onClick={onExport} type="button">
-            <Download size={15} />
-            <span>Export CSV</span>
-          </button>
+          <Button type="button" className="secondary-btn" icon={<Download size={15} />} onClick={onExport}>
+            Export CSV
+          </Button>
         </div>
       </div>
 
@@ -32,31 +83,18 @@ export default function PayrollSummaryTab({
         <div className="empty-table-cell">Loading summary…</div>
       ) : payrollSummary ? (
         <>
-          <div className="payroll-metrics-grid">
-            <div className="metric-card">
-              <div className="stat-icon-wrapper indigo-bg"><Users size={18} color="#3b82f6" /></div>
-              <div><span>Employees</span><strong>{payrollSummary.totals.headcount}</strong></div>
-            </div>
-            <div className="metric-card">
-              <div className="stat-icon-wrapper indigo-bg"><Wallet size={18} color="#3b82f6" /></div>
-              <div><span>Total Net Payout</span><strong>{formatInr(payrollSummary.totals.totalNet)}</strong></div>
-            </div>
-            <div className="metric-card">
-              <div className="stat-icon-wrapper green-bg"><TrendingUp size={18} color="#10b981" /></div>
-              <div><span>Total Gross</span><strong>{formatInr(payrollSummary.totals.totalGross)}</strong></div>
-            </div>
-            <div className="metric-card">
-              <div className="stat-icon-wrapper red-bg"><TrendingDown size={18} color="#ef4444" /></div>
-              <div><span>Total Deductions</span><strong>{formatInr(payrollSummary.totals.totalDeductions)}</strong></div>
-            </div>
-            <div className="metric-card">
-              <div className="stat-icon-wrapper amber-bg"><Landmark size={18} color="#f59e0b" /></div>
-              <div><span>Employer Contributions</span><strong>{formatInr(payrollSummary.totals.totalEmployerContributions)}</strong></div>
-            </div>
-            <div className="metric-card">
-              <div className="stat-icon-wrapper amber-bg"><CheckCircle2 size={18} color="#f59e0b" /></div>
-              <div><span>Processed / Pending</span><strong>{payrollSummary.totals.processedCount} / {payrollSummary.totals.pendingCount}</strong></div>
-            </div>
+          <div className="payroll-stats-grid payroll-summary-stats">
+            {summaryCards.map(({ key, icon: Icon, iconClassName, label, value }) => (
+              <Card
+                key={key}
+                icon={<Icon size={22} strokeWidth={2} />}
+                iconClassName={iconClassName}
+                isInteractive
+              >
+                <Card.Header>{label}</Card.Header>
+                <Card.Body>{value}</Card.Body>
+              </Card>
+            ))}
           </div>
 
           <div className="summary-panels-grid">
