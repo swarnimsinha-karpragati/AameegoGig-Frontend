@@ -86,7 +86,7 @@
 .attendance-employee-calendar-wrap .attendance-day-sessions-card {
   margin-top: 0;
 }
-
+/* 
 .attendance-page .payroll-stats-grid .generic-card {
   max-width: none;
   padding: 16px 18px;
@@ -104,7 +104,7 @@
 
 .attendance-page .payroll-stats-grid .card-body {
   font-size: 22px;
-}
+} */
 
 .attendance-page .stat-card {
   background: #ffffff;

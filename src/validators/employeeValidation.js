@@ -1,6 +1,18 @@
 import * as Yup from "yup";
 import { PATTERNS } from "../utils/inputValidation";
 
+export const MIN_EMPLOYEE_AGE = 18;
+
+export const getMaxDateOfBirth = () => {
+  const maxDob = new Date();
+  maxDob.setHours(0, 0, 0, 0);
+  maxDob.setFullYear(maxDob.getFullYear() - MIN_EMPLOYEE_AGE);
+  return maxDob;
+};
+
+export const getMaxDateOfBirthInputValue = () =>
+  getMaxDateOfBirth().toISOString().slice(0, 10);
+
 export const employeeValidationSchema = Yup.object().shape({
   employeeCode: Yup.string()
     .trim()
@@ -33,7 +45,18 @@ export const employeeValidationSchema = Yup.object().shape({
 
   dob: Yup.date()
     .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
     .max(new Date(), "Date of birth cannot be in the future")
+    .test(
+      "min-age",
+      `Employee must be at least ${MIN_EMPLOYEE_AGE} years old`,
+      (value) => {
+        if (!value) return true;
+        const dob = new Date(value);
+        dob.setHours(0, 0, 0, 0);
+        return dob <= getMaxDateOfBirth();
+      }
+    )
     .default(null),
 
   bloodGroup: Yup.string().trim().default(""),

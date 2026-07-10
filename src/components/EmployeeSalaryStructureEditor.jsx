@@ -38,9 +38,22 @@ const hasSalaryData = (draft) => {
   if (!draft) return false;
   if (Number(draft.ctcAnnual) > 0) return true;
   return (draft.components || []).some(
-    (c) => c.category === "Earning" && c.enabled && Number(c.monthlyAmount) > 0
+    (c) =>
+      c.enabled !== false &&
+      Number(c.monthlyAmount) > 0 &&
+      (c.category === "Earning" || !c.category)
   );
 };
+
+const isAutoCalculatedComponent = (comp) =>
+  comp.calculationType === "AttendanceBased" ||
+  comp.isSystem ||
+  ["PercentOfComponent", "PercentOfGross", "PercentOfCTC"].includes(comp.calculationType);
+
+const resetComponentAmounts = (components) =>
+  components.map((c) =>
+    isAutoCalculatedComponent(c) ? c : { ...c, monthlyAmount: 0 }
+  );
 
 export { hasSalaryData, buildDraftFromLibrary };
 
@@ -67,6 +80,8 @@ export default function EmployeeSalaryStructureEditor({
         ctcAnnual: Number(nextCtc) || 0,
         components: nextComponents.map((c) => ({
           code: c.code,
+          name: c.name,
+          category: c.category,
           monthlyAmount: c.monthlyAmount,
           enabled: c.enabled,
         })),
@@ -151,6 +166,18 @@ export default function EmployeeSalaryStructureEditor({
   };
 
   const updateCtc = (value) => {
+    const numeric = Number(value);
+    if (value === "" || value == null || !Number.isFinite(numeric) || numeric <= 0) {
+      setCtcAnnual(0);
+      setComponents((prev) => {
+        const next = resetComponentAmounts(prev);
+        syncDraft(0, next);
+        return next;
+      });
+      setMsg("");
+      return;
+    }
+
     setCtcAnnual(value);
     syncDraft(value, components);
   };
@@ -305,7 +332,7 @@ export default function EmployeeSalaryStructureEditor({
             id={isDraftMode ? "emp-salary-ctc-draft" : "emp-salary-ctc"}
             type="number"
             min="0"
-            value={ctcAnnual}
+            value={ctcAnnual || ""}
             onChange={(e) => updateCtc(e.target.value)}
             placeholder="e.g. 600000"
           />

@@ -91,6 +91,14 @@ export const reopenPayroll = async (id) => {
   return API.post(`/payroll/${id}/reopen`);
 };
 
+export const releasePayroll = async (id) => {
+  return API.post(`/payroll/${id}/release`);
+};
+
+export const releaseAllPendingPayrolls = async (runId) => {
+  return API.post(`/payroll/runs/${runId}/release-pending`);
+};
+
 export const getPayrollConfig = async () => {
   return API.get("/payroll/config");
 };

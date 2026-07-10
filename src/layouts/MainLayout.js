@@ -162,7 +162,11 @@ function MainLayout({ children }) {
 
         <div className="sidebar-user">
           <div className="user-avatar">
-            {user?.name?.charAt(0) || "U"}
+            {user?.photoDisplayUrl ? (
+              <img src={user.photoDisplayUrl} alt="" className="user-avatar-img" />
+            ) : (
+              user?.name?.charAt(0) || "U"
+            )}
           </div>
 
           <div className="user-meta">

@@ -46,7 +46,7 @@ const LABEL_KIND_RULES = [
   { test: (t) => /annual\s*ctc|\bctc\b|cost to company/i.test(t), kind: "currency_annual" },
   { test: (t) => /monthly|per month|\/mo|salary|amount|\(₹\)|rupee/i.test(t), kind: "currency_monthly" },
   { test: (t) => /percentage|\brate\b|percent/i.test(t), kind: "rate" },
-  { test: (t) => /date of birth|\bdob\b/i.test(t), kind: "date_past" },
+  { test: (t) => /date of birth|\bdob\b/i.test(t), kind: "date_dob" },
   { test: (t) => /joining date|\bdate\b/i.test(t), kind: "date" },
   { test: (t) => /password/i.test(t), kind: "password" },
   { test: (t) => /component code|employee code|\bcode\b/i.test(t), kind: "identifier_code" },
@@ -71,7 +71,7 @@ const NAME_KIND_MAP = {
   monthlyAmount: "currency_monthly",
   defaultValue: "currency_monthly",
   rate: "rate",
-  dob: "date_past",
+  dob: "date_dob",
   dateOfJoining: "date",
   joiningDate: "date",
   userPassword: "password",
@@ -196,10 +196,19 @@ export const validateByKind = (kind, value, label, options = {}) => {
       return null;
     }
     case "date":
-    case "date_past": {
+    case "date_past":
+    case "date_dob": {
       const d = value instanceof Date ? value : new Date(value);
       if (Number.isNaN(d.getTime())) return `${label} must be a valid date`;
       if (kind === "date_past" && d > new Date()) return `${label} cannot be in the future`;
+      if (kind === "date_dob") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (d > today) return `${label} cannot be in the future`;
+        const maxDob = new Date(today);
+        maxDob.setFullYear(maxDob.getFullYear() - 18);
+        if (d > maxDob) return `Employee must be at least 18 years old`;
+      }
       return null;
     }
     case "password": {

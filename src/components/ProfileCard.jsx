@@ -10,6 +10,12 @@ import {
   User,
 } from "lucide-react";
 import useFormValidation from "../hooks/useFormValidation";
+import {
+  getMyProfile,
+  updateMyProfile,
+  uploadMyProfilePhoto,
+} from "../services/userProfileService";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 import "./ProfileCard.css";
 import Button from "./Button";
 function InputField({
@@ -68,7 +74,7 @@ export default function ProfileCard() {
   const [isFormDisabled, setIsFormDisabled] = useState(true);
   const [showOptions, setShowOptions] = useState(false);
   const galleryInputRef = useRef(null);
-  const [profileImage, setProfileImage] = useState(null);
+  const [profileImage, setProfileImage] = useState("");
   const cameraInputRef = useRef(null);
   const [showCamera, setShowCamera] = useState(false);
   const videoRef = useRef(null);
@@ -76,6 +82,11 @@ export default function ProfileCard() {
   const [cameraReady, setCameraReady] = useState(false);
   const { errors, validateOne, validateAll, clearAll } = useFormValidation();
   const [showSavePopup, setShowSavePopup] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
 
   const profileFields = (values) => [
     { name: "fullName", label: "Full Name", value: values.fullName, kind: "person_name", required: true },
@@ -85,6 +96,33 @@ export default function ProfileCard() {
     { name: "department", label: "Department", value: values.department, required: true },
     { name: "role", label: "Role", value: values.role, required: true },
   ];
+
+  const applyProfileData = (data) => {
+    setFullName(data.name || "");
+    setEmail(data.email || "");
+    setPhone(data.phone || "");
+    setLocation(data.location || "");
+    setDepartment(data.department || "");
+    setRole(data.role || "");
+    setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
+  };
+
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const res = await getMyProfile();
+      applyProfileData(res.data?.data || {});
+    } catch (err) {
+      setLoadError(err.response?.data?.message || "Failed to load profile");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const validateForm = () => {
     const result = validateAll(
@@ -137,49 +175,103 @@ export default function ProfileCard() {
     return () => stopCamera();
   }, [showCamera, startNativeCamera, stopCamera]);
 
-  const captureNativePhoto = useCallback(() => {
+  const syncStoredUser = useCallback((data) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "null");
+      if (!stored) return;
+      const next = {
+        ...stored,
+        name: data.name ?? stored.name,
+        phone: data.phone ?? stored.phone,
+        photoUrl: data.photoUrl ?? stored.photoUrl,
+        photoDisplayUrl: data.photoDisplayUrl ?? stored.photoDisplayUrl,
+      };
+      localStorage.setItem("user", JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const uploadPhoto = useCallback(async (file) => {
+    setUploadingPhoto(true);
+    setActionError("");
+    try {
+      const res = await uploadMyProfilePhoto(file);
+      const data = res.data?.data || {};
+      setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
+      syncStoredUser(data);
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Photo upload failed");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }, [syncStoredUser]);
+
+  const captureNativePhoto = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !cameraReady) return;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
     canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageSrc = canvas.toDataURL("image/jpeg", 0.9);
-    setProfileImage(imageSrc);
-    setShowCamera(false);
-  }, [cameraReady]);
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], `profile-${Date.now()}.jpg`, { type: "image/jpeg" });
+      await uploadPhoto(file);
+      setShowCamera(false);
+    }, "image/jpeg", 0.9);
+  }, [cameraReady, uploadPhoto]);
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      console.log(file);
-      setProfileImage(URL.createObjectURL(file));
+      await uploadPhoto(file);
     }
-  };
-  const handleRemoveImage = () => {
-    setProfileImage(null);
+    if (e.target) e.target.value = "";
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) {
       return;
     }
 
+    setSaving(true);
+    setActionError("");
+    try {
+      const res = await updateMyProfile({
+        name: fullName,
+        phone,
+        location,
+        department,
+      });
+      const data = res.data?.data || {};
+      applyProfileData(data);
+      syncStoredUser(data);
+      setIsFormDisabled(true);
       setShowSavePopup(true);
-
-    // API call here
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDiscard = () => {
-  setFullName("");
-  setEmail("");
-  setPhone("");
-  setLocation("");
-  setDepartment("");
-  setRole("");
-  setProfileImage(null);
-  clearAll();
-};
+  const handleDiscard = async () => {
+    clearAll();
+    setIsFormDisabled(true);
+    await loadProfile();
+  };
+
+  const avatarInitial =
+    (fullName || email || "U").trim().charAt(0).toUpperCase() || "U";
+
+  if (loading) {
+    return (
+      <div className="profile-card">
+        <div className="profile-card__loading">Loading profile…</div>
+      </div>
+    );
+  }
   return (
     <div className="profile-card">
       <div className="profile-header">
@@ -198,6 +290,9 @@ export default function ProfileCard() {
       </div>
 
       <div className="profile-content">
+        {loadError ? <p className="profile-error">{loadError}</p> : null}
+        {actionError ? <p className="profile-error">{actionError}</p> : null}
+
         <div className="profile-avatar-section">
           <div className="profile-avatar">
             {profileImage ? (
@@ -207,19 +302,21 @@ export default function ProfileCard() {
                 className="profile-avatar-img"
               />
             ) : (
-              "A"
+              avatarInitial
             )}
           </div>
 
-          <button className="camera-btn" onClick={() => setShowOptions(true)}>
+          <button
+            className="camera-btn"
+            onClick={() => setShowOptions(true)}
+            disabled={uploadingPhoto}
+          >
             <Camera size={16} />
           </button>
 
-          {profileImage && (
-            <button className="remove-photo-btn" onClick={handleRemoveImage}>
-              Remove Photo
-            </button>
-          )}
+          {uploadingPhoto ? (
+            <p className="profile-upload-status">Uploading photo…</p>
+          ) : null}
 
           <input
             ref={galleryInputRef}
@@ -259,14 +356,10 @@ export default function ProfileCard() {
             label="Email"
             icon={<Mail size={15} color="#2563eb" />}
             value={email}
-            onChange={(e) => {
-              const value = e.target.value;
-              setEmail(value);
-              handleFieldChange("email", "Email", value, { inputType: "email" });
-            }}
+            onChange={() => {}}
             placeholder="Enter your email"
             error={errors.email}
-            isFormDisabled={isFormDisabled}
+            isFormDisabled
           />
           {/* {errors.email && <p className="error-text">{errors.email}</p>} */}
 
@@ -319,27 +412,26 @@ export default function ProfileCard() {
             label="Role"
             icon={<Briefcase size={15} color="#2563eb" />}
             value={role}
-            onChange={(e) => {
-              const value = e.target.value;
-              setRole(value);
-              handleFieldChange("role", "Role", value);
-            }}
+            onChange={() => {}}
             placeholder="Enter role"
             error={errors.role}
-            isFormDisabled={isFormDisabled}
+            isFormDisabled
           />
        
         </div>
       </div>
 
       <div className="button-row">
-        <Button 
-        className="secondary-btn"
-        onClick={handleDiscard}
-        >Discard</Button>
+        <Button
+          className="secondary-btn"
+          onClick={handleDiscard}
+          disabled={saving}
+        >
+          Discard
+        </Button>
 
-        <Button onClick={handleSave}>
-          Save Changes
+        <Button onClick={handleSave} disabled={saving || isFormDisabled}>
+          {saving ? "Saving…" : "Save Changes"}
         </Button>
       </div>
 

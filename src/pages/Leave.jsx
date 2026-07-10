@@ -156,6 +156,13 @@ function LeaveInner() {
   );
   const pendingApprovals = dashboard?.pendingApprovals || [];
 
+  const teamMembers = useMemo(() => {
+    if (!user?.employeeId) return employees;
+    return employees.filter(
+      (emp) => String(emp._id) !== String(user.employeeId)
+    );
+  }, [employees, user?.employeeId]);
+
   const matchesUser = useCallback(
     (item) => {
       const itemEmpId = item.employeeId?._id || item.employeeId;
@@ -857,13 +864,15 @@ function LeaveInner() {
   const renderManagerView = () => (
     <>
       {renderMyLeaveSection()}
-      <div className="leave-role-banner manager">
-        <Users size={18} />
-        <span>
-          Team view — managing {employees.length} team member
-          {employees.length === 1 ? "" : "s"}
-        </span>
-      </div>
+      {teamMembers.length > 0 ? (
+        <div className="leave-role-banner manager">
+          <Users size={18} />
+          <span>
+            Team view — managing {teamMembers.length} team member
+            {teamMembers.length === 1 ? "" : "s"}
+          </span>
+        </div>
+      ) : null}
       <LeaveSummaryCards
         summary={summary}
         labels={{

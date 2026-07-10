@@ -5,6 +5,7 @@ import {
   updateOrgProfile,
   uploadOrgLogo,
 } from "../services/vendorService";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 import "./OrgProfileCard.css";
 
 export default function OrgProfileCard() {
@@ -80,7 +81,7 @@ export default function OrgProfileCard() {
     );
   }
 
-  const logoSrc = profile.logoDisplayUrl || profile.logoUrl;
+  const logoSrc = resolveMediaUrl(profile.logoDisplayUrl, profile.logoUrl);
 
   return (
     <div className="org-profile-card">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  bulkUploadPayrollEntries,
+  // bulkUploadPayrollEntries,
   previewPayroll,
   calculateSinglePayroll,
   createPayrollRun,
@@ -15,6 +15,8 @@ import {
   sendRunPayslips,
   sendPayslipEmail,
   reopenPayroll,
+  releasePayroll,
+  releaseAllPendingPayrolls,
   getPayments,
   updatePayment,
   addPayrollAdjustment,
@@ -40,7 +42,9 @@ import PayrollSlipsTab from "../components/payroll/PayrollSlipsTab";
 import PayrollSummaryTab from "../components/payroll/PayrollSummaryTab";
 import PayrollAnalyticsTab from "../components/payroll/PayrollAnalyticsTab";
 import PayrollApprovalModal from "../components/payroll/PayrollApprovalModal";
-import PayrollUploadModal from "../components/payroll/PayrollUploadModal";
+// import PayrollUploadModal from "../components/payroll/PayrollUploadModal";
+import PayrollRunStatusBanner from "../components/payroll/PayrollRunStatusBanner";
+import { getPayrollRunSummary } from "../utils/payrollRunMessages";
 import "./Payroll.css";
 import MainLayout from "../layouts/MainLayout";
 
@@ -71,7 +75,6 @@ export default function Payroll() {
 
   const [editingPayment, setEditingPayment] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
 
@@ -79,9 +82,10 @@ export default function Payroll() {
   const [showDetailsPopup, setShowDetailsPopup] = useState(false);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
 
-  const [showUploadPopup, setShowUploadPopup] = useState(false);
-  const [uploadFile, setUploadFile] = useState(null);
-  const [uploadMessage, setUploadMessage] = useState("");
+  // Upload payments sheet — temporarily disabled
+  // const [showUploadPopup, setShowUploadPopup] = useState(false);
+  // const [uploadFile, setUploadFile] = useState(null);
+  // const [uploadMessage, setUploadMessage] = useState("");
 
   const closeDetailsPopup = () => {
     setShowDetailsPopup(false);
@@ -90,7 +94,6 @@ export default function Payroll() {
 
   const loadInitialData = async () => {
     if (!user) return;
-    setLoading(true);
     setStatusMessage({ type: "", text: "" });
 
     try {
@@ -135,8 +138,6 @@ export default function Payroll() {
     } catch (error) {
       console.error("Error loading payroll dashboard data:", error);
       setStatusMessage({ type: "error", text: "Failed to initialize payroll data dashboard. Please refresh." });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -207,7 +208,13 @@ export default function Payroll() {
         year: selectedYear,
       });
       if (res.data?.success) {
-        setStatusMessage({ type: "success", text: `Successfully computed and saved payroll for ${selectedRecord.employeeName}.` });
+        const releasedNote = runIsFinalized
+          ? " Payslip released to the employee."
+          : " Review and process the monthly run to release payslips.";
+        setStatusMessage({
+          type: "success",
+          text: `Payroll recalculated for ${selectedRecord.employeeName}.${releasedNote}`,
+        });
         if (res.data?.data) setSelectedRecord(res.data.data);
         loadInitialData();
       } else throw new Error(res.data?.message || "Calculation failed");
@@ -219,6 +226,13 @@ export default function Payroll() {
   };
 
   const runBulkCalculation = async (switchToReview = true) => {
+    if (runIsFinalized) {
+      setStatusMessage({
+        type: "info",
+        text: `${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear} is already finalized. Select one employee in Payroll Processor → Preview → Calculate, or release pending payslips from Payslips Database.`,
+      });
+      return;
+    }
     if (!window.confirm(`Create payroll run and calculate for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear}?`)) return;
     setActionLoading(true);
     setStatusMessage({ type: "", text: "" });
@@ -234,33 +248,39 @@ export default function Payroll() {
       if (switchToReview) setActiveTab("review");
       loadInitialData();
     } catch (error) {
-      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message || "Failed to run bulk payroll calculation." });
+      const errText = error.response?.data?.message || error.message || "Failed to run bulk payroll calculation.";
+      const isFinalizedError = /already finalized|already processed/i.test(errText);
+      setStatusMessage({
+        type: isFinalizedError ? "info" : "error",
+        text: errText,
+      });
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleBulkUpload = async () => {
-    if (!uploadFile) {
-      alert("Please select an Excel file");
-      return;
-    }
-    setUploadMessage("");
-    try {
-      setLoading(true);
-      const res = await bulkUploadPayrollEntries(uploadFile, MONTH_NUMBER_TO_NAME[selectedMonth], selectedYear);
-      setPaymentHistory(res.data.data || []);
-      const errorList = res.data.errors || [];
-      let message = `Upload Complete: ${res.data.inserted} inserted, ${res.data.skipped} skipped`;
-      if (errorList.length > 0) message += "\n\nErrors:\n" + errorList.join("\n");
-      setUploadMessage(message);
-      setUploadFile(null);
-    } catch (error) {
-      setUploadMessage(error.response?.data?.message || "Bulk upload failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Upload payments sheet — temporarily disabled
+  // const handleBulkUpload = async () => {
+  //   if (!uploadFile) {
+  //     alert("Please select an Excel file");
+  //     return;
+  //   }
+  //   setUploadMessage("");
+  //   try {
+  //     setLoading(true);
+  //     const res = await bulkUploadPayrollEntries(uploadFile, MONTH_NUMBER_TO_NAME[selectedMonth], selectedYear);
+  //     setPaymentHistory(res.data.data || []);
+  //     const errorList = res.data.errors || [];
+  //     let message = `Upload Complete: ${res.data.inserted} inserted, ${res.data.skipped} skipped`;
+  //     if (errorList.length > 0) message += "\n\nErrors:\n" + errorList.join("\n");
+  //     setUploadMessage(message);
+  //     setUploadFile(null);
+  //   } catch (error) {
+  //     setUploadMessage(error.response?.data?.message || "Bulk upload failed");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const handleDownloadPDF = async (record) => {
     try {
@@ -372,9 +392,16 @@ export default function Payroll() {
     [runPayrolls, filteredHistory]
   );
 
+  const runSummary = useMemo(
+    () => getPayrollRunSummary(activeRun, reviewPayrolls),
+    [activeRun, reviewPayrolls]
+  );
+
+  const runIsFinalized = runSummary.runIsFinalized;
+
   const showTopStats = isAdminOrHR
-    ? ["ops", "slips", "analytics"].includes(activeTab)
-    : ["my_slips", "my_analytics"].includes(activeTab);
+    ? ["ops", "slips"].includes(activeTab)
+    : activeTab === "my_slips";
 
   const handleApprovalSubmit = async () => {
     if (!activeRun) return;
@@ -440,11 +467,62 @@ export default function Payroll() {
   };
 
   const handleReopenPayroll = async (record) => {
-    if (!record?._id || !window.confirm(`Reopen processed payroll for ${record.employeeName}?`)) return;
+    if (
+      !record?._id ||
+      !window.confirm(
+        `Reopen payslip for ${record.employeeName}?\n\nThis unlocks the slip for correction. The monthly run stays finalized. After fixing, recalculate this employee in Payroll Processor, then release the payslip.`
+      )
+    ) {
+      return;
+    }
     setActionLoading(true);
     try {
-      await reopenPayroll(record._id);
-      setStatusMessage({ type: "success", text: `Payroll reopened for ${record.employeeName}.` });
+      const res = await reopenPayroll(record._id);
+      setStatusMessage({
+        type: "success",
+        text: res.data?.message || `Payslip reopened for ${record.employeeName}.`,
+      });
+      loadInitialData();
+    } catch (error) {
+      alert(error.response?.data?.message || error.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReleasePayroll = async (record) => {
+    if (!record?._id) return;
+    setActionLoading(true);
+    try {
+      const res = await releasePayroll(record._id);
+      setStatusMessage({
+        type: "success",
+        text: res.data?.message || `Payslip released for ${record.employeeName}.`,
+      });
+      loadInitialData();
+    } catch (error) {
+      alert(error.response?.data?.message || error.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReleaseAllPending = async () => {
+    if (!activeRun?._id) return;
+    if (
+      !window.confirm(
+        `Release all ${runSummary.pendingSlips} pending payslip(s) for ${activeRun.month} ${activeRun.year}? Employees will be able to view them.`
+      )
+    ) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await releaseAllPendingPayrolls(activeRun._id);
+      setStatusMessage({
+        type: "success",
+        text: res.data?.message || "Pending payslips released.",
+      });
       loadInitialData();
     } catch (error) {
       alert(error.response?.data?.message || error.message);
@@ -490,7 +568,8 @@ export default function Payroll() {
         <PayrollHeader
           isAdminOrHR={isAdminOrHR}
           actionLoading={actionLoading}
-          onUploadClick={() => setShowUploadPopup(true)}
+          runIsFinalized={runIsFinalized}
+          // onUploadClick={() => setShowUploadPopup(true)}
           onBulkProcess={() => runBulkCalculation(true)}
         />
 
@@ -501,7 +580,18 @@ export default function Payroll() {
 
         <PayrollTabs isAdminOrHR={isAdminOrHR} activeTab={activeTab} onTabChange={setActiveTab} />
 
-        {showTopStats && <PayrollStatsGrid metrics={metrics} />}
+        {showTopStats && (
+          <PayrollStatsGrid metrics={metrics} isEmployeeView={!isAdminOrHR} />
+        )}
+
+        {isAdminOrHR && ["ops", "review", "slips"].includes(activeTab) && (
+          <PayrollRunStatusBanner
+            activeRun={activeRun}
+            payrolls={reviewPayrolls}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+          />
+        )}
 
         {isAdminOrHR && activeTab === "ops" && (
           <PayrollProcessorTab
@@ -510,6 +600,7 @@ export default function Payroll() {
             selectedEmp={selectedEmp}
             employees={employees}
             actionLoading={actionLoading}
+            runIsFinalized={runIsFinalized}
             onYearChange={setSelectedYear}
             onMonthChange={setSelectedMonth}
             onEmployeeChange={setSelectedEmp}
@@ -522,6 +613,7 @@ export default function Payroll() {
           <PayrollReviewTab
             activeRun={activeRun}
             reviewPayrolls={reviewPayrolls}
+            runSummary={runSummary}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             actionLoading={actionLoading}
@@ -532,6 +624,7 @@ export default function Payroll() {
             onProcessRun={handleProcessRun}
             onEmailPayslips={handleEmailPayslips}
             onCreateRun={() => runBulkCalculation(false)}
+            onReleaseAllPending={handleReleaseAllPending}
           />
         )}
 
@@ -539,6 +632,7 @@ export default function Payroll() {
           <PayrollSlipsTab
             isAdminOrHR={isAdminOrHR}
             notLinkedToEmployee={notLinkedToEmployee}
+            runIsFinalized={runIsFinalized}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             searchQuery={searchQuery}
@@ -554,6 +648,7 @@ export default function Payroll() {
             onDownloadPdf={handleDownloadPDF}
             onEmailPayslip={handleSendPayslipEmail}
             onReopenPayroll={handleReopenPayroll}
+            onReleasePayroll={handleReleasePayroll}
           />
         )}
 
@@ -570,7 +665,11 @@ export default function Payroll() {
         )}
 
         {activeTab === (isAdminOrHR ? "analytics" : "my_analytics") && (
-          <PayrollAnalyticsTab chartData={chartData} />
+          <PayrollAnalyticsTab
+            chartData={chartData}
+            metrics={metrics}
+            isEmployeeView={!isAdminOrHR}
+          />
         )}
 
         <PayrollBreakdownDrawer
@@ -602,6 +701,7 @@ export default function Payroll() {
           onSave={handleSavePayment}
         />
 
+        {/* Upload payments sheet — temporarily disabled
         <PayrollUploadModal
           open={showUploadPopup}
           uploadFile={uploadFile}
@@ -611,6 +711,7 @@ export default function Payroll() {
           onFileChange={setUploadFile}
           onUpload={handleBulkUpload}
         />
+        */}
       </main>
     </MainLayout>
   );
