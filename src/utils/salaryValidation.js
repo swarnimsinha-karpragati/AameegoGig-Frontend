@@ -4,7 +4,6 @@
 
 import {
   LIMITS,
-  PATTERNS,
   validateField,
   validateByKind,
 } from "./inputValidation";

@@ -124,10 +124,15 @@ function TodayMetricsGrid({ metrics }) {
   return (
     <div className="attendance-metrics-grid">
       {metrics.map(({ key, label, value, icon: Icon, accent }) => (
-        <Card key={key} icon={<Icon size={18} />} className={accent} isInteractive> 
-          <Card.Header>{label}</Card.Header>
-          <Card.Body><strong className="attendance-metric-value">{value}</strong></Card.Body>
-        </Card>
+        <div key={key} className={`attendance-metric-card ${accent}`}>
+          <div className="attendance-metric-icon" aria-hidden="true">
+            <Icon size={18} strokeWidth={2} />
+          </div>
+          <div className="attendance-metric-content">
+            <span className="attendance-metric-label">{label}</span>
+            <strong className="attendance-metric-value">{value}</strong>
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -322,17 +327,23 @@ function AttendanceCalendar({
                     : undefined
               }
             >
-              {cell.day}
-              {cell.holiday ? (
-                <small className="calendar-day-holiday">{cell.holiday.name}</small>
-              ) : cell.weekOff ? (
-                <small className="calendar-day-weekoff">Off</small>
-              ) : null}
-              {cell.hasSessions ? (
-                <small className="calendar-day-sessions">
-                  {cell.sessionCount || 1}
-                </small>
-              ) : null}
+              <span className="calendar-day-num">{cell.day}</span>
+              <span className="calendar-day-meta">
+                {cell.holiday ? (
+                  <small className="calendar-day-holiday" title={cell.holiday.name}>
+                    {cell.holiday.name}
+                  </small>
+                ) : cell.weekOff && !cell.hasSessions ? (
+                  <small className="calendar-day-weekoff">Off</small>
+                ) : null}
+                {cell.hasSessions ? (
+                  <small className="calendar-day-sessions">
+                    {cell.sessionCount || 1}
+                  </small>
+                ) : cell.weekOff && cell.hasSessions ? (
+                  <small className="calendar-day-weekoff calendar-day-weekoff--compact">Off</small>
+                ) : null}
+              </span>
             </button>
           )
         )}
@@ -1207,7 +1218,9 @@ console.log(myLatestCheckInSelfieUrl);
           {renderSelfAttendanceSection("Today's Check In / Out")}
         </div>
         <div className="attendance-employee-secondary">
-          {renderCalendarSection(`${monthLabel} — My Calendar`)}
+          <div className="attendance-employee-calendar-wrap">
+            {renderCalendarSection(`${monthLabel} — My Calendar`)}
+          </div>
         </div>
       </div>
     </>
