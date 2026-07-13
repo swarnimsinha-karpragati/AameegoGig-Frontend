@@ -1,6 +1,7 @@
 import React from "react";
 import { X, RefreshCw, CheckCircle } from "lucide-react";
 import PayrollBreakdown from "./PayrollBreakdown";
+import { formatPayrollMeta } from "../utils/payrollRecord";
 import { convertNumberToWords } from "../utils/currencyWords";
 import "./PayrollBreakdownDrawer.css";
 
@@ -75,7 +76,9 @@ export default function PayrollBreakdownDrawer({
               </div>
               <div className="pb-drawer__meta-item">
                 <span className="pb-drawer__meta-label">Department</span>
-                <span className="pb-drawer__meta-value">{record.department || "—"}</span>
+                <span className="pb-drawer__meta-value">
+                  {formatPayrollMeta(record.department)}
+                </span>
               </div>
               <div className="pb-drawer__meta-item">
                 <span className="pb-drawer__meta-label">Period</span>

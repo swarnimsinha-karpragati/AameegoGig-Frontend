@@ -28,7 +28,7 @@ import { getEmployees } from "../services/employeeService";
 import { getCurrentUser } from "../services/authService";
 import { getStoredUser } from "../utils/roles";
 import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER } from "../utils/payrollConstants";
-import { payrollHasBreakdown } from "../utils/payrollRecord";
+import { payrollHasBreakdown, enrichPayrollRecord } from "../utils/payrollRecord";
 import { downloadPayrollPdf } from "../utils/generateSalarySlipPdf";
 import UpdatePayrollModal from "../components/UpdatePayrollModal";
 import PayrollBreakdownDrawer from "../components/PayrollBreakdownDrawer";
@@ -168,13 +168,17 @@ export default function Payroll() {
     }
     const { code } = JSON.parse(selectedEmp);
     const emp = employees.find((e) => e.employeeCode === code);
-    setSelectedRecord({
-      employeeCode: code,
-      employeeName: emp?.name || code,
-      month: MONTH_NUMBER_TO_NAME[selectedMonth],
-      year: selectedYear,
-      department: emp?.department,
-    });
+    setSelectedRecord(
+      enrichPayrollRecord(
+        {
+          employeeCode: code,
+          employeeName: emp?.name || code,
+          month: MONTH_NUMBER_TO_NAME[selectedMonth],
+          year: selectedYear,
+        },
+        employees
+      )
+    );
     setShowDetailsPopup(true);
     setBreakdownLoading(true);
     setActionLoading(true);
@@ -183,7 +187,9 @@ export default function Payroll() {
     try {
       const monthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
       const res = await previewPayroll({ employeeId: code, month: monthStr });
-      if (res.data?.success) setSelectedRecord(res.data.data);
+      if (res.data?.success) {
+        setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
+      }
       else throw new Error(res.data?.message || "Failed to generate preview");
     } catch (error) {
       closeDetailsPopup();
@@ -215,7 +221,9 @@ export default function Payroll() {
           type: "success",
           text: `Payroll recalculated for ${selectedRecord.employeeName}.${releasedNote}`,
         });
-        if (res.data?.data) setSelectedRecord(res.data.data);
+        if (res.data?.data) {
+          setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
+        }
         loadInitialData();
       } else throw new Error(res.data?.message || "Calculation failed");
     } catch (error) {
@@ -291,22 +299,28 @@ export default function Payroll() {
   };
 
   const handleViewBreakdown = async (record) => {
-    setSelectedRecord(record);
+    const enriched = enrichPayrollRecord(record, employees);
+    setSelectedRecord(enriched);
     setShowDetailsPopup(true);
-    if (payrollHasBreakdown(record)) return;
+    if (payrollHasBreakdown(enriched)) return;
 
     setBreakdownLoading(true);
     try {
       const monthNum = MONTH_NAME_TO_NUMBER[record.month] || 1;
       const monthStr = `${record.year}-${String(monthNum).padStart(2, "0")}`;
       const previewRes = await previewPayroll({ employeeId: record.employeeCode, month: monthStr });
-      setSelectedRecord({
-        ...previewRes.data.data,
-        _id: record._id,
-        status: record.status,
-        oneOffAdjustments: record.oneOffAdjustments || [],
-        payrollCode: record.payrollCode,
-      });
+      setSelectedRecord(
+        enrichPayrollRecord(
+          {
+            ...previewRes.data.data,
+            _id: record._id,
+            status: record.status,
+            oneOffAdjustments: record.oneOffAdjustments || [],
+            payrollCode: record.payrollCode,
+          },
+          employees
+        )
+      );
     } catch (err) {
       setStatusMessage({ type: "error", text: err.response?.data?.message || err.message || "Failed to load slip breakdown." });
     } finally {
@@ -319,7 +333,7 @@ export default function Payroll() {
     setActionLoading(true);
     try {
       const res = await addPayrollAdjustment(selectedRecord._id, payload);
-      if (res.data?.data) setSelectedRecord(res.data.data);
+      if (res.data?.data) setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
       loadInitialData();
     } finally {
       setActionLoading(false);
@@ -332,7 +346,7 @@ export default function Payroll() {
     setActionLoading(true);
     try {
       const res = await removePayrollAdjustment(selectedRecord._id, adjId);
-      if (res.data?.data) setSelectedRecord(res.data.data);
+      if (res.data?.data) setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
       loadInitialData();
     } catch (err) {
       alert(err.response?.data?.message || err.message);
