@@ -81,6 +81,11 @@ export const employeeValidationSchema = Yup.object().shape({
   department: Yup.string().trim().default(""),
   pfNumber: Yup.string().trim().default(""),
 
+  managerId: Yup.string()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
+
   bankName: Yup.string().trim().default(""),
   accountHolderName: Yup.string().trim().default(""),
 
@@ -116,4 +121,9 @@ export const employeeValidationSchema = Yup.object().shape({
     .default(null),
 
   dateOfJoining: Yup.date().nullable().default(null),
+
+  relievingDate: Yup.date()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
 });
