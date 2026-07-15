@@ -45,7 +45,7 @@ function JoinOrg() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Signup failed"
+        "Signup failed"
       );
     } finally {
       setLoading(false);
@@ -84,57 +84,65 @@ function JoinOrg() {
           <h2>Join Organization</h2>
 
           <form onSubmit={handleSubmit}>
-            <input
-              type="text"
-              placeholder="Full Name"
-              required
-              value={form.name}
-              onChange={(e) =>
-                handleChange(
-                  "name",
-                  e.target.value
-                )
-              }
-            />
+            <div className="form-group">
+              <input
+                type="text"
+                placeholder="Full Name"
+                required
+                value={form.name}
+                onChange={(e) =>
+                  handleChange(
+                    "name",
+                    e.target.value
+                  )
+                }
+              />
+            </div>
 
-            <input
-              type="text"
-              placeholder="Email or Mobile Number"
-              required
-              value={form.emailOrPhone}
-              onChange={(e) =>
-                handleChange(
-                  "emailOrPhone",
-                  e.target.value
-                )
-              }
-            />
+            <div className="form-group">
+              <input
+                type="text"
+                placeholder="Email or Mobile Number"
+                required
+                value={form.emailOrPhone}
+                onChange={(e) =>
+                  handleChange(
+                    "emailOrPhone",
+                    e.target.value
+                  )
+                }
+              />
+            </div>
 
-            <input
-              type="password"
-              placeholder="Password"
-              required
-              value={form.password}
-              onChange={(e) =>
-                handleChange(
-                  "password",
-                  e.target.value
-                )
-              }
-            />
+            <div className="form-group">
+              <input
+                type="password"
+                placeholder="Password"
+                required
+                value={form.password}
+                onChange={(e) =>
+                  handleChange(
+                    "password",
+                    e.target.value
+                  )
+                }
+              />
+            </div>
 
-            <input
-              type="text"
-              placeholder="Organization Code"
-              required
-              value={form.vendorCode}
-              onChange={(e) =>
-                handleChange(
-                  "vendorCode",
-                  e.target.value
-                )
-              }
-            />
+            <div className="form-group">
+              <input
+                type="text"
+                placeholder="Organization Code"
+                required
+                value={form.vendorCode}
+                onChange={(e) =>
+                  handleChange(
+                    "vendorCode",
+                    e.target.value
+                  )
+                }
+              />
+            </div>
 
             <button
               type="submit"

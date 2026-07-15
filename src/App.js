@@ -16,13 +16,14 @@ import Expense from "./pages/Expense";
 import ForgotPassword from './pages/ForgotPassword';
 import ForgotOrgCode from './pages/ForgotOrgCode';
 import Resignations from './pages/Resignations';
+import LoginUpdated from './auth/LoginUpdated';
 
 function App() {
   return (
     <div className="app-shell">
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<LoginUpdated />} />
         <Route path="/create-org" element={<CreateOrg />} />
         <Route path="/join" element={<JoinOrg />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

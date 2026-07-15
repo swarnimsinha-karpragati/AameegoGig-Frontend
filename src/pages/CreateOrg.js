@@ -39,7 +39,7 @@ function CreateOrg() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Something went wrong"
+        "Something went wrong"
       );
     } finally {
       setLoading(false);
@@ -82,45 +82,50 @@ function CreateOrg() {
           <h2>Create Organization</h2>
 
           <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <input
+                type="text"
+                placeholder="Company Name"
+                required
+                value={form.companyName}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    companyName: e.target.value,
+                  })
+                }
+              />
+            </div>
 
-            <input
-              type="text"
-              placeholder="Company Name"
-              required
-              value={form.companyName}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  companyName: e.target.value,
-                })
-              }
-            />
+            <div className="form-group">
+              <input
+                type="email"
+                placeholder="Admin Email"
+                required
+                value={form.email}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    email: e.target.value,
+                  })
+                }
+              />
+            </div>
 
-            <input
-              type="email"
-              placeholder="Admin Email"
-              required
-              value={form.email}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  email: e.target.value,
-                })
-              }
-            />
-
-            <input
-              type="password"
-              placeholder="Password"
-              required
-              value={form.password}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  password: e.target.value,
-                })
-              }
-            />
+            <div className="form-group">
+              <input
+                type="password"
+                placeholder="Password"
+                required
+                value={form.password}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    password: e.target.value,
+                  })
+                }
+              />
+            </div>
 
             <button disabled={loading}>
               {loading
