@@ -129,17 +129,18 @@ function MainLayout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand">
-          
-            <h1>
-              Aameego <span>Gig</span>
-            </h1>
 
-            <p style={{fontSize:'12px',fontWeight:'700'}}>Human Resource Management System</p>
+            {/* <h1>
+              Aameego <span>Gig</span>
+            </h1> */}
+            <img src="http://genex.org.in/wp-content/uploads/2023/03/LOGO.png" alt="Logo" className="" width="100" height="45" />
+
+            <p style={{ fontSize: '12px', fontWeight: '700',marginBottom: '5px' }}>We make your lives simpler.</p>
           </div>
 
-          <div className="client-info">
-    {user?.vendorName}
-  </div>
+          {/* <div className="client-info">
+            {user?.vendorName}
+          </div> */}
           <nav className="sidebar-menu">
             {menuItems.map((item) => {
               const Icon = item.icon;

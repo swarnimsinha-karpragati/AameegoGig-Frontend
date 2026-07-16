@@ -16,6 +16,7 @@ import Expense from "./pages/Expense";
 import ForgotPassword from './pages/ForgotPassword';
 import ForgotOrgCode from './pages/ForgotOrgCode';
 import Resignations from './pages/Resignations';
+import LoginUpdated from './auth/LoginUpdated';
 
 function App() {
   return (
