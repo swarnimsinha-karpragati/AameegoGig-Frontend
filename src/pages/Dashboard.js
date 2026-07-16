@@ -25,7 +25,7 @@ import {
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getDashboard } from "../services/dashboardService";
-import { getStoredUser, getRoleLabel } from "../utils/roles";
+import { getStoredUser } from "../utils/roles";
 import "./Dashboard.css";
 import Card from "../components/Card";
 
