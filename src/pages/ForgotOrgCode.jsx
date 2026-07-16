@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import logo from "../assets/logo.png";
-import { sendOtp, verifyOtpGetCode} from "../services/authService";
+import LoginLayout from "../auth/LoginLayout";
+import { sendOtp, verifyOtpGetCode } from "../services/authService";
+import '../auth/LoginScreen.css';
+import bgImage from '../assets/background.png';
+import helpBtn from '../assets/help.svg';
+
+
+
 function ForgotOrgCode() {
   const [step, setStep] = useState("IDENTIFY");
   const [emailOrPhone, setEmailOrPhone] = useState("");
@@ -44,95 +50,124 @@ function ForgotOrgCode() {
   };
 
   return (
-    <div className="auth-container">
+    <div
+      className="login-container"
+      style={{ backgroundImage: `url(${bgImage})` }}
+    >
+      <div className="login-content">
 
-      <div className="auth-left">
-        <div className="branding">
-          <img src={logo} alt="Aameego" className="brand-logo" />
-          <h1 className="brand-heading">Aameego Gig</h1>
-          <p className="brand-subtitle">Smart HRMS for modern workforce</p>
-          <p className="brand-company">Powered by Kar Pragati Technologies Private Limited</p>
-        </div>
-      </div>
+        {/* ================= LEFT HERO SIDE ================= */}
+        <LoginLayout />
 
-
-      <div className="auth-right">
-        <div className="auth-card">
-          <h2>Find Org Code</h2>
-          {message && <p className="success-message" style={{ color: "green", marginBottom: "15px" }}>{message}</p>}
-
-          {/* STEP 1: IDENTIFY ACCOUNT */}
-          {step === "IDENTIFY" && (
-            <form onSubmit={handleRequestOtp}>
-              <p className="auth-hint">Enter your registered email or mobile number linked to your workplace profile.</p>
-              <div className="form-group">
-                <input
-                  type="text"
-                  placeholder="Email or Mobile Number"
-                  value={emailOrPhone}
-                  onChange={(e) => setEmailOrPhone(e.target.value)}
-                  required
-                />
-              </div>
-              <button type="submit" disabled={isLoading}>
-                {isLoading ? "Sending Code..." : "Send Verification Code"}
-              </button>
-            </form>
-          )}
-
-
-          {step === "VERIFY_OTP" && (
-            <form onSubmit={handleVerifyAndReveal}>
-              <p className="auth-hint">Please look for the code sent to your mobile or email inbox.</p>
-              <div className="form-group">
-                <input
-                  type="text"
-                  maxLength="6"
-                  placeholder="Enter 6-Digit OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  required
-                />
-              </div>
-              <button type="submit" disabled={isLoading}>
-                {isLoading ? "Fetching Code..." : "Verify & Find Code"}
-              </button>
-            </form>
-          )}
-
-
-          {step === "REVEAL" && (
-            <div className="reveal-box" style={{ textAlign: "center", margin: "20px 0" }}>
-              <p className="auth-hint">Your workspace organization code is:</p>
-              <div 
-                className="code-display" 
-                style={{ 
-                  background: "#f4f5f7", 
-                  padding: "15px", 
-                  borderRadius: "6px", 
-                  fontSize: "1.5rem", 
-                  fontWeight: "bold",
-                  letterSpacing: "2px",
-                  color: "#333",
-                  border: "1px dashed #ccc",
-                  margin: "15px 0"
-                }}
-              >
-                {recoveredCode}
-              </div>
-              <p className="auth-hint" style={{ fontSize: "0.85rem" }}>
-                Use this uppercase code in the 'Organization Code' field during login.
-              </p>
+        {/* ================= RIGHT FORM CARD SIDE ================= */}
+        <div className="form-section">
+          <div className="help-link">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <img src={helpBtn} alt="Help" width="16" height="16" /> Help
+            </span>
+          </div>
+          <div className="form-card">
+            <div className="form-header">
+              <h2>Find Organization Code</h2>
+              <p>Recover your organization code using your registered email or mobile number.</p>
             </div>
-          )}
 
-          {error && <p className="error">{error}</p>}
+            {message && (
+              <p className="success-message" style={{ color: "green", marginBottom: "15px" }}>
+                {message}
+              </p>
+            )}
 
-          <div className="auth-links">
-            <Link to="/login">Back to Login</Link>
+            {/* STEP 1: IDENTIFY ACCOUNT */}
+            {step === "IDENTIFY" && (
+              <form onSubmit={handleRequestOtp}>
+                <div className="input-group">
+                  <label>Work Email or Mobile Number</label>
+                  <input
+                    type="text"
+                    placeholder="Enter your work email or mobile number"
+                    value={emailOrPhone}
+                    onChange={(e) => setEmailOrPhone(e.target.value)}
+                    required
+                  />
+                  <span className="helper-text">
+                    Enter the email or mobile number linked to your workplace profile
+                  </span>
+                </div>
+
+                <button type="submit" className="btn-login" disabled={isLoading}>
+                  {isLoading ? "Sending Code..." : "Send Verification Code"}
+                </button>
+              </form>
+            )}
+
+            {/* STEP 2: VERIFY OTP */}
+            {step === "VERIFY_OTP" && (
+              <form onSubmit={handleVerifyAndReveal}>
+                <div className="input-group">
+                  <label>Verification Code</label>
+                  <input
+                    type="text"
+                    maxLength="6"
+                    placeholder="Enter 6-Digit OTP"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    required
+                  />
+                  <span className="helper-text">
+                    Please check the code sent to your mobile or email inbox
+                  </span>
+                </div>
+
+                <button type="submit" className="btn-login" disabled={isLoading}>
+                  {isLoading ? "Fetching Code..." : "Verify & Find Code"}
+                </button>
+              </form>
+            )}
+
+            {/* STEP 3: REVEAL CODE */}
+            {step === "REVEAL" && (
+              <div className="reveal-box" style={{ textAlign: "center", margin: "20px 0" }}>
+                <p className="helper-text">Your workspace organization code is:</p>
+                <div
+                  className="code-display"
+                  style={{
+                    background: "#f4f5f7",
+                    padding: "15px",
+                    borderRadius: "6px",
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    letterSpacing: "2px",
+                    color: "#333",
+                    border: "1px dashed #ccc",
+                    margin: "15px 0"
+                  }}
+                >
+                  {recoveredCode}
+                </div>
+                <p className="helper-text" style={{ fontSize: "0.85rem" }}>
+                  Use this uppercase code in the 'Organization Code' field during login.
+                </p>
+              </div>
+            )}
+
+            {error && <p className="error">{error}</p>}
+
+
+            <div className="auth-links" style={{ textAlign: "center", }}>
+              <Link to="/login" style={{ textDecoration: "none", color: "#1E6BD6" }}>
+                Back to Login
+              </Link>
+            </div>
           </div>
         </div>
+
       </div>
+
+      {/* Footer Powered By text */}
+      <footer className="footer-copyright">
+        Powered by Kar Pragati Technologies Pvt. Ltd.
+      </footer>
     </div>
   );
 }

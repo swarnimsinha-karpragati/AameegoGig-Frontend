@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { signupUser } from "../services/authService";
-import logo from "../assets/logo.png";
+import LoginLayout from "../auth/LoginLayout";
+import "../auth/LoginScreen.css";
+import bgImage from "../assets/background.png";
+import helpBtn from '../assets/help.svg';
+
 
 function JoinOrg() {
   const navigate = useNavigate();
@@ -45,7 +49,7 @@ function JoinOrg() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Signup failed"
+        "Signup failed"
       );
     } finally {
       setLoading(false);
@@ -53,114 +57,127 @@ function JoinOrg() {
   };
 
   return (
-    <div className="auth-container">
-      {/* LEFT SIDE */}
-      <div className="auth-left">
-        <div className="branding">
-          <img
-            src={logo}
-            alt="Aameego"
-            className="brand-logo"
-          />
+    <div
+      className="login-container"
+      style={{ backgroundImage: `url(${bgImage})` }}
+    >
+      <div className="login-content">
 
-          <h1 className="brand-heading">
-            Aameego Gig
-          </h1>
+        {/* ================= LEFT HERO SIDE ================= */}
+        <LoginLayout />
 
-          <p className="brand-subtitle">
-            Join your organization and manage
-            your workforce seamlessly
-          </p>
+        {/* ================= RIGHT FORM CARD SIDE ================= */}
+        <div className="form-section">
+          <div className="help-link">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <img src={helpBtn} alt="Help" width="16" height="16" /> Help
+            </span>
+          </div>
+          <div className="form-card">
+            <div className="form-header">
+              <h2>Join Organization</h2>
+              <p>Join your organization and manage your workforce seamlessly.</p>
+            </div>
 
-          <p className="brand-company">
-            Powered by Kar Pragati Technologies Private Limited
-          </p>
-        </div>
-      </div>
+            <form onSubmit={handleSubmit}>
+              <div className="input-group">
+                <label>Full Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter your full name"
+                  required
+                  value={form.name}
+                  onChange={(e) =>
+                    handleChange("name", e.target.value)
+                  }
+                />
+              </div>
 
-      {/* RIGHT SIDE */}
-      <div className="auth-right">
-        <div className="auth-card">
-          <h2>Join Organization</h2>
+              <div className="input-group">
+                <label>Work Email or Mobile Number</label>
+                <input
+                  type="text"
+                  placeholder="Enter your work email or mobile number"
+                  required
+                  value={form.emailOrPhone}
+                  onChange={(e) =>
+                    handleChange("emailOrPhone", e.target.value)
+                  }
+                />
+              </div>
 
-          <form onSubmit={handleSubmit}>
-            <input
-              type="text"
-              placeholder="Full Name"
-              required
-              value={form.name}
-              onChange={(e) =>
-                handleChange(
-                  "name",
-                  e.target.value
-                )
-              }
-            />
+              <div className="input-group">
+                <label>Password</label>
+                <input
+                  type="password"
+                  placeholder="Create a password"
+                  required
+                  value={form.password}
+                  onChange={(e) =>
+                    handleChange("password", e.target.value)
+                  }
+                />
+              </div>
 
-            <input
-              type="text"
-              placeholder="Email or Mobile Number"
-              required
-              value={form.emailOrPhone}
-              onChange={(e) =>
-                handleChange(
-                  "emailOrPhone",
-                  e.target.value
-                )
-              }
-            />
+              <div className="input-group">
+                <label>Organization Code</label>
+                <input
+                  type="text"
+                  placeholder="Enter your organization code"
+                  required
+                  value={form.vendorCode}
+                  onChange={(e) =>
+                    handleChange("vendorCode", e.target.value)
+                  }
+                />
+                <span className="helper-text">Provided by your HR administrator</span>
+              </div>
 
-            <input
-              type="password"
-              placeholder="Password"
-              required
-              value={form.password}
-              onChange={(e) =>
-                handleChange(
-                  "password",
-                  e.target.value
-                )
-              }
-            />
+              <button type="submit" className="btn-login" disabled={loading}>
+                {loading
+                  ? "Joining..."
+                  : "Join Organization"}
+              </button>
+            </form>
 
-            <input
-              type="text"
-              placeholder="Organization Code"
-              required
-              value={form.vendorCode}
-              onChange={(e) =>
-                handleChange(
-                  "vendorCode",
-                  e.target.value
-                )
-              }
-            />
+            {message && (
+              <p className="success-message" style={{ color: "green", marginTop: "10px" }}>
+                {message}
+              </p>
+            )}
 
-            <button
-              type="submit"
-              disabled={loading}
+            {error && <p className="error">{error}</p>}
+
+            <div
+              className="auth-links"
+              style={{
+                display: "flex",
+                justifyContent: "flex-start",
+                alignItems: "center",
+                gap: "5px",
+                marginTop: "20px",
+              }}
             >
-              {loading
-                ? "Joining..."
-                : "Join Organization"}
-            </button>
-          </form>
+              <span>Already have an organization?</span>
 
-          {message && (
-            <p className="success">{message}</p>
-          )}
-
-          {error && (
-            <p className="error">{error}</p>
-          )}
-
-          <div className="auth-links">
-            <Link to="/login">
-              ← Back to Login
-            </Link>
+              <Link
+                to="/login"
+                style={{
+                  textDecoration: "none",
+                }}
+              >
+                Sign In
+              </Link>
+            </div>
           </div>
         </div>
+
       </div>
+
+      {/* Footer Powered By text */}
+      <footer className="footer-copyright">
+        Powered by Kar Pragati Technologies Pvt. Ltd.
+      </footer>
     </div>
   );
 }

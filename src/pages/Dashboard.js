@@ -125,6 +125,7 @@ function Dashboard() {
                   ? "Team overview — track attendance and pending approvals"
                   : "Your personal summary — attendance, leave, and expenses"}
               {" "}
+              {/* <span className="role-badge">{getRoleLabel(data?.role || user?.role)}</span> */}
             </p>
           </div>
         </div>
