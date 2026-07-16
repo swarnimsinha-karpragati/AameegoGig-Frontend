@@ -9,7 +9,15 @@ import {
   LocateIcon,
   User,
 } from "lucide-react";
+import useFormValidation from "../hooks/useFormValidation";
+import {
+  getMyProfile,
+  updateMyProfile,
+  uploadMyProfilePhoto,
+} from "../services/userProfileService";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 import "./ProfileCard.css";
+import Button from "./Button";
 function InputField({
   icon,
   label,
@@ -66,14 +74,66 @@ export default function ProfileCard() {
   const [isFormDisabled, setIsFormDisabled] = useState(true);
   const [showOptions, setShowOptions] = useState(false);
   const galleryInputRef = useRef(null);
-  const [profileImage, setProfileImage] = useState(null);
+  const [profileImage, setProfileImage] = useState("");
   const cameraInputRef = useRef(null);
   const [showCamera, setShowCamera] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
-  const [errors, setErrors] = useState({});
+  const { errors, validateOne, validateAll, clearAll } = useFormValidation();
   const [showSavePopup, setShowSavePopup] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
+
+  const profileFields = (values) => [
+    { name: "fullName", label: "Full Name", value: values.fullName, kind: "person_name", required: true },
+    { name: "email", label: "Email", value: values.email, inputType: "email", required: true },
+    { name: "phone", label: "Phone", value: values.phone, inputType: "tel", required: true },
+    { name: "location", label: "Location", value: values.location, required: true },
+    { name: "department", label: "Department", value: values.department, required: true },
+    { name: "role", label: "Role", value: values.role, required: true },
+  ];
+
+  const applyProfileData = (data) => {
+    setFullName(data.name || "");
+    setEmail(data.email || "");
+    setPhone(data.phone || "");
+    setLocation(data.location || "");
+    setDepartment(data.department || "");
+    setRole(data.role || "");
+    setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
+  };
+
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const res = await getMyProfile();
+      applyProfileData(res.data?.data || {});
+    } catch (err) {
+      setLoadError(err.response?.data?.message || "Failed to load profile");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  const validateForm = () => {
+    const result = validateAll(
+      profileFields({ fullName, email, phone, location, department, role })
+    );
+    return result.valid;
+  };
+
+  const handleFieldChange = (name, label, value, extra = {}) => {
+    validateOne({ name, label, value, required: true, ...extra });
+  };
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -115,139 +175,103 @@ export default function ProfileCard() {
     return () => stopCamera();
   }, [showCamera, startNativeCamera, stopCamera]);
 
-  const captureNativePhoto = useCallback(() => {
+  const syncStoredUser = useCallback((data) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "null");
+      if (!stored) return;
+      const next = {
+        ...stored,
+        name: data.name ?? stored.name,
+        phone: data.phone ?? stored.phone,
+        photoUrl: data.photoUrl ?? stored.photoUrl,
+        photoDisplayUrl: data.photoDisplayUrl ?? stored.photoDisplayUrl,
+      };
+      localStorage.setItem("user", JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const uploadPhoto = useCallback(async (file) => {
+    setUploadingPhoto(true);
+    setActionError("");
+    try {
+      const res = await uploadMyProfilePhoto(file);
+      const data = res.data?.data || {};
+      setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
+      syncStoredUser(data);
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Photo upload failed");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }, [syncStoredUser]);
+
+  const captureNativePhoto = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !cameraReady) return;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
     canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageSrc = canvas.toDataURL("image/jpeg", 0.9);
-    setProfileImage(imageSrc);
-    setShowCamera(false);
-  }, [cameraReady]);
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], `profile-${Date.now()}.jpg`, { type: "image/jpeg" });
+      await uploadPhoto(file);
+      setShowCamera(false);
+    }, "image/jpeg", 0.9);
+  }, [cameraReady, uploadPhoto]);
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      console.log(file);
-      setProfileImage(URL.createObjectURL(file));
+      await uploadPhoto(file);
     }
-  };
-  const handleRemoveImage = () => {
-    setProfileImage(null);
+    if (e.target) e.target.value = "";
   };
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!fullName.trim()) {
-      newErrors.fullName = "Full Name is required";
-    }
-
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Enter a valid email";
-    }
-
-    if (!phone.trim()) {
-      newErrors.phone = "Phone number is required";
-    } else if (!/^\d{10}$/.test(phone)) {
-      newErrors.phone = "Phone must be 10 digits";
-    }
-
-    if (!location.trim()) {
-      newErrors.location = "Location is required";
-    }
-
-    if (!department.trim()) {
-      newErrors.department = "Department is required";
-    }
-
-    if (!role.trim()) {
-      newErrors.role = "Role is required";
-    }
-
-    setErrors(newErrors);
-
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateField = (name, value) => {
-    let error = "";
-
-    switch (name) {
-      case "fullName":
-        if (!value.trim()) {
-          error = "Full Name is required";
-        }
-        break;
-
-      case "email":
-        if (!value.trim()) {
-          error = "Email is required";
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-          error = "Enter a valid email";
-        }
-        break;
-
-      case "phone":
-        if (!value.trim()) {
-          error = "Phone number is required";
-        } else if (!/^\d{10}$/.test(value)) {
-          error = "Phone must be 10 digits";
-        }
-        break;
-
-      case "location":
-        if (!value.trim()) {
-          error = "Location is required";
-        }
-        break;
-
-      case "department":
-        if (!value.trim()) {
-          error = "Department is required";
-        }
-        break;
-
-      case "role":
-        if (!value.trim()) {
-          error = "Role is required";
-        }
-        break;
-
-      default:
-        break;
-    }
-
-    setErrors((prev) => ({
-      ...prev,
-      [name]: error,
-    }));
-  };
-
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) {
       return;
     }
 
+    setSaving(true);
+    setActionError("");
+    try {
+      const res = await updateMyProfile({
+        name: fullName,
+        phone,
+        location,
+        department,
+      });
+      const data = res.data?.data || {};
+      applyProfileData(data);
+      syncStoredUser(data);
+      setIsFormDisabled(true);
       setShowSavePopup(true);
-
-    // API call here
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDiscard = () => {
-  setFullName("");
-  setEmail("");
-  setPhone("");
-  setLocation("");
-  setDepartment("");
-  setRole("");
-  setProfileImage(null);
-  setErrors({});
-};
+  const handleDiscard = async () => {
+    clearAll();
+    setIsFormDisabled(true);
+    await loadProfile();
+  };
+
+  const avatarInitial =
+    (fullName || email || "U").trim().charAt(0).toUpperCase() || "U";
+
+  if (loading) {
+    return (
+      <div className="profile-card">
+        <div className="profile-card__loading">Loading profile…</div>
+      </div>
+    );
+  }
   return (
     <div className="profile-card">
       <div className="profile-header">
@@ -266,6 +290,9 @@ export default function ProfileCard() {
       </div>
 
       <div className="profile-content">
+        {loadError ? <p className="profile-error">{loadError}</p> : null}
+        {actionError ? <p className="profile-error">{actionError}</p> : null}
+
         <div className="profile-avatar-section">
           <div className="profile-avatar">
             {profileImage ? (
@@ -275,19 +302,21 @@ export default function ProfileCard() {
                 className="profile-avatar-img"
               />
             ) : (
-              "A"
+              avatarInitial
             )}
           </div>
 
-          <button className="camera-btn" onClick={() => setShowOptions(true)}>
+          <button
+            className="camera-btn"
+            onClick={() => setShowOptions(true)}
+            disabled={uploadingPhoto}
+          >
             <Camera size={16} />
           </button>
 
-          {profileImage && (
-            <button className="remove-photo-btn" onClick={handleRemoveImage}>
-              Remove Photo
-            </button>
-          )}
+          {uploadingPhoto ? (
+            <p className="profile-upload-status">Uploading photo…</p>
+          ) : null}
 
           <input
             ref={galleryInputRef}
@@ -315,7 +344,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value.replace(/^\s+/, "");;
               setFullName(value);
-              validateField("fullName", value);
+              handleFieldChange("fullName", "Full Name", value, { kind: "person_name" });
             }}
             placeholder="Enter your full name"
             error={errors.fullName}
@@ -327,14 +356,10 @@ export default function ProfileCard() {
             label="Email"
             icon={<Mail size={15} color="#2563eb" />}
             value={email}
-            onChange={(e) => {
-              const value = e.target.value;
-              setEmail(value);
-              validateField("email", value);
-            }}
+            onChange={() => {}}
             placeholder="Enter your email"
             error={errors.email}
-            isFormDisabled={isFormDisabled}
+            isFormDisabled
           />
           {/* {errors.email && <p className="error-text">{errors.email}</p>} */}
 
@@ -345,7 +370,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value;
               setPhone(value);
-              validateField("phone", value);
+              handleFieldChange("phone", "Phone", value, { inputType: "tel" });
             }}
             placeholder="Enter phone number"
             error={errors.phone}
@@ -360,7 +385,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value;
               setLocation(value);
-              validateField("location", value);
+              handleFieldChange("location", "Location", value);
             }}
             placeholder="Enter location"
             error={errors.location}
@@ -375,7 +400,7 @@ export default function ProfileCard() {
             onChange={(e) => {
               const value = e.target.value;
               setDepartment(value);
-              validateField("department", value);
+              handleFieldChange("department", "Department", value);
             }}
             placeholder="Enter department"
             error={errors.department}
@@ -387,28 +412,27 @@ export default function ProfileCard() {
             label="Role"
             icon={<Briefcase size={15} color="#2563eb" />}
             value={role}
-            onChange={(e) => {
-              const value = e.target.value;
-              setRole(value);
-              validateField("role", value);
-            }}
+            onChange={() => {}}
             placeholder="Enter role"
             error={errors.role}
-            isFormDisabled={isFormDisabled}
+            isFormDisabled
           />
        
         </div>
       </div>
 
       <div className="button-row">
-        <button 
-        className="discard-btn"
-        onClick={handleDiscard}
-        >Discard</button>
+        <Button
+          className="secondary-btn"
+          onClick={handleDiscard}
+          disabled={saving}
+        >
+          Discard
+        </Button>
 
-        <button className="save-btn" onClick={handleSave}>
-          Save Changes
-        </button>
+        <Button onClick={handleSave} disabled={saving || isFormDisabled}>
+          {saving ? "Saving…" : "Save Changes"}
+        </Button>
       </div>
 
       {/* Popup */}
@@ -429,25 +453,25 @@ export default function ProfileCard() {
             <p>Select how you want to upload your profile picture</p>
 
             <div className="camera-options">
-              <button
-                className="upload-submit-btn"
+              <Button
+                
                 onClick={() => {
                   galleryInputRef.current?.click();
                   setShowOptions(false);
                 }}
               >
                 Choose From Gallery
-              </button>
+              </Button>
 
-              <button
-                className="upload-submit-btn"
+              <Button
+                
                 onClick={() => {
                   setShowCamera(true);
                   setShowOptions(false);
                 }}
               >
                 Open Camera
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -478,14 +502,13 @@ export default function ProfileCard() {
               <p style={{ textAlign: "center", color: "#888", marginTop: 8 }}>Starting camera…</p>
             )}
 
-            <button
-              className="upload-submit-btn"
+            <Button
               style={{ marginTop: "16px" }}
               onClick={captureNativePhoto}
               disabled={!cameraReady}
             >
               Capture Photo
-            </button>
+            </Button>
           </div>
         </div>
       )}

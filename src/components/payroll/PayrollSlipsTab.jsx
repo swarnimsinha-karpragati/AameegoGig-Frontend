@@ -1,21 +1,26 @@
 import React from "react";
-import { Search, Download, Eye, Mail, RefreshCw, Pencil } from "lucide-react";
+import { Search, Download, Eye, Mail, RefreshCw, Pencil, Send } from "lucide-react";
+import Button from "../Button";
 import MonthYearFilter from "./MonthYearFilter";
 import { formatInr, formatStatusLabel } from "../../utils/payrollConstants";
 
 function ValidationBadge({ issues }) {
   if (!issues?.length) return null;
-  if (issues.some((i) => i.severity === "fail")) {
-    return <span className="badge-status fail" style={{ marginLeft: 6 }} title="Validation failed">!</span>;
+  const failMessages = issues.filter((i) => i.severity === "fail").map((i) => i.message).filter(Boolean);
+  if (failMessages.length) {
+    return <span className="badge-status fail" style={{ marginLeft: 6 }} title={failMessages.join("\n")}>!</span>;
   }
-  if (issues.some((i) => i.severity === "warn")) {
-    return <span className="badge-status warn" style={{ marginLeft: 6 }} title="Validation warning">⚠</span>;
+  const warnMessages = issues.filter((i) => i.severity === "warn").map((i) => i.message).filter(Boolean);
+  if (warnMessages.length) {
+    return <span className="badge-status warn" style={{ marginLeft: 6 }} title={warnMessages.join("\n")}>⚠</span>;
   }
   return null;
 }
 
 export default function PayrollSlipsTab({
   isAdminOrHR,
+  notLinkedToEmployee,
+  runIsFinalized,
   selectedMonth,
   selectedYear,
   searchQuery,
@@ -31,15 +36,21 @@ export default function PayrollSlipsTab({
   onDownloadPdf,
   onEmailPayslip,
   onReopenPayroll,
+  onReleasePayroll,
 }) {
   return (
     <div className="history-table-container glass-morphism">
       <div className="table-header-filters">
         <div>
           <h2>Calculated Monthly Salary Slips</h2>
-          <p className="subtitle">Browse, download and manage employee payslips for the selected period.</p>
+          <p className="subtitle">
+            {isAdminOrHR
+              ? "Processed = visible to employee. Pending = not released yet. Reopen unlocks a processed slip for correction."
+              : "Browse and download your released payslips"}
+          </p>
         </div>
         <div className="filter-actions-row">
+          <div className="filter-actions-row-left">
           {isAdminOrHR && (
             <MonthYearFilter
               compact
@@ -58,14 +69,23 @@ export default function PayrollSlipsTab({
               onChange={(e) => onSearchChange(e.target.value)}
             />
           </div>
+          </div>
+          <div className="filter-actions-row-right">
           {isAdminOrHR && (
-            <button className="btn-csv" onClick={onDownloadCsv} type="button">
-              <Download size={15} />
-              <span>Download Transaction CSV</span>
-            </button>
+            <Button type="button" className="secondary-btn" icon={<Download size={15} />} onClick={onDownloadCsv}>
+              Download Transaction CSV
+            </Button>
           )}
+          </div>
+          
         </div>
       </div>
+
+      {!isAdminOrHR && notLinkedToEmployee && (
+        <div className="breakdown-period-note">
+          Your login isn't linked to an employee profile yet, so there's no payroll data to show. Ask HR/Admin to link your account to your employee record.
+        </div>
+      )}
 
       {isAdminOrHR && paymentHistory.length > 0 && (
         <div style={{ marginBottom: "1.5rem" }}>
@@ -73,19 +93,23 @@ export default function PayrollSlipsTab({
           <div className="scrollable-table-wrapper">
             <table className="payroll-custom-table">
               <thead>
-                <tr><th>Ref No</th><th>Beneficiary</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>Ref No</th><th>Beneficiary</th><th>Amount</th><th className="col-center">Status</th><th className="col-center">Actions</th></tr>
               </thead>
               <tbody>
                 {paymentHistory.map((p) => (
                   <tr key={p._id}>
                     <td>{p.refNo}</td>
                     <td>{p.beneficiaryName}</td>
-                    <td>{formatInr(p.amount)}</td>
-                    <td>{formatStatusLabel(p.status)}</td>
-                    <td>
-                      <button className="action-btn-view" onClick={() => onEditPayment(p)} type="button">
-                        <Pencil size={15} />
-                      </button>
+                    <td className="amount-cell">{formatInr(p.amount)}</td>
+                    <td className="col-center">{formatStatusLabel(p.status)}</td>
+                    <td className="col-center">
+                      <Button
+                        type="button"
+                        className="action-btn-view"
+                        icon={<Pencil size={15} />}
+                        onClick={() => onEditPayment(p)}
+                        aria-label="Edit payment"
+                      />
                     </td>
                   </tr>
                 ))}
@@ -101,7 +125,7 @@ export default function PayrollSlipsTab({
             <tr>
               <th>PAYROLL ID</th><th>EMP CODE</th><th>EMPLOYEE NAME</th><th>PERIOD</th>
               <th>DAYS PAYABLE</th><th>GROSS SALARY</th><th>DEDUCTIONS</th><th>NET PAYOUT</th>
-              <th>STATUS</th><th style={{ textAlign: "center" }}>ACTIONS</th>
+              <th className="col-center">PAYSLIP STATUS</th><th className="col-center">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
@@ -116,35 +140,63 @@ export default function PayrollSlipsTab({
                   <td className="amount-cell">{formatInr(item.totalEarnings)}</td>
                   <td className="amount-cell deduction-val">{formatInr(item.totalDeduction)}</td>
                   <td className="amount-cell net-salary-val">{formatInr(item.netSalary)}</td>
-                  <td>
+                  <td className="col-center">
                     <span className={`badge-status ${item.status === "Processed" ? "processed" : "pending"}`}>
                       {formatStatusLabel(item.status)}
                     </span>
                     <ValidationBadge issues={item.calculationBreakdown?.validationIssues} />
                   </td>
-                  <td>
+                  <td className="col-center">
                     <div className="row-action-buttons">
-                      <button className="action-btn-view" onClick={() => onViewBreakdown(item)} title="View Breakdown" type="button">
-                        <Eye size={15} />
-                      </button>
-                      <button
+                      <Button
+                        type="button"
+                        className="action-btn-view"
+                        icon={<Eye size={15} />}
+                        onClick={() => onViewBreakdown(item)}
+                        title="View Breakdown"
+                        aria-label="View Breakdown"
+                      />
+                      <Button
+                        type="button"
                         className="action-btn-pdf"
+                        icon={<Download size={15} />}
                         onClick={() => onDownloadPdf(item)}
                         title="Download PDF"
                         disabled={!isAdminOrHR && item.status !== "Processed"}
-                        type="button"
-                      >
-                        <Download size={15} />
-                      </button>
+                        aria-label="Download PDF"
+                      />
                       {isAdminOrHR && item.status === "Processed" && (
                         <>
-                          <button className="action-btn-view" onClick={() => onEmailPayslip(item)} title="Email Payslip" disabled={actionLoading} type="button">
-                            <Mail size={15} />
-                          </button>
-                          <button className="action-btn-view" onClick={() => onReopenPayroll(item)} title="Reopen Payroll" disabled={actionLoading} type="button">
-                            <RefreshCw size={15} />
-                          </button>
+                          <Button
+                            type="button"
+                            className="action-btn-view"
+                            icon={<Mail size={15} />}
+                            onClick={() => onEmailPayslip(item)}
+                            title="Email Payslip"
+                            disabled={actionLoading}
+                            aria-label="Email Payslip"
+                          />
+                          <Button
+                            type="button"
+                            className="action-btn-view"
+                            icon={<RefreshCw size={15} />}
+                            onClick={() => onReopenPayroll(item)}
+                            title="Reopen for correction"
+                            disabled={actionLoading}
+                            aria-label="Reopen Payslip"
+                          />
                         </>
+                      )}
+                      {isAdminOrHR && item.status !== "Processed" && runIsFinalized && (
+                        <Button
+                          type="button"
+                          className="action-btn-view"
+                          icon={<Send size={15} />}
+                          onClick={() => onReleasePayroll(item)}
+                          title="Release payslip to employee"
+                          disabled={actionLoading}
+                          aria-label="Release Payslip"
+                        />
                       )}
                     </div>
                   </td>
@@ -155,7 +207,9 @@ export default function PayrollSlipsTab({
                 <td colSpan="10" className="empty-table-cell">
                   {isAdminOrHR
                     ? "No payroll documents compiled for this query session."
-                    : "No payslips released yet. Approved payslips appear here after HR processes payroll."}
+                    : notLinkedToEmployee
+                      ? "No employee profile linked to your account."
+                      : "No payslips released yet. Approved payslips appear here after HR processes payroll."}
                 </td>
               </tr>
             )}

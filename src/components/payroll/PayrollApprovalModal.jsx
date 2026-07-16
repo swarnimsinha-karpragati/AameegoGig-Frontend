@@ -1,4 +1,5 @@
 import React from "react";
+import Button from "../Button";
 import PayrollModal from "./PayrollModal";
 
 export default function PayrollApprovalModal({
@@ -20,8 +21,8 @@ export default function PayrollApprovalModal({
       title={isApprove ? "Approve Payroll Run" : "Reject Payroll Run"}
       description={
         isApprove
-          ? "Confirm approval for this payroll run. Payslip processing can begin after approval."
-          : "Reject this payroll run and return it for recalculation."
+          ? "Confirm approval for this payroll run. Payslip processing can begin after approval"
+          : "Reject this payroll run and return it for recalculation"
       }
     >
       <textarea
@@ -32,16 +33,17 @@ export default function PayrollApprovalModal({
         onChange={(e) => onCommentChange(e.target.value)}
       />
       <div className="modal-actions">
-        <button className="btn-secondary-custom" type="button" onClick={onClose}>Cancel</button>
-        <button
-          className={isApprove ? "btn-primary-custom" : "btn-secondary-custom"}
+        <Button type="button" className="secondary-btn" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
           type="button"
+          className={isApprove ? "" : "action-btn-delete"}
           onClick={onSubmit}
           disabled={actionLoading}
-          style={!isApprove ? { color: "#dc2626", borderColor: "#fecaca" } : undefined}
         >
           {isApprove ? "Confirm Approval" : "Confirm Rejection"}
-        </button>
+        </Button>
       </div>
     </PayrollModal>
   );

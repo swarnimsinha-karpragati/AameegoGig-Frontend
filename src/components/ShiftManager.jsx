@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'; // Added useRef
 import './ShiftManager.css';
 import { createShift, getShift, updateShift, deleteShift } from '../services/settingService';
+import Button from './Button';
 
 const ShiftManager = ({ vendorId }) => {
   const [shifts, setShifts] = useState([]);
@@ -142,6 +143,7 @@ const ShiftManager = ({ vendorId }) => {
           <div className="form-group">
             <label htmlFor="shiftName">Shift Name</label>
             <input
+              className="shift-input"
               type="text"
               id="shiftName"
               name="shiftName"
@@ -157,6 +159,7 @@ const ShiftManager = ({ vendorId }) => {
             <div className="form-group">
               <label htmlFor="startTime">Start Time</label>
               <input
+                className="shift-input"
                 type="time"
                 id="startTime"
                 name="startTime"
@@ -171,6 +174,7 @@ const ShiftManager = ({ vendorId }) => {
               <label htmlFor="endTime">End Time</label>
               <input
                 type="time"
+                className="shift-input"
                 id="endTime"
                 name="endTime"
                 value={formData?.endTime}
@@ -186,6 +190,7 @@ const ShiftManager = ({ vendorId }) => {
             <input
               type="number"
               id="graceTime"
+              className="shift-input"
               name="graceTime"
               value={formData?.graceTime}
               onChange={handleChange}
@@ -197,18 +202,19 @@ const ShiftManager = ({ vendorId }) => {
 
           <div className="form-actions">
             {editingShiftId && (
-              <button 
+              <Button 
                 type="button" 
-                className="btn-secondary" 
                 onClick={handleCancelEdit}
                 disabled={isActionLoading}
+                className="secondary-btn"
               >
                 Cancel Edit
-              </button>
+              </Button>
+              
             )}
-            <button type="submit" className="btn-primary" disabled={isActionLoading}>
+            <Button type="submit" disabled={isActionLoading}>
               {isActionLoading ? 'Saving...' : editingShiftId ? 'Update Shift Profile' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -250,22 +256,22 @@ const ShiftManager = ({ vendorId }) => {
                     </div>
 
                     <div className="shift-card-actions-wrapper">
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(shift)}
-                        disabled={isActionLoading}
-                        className="shift-action-btn-edit"
-                      >
-                        Edit
-                      </button>
-                      <button
+                      <Button
                         type="button"
                         onClick={() => handleDeleteClick(currentId)}
                         disabled={isActionLoading}
-                        className="shift-action-btn-delete"
+                        className="action-btn-delete"
                       >
                         Delete
-                      </button>
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => handleEditClick(shift)}
+                        disabled={isActionLoading}
+                        className="action-btn-edit"
+                      >
+                        Edit
+                      </Button>
                     </div>
                   </div>
                 </div>

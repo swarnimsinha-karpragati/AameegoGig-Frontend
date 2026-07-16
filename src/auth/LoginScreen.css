@@ -1,0 +1,365 @@
+/* ================= GLOBAL LAYOUT ================= */
+
+.bg-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* or cover */
+    z-index: -1;
+}
+
+.login-container {
+    min-height: 100vh;
+    width: 100%;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover;
+    overflow: hidden;
+}
+
+.login-content {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0px 20px;
+    align-items: center;
+    flex-grow: 1;
+}
+
+/* ================= LEFT HERO SIDE ================= */
+.hero-section {
+    color: #ffffff;
+    padding-right: 50px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.brand-header {
+    height: 47px;
+    width: 203px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    overflow: visible;
+}
+
+.workza-logo {
+    width: 170px;
+    height: auto;
+    transform: scale(1.75);
+    transform-origin: left center;
+    margin: 0;
+    position: relative;
+    margin-top: 70px;
+    left: -68px;
+}
+
+.brand-icon {
+    background-color: #ffffff;
+    color: #0d82d4;
+    font-weight: 900;
+    font-size: 24px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+}
+
+.brand-text h2 {
+    font-size: 20px;
+    letter-spacing: 1px;
+}
+
+.brand-text p {
+    font-size: 10px;
+    opacity: 0.8;
+    text-transform: uppercase;
+}
+
+.hero-text-block h1 {
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 15px;
+    margin-top: 45px;
+}
+
+.hero-subtitle {
+    font-size: 16px;
+    opacity: 0.9;
+    line-height: 1.5;
+    max-width: 480px;
+}
+
+/* Feature List */
+.features-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.feature-icon {
+    background: #ffffff;
+    backdrop-filter: blur(5px);
+    width: 47px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 18px;
+}
+
+.feature-info h3 {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.feature-info p {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+/* Security Badge */
+.security-badge {
+    top: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 14px 26px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: fit-content;
+    margin-top: 28px;
+}
+
+.shield-icon {
+    font-size: 20px;
+}
+
+.security-badge strong {
+    font-size: 12px;
+    display: block;
+    letter-spacing: 1px;
+}
+
+.security-badge p {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+/* ================= RIGHT FORM CARD SIDE ================= */
+.form-section {
+    top: 4%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    position: relative;
+}
+
+.help-link {
+    position: absolute;
+    top: -35px;
+    right: 20px;
+    color: #0369a1;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.form-card {
+    background: #ffffff;
+    width: 100%;
+    max-width: 580px;
+    border-radius: 24px;
+    padding: 40px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.form-header h2 {
+    font-size: 24px;
+    color: #1e293b;
+    margin-bottom: 6px;
+}
+
+.form-header p {
+    font-size: 14px;
+    color: #64748b;
+    margin-bottom: 24px;
+}
+
+/* Inputs */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 18px;
+}
+
+.input-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.input-group input {
+    padding: 12px 16px;
+    font-size: 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.2s;
+    color: #334155;
+}
+
+.input-group input:focus {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+}
+
+.helper-text {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+/* Utilities (Remember me & Forgot links) */
+.form-utilities {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    font-size: 12px;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #475569;
+    cursor: pointer;
+}
+
+.forgot-links {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.forgot-links a {
+    color: #0284c7;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.forgot-links a:hover {
+    text-decoration: underline;
+}
+
+/* Buttons */
+.btn-login {
+    width: 100%;
+    background: linear-gradient(135deg, #0284c7, #10b981);
+    color: white;
+    border: none;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-login:hover {
+    opacity: 0.95;
+}
+
+.form-divider {
+    height: 1px;
+    background-color: #f1f5f9;
+    margin: 24px 0;
+}
+
+.action-buttons-group {
+    display: flex;
+    gap: 15px;
+}
+
+.btn-secondary {
+    flex: 1;
+    background: none;
+    border: 1px solid #0284c7;
+    color: #0284c7;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background-color: #f0f9ff;
+}
+
+/* ================= FOOTER ================= */
+.footer-copyright {
+    text-align: center;
+    font-size: 12px;
+    width: 100%;
+    font-weight: 600px;
+    color: #000000;
+    line-height: 24px;
+    letter-spacing: 1%;
+}
+
+/* ================= MOBILE RESPONSIVENESS ================= */
+@media (max-width: 900px) {
+    .login-content {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        padding: 20px;
+    }
+
+    .hero-section {
+        padding-right: 0;
+        align-items: center;
+        text-align: center;
+    }
+
+    .hero-subtitle {
+        margin: 0 auto;
+    }
+
+    .features-list {
+        align-items: flex-start;
+    }
+
+    .security-badge {
+        margin: 0 auto;
+    }
+
+    .form-section {
+        align-items: center;
+    }
+
+    .help-link {
+        position: static;
+        margin-bottom: 15px;
+    }
+}

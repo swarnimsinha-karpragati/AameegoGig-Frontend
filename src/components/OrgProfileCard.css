@@ -1,0 +1,253 @@
+/* Organization profile — matches settings panel design */
+
+.org-profile-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -2px rgba(148, 163, 184, 0.08), 0 2px 8px -1px rgba(148, 163, 184, 0.04);
+  padding: 16px 18px;
+}
+
+.org-profile-card__head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e6bd6;
+}
+
+.org-profile-card__head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.org-profile-card__head p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.org-profile-card__logo-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: #fafbfc;
+  border-radius: 10px;
+  border: 1px dashed #cbd5e1;
+}
+
+.org-profile-card__logo-preview {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.org-profile-card__logo-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.org-profile-card__logo-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e6bd6, #0ea5e9);
+  color: #fff;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.org-profile-card__upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.org-profile-card__upload-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.org-profile-card__upload-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.org-profile-card__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.org-profile-card__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.org-profile-card__grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.org-profile-card__grid label.full-width {
+  grid-column: 1 / -1;
+}
+
+.org-profile-card__grid input,
+.org-profile-card__grid textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0f172a;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.org-profile-card__grid input {
+  height: 40px;
+}
+
+.org-profile-card__grid textarea {
+  padding: 10px 12px;
+  min-height: 72px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.org-profile-card__grid input:focus,
+.org-profile-card__grid textarea:focus {
+  border-color: #1e6bd6;
+  box-shadow: 0 0 0 3px rgba(30, 107, 214, 0.12);
+}
+
+.org-profile-card__grid input:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.org-profile-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  margin-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.org-profile-card__save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 18px;
+  background: #1e6bd6;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(30, 107, 214, 0.15);
+  transition: background 0.15s ease;
+}
+
+.org-profile-card__save:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.org-profile-card__save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.org-profile-card__msg {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.org-profile-card__msg.success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #bbf7d0;
+}
+
+.org-profile-card__msg.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.org-profile-card__loading {
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+@media (max-width: 768px) {
+  .org-profile-card__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .org-profile-card__logo-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .org-profile-card__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .org-profile-card__save {
+    width: 100%;
+  }
+}

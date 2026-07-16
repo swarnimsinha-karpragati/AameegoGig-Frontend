@@ -52,6 +52,13 @@ export const migrateEmployeeStructure = async (employeeId) => {
   return API.post(`/salary-components/structure/${employeeId}/migrate`);
 };
 
+export const previewEmployeeStructure = async (employeeId, draftPayload = null) => {
+  if (draftPayload) {
+    return API.post(`/salary-components/structure/${employeeId}/preview`, draftPayload);
+  }
+  return API.get(`/salary-components/structure/${employeeId}/preview`);
+};
+
 export const getCtcPresets = async () => {
   return API.get("/salary-components/ctc-presets");
 };

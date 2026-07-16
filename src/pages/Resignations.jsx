@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import "./Resignation.css";
+import Button from "../components/Button";
 
 function ResModal({ title, onClose, size = "md", children, footer }) {
   return (
@@ -80,6 +81,8 @@ function Resignations() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approvingRecordId, setApprovingRecordId] = useState(null);
   const [isHrFinalizing, setIsHrFinalizing] = useState(false);
+
+  const [isLoading,setIsLoading] = useState(false)
   
   const [checklistForm, setChecklistForm] = useState({
     isExitChecklistCleared: false,
@@ -182,7 +185,7 @@ function Resignations() {
       alert("Please fill in all required fields.");
       return;
     }
-
+    setIsLoading(true)
     const formData = new FormData();
     formData.append("vendorId", vendorId);
     formData.append("reasonForLeaving", form.reasonForLeaving);
@@ -196,7 +199,9 @@ function Resignations() {
       alert("Resignation request submitted successfully.");
       handleModalClose();
       fetchAllData(); 
+      setIsLoading(false)
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Submission failed");
     }
   };
@@ -221,6 +226,7 @@ function Resignations() {
 
   const processChecklistSubmission = async () => {
     try {
+      setIsLoading(true)
         if (isHrFinalizing) {
             const payload = {
                 status: "Approved",
@@ -247,18 +253,23 @@ function Resignations() {
             alert(`Checklist metrics successfully saved with configuration status: ${payload.status}.`);
             handleModalClose();
         }
+        setIsLoading(false)
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Checklist pipeline save operation failed.");
     }
   };
 
   const handleRejectStatus = async (id) => {
     if (!window.confirm("Are you sure you want to reject this resignation request?")) return;
+    setIsLoading(true)
     try {
       await rejectResignation(id, currentUser?.employeeId);
       fetchAllData();
+      setIsLoading(false)
       alert("Request marked as Rejected");
     } catch (error) {
+      setIsLoading(false)
       alert(error.response?.data?.message || "Status operation failed");
     }
   };
@@ -289,9 +300,9 @@ function Resignations() {
       <div className="exit-mgmt-container">
         <div className="exit-mgmt-header-row">
           <h2 className="exit-mgmt-title">My Resignation Status</h2>
-          <button className="exit-mgmt-add-trigger" onClick={() => setShowAddModal(true)}>
-            <Plus size={22} /> Apply for Resignation
-          </button>
+          <Button icon={ <Plus size={22} />} iconPosition="left" onClick={() => setShowAddModal(true)}>
+            Apply for Resignation
+          </Button>
         </div>
 
         <div className="exit-mgmt-card exit-mgmt-card--mb-large">
@@ -523,12 +534,12 @@ function Resignations() {
             size="lg"
             footer={
               <>
-                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
+                <Button type="button" className="secondary-btn" onClick={handleModalClose} disabled={isLoading}>
                   Cancel
-                </button>
-                <button type="submit" form="resignation-core-form" className="exit-mgmt-control-btn exit-mgmt-control-btn--primary">
+                </Button>
+                <Button type="submit" form="resignation-core-form" disabled={isLoading}>
                   Submit Notice
-                </button>
+                </Button>
               </>
             }
           >
@@ -595,16 +606,16 @@ function Resignations() {
             size="lg"
             footer={
               <div className="exit-mgmt-modal-actions">
-                <button type="button" className="exit-mgmt-control-btn exit-mgmt-control-btn--secondary" onClick={handleModalClose}>
+                <Button type="button" disabled={isLoading} onClick={handleModalClose} className="secondary-btn">
                   Cancel
-                </button>
-                <button 
-                  type="button" 
-                  className={`exit-mgmt-control-btn ${isHrFinalizing ? 'exit-mgmt-control-btn--primary' : 'exit-mgmt-control-btn--verify'}`} 
+                </Button>
+                <Button 
+                  type="button"  
                   onClick={() => processChecklistSubmission()}
+                  disabled={isLoading}
                 >
-                  {isHrFinalizing ? "Confirm Final Approval" : "Save Progress (Verify)"}
-                </button>
+                  {isHrFinalizing ? "Approve" : "Verify"}
+                </Button>
               </div>
             }
           >

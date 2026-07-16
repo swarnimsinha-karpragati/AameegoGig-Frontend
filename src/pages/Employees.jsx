@@ -38,7 +38,12 @@ import { saveEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
 import { getDepartmentName } from "../services/departmentService";
-import { employeeValidationSchema } from "../validators/employeeValidation";
+import {
+  employeeValidationSchema,
+  getMaxDateOfBirthInputValue,
+} from "../validators/employeeValidation";
+import { validateStructureDraft } from "../utils/salaryValidation";
+import Button from "../components/Button";
 
 export const generateClientEmpCode = (prefix = "EMP") => {
   const randomDigits = Math.floor(10000 + Math.random() * 90000);
@@ -176,6 +181,10 @@ function EmployeeFormFields({
   department,
   errors
 }) {
+  const fieldError = (key) => errors?.[key];
+  const inputClassName = (key) =>
+    fieldError(key) ? "emp-field-input--error" : undefined;
+
   const renderInput = (field) => {
     const id = `emp-field-${field.key}`;
     const common = {
@@ -183,6 +192,7 @@ function EmployeeFormFields({
       name: field.key,
       value: values[field.key] || "",
       onChange: onFieldChange,
+      className: inputClassName(field.key),
     };
     if (field.key === "department") {
       return (
@@ -194,11 +204,9 @@ function EmployeeFormFields({
             </option>
           ))}
         </select>
-        {errors[field.key] && (
-          <p style={{ color: "red", margin: "4px 0 0", fontSize: "14px" }}>
-            {errors[field.key]}
-          </p>
-        )}
+        {fieldError(field.key) ? (
+          <p className="emp-field-error">{fieldError(field.key)}</p>
+        ) : null}
         </>
       );
     }
@@ -216,24 +224,25 @@ function EmployeeFormFields({
               </option>
             ))}
         </select>
-        {errors[field.key] && (
-          <p style={{ color: "red", margin: "4px 0 0", fontSize: "14px" }}>
-            {errors[field.key]}
-          </p>
-        )}
+        {fieldError(field.key) ? (
+          <p className="emp-field-error">{fieldError(field.key)}</p>
+        ) : null}
         </>
       );
     }
 
     if (field.type === "date") {
+      const dateInputProps =
+        field.key === "dob"
+          ? { max: getMaxDateOfBirthInputValue() }
+          : {};
+
       return (
         <>
-        <input {...common} type="date" />
-        {errors[field.key] && (
-            <p style={{ color: "red", margin: "4px 0 0", fontSize: "14px" }}>
-              {errors[field.key]}
-            </p>
-          )}
+        <input {...common} {...dateInputProps} type="date" />
+        {fieldError(field.key) ? (
+          <p className="emp-field-error">{fieldError(field.key)}</p>
+        ) : null}
         </>
       );
     }
@@ -245,11 +254,9 @@ function EmployeeFormFields({
         type={field.type || "text"}
         placeholder={`Enter ${field.label.toLowerCase()}`}
       />
-      {errors[field.key] && (
-          <p style={{ color: "red", margin: "4px 0 0", fontSize: "14px" }}>
-            {errors[field.key]}
-          </p>
-        )}
+      {fieldError(field.key) ? (
+        <p className="emp-field-error">{fieldError(field.key)}</p>
+      ) : null}
       </>
     );
   };
@@ -307,11 +314,11 @@ function AppLoginSection({
     <div className="emp-login-card">
       <label className="emp-login-card__toggle">
         <input type="checkbox" checked={enabled} onChange={onToggle} />
-        <span>Enable app login for this employee</span>
+        <div>
+          <span>Enable app login for this employee</span>
+          <span>Unchecked employees are managed by HR only (no mobile app access).</span>
+        </div>
       </label>
-      <p className="emp-field-hint">
-        Unchecked employees are managed by HR only (no mobile app access).
-      </p>
       {enabled ? (
         <>
           <p className="employee-login-warning">
@@ -536,15 +543,70 @@ function Employees() {
      HANDLE INPUT CHANGE
   ========================= */
 
+  const [errors, setErrors] = useState({});
+
+  const scrollToFirstError = (errorMap) => {
+    const firstKey = Object.keys(errorMap).find((key) => errorMap[key]);
+    if (!firstKey) return;
+    const el = document.getElementById(`emp-field-${firstKey}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.focus?.();
+  };
+
+  const validateEmployeeField = async (name, values) => {
+    try {
+      await employeeValidationSchema.validateAt(name, values, { abortEarly: true });
+      setErrors((prev) => {
+        if (!prev[name]) return prev;
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, [name]: err.message }));
+    }
+  };
+
+  const collectEmployeeFormErrors = async (values) => {
+    try {
+      await employeeValidationSchema.validate(values, { abortEarly: false });
+      return {};
+    } catch (err) {
+      if (!err.inner) throw err;
+      const newErrors = {};
+      err.inner.forEach((e) => {
+        newErrors[e.path] = e.message;
+      });
+      return newErrors;
+    }
+  };
+
+  const hasFormErrors = Object.values(errors).some(Boolean);
+
   const handleChange = (e) => {
     const { name, type, checked, value } = e.target;
-    setForm({
+    const nextForm = {
       ...form,
       [name]: type === "checkbox" ? checked : value,
-    });
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
+    };
+    setForm(nextForm);
+    validateEmployeeField(
+      name,
+      buildEmployeePayload(nextForm, { createAppLogin: nextForm.createAppLogin })
+    );
+  };
+
+  const handleEditFieldChange = (e) => {
+    const { name, type, checked, value } = e.target;
+    const nextEmployee = {
+      ...selectedEmployee,
+      [name]: type === "checkbox" ? checked : value,
+    };
+    setSelectedEmployee(nextEmployee);
+    validateEmployeeField(
+      name,
+      buildEmployeePayload(nextEmployee, { createAppLogin: enableLoginOnUpdate })
+    );
   };
 
   /* =========================
@@ -564,8 +626,6 @@ function Employees() {
     });
   };
 
-  const [errors, setErrors] = useState({});
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -579,9 +639,23 @@ function Employees() {
         createAppLogin: form.createAppLogin,
       });
 
-      await employeeValidationSchema.validate(payload, {
-        abortEarly: false,
-      });
+      const formErrors = await collectEmployeeFormErrors(payload);
+      if (Object.keys(formErrors).length) {
+        setErrors(formErrors);
+        scrollToFirstError(formErrors);
+        return;
+      }
+
+      if (hasSalaryData(salaryDraft)) {
+        const structureErrors = validateStructureDraft(salaryDraft);
+        if (structureErrors.length) {
+          setErrors({
+            salaryStructure: structureErrors.join("; "),
+          });
+          return;
+        }
+      }
+
       setErrors({});
       const res = await addEmployee(payload);
       const data = res.data;
@@ -589,7 +663,10 @@ function Employees() {
 
       if (newEmployeeId && hasSalaryData(salaryDraft)) {
         try {
-          await saveEmployeeStructure(newEmployeeId, salaryDraft);
+          await saveEmployeeStructure(newEmployeeId, {
+            ctcAnnual: Number(salaryDraft.ctcAnnual) || 0,
+            components: salaryDraft.components,
+          });
         } catch (structureError) {
           alert(
             structureError.response?.data?.message ||
@@ -615,21 +692,11 @@ function Employees() {
 
       fetchEmployees();
     } catch (error) {
-      if (error.inner) {
-        const newErrors = {};
-        error.inner.forEach((err) => {
-          newErrors[err.path] = err.message;
-        });
-        setErrors(newErrors);
-        console.log("Validation Errors:", newErrors);
-      } 
-      else {
-        setErrors({});
-        console.error("Server/Network Error:", error);
-        
-        const serverMessage = error.response?.data?.message || "Failed to add employee";
-        alert(serverMessage);
-      }
+      setErrors({});
+      console.error("Server/Network Error:", error);
+
+      const serverMessage = error.response?.data?.message || "Failed to add employee";
+      alert(serverMessage);
     }
   };
 
@@ -698,9 +765,11 @@ function Employees() {
   ========================= */
 
   const handleEdit = (emp) => {
+    setErrors({});
     setSelectedEmployee({
       ...emp,
       managerId: emp.managerId?._id || emp.managerId || "",
+      dob: emp.dob ? emp.dob.split("T")[0] : "",
       dateOfJoining:
         emp.dateOfJoining
           ? emp.dateOfJoining
@@ -733,9 +802,13 @@ function Employees() {
         createAppLogin: enableLoginOnUpdate,
       });
 
-      await employeeValidationSchema.validate(payload, {
-        abortEarly: false,
-      });
+      const formErrors = await collectEmployeeFormErrors(payload);
+      if (Object.keys(formErrors).length) {
+        setErrors(formErrors);
+        scrollToFirstError(formErrors);
+        return;
+      }
+
       setErrors({});
 
       const res = await updateEmployee(
@@ -760,21 +833,11 @@ function Employees() {
 
       fetchEmployees();
     } catch (error) {
-      if (error.inner) {
-        const newErrors = {};
-        error.inner.forEach((err) => {
-          newErrors[err.path] = err.message;
-        });
-        setErrors(newErrors);
-        console.log("Validation Errors:", newErrors);
-      } 
-      else {
-        setErrors({});
-        console.error("Server/Network Error:", error);
-        
-        const serverMessage = error.response?.data?.message || "Failed to update employee";
-        alert(serverMessage);
-      }
+      setErrors({});
+      console.error("Server/Network Error:", error);
+
+      const serverMessage = error.response?.data?.message || "Failed to update employee";
+      alert(serverMessage);
     }
   };
 
@@ -841,6 +904,7 @@ function Employees() {
       await generateAppointmentLetter({
         ...letterData,
         salaryComponents: (letterData.salaryComponents || []).map((c) => ({
+          code: c.code,
           componentName: c.componentName || c.name,
           monthly: c.monthly,
           annual: c.annual,
@@ -962,27 +1026,32 @@ function Employees() {
           {/* ACTION BUTTONS */}
           <div className="toolbar-actions">
 
-            <button
-              className="upload-btn"
+            <Button
+              className="secondary-btn"
+              icon={<Upload size={18} />}
               onClick={() => {
                 setShowUploadModal(true)
                 setUploadMessage("")
                 setUploadFile(null)
               }}
             >
-              <Upload size={18} />
               Bulk Upload
-            </button>
+            </Button>
 
-            <button
-              className="add-btn"
-              onClick={() =>
-                setShowAddModal(true)
-              }
+            <Button
+              icon={<Plus size={18} />}
+              onClick={() => {
+                setForm({
+                  ...initialForm,
+                  employeeCode: generateClientEmpCode(),
+                });
+                setSalaryDraft(initialSalaryDraft);
+                setErrors({});
+                setShowAddModal(true);
+              }}
             >
-              <Plus size={18} />
               Add Employee
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -1135,9 +1204,9 @@ function Employees() {
             size="lg"
             footer={
               <>
-                <button
+                <Button
                   type="button"
-                  className="emp-btn emp-btn--secondary"
+                  className="secondary-btn"
                   onClick={() => {
                     setShowAddModal(false);
                     setSalaryDraft(initialSalaryDraft);
@@ -1145,14 +1214,14 @@ function Employees() {
                   }}
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   form="add-employee-form"
-                  className="emp-btn emp-btn--primary"
+                  disabled={hasFormErrors}
                 >
                   Save Employee
-                </button>
+                </Button>
               </>
             }
           >
@@ -1190,7 +1259,11 @@ function Employees() {
                 description="Set earnings and deductions from your organization component library"
                 fullWidth
               >
+                {errors.salaryStructure ? (
+                  <p className="emp-field-error">{errors.salaryStructure}</p>
+                ) : null}
                 <EmployeeSalaryStructureEditor
+                  key="add-employee-salary-structure"
                   draftValue={salaryDraft}
                   onDraftChange={setSalaryDraft}
                   hideActions
@@ -1259,20 +1332,20 @@ function Employees() {
             footer={
               isEditing ? (
                 <>
-                  <button
+                  <Button
                     type="button"
-                    className="emp-btn emp-btn--secondary"
+                    className="secondary-btn"
                     onClick={() => {setSelectedEmployee(null); setErrors({})}}
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="emp-btn emp-btn--primary"
                     onClick={handleUpdate}
+                    disabled={hasFormErrors}
                   >
                     Save Changes
-                  </button>
+                  </Button>
                 </>
               ) : null
             }
@@ -1282,12 +1355,7 @@ function Employees() {
                   <EmployeeFormFields
                     sections={EMPLOYEE_FORM_SECTIONS}
                     values={selectedEmployee}
-                    onFieldChange={(e) =>
-                      setSelectedEmployee({
-                        ...selectedEmployee,
-                        [e.target.name]: e.target.value,
-                      })
-                    }
+                    onFieldChange={handleEditFieldChange}
                     employees={employees}
                     excludeEmployeeId={selectedEmployee._id}
                     emailRequired={enableLoginOnUpdate}
@@ -1504,24 +1572,23 @@ function Employees() {
             size="xl"
             footer={
               <>
-                <button
+                <Button
                   type="button"
-                  className="emp-btn emp-btn--secondary"
+                  className="secondary-btn"
                   onClick={() => {
                     setShowLetterModal(false);
                     setLetterEmployeeId(null);
                   }}
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="emp-btn emp-btn--primary"
                   onClick={handleGenerateLetter}
                   disabled={loading}
                 >
                   {loading ? "Generating…" : "Generate Letter"}
-                </button>
+                </Button>
               </>
             }
           >
@@ -1638,15 +1705,16 @@ function Employees() {
             onClose={() => setShowDocumentsModal(false)}
             size="md"
             footer={
-              <button
+              <Button
                 type="button"
-                className="emp-btn emp-btn--primary emp-btn--block"
+                icon={<Upload size={16} />}
                 onClick={handleUploadDocument}
                 disabled={!documentFile}
+                style={{flex:1}}
               >
-                <Upload size={16} />
+                
                 Upload Document
-              </button>
+              </Button>
             }
           >
             <div className="emp-doc-hero">

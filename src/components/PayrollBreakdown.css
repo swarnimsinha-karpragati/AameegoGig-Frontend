@@ -1,29 +1,78 @@
+/* ─── Payroll breakdown content (inside drawer) ─── */
+
+.payroll-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Earnings | Deductions two-up */
 .payroll-breakdown__sheet {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-top: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-@media (max-width: 768px) {
-  .payroll-breakdown__sheet {
-    grid-template-columns: 1fr;
-  }
+.payroll-breakdown__col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
 }
 
-.payroll-breakdown__col h4 {
-  margin: 0 0 12px;
-  font-size: 0.8125rem;
+.payroll-breakdown__col-head {
+  padding: 10px 14px;
+  font-size: 0.6875rem;
   font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.payroll-breakdown__line {
+.payroll-breakdown__col--earn .payroll-breakdown__col-head {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.payroll-breakdown__col--ded .payroll-breakdown__col-head {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.payroll-breakdown__col-body {
+  flex: 1;
+  padding: 4px 14px;
+}
+
+.payroll-breakdown__col-foot {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.payroll-breakdown__col-foot--ded {
+  color: #b91c1c;
+}
+
+.payroll-breakdown__col-foot-amount {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Line items */
+.payroll-breakdown__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid #f1f5f9;
@@ -37,33 +86,39 @@
 .payroll-breakdown__line-label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .payroll-breakdown__line-name {
   color: #0f172a;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  line-height: 1.35;
 }
 
 .payroll-breakdown__line-code {
   font-size: 0.6875rem;
+  font-weight: 600;
   color: #94a3b8;
-  text-transform: uppercase;
   letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .payroll-breakdown__line-formula {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: #64748b;
-  font-style: italic;
-  line-height: 1.3;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .payroll-breakdown__line-amount {
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: #0f172a;
   white-space: nowrap;
+  padding-top: 1px;
 }
 
 .payroll-breakdown__line--ot .payroll-breakdown__line-amount {
@@ -74,45 +129,81 @@
   color: #dc2626;
 }
 
-.payroll-breakdown__total {
-  display: flex;
-  justify-content: space-between;
-  padding: 14px 0 4px;
-  margin-top: 8px;
-  border-top: 2px solid #e2e8f0;
-  font-weight: 700;
-  font-size: 0.9375rem;
-}
-
-.payroll-breakdown__total--deduction {
-  color: #dc2626;
-}
-
-.payroll-breakdown__validation {
-  margin-top: 16px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #fafbfc;
-}
-
-.payroll-breakdown__validation h5 {
-  margin: 0 0 10px;
+.payroll-breakdown__empty {
+  padding: 16px 0;
   font-size: 0.8125rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+/* Employer contributions */
+.payroll-breakdown__employer {
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.payroll-breakdown__employer-head {
+  padding: 10px 14px;
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+}
+
+.payroll-breakdown__employer-head h4 {
+  margin: 0;
+  font-size: 0.6875rem;
   font-weight: 700;
-  color: #334155;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+}
+
+.payroll-breakdown__employer-note {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.payroll-breakdown__employer-body {
+  padding: 4px 14px;
+}
+
+.payroll-breakdown__line--employer .payroll-breakdown__line-amount {
+  color: #1d4ed8;
+}
+
+/* Validation */
+.payroll-breakdown__validation {
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fffbeb;
+}
+
+.payroll-breakdown__validation-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #92400e;
+  border-bottom: 1px solid #fde68a;
+}
+
+.payroll-breakdown__validation-body {
+  padding: 8px 14px 12px;
 }
 
 .payroll-breakdown__issue {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
   padding: 6px 0;
   font-size: 0.8125rem;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .payroll-breakdown__issue--fail {
@@ -124,10 +215,10 @@
 }
 
 .payroll-breakdown__issue-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  margin-top: 5px;
+  margin-top: 6px;
   flex-shrink: 0;
 }
 
@@ -139,58 +230,66 @@
   background: #f59e0b;
 }
 
+/* Calculation summary — readable key-value rows */
 .payroll-breakdown__engine {
-  margin-top: 16px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid #dbeafe;
-  background: #eff6ff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fafc;
 }
 
-.payroll-breakdown__engine h5 {
-  margin: 0 0 8px;
+.payroll-breakdown__engine-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
   font-size: 0.8125rem;
-  font-weight: 700;
-  color: #1e40af;
-}
-
-.payroll-breakdown__engine p {
-  margin: 4px 0;
-  font-size: 0.75rem;
+  font-weight: 600;
   color: #334155;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
 }
 
-.payroll-breakdown__engine code {
-  font-size: 0.6875rem;
-  background: rgba(255, 255, 255, 0.7);
-  padding: 2px 6px;
-  border-radius: 4px;
-  word-break: break-word;
+.payroll-breakdown__engine-body {
+  padding: 4px 14px 10px;
 }
 
-.payroll-breakdown__employer {
-  margin-top: 16px;
-  padding: 14px 16px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-}
-
-.payroll-breakdown__employer h4 {
-  margin: 0 0 4px;
+.payroll-breakdown__engine-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
   font-size: 0.8125rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #1d4ed8;
+  line-height: 1.45;
 }
 
-.payroll-breakdown__employer-note {
-  margin: 0 0 10px;
-  font-size: 0.75rem;
+.payroll-breakdown__engine-row:last-child {
+  border-bottom: none;
+}
+
+.payroll-breakdown__engine-key {
+  font-weight: 600;
   color: #64748b;
 }
 
-.payroll-breakdown__line--employer .payroll-breakdown__line-amount {
-  color: #1d4ed8;
+.payroll-breakdown__engine-val {
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.payroll-breakdown__engine-val--highlight {
+  font-weight: 700;
+  color: #047857;
+}
+
+@media (max-width: 520px) {
+  .payroll-breakdown__sheet {
+    grid-template-columns: 1fr;
+  }
+
+  .payroll-breakdown__engine-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }

@@ -7,6 +7,7 @@ import {
   getHolidays,
   updateHoliday,
 } from "../services/holidayService";
+import Button from "./Button";
 
 const HOLIDAY_TYPES = ["National", "Festival", "Restricted", "Company"];
 
@@ -165,6 +166,7 @@ const HolidayManager = ({ vendorId }) => {
       return;
     }
     if (!formData.name.trim() || !formData.date) {
+      alert("Holiday name and date are required.")
       setStatusMessage({ type: "error", text: "Holiday name and date are required." });
       return;
     }
@@ -193,6 +195,7 @@ const HolidayManager = ({ vendorId }) => {
         } else {
           await fetchHolidays();
         }
+        alert('Holiday updated successfully.')
         setStatusMessage({ type: "success", text: "Holiday updated successfully." });
         resetForm();
       } else {
@@ -207,10 +210,12 @@ const HolidayManager = ({ vendorId }) => {
         } else {
           await fetchHolidays();
         }
+        alert('Holiday created successfully.')
         setStatusMessage({ type: "success", text: "Holiday created successfully." });
         setFormData(initialFormState);
       }
     } catch (error) {
+      alert(error?.response?.data?.message)
       setStatusMessage({
         type: "error",
         text: error?.response?.data?.message || "Failed to save holiday.",
@@ -287,22 +292,22 @@ const HolidayManager = ({ vendorId }) => {
                       </span>
                     </td>
                     <td className="holiday-actions">
-                      <button
+                      <Button
                         type="button"
-                        className="holiday-btn holiday-btn--ghost"
+                        className="action-btn-edit"
                         onClick={() => handleEditClick(holiday)}
                         disabled={holiday.source === "weekOff"}
                       >
                         Edit
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
-                        className="holiday-btn holiday-btn--danger"
+                        className="action-btn-delete"
                         onClick={() => handleDeleteClick(holiday)}
                         disabled={holiday.source === "weekOff"}
                       >
                         Delete
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -387,18 +392,17 @@ const HolidayManager = ({ vendorId }) => {
 
           <div className="holiday-form-actions">
             {editingHolidayId ? (
-              <button
+              <Button
                 type="button"
-                className="holiday-btn holiday-btn--ghost"
+                className="secondary-btn"
                 onClick={resetForm}
                 disabled={isActionLoading}
               >
                 Cancel
-              </button>
+              </Button>
             ) : null}
-            <button
+            <Button
               type="submit"
-              className="holiday-btn holiday-btn--primary"
               disabled={isActionLoading}
             >
               {isActionLoading
@@ -406,7 +410,7 @@ const HolidayManager = ({ vendorId }) => {
                 : editingHolidayId
                   ? "Update Holiday"
                   : "Add Holiday"}
-            </button>
+            </Button>
           </div>
         </form>
       </section>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, RotateCcw, X } from "lucide-react";
 
-function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
+function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "checkin" }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -129,6 +129,19 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
 
   if (!open) return null;
 
+  const isCheckout = mode === "checkout";
+  const modalTitle = isCheckout ? "Check out with selfie" : "Check in with selfie";
+  const modalDescription = isCheckout
+    ? "Take a clear photo of your face. Your location will be captured when you confirm check-out."
+    : "Take a clear photo of your face. Your location will be captured when you confirm check-in.";
+  const confirmLabel = submitting
+    ? isCheckout
+      ? "Checking out…"
+      : "Checking in…"
+    : isCheckout
+      ? "Confirm & Check Out"
+      : "Confirm & Check In";
+
   return (
     <div className="selfie-modal-backdrop" role="presentation" onClick={onClose}>
       <div
@@ -140,10 +153,8 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
       >
         <div className="selfie-modal-header">
           <div>
-            <h2 id="selfie-modal-title">Check in with selfie</h2>
-            <p>
-              Take a clear photo of your face. Your location will be captured when you confirm check-in.
-            </p>
+            <h2 id="selfie-modal-title">{modalTitle}</h2>
+            <p>{modalDescription}</p>
           </div>
           <button
             type="button"
@@ -192,7 +203,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false }) {
                 onClick={handleConfirm}
                 disabled={submitting}
               >
-                {submitting ? "Checking in…" : "Confirm & Check In"}
+                {confirmLabel}
               </button>
             </>
           ) : (

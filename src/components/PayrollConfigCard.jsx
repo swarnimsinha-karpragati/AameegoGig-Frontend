@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Settings2 } from "lucide-react";
 import { getPayrollConfig, updatePayrollConfig, getPtStates } from "../services/payrollService";
 import "./PayrollConfigCard.css";
+import Button from "./Button";
 
 export default function PayrollConfigCard() {
   const [config, setConfig] = useState(null);
@@ -28,7 +28,20 @@ export default function PayrollConfigCard() {
     setMessage("");
     setError("");
     try {
-      const res = await updatePayrollConfig(config);
+      const payload = {
+        pfEmployeeRate: config.pfEmployeeRate,
+        pfEmployerRate: config.pfEmployerRate,
+        esicThreshold: config.esicThreshold,
+        esicEmployeeRate: config.esicEmployeeRate,
+        esicEmployerRate: config.esicEmployerRate,
+        professionalTaxState: config.professionalTaxState,
+        tdsEnabled: config.tdsEnabled,
+        wfhCountsAsPaidDay: config.wfhCountsAsPaidDay,
+        payCycleDay: config.payCycleDay,
+        requireBankPanBeforeProcessed: config.requireBankPanBeforeProcessed,
+        autoRunEnabled: config.autoRunEnabled,
+      };
+      const res = await updatePayrollConfig(payload);
       setConfig(res.data?.data);
       setMessage("Payroll settings saved");
       setTimeout(() => setMessage(""), 2500);
@@ -134,6 +147,9 @@ export default function PayrollConfigCard() {
               value={config.payCycleDay || 1}
               onChange={(e) => handleChange("payCycleDay", Number(e.target.value))}
             />
+            <span className="payroll-config-card__field-hint">
+              Day of each month (1–28) when automatic payroll runs for the previous month, if auto-run is enabled.
+            </span>
           </div>
         </div>
       </div>
@@ -201,10 +217,9 @@ export default function PayrollConfigCard() {
           {message ? <span className="payroll-config-card__msg payroll-config-card__msg--success">{message}</span> : null}
           {error ? <span className="payroll-config-card__msg payroll-config-card__msg--error">{error}</span> : null}
         </div>
-        <button type="button" className="emp-btn emp-btn--primary" onClick={handleSave} disabled={saving}>
-          <Settings2 size={16} />
+        <Button type="button" onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save Payroll Settings"}
-        </button>
+        </Button>
       </div>
     </div>
   );

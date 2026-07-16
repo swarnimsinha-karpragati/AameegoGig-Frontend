@@ -12,18 +12,22 @@ import {
 
 import {
   Search,
-  Plus,
   Eye,
   Pencil,
   Trash2,
-  X
+  X,
+  Plus
 } from "lucide-react";
 
 import "./Department.css";
+import Button from "../components/Button";
+
+
 
 function DepModal({ title, onClose, size = "md", children, footer }) {
   return (
     <div
+    
       className="manage-depts-overlay"
       onClick={(e) => e.target === e.currentTarget && onClose?.()}
     >
@@ -295,10 +299,9 @@ function Departments() {
           </div>
 
           <div className="manage-depts-actions">
-            <button className="manage-depts-add-trigger" onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
-              <Plus size={22} />
+            <Button  icon={<Plus size={20} />} onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
               Add Department
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -358,12 +361,12 @@ function Departments() {
             size="lg"
             footer={
               <>
-                <button type="button" className="manage-depts-control-btn manage-depts-control-btn--secondary" onClick={handleModalClose}>
+                <Button type="button" onClick={handleModalClose} className="secondary-btn">
                   Cancel
-                </button>
-                <button type="submit" form="department-core-form" className="manage-depts-control-btn manage-depts-control-btn--primary">
+                </Button>
+                <Button type="submit" form="department-core-form">
                   {isEditing ? "Apply Changes" : "Create Group"}
-                </button>
+                </Button>
               </>
             }
           >

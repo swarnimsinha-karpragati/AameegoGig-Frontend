@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './OverTimePolicy.css';
 import { deleteOvertimePolicy, getOvertimePolicies } from '../services/settingService';
+import Button from './Button';
 
 export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) => {
   const [policies, setPolicies] = useState({ success: false, count: 0, data: [] });
@@ -73,12 +74,15 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
   return (
     <div className="ot-container">
       <div className="ot-header">
-        <h1>Configured Overtime Policies {policies?.data?.length > 0 ? `(${policies?.data?.length})` : ''}</h1>
-        <p>Review and manage all active operational strategy matrix rules assigned to your organization.</p>
+        <h3>
+          Configured Overtime Policies
+          {policies?.data?.length > 0 ? ` (${policies.data.length})` : ""}
+        </h3>
+        <p>Review and manage overtime rules for your organization.</p>
       </div>
 
       {error && (
-        <div className="ot-submit-status error" style={{ marginBottom: '1.5rem' }}>
+        <div className="ot-submit-status error" style={{ marginBottom: "12px" }}>
           {error}
         </div>
       )}
@@ -141,22 +145,22 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
                     </td>
                     <td>
                       <div className="ot-action-buttons-group">
-                        <button
+                        <Button
                           type="button"
                           onClick={() => onEditPolicy && onEditPolicy(policy)}
                           disabled={isActionLoading}
-                          className="ot-row-btn-edit"
+                          className="action-btn-edit"
                         >
                           Edit
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           onClick={() => handleDelete(currentId)}
                           disabled={isActionLoading}
-                          className="ot-row-btn-delete"
+                          className="action-btn-delete"
                         >
                           Delete
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>

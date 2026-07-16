@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Pencil, Trash2, X, Layers } from "lucide-react";
 import {
   getSalaryComponents,
@@ -9,7 +10,9 @@ import {
   getSalaryTemplates,
 } from "../services/salaryComponentService";
 import { getPtStates } from "../services/payrollService";
+import { validateField } from "../utils/inputValidation";
 import "./SalaryComponentManager.css";
+import Button from "./Button";
 
 const CALC_LABELS = {
   FixedMonthly: "Fixed monthly",
@@ -21,6 +24,19 @@ const CALC_LABELS = {
   Manual: "Manual entry",
   Formula: "Custom formula",
 };
+
+const formatTemplateLabel = (template) => {
+  if (template && typeof template === "object") {
+    return template.label || formatTemplateLabel(template.key);
+  }
+  return String(template)
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
+const getTemplateKey = (template) =>
+  typeof template === "object" ? template.key : template;
 
 const emptyForm = {
   code: "",
@@ -73,6 +89,15 @@ export default function SalaryComponentManager() {
     getPtStates().then((res) => setPtStates(res.data?.data || [])).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!showModal) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [showModal]);
+
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
@@ -93,6 +118,18 @@ export default function SalaryComponentManager() {
 
   const handleSave = async () => {
     setError("");
+    const fields = [
+      { name: "code", label: "Component code", value: form.code, kind: "identifier_code", required: !editing },
+      { name: "name", label: "Display name", value: form.name, kind: "display_name", required: true },
+      { name: "defaultValue", label: "Default monthly amount", value: form.defaultValue, kind: "currency_monthly" },
+    ];
+    for (const field of fields) {
+      const err = validateField(field);
+      if (err) {
+        setError(err);
+        return;
+      }
+    }
     if (!form.code && !editing) {
       setError("Component code is required");
       return;
@@ -157,6 +194,7 @@ export default function SalaryComponentManager() {
   };
 
   const renderRow = (comp) => (
+    
     <div key={comp.code} className={`salary-cm__row ${!comp.isActive ? "salary-cm__inactive" : ""}`}>
       <div>
         <div className="salary-cm__row-name">
@@ -171,16 +209,16 @@ export default function SalaryComponentManager() {
         </div>
       </div>
       <div className="salary-cm__row-actions">
-        <button className="salary-cm__icon-btn" onClick={() => openEdit(comp)} title="Edit">
+        <Button className='action-btn-edit' onClick={() => openEdit(comp)} title="Edit" >
           <Pencil size={15} />
-        </button>
-        <button
-          className="salary-cm__icon-btn danger"
+        </Button>
+        <Button
+          className="action-btn-delete"
           onClick={() => handleDelete(comp.code, comp.isSystem)}
           title="Delete"
         >
           <Trash2 size={15} />
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -194,25 +232,35 @@ export default function SalaryComponentManager() {
       <div className="salary-cm__head">
         <div>
           <h3>Salary Components</h3>
-          <p>Define your organization's earnings and deductions. Fully dynamic per client.</p>
+          <p>Set up what gets added to salary (earnings) and what gets taken out (deductions).</p>
         </div>
         <div className="salary-cm__actions">
           {templates.length > 0 && (
             <select
-              className="salary-cm__btn"
-              onChange={(e) => e.target.value && handleApplyTemplate(e.target.value)}
+              className="salary-cm__template-select"
+              onChange={(e) => {
+                const key = e.target.value;
+                if (key) handleApplyTemplate(key);
+                e.target.value = "";
+              }}
               defaultValue=""
             >
-              <option value="" disabled>Apply template…</option>
-              {templates.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
+              <option value="" disabled>
+                Apply template…
+              </option>
+              {templates.map((template) => {
+                const key = getTemplateKey(template);
+                return (
+                  <option key={key} value={key}>
+                    {formatTemplateLabel(template)}
+                  </option>
+                );
+              })}
             </select>
           )}
-          <button className="salary-cm__btn salary-cm__btn--primary" onClick={openCreate}>
-            <Plus size={15} />
-            <span>Add Component</span>
-          </button>
+          <Button onClick={openCreate}>
+            Add Component
+          </Button>
         </div>
       </div>
 
@@ -249,87 +297,114 @@ export default function SalaryComponentManager() {
         </div>
       )}
 
-      {showModal && (
+      {showModal &&
+        createPortal(
         <div className="salary-cm__overlay" onClick={() => setShowModal(false)}>
-          <div className="salary-cm__modal" onClick={(e) => e.stopPropagation()}>
+          <div className="salary-cm__modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="salary-cm-modal-title">
             <div className="salary-cm__modal-head">
-              <h3>{editing ? "Edit Component" : "Add Salary Component"}</h3>
-              <button className="salary-cm__icon-btn" onClick={() => setShowModal(false)}>
+              <div>
+                <h3 id="salary-cm-modal-title">{editing ? "Edit Component" : "Add Salary Component"}</h3>
+                <p className="salary-cm__modal-subtitle">
+                  Define how this line item is calculated and shown on payslips.
+                </p>
+              </div>
+              <button type="button" className="salary-cm__modal-close" onClick={() => setShowModal(false)} aria-label="Close">
                 <X size={18} />
               </button>
             </div>
             <div className="salary-cm__modal-body">
               {error && <div className="salary-cm__error">{error}</div>}
 
-              <div className="salary-cm__grid2">
-                <div className="salary-cm__field">
-                  <label>Code</label>
-                  <input
-                    value={form.code}
-                    onChange={(e) => handleChange("code", e.target.value.toUpperCase())}
-                    disabled={Boolean(editing)}
-                    placeholder="e.g. BASIC, PF_EE"
-                  />
+              <div className="salary-cm__modal-section">
+                <p className="salary-cm__modal-section-title">Basic details</p>
+                <div className="salary-cm__grid2">
+                  <div className="salary-cm__field">
+                    <label htmlFor="sc-code">Code</label>
+                    <input
+                      id="sc-code"
+                      value={form.code}
+                      onChange={(e) => handleChange("code", e.target.value.toUpperCase())}
+                      disabled={Boolean(editing)}
+                      placeholder="e.g. BASIC, PF_EE"
+                    />
+                  </div>
+                  <div className="salary-cm__field">
+                    <label htmlFor="sc-name">Display name</label>
+                    <input
+                      id="sc-name"
+                      value={form.name}
+                      onChange={(e) => handleChange("name", e.target.value)}
+                      placeholder="e.g. Basic Salary"
+                    />
+                  </div>
                 </div>
-                <div className="salary-cm__field">
-                  <label>Display Name</label>
-                  <input
-                    value={form.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
-                    placeholder="e.g. Basic Salary"
-                  />
-                </div>
-              </div>
 
-              <div className="salary-cm__grid2">
-                <div className="salary-cm__field">
-                  <label>Category</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => handleChange("category", e.target.value)}
-                  >
-                    <option value="Earning">Earning</option>
-                    <option value="Deduction">Deduction</option>
-                  </select>
-                </div>
-                <div className="salary-cm__field">
-                  <label>Calculation Type</label>
-                  <select
-                    value={form.calculationType}
-                    onChange={(e) => handleChange("calculationType", e.target.value)}
-                  >
-                    {Object.entries(CALC_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
+                <div className="salary-cm__grid2">
+                  <div className="salary-cm__field">
+                    <label htmlFor="sc-category">Category</label>
+                    <select
+                      id="sc-category"
+                      value={form.category}
+                      onChange={(e) => handleChange("category", e.target.value)}
+                    >
+                      <option value="Earning">Earning</option>
+                      <option value="Deduction">Deduction</option>
+                    </select>
+                  </div>
+                  <div className="salary-cm__field">
+                    <label htmlFor="sc-calc-type">Calculation type</label>
+                    <select
+                      id="sc-calc-type"
+                      value={form.calculationType}
+                      onChange={(e) => handleChange("calculationType", e.target.value)}
+                    >
+                      {Object.entries(CALC_LABELS).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
               {(form.calculationType === "FixedMonthly" || form.calculationType === "Manual") && (
-                <div className="salary-cm__field">
-                  <label>Default Monthly Amount (₹)</label>
-                  <input
-                    type="number"
-                    value={form.defaultValue}
-                    onChange={(e) => handleChange("defaultValue", e.target.value)}
-                  />
-                  <div className="salary-cm__hint">Employee can override this amount.</div>
+                <div className="salary-cm__modal-section">
+                  <p className="salary-cm__modal-section-title">Amount</p>
+                  <div className="salary-cm__field">
+                    <label htmlFor="sc-default-value">Default monthly amount (₹)</label>
+                    <input
+                      id="sc-default-value"
+                      type="number"
+                      value={form.defaultValue}
+                      onChange={(e) => handleChange("defaultValue", e.target.value)}
+                    />
+                    <div className="salary-cm__hint">Employees can override this in their salary structure.</div>
+                  </div>
                 </div>
               )}
+
+              {(form.calculationType === "PercentOfComponent" ||
+                form.calculationType === "PercentOfGross" ||
+                form.calculationType === "PercentOfCTC" ||
+                form.calculationType === "SlabBased" ||
+                form.calculationType === "Formula") && (
+                <div className="salary-cm__modal-section">
+                  <p className="salary-cm__modal-section-title">Calculation settings</p>
 
               {form.calculationType === "PercentOfComponent" && (
                 <div className="salary-cm__grid2">
                   <div className="salary-cm__field">
-                    <label>Base Component Code</label>
+                    <label htmlFor="sc-base-component">Base component</label>
                     <input
+                      id="sc-base-component"
                       value={form.baseComponent}
                       onChange={(e) => handleChange("baseComponent", e.target.value.toUpperCase())}
                       placeholder="e.g. BASIC"
                     />
                   </div>
                   <div className="salary-cm__field">
-                    <label>Rate (e.g. 0.12 = 12%)</label>
+                    <label htmlFor="sc-rate-pct">Rate (0.12 = 12%)</label>
                     <input
+                      id="sc-rate-pct"
                       type="number"
                       step="0.01"
                       value={form.rate}
@@ -341,8 +416,9 @@ export default function SalaryComponentManager() {
 
               {(form.calculationType === "PercentOfGross" || form.calculationType === "PercentOfCTC") && (
                 <div className="salary-cm__field">
-                  <label>Rate (e.g. 0.0075 = 0.75%)</label>
+                  <label htmlFor="sc-rate-gross">Rate (0.0075 = 0.75%)</label>
                   <input
+                    id="sc-rate-gross"
                     type="number"
                     step="0.0001"
                     value={form.rate}
@@ -354,7 +430,7 @@ export default function SalaryComponentManager() {
               {form.calculationType === "SlabBased" && (
                 <>
                   <div className="salary-cm__field">
-                    <label>PT State (when no custom slabs)</label>
+                    <label>State (for standard tax slabs)</label>
                     <select
                       value={form.slabStateKey || ""}
                       onChange={(e) => handleChange("slabStateKey", e.target.value)}
@@ -366,8 +442,8 @@ export default function SalaryComponentManager() {
                     </select>
                   </div>
                   <div className="salary-cm__field">
-                    <label>Custom Slabs (optional)</label>
-                    <div className="salary-cm__hint">Leave empty to use state PT slabs. Format: from-to=fixed per row.</div>
+                    <label>Custom slabs (optional)</label>
+                    <div className="salary-cm__hint">Leave empty to use the state's standard slabs. Each row is a salary range with a fixed deduction.</div>
                     {(form.slabs || []).map((slab, idx) => (
                       <div key={idx} className="salary-cm__grid2" style={{ marginTop: 8 }}>
                         <input
@@ -405,9 +481,10 @@ export default function SalaryComponentManager() {
                         />
                       </div>
                     ))}
-                    <button
+                    <Button
                       type="button"
-                      className="salary-cm__btn"
+                      icon={<Plus size={12} />}
+                      iconPosition="left"
                       style={{ marginTop: 8 }}
                       onClick={() =>
                         handleChange("slabs", [
@@ -416,104 +493,118 @@ export default function SalaryComponentManager() {
                         ])
                       }
                     >
-                      + Add slab row
-                    </button>
+                      Add slab row
+                    </Button>
                   </div>
                 </>
               )}
 
               {form.calculationType === "Formula" && (
                 <div className="salary-cm__field">
-                  <label>Formula Expression</label>
+                  <label htmlFor="sc-formula">Custom formula</label>
                   <input
+                    id="sc-formula"
                     value={form.formulaExpression || ""}
                     onChange={(e) => handleChange("formulaExpression", e.target.value)}
                     placeholder="e.g. min(0.12 * BASIC, 1800)"
                   />
                   <div className="salary-cm__hint">
-                    Use component codes (BASIC, HRA), GROSS, CTC, and min/max operators.
+                    Use component codes (BASIC, HRA), GROSS, CTC, and min/max.
                   </div>
                 </div>
               )}
+                </div>
+              )}
 
-              <div className="salary-cm__field">
-                <label>Departments (comma-separated, empty = all)</label>
-                <input
-                  value={
-                    form.departmentsText ??
-                    (Array.isArray(form.departments) ? form.departments.join(", ") : "")
-                  }
-                  onChange={(e) => handleChange("departmentsText", e.target.value)}
-                  placeholder="e.g. Engineering, Sales"
-                />
+              <div className="salary-cm__modal-section">
+                <p className="salary-cm__modal-section-title">Limits & scope</p>
+                <div className="salary-cm__field">
+                  <label htmlFor="sc-departments">Departments</label>
+                  <input
+                    id="sc-departments"
+                    value={
+                      form.departmentsText ??
+                      (Array.isArray(form.departments) ? form.departments.join(", ") : "")
+                    }
+                    onChange={(e) => handleChange("departmentsText", e.target.value)}
+                    placeholder="e.g. Engineering, Sales"
+                  />
+                  <div className="salary-cm__hint">Leave blank to apply to all departments.</div>
+                </div>
+
+                <div className="salary-cm__grid2">
+                  <div className="salary-cm__field">
+                    <label htmlFor="sc-threshold">Salary threshold (₹)</label>
+                    <input
+                      id="sc-threshold"
+                      type="number"
+                      value={form.threshold ?? ""}
+                      onChange={(e) => handleChange("threshold", e.target.value === "" ? null : e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="salary-cm__field">
+                    <label htmlFor="sc-cap">Maximum cap (₹)</label>
+                    <input
+                      id="sc-cap"
+                      type="number"
+                      value={form.cap ?? ""}
+                      onChange={(e) => handleChange("cap", e.target.value === "" ? null : e.target.value)}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="salary-cm__grid2">
-                <div className="salary-cm__field">
-                  <label>Threshold (apply only if base ≤)</label>
-                  <input
-                    type="number"
-                    value={form.threshold ?? ""}
-                    onChange={(e) => handleChange("threshold", e.target.value === "" ? null : e.target.value)}
-                    placeholder="optional"
-                  />
-                </div>
-                <div className="salary-cm__field">
-                  <label>Cap (max amount)</label>
-                  <input
-                    type="number"
-                    value={form.cap ?? ""}
-                    onChange={(e) => handleChange("cap", e.target.value === "" ? null : e.target.value)}
-                    placeholder="optional"
-                  />
-                </div>
+              <div className="salary-cm__modal-section salary-cm__options">
+                <p className="salary-cm__modal-section-title">Options</p>
+                {form.category === "Deduction" && (
+                  <label className="salary-cm__check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.isEmployerContribution)}
+                      onChange={(e) => handleChange("isEmployerContribution", e.target.checked)}
+                    />
+                    <span>Paid by company (employer contribution, not deducted from pay)</span>
+                  </label>
+                )}
+                <label className="salary-cm__check">
+                  <input type="checkbox" checked={form.isStatutory} onChange={(e) => handleChange("isStatutory", e.target.checked)} />
+                  <span>Statutory component (PF, ESIC, PT, etc.)</span>
+                </label>
+                {form.category === "Earning" && (
+                  <label className="salary-cm__check">
+                    <input type="checkbox" checked={form.isProRata} onChange={(e) => handleChange("isProRata", e.target.checked)} />
+                    <span>Pro-rata for unpaid or absent days</span>
+                  </label>
+                )}
+                <label className="salary-cm__check">
+                  <input type="checkbox" checked={form.isOptional} onChange={(e) => handleChange("isOptional", e.target.checked)} />
+                  <span>Employee can opt out</span>
+                </label>
+                <label className="salary-cm__check">
+                  <input type="checkbox" checked={form.showOnPayslip} onChange={(e) => handleChange("showOnPayslip", e.target.checked)} />
+                  <span>Show on payslip</span>
+                </label>
+                <label className="salary-cm__check">
+                  <input type="checkbox" checked={form.hideIfZero} onChange={(e) => handleChange("hideIfZero", e.target.checked)} />
+                  <span>Hide when amount is zero</span>
+                </label>
+                <label className="salary-cm__check">
+                  <input type="checkbox" checked={form.isActive !== false} onChange={(e) => handleChange("isActive", e.target.checked)} />
+                  <span>Active</span>
+                </label>
               </div>
-
-              {form.category === "Deduction" && (
-                <label className="salary-cm__check">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(form.isEmployerContribution)}
-                    onChange={(e) => handleChange("isEmployerContribution", e.target.checked)}
-                  />
-                  Employer contribution (info on payslip, not deducted from net)
-                </label>
-              )}
-              <label className="salary-cm__check">
-                <input type="checkbox" checked={form.isStatutory} onChange={(e) => handleChange("isStatutory", e.target.checked)} />
-                Statutory (PF/ESIC/PT/TDS)
-              </label>
-              {form.category === "Earning" && (
-                <label className="salary-cm__check">
-                  <input type="checkbox" checked={form.isProRata} onChange={(e) => handleChange("isProRata", e.target.checked)} />
-                  Apply LOP pro-rata to this earning
-                </label>
-              )}
-              <label className="salary-cm__check">
-                <input type="checkbox" checked={form.isOptional} onChange={(e) => handleChange("isOptional", e.target.checked)} />
-                Employee can opt out
-              </label>
-              <label className="salary-cm__check">
-                <input type="checkbox" checked={form.showOnPayslip} onChange={(e) => handleChange("showOnPayslip", e.target.checked)} />
-                Show on payslip
-              </label>
-              <label className="salary-cm__check">
-                <input type="checkbox" checked={form.hideIfZero} onChange={(e) => handleChange("hideIfZero", e.target.checked)} />
-                Hide when amount is zero
-              </label>
-              <label className="salary-cm__check">
-                <input type="checkbox" checked={form.isActive !== false} onChange={(e) => handleChange("isActive", e.target.checked)} />
-                Active
-              </label>
             </div>
             <div className="salary-cm__modal-foot">
-              <button className="salary-cm__btn" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="salary-cm__btn salary-cm__btn--primary" onClick={handleSave}>
-                {editing ? "Update" : "Add Component"}
-              </button>
+              <Button className="secondary-btn" onClick={() => setShowModal(false)}>Cancel</Button>
+              <Button onClick={handleSave}>
+                {editing ? "Update Component" : "Add Component"}
+              </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -6,6 +6,28 @@
   box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
 
+.profile-card__loading,
+.profile-error,
+.profile-upload-status {
+  font-size: 0.8125rem;
+  margin: 0 0 12px;
+}
+
+.profile-card__loading {
+  color: #64748b;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.profile-error {
+  color: #b91c1c;
+}
+
+.profile-upload-status {
+  color: #2563eb;
+  text-align: center;
+}
+
 .profile-header{
   display:flex;
   justify-content:space-between;

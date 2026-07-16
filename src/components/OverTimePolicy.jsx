@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo} from 'react';
 import './OverTimePolicy.css';
 import { createOvertimePolicy, updateOvertimePolicy } from '../services/settingService';
+import Button from './Button';
 
 export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel }) => {
   const initialFormState = useMemo(() => ({
@@ -160,15 +161,15 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
   return (
     <div className="ot-container">
       <div className="ot-header">
-        <h1>{editingPolicy ? 'Modify Overtime Policy' : 'Overtime Policy Configuration'}</h1>
-        <p>Define triggers and compensation actions matching your organizational schema rules.</p>
+        <h3>{editingPolicy ? "Modify Overtime Policy" : "Overtime Policy Configuration"}</h3>
+        <p>Define triggers and compensation actions for overtime hours.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="ot-form">
 
         <div className="ot-section">
-          <h3>1. Tracking Metrics</h3>
-          <div className="ot-bg-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h4 className="ot-section-title">1. Tracking Metrics</h4>
+          <div className="ot-bg-box">
             <div>
               <label className="ot-label">Policy Name</label>
               <input
@@ -206,10 +207,10 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         <hr className="ot-divider" />
 
         <div className="ot-section">
-          <h3>2. Overtime Action Rules</h3>
+          <h4 className="ot-section-title">2. Overtime Action Rules</h4>
 
           <div className="ot-strategy-group">
-            <label className={`ot-card ${policyData.OverTimeAction === 'Incentive' ? 'active' : ''}`}>
+            <label className={`ot-card ${policyData.OverTimeAction === 'Incentive' ? 'Active' : ''}`}>
               <div className="ot-card-title">
                 <span>Incentive</span>
                 <input
@@ -223,7 +224,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
               <p>Provide direct operational financial payout Incentive.</p>
             </label>
 
-            <label className={`ot-card ${policyData.OverTimeAction === 'Add Leave' ? 'active' : ''}`}>
+            <label className={`ot-card ${policyData.OverTimeAction === 'Add Leave' ? 'Active' : ''}`}>
               <div className="ot-card-title">
                 <span>Add Leave</span>
                 <input
@@ -237,7 +238,7 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
               <p>Convert excess hours into half-day or full-day leaves.</p>
             </label>
 
-            <label className={`ot-card ${policyData.OverTimeAction === 'None' ? 'active' : ''}`}>
+            <label className={`ot-card ${policyData.OverTimeAction === 'None' ? 'Active' : ''}`}>
               <div className="ot-card-title">
                 <span>No Action</span>
                 <input
@@ -323,19 +324,20 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         <hr className="ot-divider" />
 
         <div className="ot-section">
-          <h3>3. Applicable Custom Shift Days</h3>
+          <h4 className="ot-section-title">3. Applicable Days</h4>
           <div className="ot-days-flex">
             {daysOfWeek.map((day) => {
               const isSelected = policyData.applicableDays.includes(day);
               return (
-                <button
+                
+                <Button
                   type="button"
                   key={day}
                   onClick={() => toggleDay(day)}
-                  className={`ot-day-btn ${isSelected ? 'active' : ''}`}
+                  className={`${isSelected ? 'active' : 'not-active'}`}
                 >
                   {day}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -348,17 +350,17 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
         )}
 
         <div className="ot-actions">
-          <button
+          <Button
             type="button"
-            className="ot-btn-secondary"
+            className="secondary-btn"
             onClick={editingPolicy ? onCancel : resetFrom}
             disabled={isSubmitting}
           >
             {editingPolicy ? 'Cancel Edit' : 'Cancel'}
-          </button>
-          <button type="submit" className="ot-btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : editingPolicy ? 'Update Rule Policy' : 'Save Rule Configuration'}
-          </button>
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : editingPolicy ? 'Update Policy' : 'Save Policy'}
+          </Button>
         </div>
 
       </form>

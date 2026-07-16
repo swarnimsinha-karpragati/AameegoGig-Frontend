@@ -14,6 +14,7 @@ import { OverTimePolicyList } from "../components/OverTimePolicyList";
 import HolidayManager from "../components/HolidayManager";
 import WeekOffManager from "../components/WeekOffManager";
 import PayrollConfigCard from "../components/PayrollConfigCard";
+import OrgProfileCard from "../components/OrgProfileCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
 
 export default function Settings() {
@@ -32,7 +33,6 @@ export default function Settings() {
     const parsedUser = JSON.parse(loggedInUser);
     setUser(parsedUser);
   }, []);
-  console.log(user);
 
   const handleEditClick = (policy) => {
     setEditingPolicy(policy);
@@ -64,7 +64,7 @@ export default function Settings() {
           <div>
             <h1 className="settings-title">Settings</h1>
             <p className="settings-subtitle">
-              Manage account preferences & system settings
+              Configure your HRMS preferences
             </p>
           </div>
           <RoleTabs activeTab={activeTab} setActiveTab={setActiveTab} role={user?.role} />
@@ -85,6 +85,8 @@ export default function Settings() {
               <WeekOffManager vendorId={user?.vendorId} />
 
               <HolidayManager vendorId={user?.vendorId} />
+
+              <OrgProfileCard />
 
               <PayrollConfigCard />
 

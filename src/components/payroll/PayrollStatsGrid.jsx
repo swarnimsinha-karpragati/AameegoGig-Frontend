@@ -1,46 +1,86 @@
 import React from "react";
-import { Wallet, TrendingUp, TrendingDown, Users } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, FileText } from "lucide-react";
+import Card from "../Card";
 import { formatInr } from "../../utils/payrollConstants";
 
-export default function PayrollStatsGrid({ metrics }) {
+const ADMIN_CARDS = (metrics) => [
+  {
+    key: "totalPayroll",
+    icon: Wallet,
+    iconClassName: "blue",
+    label: "Total Payroll",
+    value: formatInr(metrics.totalPayroll),
+  },
+  {
+    key: "earnings",
+    icon: TrendingUp,
+    iconClassName: "green",
+    label: "Gross Earnings",
+    value: formatInr(metrics.earnings),
+  },
+  {
+    key: "deductions",
+    icon: TrendingDown,
+    iconClassName: "orange",
+    label: "Total Deductions",
+    value: formatInr(metrics.deductions),
+  },
+  {
+    key: "processed",
+    icon: FileText,
+    iconClassName: "purple",
+    label: "Processed Slips",
+    value: `${metrics.processed} Items`,
+  },
+];
+
+const EMPLOYEE_CARDS = (metrics) => [
+  {
+    key: "totalPayroll",
+    icon: Wallet,
+    iconClassName: "blue",
+    label: "Total Net Pay",
+    value: formatInr(metrics.totalPayroll),
+  },
+  {
+    key: "earnings",
+    icon: TrendingUp,
+    iconClassName: "green",
+    label: "Gross Earnings",
+    value: formatInr(metrics.earnings),
+  },
+  {
+    key: "deductions",
+    icon: TrendingDown,
+    iconClassName: "orange",
+    label: "Total Deductions",
+    value: formatInr(metrics.deductions),
+  },
+  {
+    key: "processed",
+    icon: FileText,
+    iconClassName: "purple",
+    label: "Payslips",
+    value: `${metrics.processed}`,
+  },
+];
+
+export default function PayrollStatsGrid({ metrics, isEmployeeView = false }) {
+  const cards = isEmployeeView ? EMPLOYEE_CARDS(metrics) : ADMIN_CARDS(metrics);
+
   return (
     <div className="payroll-stats-grid">
-      <div className="stat-card glass-morphism">
-        <div className="stat-icon-wrapper indigo-bg">
-          <Wallet size={24} color="#3b82f6" />
-        </div>
-        <div>
-          <p className="stat-label">Total Outlay</p>
-          <h2 className="stat-value">{formatInr(metrics.totalPayroll)}</h2>
-        </div>
-      </div>
-      <div className="stat-card glass-morphism">
-        <div className="stat-icon-wrapper green-bg">
-          <TrendingUp size={24} color="#10b981" />
-        </div>
-        <div>
-          <p className="stat-label">Gross Earnings</p>
-          <h2 className="stat-value">{formatInr(metrics.earnings)}</h2>
-        </div>
-      </div>
-      <div className="stat-card glass-morphism">
-        <div className="stat-icon-wrapper red-bg">
-          <TrendingDown size={24} color="#ef4444" />
-        </div>
-        <div>
-          <p className="stat-label">Deductions Clawback</p>
-          <h2 className="stat-value">{formatInr(metrics.deductions)}</h2>
-        </div>
-      </div>
-      <div className="stat-card glass-morphism">
-        <div className="stat-icon-wrapper amber-bg">
-          <Users size={24} color="#f59e0b" />
-        </div>
-        <div>
-          <p className="stat-label">Processed Slips</p>
-          <h2 className="stat-value">{metrics.processed} Items</h2>
-        </div>
-      </div>
+      {cards.map(({ key, icon: Icon, iconClassName, label, value }) => (
+        <Card
+          key={key}
+          icon={<Icon size={22} strokeWidth={2} />}
+          iconClassName={iconClassName}
+          isInteractive
+        >
+          <Card.Header>{label}</Card.Header>
+          <Card.Body>{value}</Card.Body>
+        </Card>
+      ))}
     </div>
   );
 }

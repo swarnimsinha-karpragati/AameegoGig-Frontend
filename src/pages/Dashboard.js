@@ -25,8 +25,9 @@ import {
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getDashboard } from "../services/dashboardService";
-import { getStoredUser, getRoleLabel } from "../utils/roles";
+import { getStoredUser } from "../utils/roles";
 import "./Dashboard.css";
+import Card from "../components/Card";
 
 const STAT_ICONS = {
   users: Users,
@@ -69,20 +70,13 @@ function StatCard({ stat }) {
     clock: "orange",
   }[stat.icon] || "blue";
 
-  return (
-    <div className="stat-card">
-      <div>
-        <h4>{stat.label}</h4>
-        <h2>{stat.value}</h2>
-        <p className={stat.trend === "negative" ? "negative" : stat.trend === "positive" ? "positive" : "neutral"}>
-          {stat.subtitle}
-        </p>
-      </div>
-      <div className={`stat-icon ${iconClass}`}>
-        <Icon size={26} />
-      </div>
-    </div>
-  );
+  return(
+      <Card icon={ <Icon size={26} />} iconClassName={`${iconClass}`} isInteractive={true}>
+        <Card.Header>{stat.label}</Card.Header>
+        <Card.Body>{stat.value}</Card.Body>
+        <Card.Footer className={stat.trend === "negative" ? "negative" : stat.trend === "positive" ? "positive" : "neutral"}>{stat.subtitle}</Card.Footer>
+      </Card>
+  )
 }
 
 function Dashboard() {
@@ -126,12 +120,12 @@ function Dashboard() {
             <h3>Hello, {user?.name?.split(" ")[0] || "there"} 👋</h3>
             <p>
               {isOrgView
-                ? "Organization overview — workforce, attendance, and pending actions."
+                ? "Organization overview — workforce, attendance, and pending actions"
                 : isManager
-                  ? "Team overview — track attendance and pending approvals."
-                  : "Your personal summary — attendance, leave, and expenses."}
+                  ? "Team overview — track attendance and pending approvals"
+                  : "Your personal summary — attendance, leave, and expenses"}
               {" "}
-              <span className="role-badge">{getRoleLabel(data?.role || user?.role)}</span>
+              {/* <span className="role-badge">{getRoleLabel(data?.role || user?.role)}</span> */}
             </p>
           </div>
         </div>
@@ -175,7 +169,7 @@ function Dashboard() {
               </div>
             )}
 
-            <div className="dashboard-mid-grid">
+           { isOrgView && <div className="dashboard-mid-grid">
               <div className="chart-card">
                 <div className="chart-card-head">
                   <div>
@@ -183,7 +177,7 @@ function Dashboard() {
                       <TrendingUp size={18} />
                       Attendance Trend
                     </h3>
-                    <p>Last 7 days — present count</p>
+                    <p>Last 10 days — Present Count</p>
                   </div>
                   <div className="attendance-rate-badge">
                     {data.attendanceToday.rate}% today
@@ -223,29 +217,8 @@ function Dashboard() {
                   <span className="breakdown-item half">{data.attendanceToday.halfDay} Half Day</span>
                 </div>
               </div>
-
-              <div className="summary-card">
-                <h3>Expense Summary</h3>
-                <p className="summary-period">This month</p>
-                <div className="summary-rows">
-                  <div className="summary-row">
-                    <span>Total Claimed</span>
-                    <strong>₹{(data.expenseSummary.totalClaimed || 0).toLocaleString("en-IN")}</strong>
-                  </div>
-                  <div className="summary-row">
-                    <span>Approved</span>
-                    <strong className="text-green">₹{(data.expenseSummary.totalApproved || 0).toLocaleString("en-IN")}</strong>
-                  </div>
-                  <div className="summary-row">
-                    <span>Pending</span>
-                    <strong className="text-amber">₹{(data.expenseSummary.totalPending || 0).toLocaleString("en-IN")}</strong>
-                  </div>
-                </div>
-                <button type="button" className="link-btn" onClick={() => navigate("/expenses")}>
-                  View expenses <ArrowRight size={14} />
-                </button>
-              </div>
             </div>
+            }
 
             <div className="bottom-grid">
               <div className="activity-card">
@@ -297,13 +270,34 @@ function Dashboard() {
                   ))
                 )}
               </div>
+              
+            </div>
+            <div className="summary-card">
+              <h3>Expense Summary</h3>
+              <p className="summary-period">This month</p>
+              <div className="summary-rows">
+                <div className="summary-row">
+                  <span>Total Claimed</span>
+                  <strong>₹{(data.expenseSummary.totalClaimed || 0).toLocaleString("en-IN")}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Approved</span>
+                  <strong className="text-green">₹{(data.expenseSummary.totalApproved || 0).toLocaleString("en-IN")}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Pending</span>
+                  <strong className="text-amber">₹{(data.expenseSummary.totalPending || 0).toLocaleString("en-IN")}</strong>
+                </div>
+              </div>
+              <button type="button" className="link-btn" onClick={() => navigate("/expenses")}>
+                View expenses <ArrowRight size={14} />
+              </button>
             </div>
 
             {showApprovals &&
               (data.pendingApprovals.leave.length > 0 ||
                 data.pendingApprovals.expense.length > 0) && (
                 <div className="approvals-section">
-                  <h3>Pending Approvals</h3>
                   <div className="approvals-grid">
                     {data.pendingApprovals.leave.length > 0 && (
                       <div className="approval-card">

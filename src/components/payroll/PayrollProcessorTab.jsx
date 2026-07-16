@@ -1,5 +1,6 @@
 import React from "react";
 import { Eye, RefreshCw } from "lucide-react";
+import Button from "../Button";
 import { MONTHS, PAYROLL_YEARS } from "../../utils/payrollConstants";
 
 export default function PayrollProcessorTab({
@@ -8,6 +9,7 @@ export default function PayrollProcessorTab({
   selectedEmp,
   employees,
   actionLoading,
+  runIsFinalized,
   onYearChange,
   onMonthChange,
   onEmployeeChange,
@@ -15,11 +17,25 @@ export default function PayrollProcessorTab({
   onBulkCalculate,
 }) {
   return (
-    <div className="payroll-processor-card glass-morphism">
-      <div className="processor-head">
-        <h2>Run Engine Calculation</h2>
-        <p>Select time parameters and choose whether to preview a single resource or calculate in bulk.</p>
+    <div className="history-table-container glass-morphism">
+      <div className="table-header-filters">
+        <div>
+          <h2>Run Engine Calculation</h2>
+          <p className="subtitle">
+            {runIsFinalized
+              ? "This month is finalized — calculate one employee at a time"
+              : "Preview one employee or calculate payroll for all employees"}
+          </p>
+        </div>
       </div>
+
+      {runIsFinalized ? (
+        <p className="payroll-processor-hint">
+          <strong>Bulk calculation is disabled</strong> because this month&apos;s payroll run is already finalized.
+          Select an employee below → Preview Calculation → save from the breakdown drawer.
+          If the payslip stays pending, release it from Payslips Database.
+        </p>
+      ) : null}
 
       <div className="processor-controls">
         <div className="control-group">
@@ -52,14 +68,25 @@ export default function PayrollProcessorTab({
       </div>
 
       <div className="processor-actions-footer">
-        <button className="btn-secondary-custom" onClick={onPreview} disabled={actionLoading || !selectedEmp} type="button">
-          <Eye size={16} />
-          <span>Preview Calculation</span>
-        </button>
-        <button className="btn-primary-custom" onClick={onBulkCalculate} disabled={actionLoading} type="button">
-          <RefreshCw size={16} className={actionLoading ? "spin" : ""} />
-          <span>Run Bulk Calculation</span>
-        </button>
+        <Button
+          type="button"
+          icon={<Eye size={16} />}
+          onClick={onPreview}
+          disabled={actionLoading || !selectedEmp}
+          title={!selectedEmp ? "Select an employee first" : "Preview payroll calculation"}
+        >
+          Preview Calculation
+        </Button>
+        {!runIsFinalized ? (
+          <Button
+            type="button"
+            icon={<RefreshCw size={16} className={actionLoading ? "spin" : ""} />}
+            onClick={onBulkCalculate}
+            disabled={actionLoading}
+          >
+            Run Bulk Calculation
+          </Button>
+        ) : null}
       </div>
     </div>
   );

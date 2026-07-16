@@ -7,6 +7,7 @@ import {
   getWeekOffs,
   updateWeekOff,
 } from "../services/settingService";
+import Button from "./Button";
 
 const DAYS_OF_WEEK = [
   "Monday",
@@ -247,20 +248,20 @@ const WeekOffManager = ({ vendorId }) => {
                       </div>
                     </td>
                     <td className="weekoff-actions">
-                      <button
+                      <Button
                         type="button"
-                        className="weekoff-btn weekoff-btn--ghost"
+                        className="action-btn-edit"
                         onClick={() => handleEditClick(config)}
                       >
                         Edit
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
-                        className="weekoff-btn weekoff-btn--danger"
+                        className="action-btn-delete"
                         onClick={() => handleDeleteClick(config)}
                       >
                         Delete
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -301,14 +302,14 @@ const WeekOffManager = ({ vendorId }) => {
               {DAYS_OF_WEEK.map((day) => {
                 const isSelected = formData.weekOffDays.includes(day);
                 return (
-                  <button
+                  <Button
                     key={day}
                     type="button"
-                    className={`weekoff-day-btn ${isSelected ? "active" : ""}`}
+                    className={`${isSelected ? "active" : "not-active"}`}
                     onClick={() => toggleDay(day)}
                   >
                     {day.slice(0, 3)}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -316,18 +317,17 @@ const WeekOffManager = ({ vendorId }) => {
 
           <div className="weekoff-form-actions">
             {editingConfigId ? (
-              <button
+              <Button
                 type="button"
-                className="weekoff-btn weekoff-btn--ghost"
+                className="secondary-btn"
                 onClick={resetForm}
                 disabled={isActionLoading}
               >
                 Cancel
-              </button>
+              </Button>
             ) : null}
-            <button
+            <Button
               type="submit"
-              className="weekoff-btn weekoff-btn--primary"
               disabled={isActionLoading}
             >
               {isActionLoading
@@ -335,7 +335,7 @@ const WeekOffManager = ({ vendorId }) => {
                 : editingConfigId
                   ? "Update Policy"
                   : "Add Policy"}
-            </button>
+            </Button>
           </div>
         </form>
       </section>

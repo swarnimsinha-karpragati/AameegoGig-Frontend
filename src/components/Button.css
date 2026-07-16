@@ -1,0 +1,78 @@
+.generic-btn {
+  background: linear-gradient(135deg, #1E6BD6, #2BB7DA);
+  color: #ffffff;
+  padding: 10px 16px;
+
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  align-content: center;
+}
+
+.secondary-btn {
+  background: none;
+  background-color: #aeb7be;
+}
+
+.generic-btn:hover {
+  opacity: 0.9;
+}
+
+.generic-btn:active {
+  transform: scale(0.98);
+}
+
+.generic-btn:disabled {
+  background: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+  transform: none;
+  opacity: 1;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.1em;
+}
+
+.action-btn-delete{
+  background: none;
+  color: #be123c;
+  padding: 8px 16px;
+  min-width: 4rem;
+  background-color: #fff1f2;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.action-btn-edit{
+  background: none;
+  color: rgb(80, 79, 79);
+  padding: 8px 16px;
+  min-width: 4rem;
+  background-color: #c1bbbb77;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.active{
+  background: none;
+  background-color: #1E6BD6;
+  border-radius:20px;
+  min-width: 6rem;
+}
+
+.not-active{
+  background: none;
+  background-color: rgb(191, 185, 185);
+  border-radius:20px;
+  min-width: 6rem;
+}

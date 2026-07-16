@@ -27,43 +27,43 @@ function MainLayout({ children }) {
   const pageMeta = {
     "/dashboard": {
       title: "Dashboard",
-      subtitle: "Welcome back! Here's what's happening today.",
+      subtitle: "Welcome back! Here's what's happening today",
     },
     "/departments": {
       title: "Departments",
-      subtitle: "Manage your organization departments.",
+      subtitle: "Manage your organization departments",
     },
     "/employees": {
       title: "Employees",
-      subtitle: "Manage your organization workforce.",
+      subtitle: "Manage your organization workforce",
     },
     "/attendance": {
       title: "Attendance",
-      subtitle: "Track and manage employee attendance.",
+      subtitle: "Track and manage employee attendance",
     },
     "/leave": {
       title: "Leave",
-      subtitle: "Review and approve employee leave requests.",
+      subtitle: "Review and approve employee leave requests",
     },
     "/payroll": {
       title: "Payroll",
-      subtitle: "Manage salaries and payroll processing.",
+      subtitle: "Manage salaries and payroll processing",
     },
     "/expenses": {
       title: "Expenses",
-      subtitle: "Submit and manage expense claims.",
+      subtitle: "Submit and manage expense claims",
     },
     "/resignation": {
       title: "Resignation",
-      subtitle: "Submit and manage resignation.",
+      subtitle: "Submit and manage resignation",
     },
     "/documents": {
       title: "Documents",
-      subtitle: "Store and manage company documents.",
+      subtitle: "Store and manage company documents",
     },
     "/settings": {
       title: "Settings",
-      subtitle: "Configure your HRMS preferences.",
+      subtitle: "Configure your HRMS preferences",
     },
   };
 
@@ -129,17 +129,18 @@ function MainLayout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand">
-          
-            <h1>
-              Aameego <span>Gig</span>
-            </h1>
 
-            <p style={{fontSize:'12px',fontWeight:'700'}}>Human Resource Management System</p>
+            {/* <h1>
+              Aameego <span>Gig</span>
+            </h1> */}
+            <img src="http://genex.org.in/wp-content/uploads/2023/03/LOGO.png" alt="Logo" className="" width="100" height="45" />
+
+            <p style={{ fontSize: '12px', fontWeight: '700',marginBottom: '5px' }}>We make your lives simpler.</p>
           </div>
 
-          <div className="client-info">
-    {user?.vendorName}
-  </div>
+          {/* <div className="client-info">
+            {user?.vendorName}
+          </div> */}
           <nav className="sidebar-menu">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -162,7 +163,11 @@ function MainLayout({ children }) {
 
         <div className="sidebar-user">
           <div className="user-avatar">
-            {user?.name?.charAt(0) || "U"}
+            {user?.photoDisplayUrl ? (
+              <img src={user.photoDisplayUrl} alt="" className="user-avatar-img" />
+            ) : (
+              user?.name?.charAt(0) || "U"
+            )}
           </div>
 
           <div className="user-meta">

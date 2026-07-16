@@ -1,7 +1,9 @@
 import React from "react";
 import { X, RefreshCw, CheckCircle } from "lucide-react";
 import PayrollBreakdown from "./PayrollBreakdown";
+import { formatPayrollMeta } from "../utils/payrollRecord";
 import { convertNumberToWords } from "../utils/currencyWords";
+import "./PayrollBreakdownDrawer.css";
 
 export default function PayrollBreakdownDrawer({
   open,
@@ -42,13 +44,16 @@ export default function PayrollBreakdownDrawer({
 
   return (
     <div className="details-overlay" onClick={onClose}>
-      <div className="details-drawer glass-morphism" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="details-drawer pb-drawer"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="drawer-header">
           <div>
-            <h2>Salary Computation Breakdown</h2>
-            <p>Audit trail breakdown calculated by the payroll engine.</p>
+            <h2>Salary breakdown</h2>
+            <p>Payroll engine calculation for this period</p>
           </div>
-          <button className="close-drawer-btn" onClick={onClose} type="button">
+          <button className="close-drawer-btn" onClick={onClose} type="button" aria-label="Close">
             <X size={20} />
           </button>
         </div>
@@ -56,95 +61,102 @@ export default function PayrollBreakdownDrawer({
         {loading ? (
           <div className="breakdown-loading">
             <RefreshCw size={28} className="spin" />
-            <p>Calculating payroll breakdown…</p>
+            <p>Calculating payroll…</p>
           </div>
         ) : (
-          <>
-            <div className="drawer-meta-grid">
-              <div className="meta-item">
-                <span className="meta-lbl">Employee</span>
-                <strong>{record.employeeName}</strong>
+          <div className="pb-drawer__body">
+            <div className="pb-drawer__meta">
+              <div className="pb-drawer__meta-item">
+                <span className="pb-drawer__meta-label">Employee</span>
+                <span className="pb-drawer__meta-value">{record.employeeName}</span>
               </div>
-              <div className="meta-item">
-                <span className="meta-lbl">Code</span>
-                <strong>{record.employeeCode}</strong>
+              <div className="pb-drawer__meta-item">
+                <span className="pb-drawer__meta-label">Code</span>
+                <span className="pb-drawer__meta-value">{record.employeeCode}</span>
               </div>
-              <div className="meta-item">
-                <span className="meta-lbl">Department</span>
-                <strong>{record.department || "Operations"}</strong>
+              <div className="pb-drawer__meta-item">
+                <span className="pb-drawer__meta-label">Department</span>
+                <span className="pb-drawer__meta-value">
+                  {formatPayrollMeta(record.department)}
+                </span>
               </div>
-              <div className="meta-item">
-                <span className="meta-lbl">Period</span>
-                <strong>
+              <div className="pb-drawer__meta-item">
+                <span className="pb-drawer__meta-label">Period</span>
+                <span className="pb-drawer__meta-value">
                   {record.month} {record.year}
-                </strong>
+                </span>
               </div>
             </div>
 
-            <div className="details-card-block">
-              <h3>Attendance Summary</h3>
+            <section className="pb-section">
+              <h3 className="pb-section__title">Attendance</h3>
               {cappedToToday && (
-                <p className="breakdown-period-note">
-                  In-progress month — calculated through today only (
-                  {periodDays} of {record.totalDaysInMonth} calendar days).
+                <p className="pb-section__note">
+                  In-progress month — calculated through today ({periodDays} of{" "}
+                  {record.totalDaysInMonth} calendar days)
                 </p>
               )}
-              <div className="grid-4-cols">
-                <div className="att-box">
-                  <span>{cappedToToday ? "Period Days (till date)" : "Total Days"}</span>
-                  <strong>{periodDays}</strong>
+              <div className="pb-att-grid">
+                <div className="pb-att-stat">
+                  <span className="pb-att-stat__label">
+                    {cappedToToday ? "Period days (till date)" : "Total days"}
+                  </span>
+                  <span className="pb-att-stat__value">{periodDays}</span>
                 </div>
-                <div className="att-box present">
-                  <span>Present Days</span>
-                  <strong>{presentDays}</strong>
+                <div className="pb-att-stat pb-att-stat--present">
+                  <span className="pb-att-stat__label">Present days</span>
+                  <span className="pb-att-stat__value">{presentDays}</span>
                 </div>
-                <div className="att-box paid">
-                  <span>Paid Leave / Offs</span>
-                  <strong>{paidDays}</strong>
+                <div className="pb-att-stat pb-att-stat--paid">
+                  <span className="pb-att-stat__label">Paid leave / offs</span>
+                  <span className="pb-att-stat__value">{paidDays}</span>
                 </div>
-                <div className="att-box absent">
-                  <span>Unpaid LOP Days</span>
-                  <strong>{lopDays}</strong>
+                <div className="pb-att-stat pb-att-stat--absent">
+                  <span className="pb-att-stat__label">Unpaid LOP days</span>
+                  <span className="pb-att-stat__value">{lopDays}</span>
                 </div>
               </div>
               {record.overtimeHours > 0 && (
-                <div className="ot-badge-alert">
-                  <span>Overtime Worked: </span>
-                  <strong>
-                    {record.overtimeHours} hours (Payout: ₹
-                    {Number(record.overtimePay || 0).toLocaleString("en-IN")})
-                  </strong>
-                </div>
+                <p className="pb-ot-note">
+                  Overtime: <strong>{record.overtimeHours} hrs</strong> — payout{" "}
+                  {`₹${Number(record.overtimePay || 0).toLocaleString("en-IN")}`}
+                </p>
               )}
-            </div>
+            </section>
 
             <PayrollBreakdown record={record} adjustmentProps={adjustmentProps} />
 
-            <div className="net-payout-banner">
-              <div>
-                <span className="net-lbl">Net Salary Payable</span>
-                <p className="words-lbl">{convertNumberToWords(netSalary)} Only</p>
+            <div className="pb-drawer__footer">
+              <div className="pb-net-card">
+                <div>
+                  <span className="pb-net-card__label">Net salary payable</span>
+                  <p className="pb-net-card__words">
+                    {convertNumberToWords(netSalary)} only
+                  </p>
+                </div>
+                <h2 className="pb-net-card__amount">
+                  ₹{netSalary.toLocaleString("en-IN")}
+                </h2>
               </div>
-              <h2 className="net-val">₹{netSalary.toLocaleString("en-IN")}</h2>
-            </div>
 
-            {isAdminOrHR && record.status === "Pending" && onConfirmSave && (
-              <div className="drawer-commit-row">
-                <button className="btn-cancel" onClick={onClose} type="button">
-                  Close Preview
-                </button>
-                <button
-                  className="btn-primary-commit"
-                  onClick={onConfirmSave}
-                  disabled={actionLoading}
-                  type="button"
-                >
-                  <CheckCircle size={18} />
-                  <span>Confirm & Save Payslip</span>
-                </button>
-              </div>
-            )}
-          </>
+              {isAdminOrHR && record.status === "Pending" && onConfirmSave && (
+                <div className="pb-drawer__actions">
+                  <button className="btn-cancel" onClick={onClose} type="button">
+                    Close preview
+                  </button>
+                  <button
+                    className="btn-primary-commit"
+                    onClick={onConfirmSave}
+                    disabled={actionLoading}
+                    type="button"
+                  >
+                    <CheckCircle size={18} />
+                    <span>Confirm & save</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
