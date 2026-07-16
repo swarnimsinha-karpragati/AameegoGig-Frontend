@@ -23,7 +23,7 @@ function App() {
     <div className="app-shell">
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<LoginUpdated />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/create-org" element={<CreateOrg />} />
         <Route path="/join" element={<JoinOrg />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

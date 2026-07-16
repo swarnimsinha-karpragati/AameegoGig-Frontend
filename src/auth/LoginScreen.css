@@ -47,8 +47,8 @@
 }
 
 .brand-header {
-    height: 47px;      /* Fixed height */
-    width: 203px;      /* Figma width */
+    height: 47px;
+    width: 203px;
     display: flex;
     align-items: center;
     justify-content: flex-start;
@@ -62,8 +62,8 @@
     transform-origin: left center;
     margin: 0;
     position: relative;
-    margin-top: 70px; 
-    left: -68px; 
+    margin-top: 70px;
+    left: -68px;
 }
 
 .brand-icon {

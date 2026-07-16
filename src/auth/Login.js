@@ -1,193 +1,226 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { loginUser } from "../services/authService";
-import logo from "../assets/logo.png";
-import Button from "../components/Button";
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import './LoginScreen.css';
 
-function Login() {
-  const navigate = useNavigate();
+import bgImage from '../assets/background.png';
+import LoginLayout from './LoginLayout';
+import helpBtn from '../assets/help.svg';
+import { loginUser } from '../services/authService';
 
-  const [formData, setFormData] = useState({
-    emailOrPhone: "",
-    password: "",
-    vendorCode: "",
-    otp:""
-  });
+export default function LoginScreen() {
+    const navigate = useNavigate();
 
-  const [is2FA, setIs2FA] = useState(false);
-  const [otpEmail, setOtpEmail] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleChange = (e) => {
-    let value = e.target.value;
-
-    // Organization code always uppercase
-    if (e.target.name === "vendorCode") {
-      value = value.toUpperCase();
-    }
-
-    setFormData({
-      ...formData,
-      [e.target.name]: value,
+    const [formData, setFormData] = useState({
+        identifier: '', // Handles email or phone
+        password: '',
+        orgCode: '',
+        otp: '',
+        rememberMe: false
     });
-  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+    const [is2FA, setIs2FA] = useState(false);
+    const [otpEmail, setOtpEmail] = useState('');
+    const [otpSent, setOtpSent] = useState(false);
 
-    setIsLoading(true);
-    setError("");
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
-    try {
-      const res = await loginUser(formData);
-      if (res?.twoFactorRequired ) {
-          setIs2FA(true);
-          setOtpEmail(res.sendTo || "");
-          setOtpSent(true)
-          return
-      }
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
 
-      localStorage.setItem("token", res.token);
-      localStorage.setItem("user", JSON.stringify(res.user));
+        // Organization code always uppercase (same behaviour as functional version)
+        const finalValue =
+            name === 'orgCode' ? value.toUpperCase() : value;
 
-      navigate("/dashboard");
-    } catch (err) {
-      setError(
-        err.response?.data?.message || "Login failed"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        setFormData((prev) => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : finalValue
+        }));
+    };
 
-  return (
-    <div className="auth-container">
-      {/* LEFT PANEL */}
-      <div className="auth-left">
-        <div className="branding">
-          <img
-            src={logo}
-            alt="Aameego"
-            className="brand-logo"
-          />
+    const handleSubmit = async (e) => {
+        e.preventDefault();
 
-          <h1 className="brand-heading">
-            Aameego Gig
-          </h1>
+        setIsLoading(true);
+        setError('');
 
-          <p className="brand-subtitle">
-            Smart HRMS for modern workforce
-          </p>
+        try {
+            const res = await loginUser({
+                emailOrPhone: formData.identifier,
+                password: formData.password,
+                vendorCode: formData.orgCode,
+                otp: formData.otp
+            });
 
-          <p className="brand-company">
-            Powered by Kar Pragati Technologies Private Limited
-          </p>
+            if (res?.twoFactorRequired) {
+                setIs2FA(true);
+                setOtpEmail(res.sendTo || '');
+                setOtpSent(true);
+                return;
+            }
+
+            localStorage.setItem('token', res.token);
+            localStorage.setItem('user', JSON.stringify(res.user));
+
+            navigate('/dashboard');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Login failed');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div
+            className="login-container"
+            style={{ backgroundImage: `url(${bgImage})` }}
+        >
+            <div className="login-content">
+
+                {/* ================= LEFT HERO SIDE ================= */}
+                <LoginLayout />
+
+                {/* ================= RIGHT FORM CARD SIDE ================= */}
+                <div className="form-section">
+                    <div className="help-link">
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <img src={helpBtn} alt="Help" width="16" height="16" /> Help
+                        </span>
+                    </div>
+
+                    <div className="form-card">
+                        <div className="form-header">
+                            <h2>Welcome to HRMS!</h2>
+                            <p>Sign in to access your organization's HRMS workspace.</p>
+                        </div>
+
+                        <form onSubmit={handleSubmit}>
+                            {/* Email / Mobile Input */}
+                            <div className="input-group">
+                                <label>Work Email or Mobile Number</label>
+                                <input
+                                    type="text"
+                                    name="identifier"
+                                    value={formData.identifier}
+                                    onChange={handleChange}
+                                    placeholder="Enter your work email or mobile number"
+                                    required
+                                    disabled={is2FA}
+                                />
+                            </div>
+
+                            {/* Password Input */}
+                            <div className="input-group">
+                                <label>Password</label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    placeholder="Enter your password"
+                                    required
+                                    disabled={is2FA}
+                                />
+                            </div>
+
+                            {/* Org Code Input */}
+                            <div className="input-group">
+                                <label>Organization Code</label>
+                                <input
+                                    type="text"
+                                    name="orgCode"
+                                    value={formData.orgCode}
+                                    onChange={handleChange}
+                                    placeholder="Enter your organization code"
+                                    required
+                                    disabled={is2FA}
+                                />
+                                <span className="helper-text">Provided by your HR administrator</span>
+                            </div>
+
+                            {/* OTP Input (only when 2FA is triggered) */}
+                            {is2FA && otpSent && (
+                                <div className="input-group">
+                                    <label>Verification Code</label>
+                                    <input
+                                        type="text"
+                                        name="otp"
+                                        value={formData.otp}
+                                        onChange={handleChange}
+                                        placeholder="Enter 6-Digit OTP"
+                                        maxLength="6"
+                                        required
+                                    />
+                                    <span className="helper-text">
+                                        Code sent to: <strong>{otpEmail}</strong>
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Utility Row (Remember Me & Forgot Passwords) */}
+                            <div className="form-utilities">
+                                <label className="remember-me">
+                                    <input
+                                        type="checkbox"
+                                        name="rememberMe"
+                                        checked={formData.rememberMe}
+                                        onChange={handleChange}
+                                    />
+                                    Remember me
+                                </label>
+                                <div className="forgot-links">
+                                    <Link to="/forgot-org-code" className="forgot-link">
+                                        Forgot Organization Code?
+                                    </Link>
+                                </div>
+                                <div className="forgot-links">
+                                    <Link to="/forgot-password" className="forgot-link">
+                                        Forgot Password?
+                                    </Link>
+                                </div>
+                            </div>
+
+                            {/* Error message */}
+                            {error && <p className="error">{error}</p>}
+
+                            {/* Login Button */}
+                            <button type="submit" className="btn-login" disabled={isLoading}>
+                                {isLoading
+                                    ? 'Logging in...'
+                                    : is2FA
+                                        ? 'Verify & Confirm Login'
+                                        : 'Login'}
+                            </button>
+                        </form>
+
+                        <div className="form-divider"></div>
+
+                        {/* Action Buttons */}
+                        <div className="action-buttons-group">
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => navigate('/create-org')}
+                            >
+                                Create Organization
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => navigate('/join')}
+                            >
+                                Join Organization
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            {/* Footer Powered By text */}
+            <footer className="footer-copyright">
+                Powered by Kar Pragati Technologies Pvt. Ltd.
+            </footer>
         </div>
-      </div>
-
-      {/* RIGHT PANEL */}
-      <div className="auth-right">
-        <div className="auth-card">
-          <h2>Login</h2>
-
-          <p className="auth-hint">
-            Employees: use the email and temporary password shared by HR, plus
-            your organization code.
-          </p>
-
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <input
-                name="emailOrPhone"
-                type="text"
-                placeholder="Email or Mobile Number"
-                value={formData.emailOrPhone}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <input
-                name="password"
-                type="password"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <input
-                name="vendorCode"
-                type="text"
-                placeholder="Organization Code"
-                value={formData.vendorCode}
-                onChange={handleChange}
-                required
-              />
-              <div className="field-helper">
-                <Link to="/forgot-password" className="forgot-link">
-                  Forgot Password?
-                </Link>
-                <Link to="/forgot-org-code" className="forgot-link">
-                  Forgot Organization Code?
-                </Link>
-              </div>
-            </div>
-
-            {is2FA && otpSent &&(
-              <div className="form-group 2fa-otp-section" style={{ marginTop: "1rem" }}>
-                
-                <p className="auth-hint" style={{ color: "#2563eb", padding: 0, marginBottom: "0.5rem" }}>
-                  🔐 Verification Code sent to:<strong>{otpEmail}</strong>
-                </p>
-                
-                <input
-                  name="otp"
-                  type="text"
-                  placeholder="Enter 6-Digit OTP"
-                  maxLength="6"
-                  value={formData?.otp}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              disabled={isLoading}
-            >
-              {isLoading
-                ? "Logging in..."
-                : is2FA 
-                  ? "Verify & Confirm Login" 
-                  : "Login"}
-            </Button>
-          </form>
-
-          {error && (
-            <p className="error">{error}</p>
-          )}
-
-          <div className="auth-links">
-            <Link to="/create-org">
-              Create Organization
-            </Link>
-
-            <Link to="/join">
-              Join Organization
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    );
 }
-
-export default Login;
