@@ -4,21 +4,39 @@ import { API_BASE_URL } from "../config/api";
 export const getBackendOrigin = () =>
   API_BASE_URL.replace(/\/api\/?$/, "");
 
+/**
+ * Prefer a signed/display URL from the API.
+ * Never return raw s3:// URIs — browsers cannot load them.
+ */
 export const resolveMediaUrl = (displayUrl, storedPath) => {
-  if (displayUrl) return displayUrl;
-  if (!storedPath) return "";
+  const display = typeof displayUrl === "string" ? displayUrl.trim() : "";
+  if (
+    display &&
+    (display.startsWith("http://") ||
+      display.startsWith("https://") ||
+      display.startsWith("data:") ||
+      display.startsWith("blob:"))
+  ) {
+    return display;
+  }
+
+  if (!storedPath || typeof storedPath !== "string") return "";
+
+  const path = storedPath.trim();
+  if (!path || path.startsWith("s3://")) return "";
 
   if (
-    storedPath.startsWith("http://") ||
-    storedPath.startsWith("https://") ||
-    storedPath.startsWith("data:")
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("data:") ||
+    path.startsWith("blob:")
   ) {
-    return storedPath;
+    return path;
   }
 
-  if (storedPath.startsWith("/uploads/") || storedPath.startsWith("/public/")) {
-    return `${getBackendOrigin()}${storedPath}`;
+  if (path.startsWith("/uploads/") || path.startsWith("/public/")) {
+    return `${getBackendOrigin()}${path}`;
   }
 
-  return storedPath;
+  return "";
 };

@@ -27,15 +27,10 @@ export const uploadDocument = async (
     category
   );
 
+  // Let the browser set the multipart boundary (see uploadEmployeeDocument).
   return API.post(
     "/documents/upload",
-    formData,
-    {
-      headers: {
-        "Content-Type":
-          "multipart/form-data",
-      },
-    }
+    formData
   );
 };
 
@@ -95,15 +90,11 @@ export const downloadDocument = async (id) => {
 
   export const uploadEmployeeDocument =
   async (formData) => {
+    // No manual Content-Type: axios + the browser add the multipart
+    // boundary. A boundary-less header breaks server-side parsing.
     return API.post(
       "/documents/upload",
-      formData,
-      {
-        headers: {
-          "Content-Type":
-            "multipart/form-data",
-        },
-      }
+      formData
     );
   };
 
