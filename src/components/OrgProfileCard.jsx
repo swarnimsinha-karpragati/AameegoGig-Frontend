@@ -63,6 +63,15 @@ export default function OrgProfileCard() {
         logoUrl: res.data?.data?.logoUrl,
         logoDisplayUrl: res.data?.data?.logoDisplayUrl,
       }));
+
+      const storedUser = localStorage.getItem('user');
+
+      if (storedUser) {
+        const userObj = JSON.parse(storedUser);
+        userObj.logoUrl = res.data?.data?.logoUrl;
+        localStorage.setItem('user', JSON.stringify(userObj));
+      }
+      
       setMessage("Logo uploaded. Re-download payslips to see the new branding.");
       setTimeout(() => setMessage(""), 3500);
     } catch (err) {
