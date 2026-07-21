@@ -676,7 +676,7 @@ function ExpenseInner() {
                         ) : null}
 
                         {/* Approver: Pending actions */}
-                        {actionMode === "approve" && exp.status === "Pending" ? (
+                        {exp?.employeeId?._id !== user?.employeeId && actionMode === "approve" && exp.status === "Pending" ? (
                           <>
                             <Button
                               className="action-btn-edit approve-expense-btn"
@@ -696,7 +696,7 @@ function ExpenseInner() {
                         ) : null}
 
                         {/* Reimburse only */}
-                        {actionMode === "reimburse" && exp.status === "Approved" ? (
+                        {exp?.employeeId?._id !== user?.employeeId && actionMode === "reimburse" && exp.status === "Approved" ? (
                           <Button
                             className="reimburse-btn action-btn-edit"
                             icon={<Banknote size={14} />}
@@ -707,7 +707,7 @@ function ExpenseInner() {
                         ) : null}
 
                         {/* Full: approve + reimburse */}
-                        {actionMode === "full" && exp.status === "Pending" ? (
+                        {exp?.employeeId?._id !== user?.employeeId && actionMode === "full" && exp.status === "Pending" ? (
                           <>
                             <Button
                               className="approve-expense-btn action-btn-edit"
@@ -725,7 +725,7 @@ function ExpenseInner() {
                             </Button>
                           </>
                         ) : null}
-                        {actionMode === "full" && exp.status === "Approved" ? (
+                        {exp?.employeeId?._id !== user?.employeeId && actionMode === "full" && exp.status === "Approved" ? (
                           <Button
                             className="reimburse-btn action-btn-edit"
                             icon={<Banknote size={14} />}

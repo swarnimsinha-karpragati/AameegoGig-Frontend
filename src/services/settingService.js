@@ -48,3 +48,11 @@ export const updateWeekOff = async (weekOffId, data) => {
 export const deleteWeekOff = async (weekOffId) => {
   return API.delete(`/setting/deleteWeekOff/${weekOffId}`);
 };
+
+export const updateNotification = async (data) => {
+  return API.post(`/notification/update`,data);
+};
+
+export const getNotification = async () => {
+  return API.get(`/notification/update`);
+};

@@ -107,6 +107,8 @@ export default function ProfileCard() {
     setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
   };
 
+  console.log(profileImage)
+
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setLoadError("");

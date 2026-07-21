@@ -5,6 +5,20 @@ body {
   background: #f5f7fa;
 }
 
+.logo-div {
+  width: 10rem;  /* Adjust size here: 2rem (32px), 2.5rem (40px), 3rem (48px) */
+  height:10rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-div img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; 
+}
+
 /* APP SHELL */
 .app-shell {
   min-height: 100vh;

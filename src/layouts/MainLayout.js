@@ -141,6 +141,14 @@ function MainLayout({ children }) {
     },
   ].filter((item) => canAccessRoute(user?.role, item.path));
 
+  const [logo,setLogo] = useState(null);
+
+  useEffect(()=>{
+    setLogo(resolveMediaUrl(null,user.logoUrl))
+  },[user])
+
+  console.log(logo)
+
 
   return (
     <div className="dashboard-layout">
@@ -151,7 +159,12 @@ function MainLayout({ children }) {
             {/* <h1>
               Aameego <span>Gig</span>
             </h1> */}
-            <img src="http://genex.org.in/wp-content/uploads/2023/03/LOGO.png" alt="Logo" className="" width="100" height="45" />
+           <div className="logo-div">
+            <img
+              src={logo} 
+              alt="Company Logo" 
+            />
+          </div>
 
             <p style={{ fontSize: '12px', fontWeight: '700',marginBottom: '5px' }}>We make your lives simpler.</p>
           </div>
