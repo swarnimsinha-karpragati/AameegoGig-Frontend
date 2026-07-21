@@ -1027,7 +1027,7 @@ function Employees() {
           <div className="toolbar-actions">
 
             <Button
-              className="secondary-btn"
+              variant="secondary"
               icon={<Upload size={18} />}
               onClick={() => {
                 setShowUploadModal(true)

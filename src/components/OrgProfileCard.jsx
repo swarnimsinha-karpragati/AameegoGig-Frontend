@@ -15,10 +15,14 @@ export default function OrgProfileCard() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [logoBroken, setLogoBroken] = useState(false);
 
   const loadProfile = () => {
     getOrgProfile()
-      .then((res) => setProfile(res.data?.data || null))
+      .then((res) => {
+        setProfile(res.data?.data || null);
+        setLogoBroken(false);
+      })
       .catch(() => setError("Failed to load organization profile"));
   };
 
@@ -72,6 +76,7 @@ export default function OrgProfileCard() {
         localStorage.setItem('user', JSON.stringify(userObj));
       }
       
+      setLogoBroken(false);
       setMessage("Logo uploaded. Re-download payslips to see the new branding.");
       setTimeout(() => setMessage(""), 3500);
     } catch (err) {
@@ -91,6 +96,7 @@ export default function OrgProfileCard() {
   }
 
   const logoSrc = resolveMediaUrl(profile.logoDisplayUrl, profile.logoUrl);
+  const showLogo = Boolean(logoSrc) && !logoBroken;
 
   return (
     <div className="org-profile-card">
@@ -104,8 +110,12 @@ export default function OrgProfileCard() {
 
       <div className="org-profile-card__logo-row">
         <div className="org-profile-card__logo-preview">
-          {logoSrc ? (
-            <img src={logoSrc} alt={`${profile.name} logo`} />
+          {showLogo ? (
+            <img
+              src={logoSrc}
+              alt={`${profile.name} logo`}
+              onError={() => setLogoBroken(true)}
+            />
           ) : (
             <div className="org-profile-card__logo-fallback">
               {(profile.name || "ORG")

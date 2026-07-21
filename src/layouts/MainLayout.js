@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,7 +16,6 @@ import {
 
 import "../pages/Dashboard.css";
 import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
-import { useEffect, useState } from "react";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 
 
@@ -23,8 +23,24 @@ import { resolveMediaUrl } from "../utils/mediaUrl";
 function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [user, setUser] = useState(() => getStoredUser());
+  const [avatarBroken, setAvatarBroken] = useState(false);
 
-  const user = getStoredUser();
+  useEffect(() => {
+    const refreshUser = () => {
+      setUser(getStoredUser());
+      setAvatarBroken(false);
+    };
+    window.addEventListener("storage", refreshUser);
+    window.addEventListener("user-updated", refreshUser);
+    refreshUser();
+    return () => {
+      window.removeEventListener("storage", refreshUser);
+      window.removeEventListener("user-updated", refreshUser);
+    };
+  }, [location.pathname]);
+
+  const avatarSrc = resolveMediaUrl(user?.photoDisplayUrl, user?.photoUrl);
 
   const pageMeta = {
     "/dashboard": {
@@ -178,8 +194,13 @@ function MainLayout({ children }) {
 
         <div className="sidebar-user">
           <div className="user-avatar">
-            {user?.photoDisplayUrl ? (
-              <img src={user.photoDisplayUrl} alt="" className="user-avatar-img" />
+            {avatarSrc && !avatarBroken ? (
+              <img
+                src={avatarSrc}
+                alt=""
+                className="user-avatar-img"
+                onError={() => setAvatarBroken(true)}
+              />
             ) : (
               user?.name?.charAt(0) || "U"
             )}
