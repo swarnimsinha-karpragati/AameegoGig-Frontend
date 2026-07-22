@@ -381,7 +381,7 @@ import Button from "../components/Button";
                         </div>
     
                         <div className="document-info">
-                          <h3>
+                          <h3 style={{ flexWrap:'wrap'}}>
                             {
                               doc.fileName
                             }
