@@ -25,7 +25,7 @@ export const PATTERNS = {
   PAN: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
   IFSC: /^[A-Z]{4}0[A-Z0-9]{6}$/,
   UAN: /^[0-9]{12}$/,
-  ESIC: /^[0-9]{17}$/,
+  ESIC: /^[0-9]{10}$/,
   BANK_ACCOUNT: /^[0-9]{9,18}$/,
   IDENTIFIER_CODE: /^[A-Z][A-Z0-9_]{1,31}$/,
   EMPLOYEE_CODE: /^[A-Za-z0-9_-]{2,32}$/,
