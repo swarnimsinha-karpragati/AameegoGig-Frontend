@@ -5,7 +5,6 @@ import MainLayout from "../layouts/MainLayout";
 import ProfileCard from "../components/ProfileCard";
 import NotificationsCard from "../components/NotificationsCard";
 import SecurityCard from "../components/SecurityCard";
-import RoleTabs from "../components/RoleTabs";
 import RolesCard from "../components/RolesCard";
 import EmployeeProfileCard from "../components/EmployeeProfileCard";
 import ShiftManager from "../components/ShiftManager";
