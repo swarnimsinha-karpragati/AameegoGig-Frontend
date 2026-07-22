@@ -67,9 +67,6 @@ export default function Settings() {
               Configure your HRMS preferences
             </p>
           </div>
-          {user?.role !== 'Employee' && 
-            <RoleTabs activeTab={activeTab} setActiveTab={setActiveTab} role={user?.role} />
-          }
         </div>
 
         {activeTab === "admin" ? (
