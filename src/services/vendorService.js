@@ -7,7 +7,8 @@ export const updateOrgProfile = (payload) => API.put("/vendor/profile", payload)
 export const uploadOrgLogo = (file) => {
   const formData = new FormData();
   formData.append("logo", file);
-  return API.post("/vendor/logo", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  // Do NOT set Content-Type manually: the browser must add the multipart
+  // boundary. A hard-coded "multipart/form-data" has no boundary, so the
+  // server cannot parse the upload and req.file ends up undefined.
+  return API.post("/vendor/logo", formData);
 };

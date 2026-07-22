@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,14 +16,32 @@ import {
 
 import "../pages/Dashboard.css";
 import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
+import { resolveMediaUrl } from "../utils/mediaUrl";
+import logo from '../assets/logo.png';
 
 
 
 function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [user, setUser] = useState(() => getStoredUser());
+  const [avatarBroken, setAvatarBroken] = useState(false);
 
-  const user = getStoredUser();
+  useEffect(() => {
+    const refreshUser = () => {
+      setUser(getStoredUser());
+      setAvatarBroken(false);
+    };
+    window.addEventListener("storage", refreshUser);
+    window.addEventListener("user-updated", refreshUser);
+    refreshUser();
+    return () => {
+      window.removeEventListener("storage", refreshUser);
+      window.removeEventListener("user-updated", refreshUser);
+    };
+  }, [location.pathname]);
+
+  const avatarSrc = resolveMediaUrl(user?.photoDisplayUrl, user?.photoUrl);
 
   const pageMeta = {
     "/dashboard": {
@@ -123,6 +142,14 @@ function MainLayout({ children }) {
     },
   ].filter((item) => canAccessRoute(user?.role, item.path));
 
+  // const [logo,setLogo] = useState(null);
+
+  // useEffect(()=>{
+  //   setLogo(resolveMediaUrl(null,user.logoUrl))
+  // },[user])
+
+  // console.log(logo)
+
 
   return (
     <div className="dashboard-layout">
@@ -133,7 +160,7 @@ function MainLayout({ children }) {
             {/* <h1>
               Aameego <span>Gig</span>
             </h1> */}
-            <img src="http://genex.org.in/wp-content/uploads/2023/03/LOGO.png" alt="Logo" className="" width="100" height="45" />
+            <img src={logo} alt="Logo" className="" width="100%" height="auto" style={{padding:'2rem .5rem'}} />
 
             <p style={{ fontSize: '12px', fontWeight: '700',marginBottom: '5px' }}>We make your lives simpler.</p>
           </div>
@@ -163,8 +190,13 @@ function MainLayout({ children }) {
 
         <div className="sidebar-user">
           <div className="user-avatar">
-            {user?.photoDisplayUrl ? (
-              <img src={user.photoDisplayUrl} alt="" className="user-avatar-img" />
+            {avatarSrc && !avatarBroken ? (
+              <img
+                src={avatarSrc}
+                alt=""
+                className="user-avatar-img"
+                onError={() => setAvatarBroken(true)}
+              />
             ) : (
               user?.name?.charAt(0) || "U"
             )}

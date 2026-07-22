@@ -107,6 +107,8 @@ export default function ProfileCard() {
     setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
   };
 
+  console.log(profileImage)
+
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setLoadError("");
@@ -187,6 +189,7 @@ export default function ProfileCard() {
         photoDisplayUrl: data.photoDisplayUrl ?? stored.photoDisplayUrl,
       };
       localStorage.setItem("user", JSON.stringify(next));
+      window.dispatchEvent(new Event("user-updated"));
     } catch {
       // ignore
     }
@@ -300,6 +303,7 @@ export default function ProfileCard() {
                 src={profileImage}
                 alt="Profile"
                 className="profile-avatar-img"
+                onError={() => setProfileImage("")}
               />
             ) : (
               avatarInitial

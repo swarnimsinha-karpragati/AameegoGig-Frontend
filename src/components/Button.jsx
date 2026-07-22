@@ -24,11 +24,28 @@ import './Button.css';
  * <Button variant="not-active">Disabled</Button>
  */
 
-const Button = ({ children, icon, iconPosition = 'left' ,className = '', ...props }) => {
+const VARIANT_CLASS = {
+  primary: '',
+  secondary: 'secondary-btn',
+  delete: 'action-btn-delete',
+  edit: 'action-btn-edit',
+  active: 'active',
+  'not-active': 'not-active',
+};
+
+const Button = ({
+  children,
+  icon,
+  iconPosition = 'left',
+  variant = 'primary',
+  className = '',
+  ...props
+}) => {
+  const variantClass = VARIANT_CLASS[variant] || '';
   return (
-    <button 
-      className={`generic-btn ${className}`} 
-      {...props} 
+    <button
+      className={`generic-btn ${variantClass} ${className}`.trim()}
+      {...props}
     >
       {icon && iconPosition === 'left' && (
         <span className="btn-icon">{icon}</span>

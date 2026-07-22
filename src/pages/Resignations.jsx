@@ -181,7 +181,7 @@ function Resignations() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.reasonForLeaving.trim() || !form.requestedLastWorkingDay) {
+    if (!form.reasonForLeaving.trim() || !form.requestedLastWorkingDay || !form.hrMail) {
       alert("Please fill in all required fields.");
       return;
     }
@@ -566,13 +566,14 @@ function Resignations() {
                     required
                   />
                 </FormField>
-                <FormField label="Your HR Mail(Optional)" htmlFor="res-hr" fullWidth>
+                <FormField label="Your HR Mail" required htmlFor="res-hr" fullWidth>
                   <input
                     id="res-hr"
                     name="hrMail"
                     value={form.hrMail}
                     onChange={handleChange}
                     placeholder=""
+                    type="text"
                   />
                 </FormField>
               </FormSection>
