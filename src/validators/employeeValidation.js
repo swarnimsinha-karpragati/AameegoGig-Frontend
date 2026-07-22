@@ -117,7 +117,7 @@ export const employeeValidationSchema = Yup.object().shape({
     .trim()
     .nullable()
     .transform((value) => (value === "" ? null : value))
-    .matches(PATTERNS.ESIC, "ESIC number must be exactly 17 digits")
+    .matches(PATTERNS.ESIC, "ESIC number must be exactly 10 digits")
     .default(null),
 
   dateOfJoining: Yup.date().nullable().default(null),
