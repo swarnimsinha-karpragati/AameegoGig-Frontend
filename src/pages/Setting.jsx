@@ -6,7 +6,6 @@ import ProfileCard from "../components/ProfileCard";
 import NotificationsCard from "../components/NotificationsCard";
 import SecurityCard from "../components/SecurityCard";
 import RolesCard from "../components/RolesCard";
-import EmployeeProfileCard from "../components/EmployeeProfileCard";
 import ShiftManager from "../components/ShiftManager";
 import { OverTimePolicy } from "../components/OverTimePolicy";
 import { OverTimePolicyList } from "../components/OverTimePolicyList";
@@ -18,13 +17,13 @@ import SalaryComponentManager from "../components/SalaryComponentManager";
 
 export default function Settings() {
   
-  const [activeTab, setActiveTab] = useState("admin");
   const [user, setUser] = useState(null);
   const [editingPolicy, setEditingPolicy] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const formRef = useRef(null);
   const listRef = useRef(null);
+
 
   useEffect(() => {
     const loggedInUser = localStorage.getItem('user');
@@ -68,7 +67,6 @@ export default function Settings() {
           </div>
         </div>
 
-        {activeTab === "admin" ? (
           <>
             <div className="settings-grid">
               <ProfileCard />
@@ -112,14 +110,6 @@ export default function Settings() {
             </div>
           ):null}
           </>
-        ) : (
-          <div className="settings-grid">
-            <EmployeeProfileCard />
-            <div className="settings-notification-section">
-              <NotificationsCard />
-            </div>
-          </div>
-        )}
       </main>
     </MainLayout>
   );
