@@ -6,7 +6,6 @@ import "../auth/LoginScreen.css";
 import bgImage from "../assets/background.png";
 import helpBtn from '../assets/help.svg';
 
-
 function CreateOrg() {
   const navigate = useNavigate();
 
@@ -16,9 +15,33 @@ function CreateOrg() {
     password: "",
   });
 
+  const [logo, setLogo] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // File Change Handler with dynamic validation
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Check size limit (~35 KB / 50 KB limit safeguard)
+    if (file.size >100 * 100 * 1024) {
+      setError("File size is too large. Please upload an image under 10 MB.");
+      return;
+    }
+
+    // Optional: Validate image dimensions before accepting
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      setError("");
+      setLogo(file);
+      setLogoPreview(img.src);
+    };
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,13 +51,21 @@ function CreateOrg() {
     setLoading(true);
 
     try {
-      const res = await createVendor(form);
+      // Use FormData to support binary file uploads
+      const formData = new FormData();
+      formData.append("companyName", form.companyName);
+      formData.append("email", form.email);
+      formData.append("password", form.password);
+      if (logo) {
+        formData.append("logo", logo);
+      }
+
+      // Ensure your backend endpoint in authService accepts FormData
+      const res = await createVendor(formData);
 
       setMessage("Organization created successfully!");
 
-      alert(
-        `Organization Created!\n\nOrg Code: ${res.vendor.code}`
-      );
+      alert(`Organization Created!\n\nOrg Code: ${res.vendor.code}`);
 
       setTimeout(() => {
         navigate("/login");
@@ -43,7 +74,7 @@ function CreateOrg() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-        "Something went wrong"
+        "Something went wrong while creating the organization."
       );
     } finally {
       setLoading(false);
@@ -56,8 +87,6 @@ function CreateOrg() {
       style={{ backgroundImage: `url(${bgImage})` }}
     >
       <div className="login-content">
-
-        {/* ================= LEFT HERO SIDE ================= */}
         <LoginLayout />
 
         {/* ================= RIGHT FORM CARD SIDE ================= */}
@@ -123,10 +152,47 @@ function CreateOrg() {
                 />
               </div>
 
+              {/* ================= LOGO UPLOAD FIELD ================= */}
+              <div className="input-group" style={{ marginBottom: "15px" }}>
+                <label style={{ display: "block", marginBottom: "4px" }}>
+                  Company Logo
+                </label>
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg"
+                  onChange={handleLogoChange}
+                  style={{ fontSize: "0.85rem" }}
+                />
+
+                {/* Dimension & Spec Guidelines */}
+                <small style={{ display: "block", color: "#666", marginTop: "6px", fontSize: "0.78rem" }}>
+                  <strong>Recommended specifications:</strong><br />
+                  Aspect Ratio: <strong>16:9</strong><br />
+                  Max file size: <strong>~10 MB</strong> (PNG, JPG)
+                </small>
+
+                {/* Optional Image Preview */}
+                {logoPreview && (
+                  <div style={{ marginTop: "10px" }}>
+                    <p style={{ fontSize: "0.75rem", margin: "0 0 4px 0", color: "#444" }}>Preview:</p>
+                    <img
+                      src={logoPreview}
+                      alt="Logo Preview"
+                      style={{
+                        width: "203px",
+                        height: "52px",
+                        objectFit: "contain",
+                        border: "1px dashed #ccc",
+                        borderRadius: "4px",
+                        padding: "2px"
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
               <button type="submit" className="btn-login mt-3" disabled={loading}>
-                {loading
-                  ? "Creating..."
-                  : "Create Organization"}
+                {loading ? "Creating..." : "Create Organization"}
               </button>
             </form>
 
@@ -136,7 +202,7 @@ function CreateOrg() {
               </p>
             )}
 
-            {error && <p className="error">{error}</p>}
+            {error && <p className="error" style={{ color: "red", marginTop: "10px" }}>{error}</p>}
 
             <div
               className="auth-links"
@@ -152,9 +218,7 @@ function CreateOrg() {
 
               <Link
                 to="/login"
-                style={{
-                  textDecoration: "none",
-                }}
+                style={{ textDecoration: "none" }}
               >
                 Sign In
               </Link>
