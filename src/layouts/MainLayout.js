@@ -17,7 +17,7 @@ import {
 import "../pages/Dashboard.css";
 import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
 import { resolveMediaUrl } from "../utils/mediaUrl";
-import logo from '../assets/logo.png';
+import defaultLogo from "../assets/logo.png"
 
 
 
@@ -142,11 +142,11 @@ function MainLayout({ children }) {
     },
   ].filter((item) => canAccessRoute(user?.role, item.path));
 
-  // const [logo,setLogo] = useState(null);
+  const [logo,setLogo] = useState(null);
 
-  // useEffect(()=>{
-  //   setLogo(resolveMediaUrl(null,user.logoUrl))
-  // },[user])
+  useEffect(()=>{
+    setLogo(resolveMediaUrl(null,user.logoUrl))
+  },[user])
 
   // console.log(logo)
 
@@ -160,7 +160,7 @@ function MainLayout({ children }) {
             {/* <h1>
               Aameego <span>Gig</span>
             </h1> */}
-            <img src={logo} alt="Logo" className="" width="100%" height="auto" style={{padding:'2rem .5rem'}} />
+            <img src={logo?logo:defaultLogo} alt="Logo" className="" width="100%" height="auto" style={{padding:'1rem 0rem'}} />
 
             <p style={{ fontSize: '12px', fontWeight: '700',marginBottom: '5px' }}>We make your lives simpler.</p>
           </div>
