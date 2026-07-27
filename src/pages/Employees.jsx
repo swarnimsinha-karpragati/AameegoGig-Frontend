@@ -588,9 +588,15 @@ function Employees() {
 
   const handleChange = (e) => {
     const { name, type, checked, value } = e.target;
+
+    const finalValue =
+      name === "ifscCode" || name === "panNumber"
+        ? value.toUpperCase()
+        : value;
+
     const nextForm = {
       ...form,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: type === "checkbox" ? checked : finalValue,
     };
     setForm(nextForm);
     validateEmployeeField(
@@ -601,9 +607,14 @@ function Employees() {
 
   const handleEditFieldChange = (e) => {
     const { name, type, checked, value } = e.target;
+    const finalValue =
+      name === "ifscCode" || name === "panNumber"
+        ? value.toUpperCase()
+        : value;
+
     const nextEmployee = {
       ...selectedEmployee,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: type === "checkbox" ? checked : finalValue,
     };
     setSelectedEmployee(nextEmployee);
     validateEmployeeField(
@@ -1571,7 +1582,7 @@ function Employees() {
               
                     <div>
                       <label>IFSC Code</label>
-                      <span>{selectedEmployee.ifscCode || "-"}</span>
+                      <span>{selectedEmployee.ifscCode ? selectedEmployee.ifscCode.toUpperCase() : "-"}</span>
                     </div>
                   </div>
                 </div>
