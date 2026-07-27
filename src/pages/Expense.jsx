@@ -69,6 +69,21 @@ const ROLE_DESCRIPTIONS = {
 const formatCurrency = (amount) =>
   `₹${Number(amount || 0).toLocaleString("en-IN")}`;
 
+// Mirrors the backend rule (expenseController.js): ₹1 crore cap, up to 2 decimals.
+const MAX_EXPENSE_AMOUNT = 10000000;
+const validateAmount = (raw) => {
+  const str = String(raw ?? "").trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(str)) {
+    return "Enter a valid amount (numbers only, up to 2 decimal places).";
+  }
+  const num = Number(str);
+  if (num <= 0) return "Amount must be greater than 0.";
+  if (num > MAX_EXPENSE_AMOUNT) {
+    return "Amount exceeds the maximum permissible limit.";
+  }
+  return null;
+};
+
 function ExpenseFormField({ label, htmlFor, hint, fullWidth, children }) {
   return (
     <div className={`expense-field${fullWidth ? " expense-field--full" : ""}`}>
@@ -248,6 +263,13 @@ function ExpenseInner() {
   /* ── Handlers ── */
   const handleCreate = async (e, forSelf = false) => {
     e.preventDefault();
+
+    const amountError = validateAmount(form.amount);
+    if (amountError) {
+      toast.error(amountError);
+      return;
+    }
+
     try {
       const fd = new FormData();
       fd.append("title", form.title);
@@ -459,6 +481,7 @@ function ExpenseInner() {
               type="number"
               placeholder="0.00"
               min="0"
+              max={MAX_EXPENSE_AMOUNT}
               step="0.01"
               value={form.amount}
               onChange={(e) =>

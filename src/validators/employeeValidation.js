@@ -14,11 +14,7 @@ export const getMaxDateOfBirthInputValue = () =>
   getMaxDateOfBirth().toISOString().slice(0, 10);
 
 export const employeeValidationSchema = Yup.object().shape({
-  employeeCode: Yup.string()
-    .trim()
-    .required("Employee code is required")
-    .matches(PATTERNS.EMPLOYEE_CODE, "Employee code must be 2–32 letters, numbers, hyphens, or underscores"),
-
+  // employeeCode is generated server-side (PREFIX-0001), not entered here.
   name: Yup.string()
     .trim()
     .required("Name is required")

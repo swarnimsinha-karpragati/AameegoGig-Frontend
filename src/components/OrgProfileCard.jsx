@@ -43,6 +43,7 @@ export default function OrgProfileCard() {
         name: profile.name,
         companyAddress: profile.companyAddress,
         contactEmail: profile.contactEmail,
+        employeeCodePrefix: profile.employeeCodePrefix,
       });
       setProfile(res.data?.data);
       setMessage("Organization profile saved. New payslips will use these details.");
@@ -161,6 +162,23 @@ export default function OrgProfileCard() {
         <label>
           Org Code
           <input value={profile.code || ""} disabled />
+        </label>
+        <label>
+          Employee Code Prefix
+          <input
+            value={profile.employeeCodePrefix || ""}
+            maxLength={6}
+            placeholder="e.g. AMG"
+            onChange={(e) =>
+              handleChange(
+                "employeeCodePrefix",
+                e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+              )
+            }
+          />
+          <small className="org-profile-card__field-hint">
+            New employees get codes like {(profile.employeeCodePrefix || "EMP")}-0001.
+          </small>
         </label>
         <label className="full-width">
           Company Address

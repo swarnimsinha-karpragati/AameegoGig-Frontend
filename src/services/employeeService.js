@@ -1,7 +1,7 @@
 import API from "./apiClient";
 
 const EMPLOYEE_PAYLOAD_FIELDS = [
-  "employeeCode",
+  // employeeCode is generated server-side (PREFIX-0001), never sent from here.
   "name",
   "email",
   "phone",
