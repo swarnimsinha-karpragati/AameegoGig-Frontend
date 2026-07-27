@@ -27,6 +27,13 @@ export const DEFAULT_API_ENV = "production";
 
 const trimTrailingSlash = (url) => url.replace(/\/$/, "");
 
+// Every backend route lives under /api, so guarantee the base ends with it —
+// tolerates a URL entered without the suffix (e.g. https://dev-gig.aameego.com).
+const ensureApiSuffix = (url) => {
+  const trimmed = trimTrailingSlash(url);
+  return /\/api$/i.test(trimmed) ? trimmed : `${trimmed}/api`;
+};
+
 // Map the site's own hostname to a backend environment.
 const envFromHostname = (hostname) => {
   if (hostname === "localhost" || hostname === "127.0.0.1") return "local";
@@ -72,7 +79,7 @@ const resolveApiBaseUrl = () => {
 const resolved = resolveApiBaseUrl();
 
 /** Used by axios and all API services */
-export const API_BASE_URL = resolved.url;
+export const API_BASE_URL = ensureApiSuffix(resolved.url);
 
 /** Import anywhere you need the active API settings */
 export const API_CONFIG = {
