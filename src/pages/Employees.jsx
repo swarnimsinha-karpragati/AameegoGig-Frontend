@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 import MainLayout from "../layouts/MainLayout";
 import {
   addEmployee,
@@ -24,7 +25,8 @@ import {
   Upload,
   X,
   FileText,
-  FolderOpen
+  FolderOpen,
+  Download
 } from "lucide-react";
 
 
@@ -39,12 +41,10 @@ import { saveEmployeeStructure } from "../services/salaryComponentService";
 import "./Employees.css";
 import { getDepartmentName } from "../services/departmentService";
 import {
-  DOC_CATEGORIES,
   DOC_TYPE_ACCEPT,
   DOC_TYPE_OPTIONS,
   acceptFor,
   docTypeLabel,
-  filterDocuments,
   isAllowedFile,
 } from "../utils/documentTypes";
 import {
@@ -54,18 +54,12 @@ import {
 import { validateStructureDraft } from "../utils/salaryValidation";
 import Button from "../components/Button";
 
-export const generateClientEmpCode = (prefix = "EMP") => {
-  const randomDigits = Math.floor(10000 + Math.random() * 90000);
-  return `${prefix}-${randomDigits}`;
-};
-
 const EMPLOYEE_FORM_SECTIONS = [
   {
     id: "basic",
     title: "Basic Information",
     description: "Primary contact and role details",
     fields: [
-      { key: "employeeCode", label: "Employee Code", required: true },
       { key: "name", label: "Full Name", required: true },
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
@@ -371,7 +365,6 @@ function Employees() {
   ========================= */
 
   const initialForm = {
-    employeeCode:generateClientEmpCode(),
     name: "",
     email: "",
     phone: "",
@@ -448,7 +441,6 @@ function Employees() {
     setDocumentFile,
   ] = useState(null);
 
-  const [docFilter, setDocFilter] = useState("All");
 
   const [selectedEmployee, setSelectedEmployee] =
     useState(null);
@@ -714,6 +706,22 @@ function Employees() {
   /* =========================
      BULK UPLOAD
   ========================= */
+
+  // Sample template. Row 1 is a title (the importer skips it, range:1),
+  // row 2 is the header, rows 3+ are examples — matching the parser exactly.
+  const handleDownloadTemplate = () => {
+    const rows = [
+      ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
+      ["Name", "Email", "Phone", "Designation", "Location", "UAN", "ESIC No", "DOJ"],
+      ["Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Gurgaon", "100200300400", "1234567890", "2026-01-15"],
+      ["Priya Sharma", "priya.sharma@example.com", "9812345678", "Team Lead", "Bengaluru", "", "", "2026-02-01"],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [18, 26, 14, 18, 14, 16, 14, 12].map((wch) => ({ wch }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Employees");
+    XLSX.writeFile(wb, "employee-bulk-upload-template.xlsx");
+  };
 
   const handleBulkUpload = async () => {
     if (!uploadFile) {
@@ -1061,10 +1069,7 @@ function Employees() {
             <Button
               icon={<Plus size={18} />}
               onClick={() => {
-                setForm({
-                  ...initialForm,
-                  employeeCode: generateClientEmpCode(),
-                });
+                setForm({ ...initialForm });
                 setSalaryDraft(initialSalaryDraft);
                 setErrors({});
                 setShowAddModal(true);
@@ -1175,7 +1180,6 @@ function Employees() {
                           className="emp-grid-btn"
                           onClick={async () => {
                             setSelectedEmployeeForDocs(emp);
-                            setDocFilter("All");
                             await loadEmployeeDocuments(emp._id);
                             setShowDocumentsModal(true);
                           }}
@@ -1313,8 +1317,19 @@ function Employees() {
           >
             <FormSection
               title="Excel File"
-              description="Use the official template with employee columns"
+              description="Download the template, fill it in, then upload it here."
             >
+              <div className="emp-field emp-field--full">
+                <button
+                  type="button"
+                  className="emp-btn emp-btn--secondary"
+                  onClick={handleDownloadTemplate}
+                  style={{ marginBottom: 14 }}
+                >
+                  <Download size={15} />
+                  Download sample template
+                </button>
+              </div>
               <div className="emp-field emp-field--full">
                 <div className="emp-upload-zone">
                   <input
@@ -1793,58 +1808,31 @@ function Employees() {
             <div className="emp-doc-list">
               <h4>Uploaded Documents</h4>
 
-              <div className="document-filters">
-                {DOC_CATEGORIES.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={`emp-btn ${
-                      docFilter === category
-                        ? "emp-btn--primary"
-                        : "emp-btn--secondary"
-                    }`}
-                    onClick={() => setDocFilter(category)}
-                  >
-                    {category}
-                  </button>
-                ))}
-              </div>
-
               {!Array.isArray(employeeDocuments) ? (
                 <p className="emp-doc-list__empty">Loading…</p>
+              ) : employeeDocuments.length === 0 ? (
+                <p className="emp-doc-list__empty">No documents uploaded yet</p>
               ) : (
-                (() => {
-                  const shown = filterDocuments(employeeDocuments, {
-                    category: docFilter,
-                  });
-                  if (shown.length === 0) {
-                    return (
-                      <p className="emp-doc-list__empty">
-                        No documents in this category
-                      </p>
-                    );
-                  }
-                  return shown.map((doc) => (
-                    <div key={doc._id} className="emp-doc-item">
-                      <div>
-                        <span className="emp-doc-item__type">
-                          {docTypeLabel(doc.documentType)}
-                        </span>
-                        <span className="emp-doc-item__name">
-                          {doc.originalName}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="emp-btn emp-btn--secondary"
-                        onClick={() => viewDocument(doc._id)}
-                      >
-                        <Eye size={14} />
-                        View
-                      </button>
+                employeeDocuments.map((doc) => (
+                  <div key={doc._id} className="emp-doc-item">
+                    <div>
+                      <span className="emp-doc-item__type">
+                        {docTypeLabel(doc.documentType)}
+                      </span>
+                      <span className="emp-doc-item__name">
+                        {doc.originalName}
+                      </span>
                     </div>
-                  ));
-                })()
+                    <button
+                      type="button"
+                      className="emp-btn emp-btn--secondary"
+                      onClick={() => viewDocument(doc._id)}
+                    >
+                      <Eye size={14} />
+                      View
+                    </button>
+                  </div>
+                ))
               )}
             </div>
           </EmpModal>
