@@ -1,544 +1,291 @@
+import { useCallback, useEffect, useState } from "react";
+import MainLayout from "../layouts/MainLayout";
 import {
-    useEffect,
-    useState,
-  } from "react";
-  import MainLayout from "../layouts/MainLayout";
-  import {
-    Search,
-    // Upload,  // reserved for future upload feature
-    FileText,
-    FileSpreadsheet,
-    Image,
-    Eye,
-    Download,
-    // Trash2,  // reserved for future delete feature
-  } from "lucide-react";
-  
-  import {
-    // getDocuments,       // reserved for future use
-    // uploadDocument,     // reserved for future upload feature
-    // deleteDocument,     // reserved for future delete feature
-    viewDocument,
-    downloadDocument,
-    getEmployeeDocuments,
-  } from "../services/documentService";
+  Search,
+  Upload,
+  FileText,
+  FileSpreadsheet,
+  Image,
+  Eye,
+  Download,
+  Paperclip,
+} from "lucide-react";
+
+import {
+  viewDocument,
+  downloadDocument,
+  getDocuments,
+  getEmployeeDocuments,
+  uploadEmployeeDocument,
+} from "../services/documentService";
+import {
+  DOC_CATEGORIES,
+  DOC_TYPE_ACCEPT,
+  DOC_TYPE_OPTIONS,
+  acceptFor,
+  docTypeLabel,
+  filterDocuments,
+  isAllowedFile,
+} from "../utils/documentTypes";
 import Button from "../components/Button";
-  
-  function Documents() {
-    /* =========================
-       STATES
-    ========================= */
-    const [documents, setDocuments] =
-      useState([]);
-  
-    const [search, setSearch] =
-      useState("");
-  
-    const [
-      activeCategory,
-      setActiveCategory,
-    ] = useState("All");
-  
-    // const [uploadFile, setUploadFile] =  // reserved for future upload feature
-    //   useState(null);
-  
-    // const [
-    //   // uploadMessage,     // reserved for future upload feature
-    //   // setUploadMessage,  // reserved for future upload feature
-    // ] = useState("");
-  
-    // const [loading, setLoading] =  // reserved for future upload feature
-    //   useState(false);
-  
-    const categories = [
-      "All",
-      "General",
-      "Policy",
-      "Legal",
-      "Finance",
-      "Salary Slip",
-    ];
 
-    const [loggedInUser,setLoggedInUser] = useState(null)
+function Documents() {
+  const [documents, setDocuments] = useState([]);
+  const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [loggedInUser, setLoggedInUser] = useState(null);
 
-    /* ==========================================================================
-   1. INITIALIZE USER FROM LOCALSTORAGE
-   ========================================================================== */
-    useEffect(() => {
-      try { 
+  // Employee self-upload
+  const [documentType, setDocumentType] = useState("AADHAAR");
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
 
-        const storedUserData = localStorage.getItem("user");
-        
-        if (storedUserData) {
-          
-          const parsedUser = JSON.parse(storedUserData);
-          
-         
-          setLoggedInUser({
-            id: parsedUser.id || parsedUser._id, 
-            employeeId: parsedUser.employeeId, 
-            name: parsedUser.name || "Workspace User",
-            role: parsedUser.role?.toLowerCase() || "employee",
-            vendorId: parsedUser.vendorId || "6a2a49e3baf7ebc467381bf3"
-          });
-        }
-      } catch (error) {
-        console.error("Error loading user data from localStorage:", error);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setLoggedInUser({
+          employeeId: parsed.employeeId,
+          name: parsed.name || "Workspace User",
+          role: parsed.role?.toLowerCase() || "employee",
+        });
       }
-    }, []);
-  
-    /* =========================
-       FETCH DOCUMENTS
-    ========================= */
-    const fetchDocuments =
-      async () => {
-        if (!loggedInUser || !loggedInUser.employeeId) return;
-        try {
-    
-          const res =
-            await getEmployeeDocuments(loggedInUser?.employeeId);
-  
-          setDocuments(
-            res.data.documents || []
-          );
-         
-        } catch (error) {
-          console.error(
-            "Error fetching documents:",
-            error
-          );
-        }
-      };
-  
-    useEffect(() => {
+    } catch (error) {
+      console.error("Error loading user data from localStorage:", error);
+    }
+  }, []);
+
+  // Admin/HR see every employee's documents; everyone else sees only their own.
+  const canSeeAll =
+    loggedInUser?.role === "admin" || loggedInUser?.role === "hr";
+  const isEmployee = !canSeeAll;
+
+  const fetchDocuments = useCallback(async () => {
+    if (!loggedInUser) return;
+    try {
+      const res = canSeeAll
+        ? await getDocuments()
+        : await getEmployeeDocuments(loggedInUser.employeeId);
+      setDocuments(res.data.documents || []);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+    }
+  }, [loggedInUser, canSeeAll]);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  const handleUpload = async () => {
+    if (!uploadFile || !loggedInUser?.employeeId) return;
+    if (!isAllowedFile(documentType, uploadFile.name)) {
+      setMessage(
+        `Invalid file for ${docTypeLabel(documentType)}. Allowed: ${DOC_TYPE_ACCEPT[
+          documentType
+        ].join(", ")}`
+      );
+      return;
+    }
+    setUploading(true);
+    setMessage("");
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("employeeId", loggedInUser.employeeId);
+      formData.append("documentType", documentType);
+
+      await uploadEmployeeDocument(formData);
+      setUploadFile(null);
+      setMessage("Document uploaded successfully");
+      setTimeout(() => setMessage(""), 3000);
       fetchDocuments();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loggedInUser]);
-  
-    /* =========================
-       GET ICON
-    ========================= */
-    const getIcon = (type) => {
-      const fileType =
-        type?.toLowerCase();
-  
-      if (
-        fileType === "xls" ||
-        fileType === "xlsx"
-      ) {
-        return (
-          <FileSpreadsheet
-            size={22}
-          />
-        );
-      }
-  
-      if (
-        fileType === "png" ||
-        fileType === "jpg" ||
-        fileType === "jpeg"
-      ) {
-        return (
-          <Image size={22} />
-        );
-      }
-  
-      return (
-        <FileText size={22} />
+    } catch (error) {
+      setMessage(
+        error.response?.data?.message?.includes("File too large")
+          ? "File size should be less than 20 MB"
+          : error.response?.data?.message || "Upload failed"
       );
-    };
-  
-   
-    /* =========================
-       DELETE DOCUMENT
-    ========================= */
-    // const handleDelete =
-    //   async (id) => {
-    //     const confirmDelete =
-    //       window.confirm(
-    //         "Are you sure you want to delete this document?"
-    //       );
-  
-    //     if (!confirmDelete)
-    //       return;
-  
-    //     try {
-    //       await deleteDocument(
-    //         id
-    //       );
-  
-    //       alert(
-    //         "Document deleted successfully"
-    //       );
-  
-    //       fetchDocuments();
-    //     } catch (error) {
-    //       alert(
-    //         error.response?.data
-    //           ?.message ||
-    //           "Delete failed"
-    //       );
-    //     }
-    //   };
-  
-      /* =======================
-      UPLOAD DOCUMENT
-      ========================*/
+    } finally {
+      setUploading(false);
+    }
+  };
 
-      // const handleUpload = async () => {
-      //   if (!uploadFile) {
-      //     alert("Please select a file");
-      //     return;
-      //   }
-      
-      //   try {
-      //     setLoading(true);
-      
-      //     const res = await uploadDocument(
-      //       uploadFile,
-      //       category
-      //     );
-      
-      //     setUploadMessage(
-      //       res.data.message ||
-      //         "Document uploaded successfully"
-      //     );
-      
-      //     setUploadFile(null);
-      //     setCategory("General");
-      //     setShowUploadModal(false);
-      
-      //     fetchDocuments();
-      //   } catch (error) {
-      //           if (
-      //             error.response?.data?.message?.includes(
-      //               "File too large"
-      //             )
-      //           ) {
-      //             alert(
-      //               "File size should be less than 20 MB"
-      //             );
-      //           } else {
-      //             alert(
-      //               error.response?.data?.message ||
-      //               "Upload failed"
-      //             );
-      //         }
-      //   } finally {
-      //     setLoading(false);
-      //   }
-      // };
-      
-    /* =========================
-       FILTER DOCUMENTS
-    ========================= */
-    const filteredDocuments =
-    documents.filter((doc) => {
-      const matchesSearch =
-        doc.fileName
-          ?.toLowerCase()
-          .includes(
-            search.toLowerCase()
-          );
-  
-      const currentCategory =
-        activeCategory
-          ?.trim()
-          .toLowerCase();
-  
-      const documentCategory =
-        doc.category
-          ?.trim()
-          .toLowerCase();
-  
-      if (
-        currentCategory === "all"
-      ) {
-        return matchesSearch;
-      }
-  
-      return (
-        matchesSearch &&
-        documentCategory ===
-          currentCategory
-      );
-    });
+  // File-type recognition: a coloured tile per kind so the grid scans fast.
+  const fileKind = (type) => {
+    const t = type?.toLowerCase();
+    if (t === "xls" || t === "xlsx" || t === "csv")
+      return { icon: <FileSpreadsheet size={22} />, tone: "sheet" };
+    if (t === "png" || t === "jpg" || t === "jpeg" || t === "webp")
+      return { icon: <Image size={22} />, tone: "image" };
+    if (t === "pdf") return { icon: <FileText size={22} />, tone: "pdf" };
+    return { icon: <FileText size={22} />, tone: "doc" };
+  };
 
-      /* ======================
-      SELECT CATEGORY
-      ======================= */
-      
+  const filteredDocuments = filterDocuments(documents, {
+    category: activeCategory,
+    search,
+  });
 
-      // const [showUploadModal, setShowUploadModal] =  // reserved for future upload feature
-      // useState(false);
-
-     // const [category, setCategory] =  // reserved for future upload feature
-     // useState("General");
-
-      return (
-        <MainLayout>
-          <div className="documents-page">
-            {/* HEADER */}
-            <div className="documents-header">
-              <div>
-                <h1>Documents</h1>
-                <p>
-                  Total Documents:{" "}
-                  <strong>
-                    {
-                      documents.length
-                    }
-                  </strong>
-                </p>
-              </div>
-    
-              {/* <button
-  className="upload-document-btn"
-  onClick={() =>
-    setShowUploadModal(true)
-  }
->
-  <Upload size={18} />
-  Upload Document
-</button> */}
-            </div>
-    
-            {/* MESSAGE
-            {uploadMessage && (
-              <p className="success">
-                {uploadMessage}
-              </p>
-            )} */}
-    
-            {/* SEARCH + FILTER */}
-            <div className="documents-toolbar-card">
-              <div className="search-wrapper">
-                <Search
-                  size={18}
-                />
-    
-                <input
-                  type="text"
-                  placeholder="Search documents..."
-                  value={search}
-                  onChange={(e) =>
-                    setSearch(
-                      e.target.value
-                    )
-                  }
-                />
-              </div>
-    
-              <div className="document-filters">
-                {categories.map(
-                  (
-                    category
-                  ) => (
-                    <Button
-                      key={
-                        category
-                      }
-                      className={`${
-                        activeCategory ===
-                        category
-                          ? "active"
-                          : "not-active"
-                      }`}
-                      onClick={() =>
-                        setActiveCategory(
-                          category
-                        )
-                      }
-                    >
-                      {
-                        category
-                      }
-                    </Button>
-                  )
-                )}
-              </div>
-            </div>
-    
-            {/* DOCUMENT GRID */}
-            <div className="documents-grid">
-              {filteredDocuments.length >
-              0 ? (
-                filteredDocuments.map(
-                  (
-                    doc
-                  ) => (
-                    <div
-                      key={
-                        doc._id
-                      }
-                      className="document-card"
-                    >
-                      <div className="document-top">
-                        <div className="document-icon">
-                          {getIcon(
-                            doc.fileType
-                          )}
-                        </div>
-    
-                        <div className="document-info">
-                          <h3 style={{ flexWrap:'wrap'}}>
-                            {
-                              doc.fileName
-                            }
-                          </h3>
-    
-                          <p>
-                            {
-                              doc.fileSize
-                            }{" "}
-                            •{" "}
-                            {
-                              doc.fileType
-                            }
-                          </p>
-    
-                          <span>
-                            by{" "}
-                            {
-                              doc.uploadedBy
-                            }
-                          </span>
-                        </div>
-                      </div>
-    
-                      <div className="document-bottom">
-                        <span>
-                          {new Date(
-                            doc.createdAt
-                          ).toLocaleDateString()}
-                        </span>
-    
-                        <div className="document-actions">
-                          <button
-                            onClick={() =>
-                              viewDocument(
-                                doc._id
-                              )
-                            }
-                          >
-                            <Eye
-                              size={
-                                16
-                              }
-                            />
-                          </button>
-    
-                          <button
-                            onClick={() =>
-                              downloadDocument(
-                                doc._id
-                              )
-                            }
-                          >
-                            <Download
-                              size={
-                                16
-                              }
-                            />
-                          </button>
-    
-                          {/* <button
-                            className="delete"
-                            onClick={() =>
-                              handleDelete(
-                                doc._id
-                              )
-                            }
-                          >
-                            <Trash2
-                              size={
-                                16
-                              }
-                            />
-                          </button> */}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                )
-              ) : (
-                <p>
-                  No documents
-                  found.
-                </p>
-              )}
-            </div>
+  return (
+    <MainLayout>
+      <div className="documents-page">
+        <div className="documents-header">
+          <div>
+            <h1>Documents</h1>
+            <p>
+              {isEmployee
+                ? "Upload and view your personal documents"
+                : "All employee documents across the organization"}{" "}
+              • <strong>{documents.length}</strong>
+            </p>
           </div>
-          {/* {showUploadModal && (
-  <div className="modal-overlay">
-      <div className="upload-modal">
-  <h2>Upload Document</h2>
+        </div>
 
-  <div className="custom-file-upload">
-    <button
-      type="button"
-      className="choose-file-btn"
-      onClick={() =>
-        document.getElementById("fileInput").click()
-      }
-    >
-      Choose File
-    </button>
+        {/* UPLOAD — employees only. Admin uploads per-employee in Employees. */}
+        {isEmployee && (
+          <div className="doc-upload">
+            <div className="doc-upload__row">
+              <label className="doc-upload__field">
+                <span>Document type</span>
+                <select
+                  value={documentType}
+                  onChange={(e) => setDocumentType(e.target.value)}
+                >
+                  {DOC_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-    <span className="file-name">
-      {uploadFile
-        ? uploadFile.name
-        : "No file selected"}
-    </span>
+              <label className="doc-upload__field">
+                <span>File</span>
+                <div className="doc-upload__file">
+                  <input
+                    type="file"
+                    accept={acceptFor(documentType)}
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  />
+                  <Paperclip size={15} />
+                  <span className="doc-upload__filename">
+                    {uploadFile ? uploadFile.name : "Choose a file"}
+                  </span>
+                </div>
+              </label>
 
-    <input
-      id="fileInput"
-      type="file"
-      className="hidden-file-input"
-      onChange={(e) =>
-        setUploadFile(e.target.files[0])
-      }
-    />
-  </div>
+              <Button onClick={handleUpload} disabled={!uploadFile || uploading}>
+                <Upload size={16} />
+                {uploading ? "Uploading…" : "Upload"}
+              </Button>
+            </div>
 
-  <select
-    className="upload-category"
-    value={category}
-    onChange={(e) =>
-      setCategory(e.target.value)
-    }
-  >
-    <option>General</option>
-    <option>Finance</option>
-    <option>Legal</option>
-    <option>Policy</option>
-  </select>
+            <p className="doc-upload__hint">
+              Allowed for {docTypeLabel(documentType)}:{" "}
+              {DOC_TYPE_ACCEPT[documentType].join(", ")}
+            </p>
+            {message && <p className="doc-upload__msg">{message}</p>}
+          </div>
+        )}
 
-  <div className="modal-actions">
-  <button
-  className="cancel-btn"
-  onClick={() =>
-    setShowUploadModal(false)
-  }
->
-  Cancel
-</button>
+        {/* SEARCH + FILTER */}
+        <div className="documents-toolbar-card">
+          <div className="search-wrapper">
+            <Search size={18} />
+            <input
+              type="text"
+              placeholder={
+                isEmployee
+                  ? "Search documents..."
+                  : "Search by document, type or employee..."
+              }
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
 
-<button
-  className="upload-btn"
-  onClick={handleUpload}
-  disabled={loading}
->
-  {loading
-    ? "Uploading..."
-    : "Upload"}
-</button>
-  </div>
-</div>
-  </div>
-)} */}
-        </MainLayout>
-      );
-    }
-    
-    export default Documents;
+          <div className="document-filters">
+            {DOC_CATEGORIES.map((category) => (
+              <Button
+                key={category}
+                className={activeCategory === category ? "active" : "not-active"}
+                onClick={() => setActiveCategory(category)}
+              >
+                {category}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* GRID */}
+        <div className="documents-grid">
+          {filteredDocuments.length > 0 ? (
+            filteredDocuments.map((doc) => {
+              const kind = fileKind(doc.fileType);
+              return (
+                <div key={doc._id} className="document-card">
+                  <div className="document-top">
+                    <div className={`document-icon document-icon--${kind.tone}`}>
+                      {kind.icon}
+                    </div>
+                    <span className="document-type-badge">
+                      {docTypeLabel(doc.documentType)}
+                    </span>
+                  </div>
+
+                  <h3 className="document-name" title={doc.fileName}>
+                    {doc.fileName}
+                  </h3>
+
+                  <div className="document-meta">
+                    {!isEmployee && doc.employeeName && (
+                      <span className="document-owner">{doc.employeeName}</span>
+                    )}
+                    <span>{doc.fileSize}</span>
+                    <span className="document-meta__dot">•</span>
+                    <span>{doc.fileType}</span>
+                  </div>
+
+                  <div className="document-bottom">
+                    <span className="document-date">
+                      {new Date(doc.createdAt).toLocaleDateString()}
+                    </span>
+                    <div className="document-actions">
+                      <button
+                        className="document-actions__view"
+                        onClick={() => viewDocument(doc._id)}
+                      >
+                        <Eye size={15} />
+                        View
+                      </button>
+                      <button
+                        title="Download"
+                        onClick={() => downloadDocument(doc._id)}
+                      >
+                        <Download size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="documents-empty">
+              <FileText size={30} />
+              <p>No documents found</p>
+              <span>
+                {isEmployee
+                  ? "Upload your first document using the form above."
+                  : "Documents uploaded for employees will appear here."}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </MainLayout>
+  );
+}
+
+export default Documents;

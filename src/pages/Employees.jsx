@@ -39,6 +39,15 @@ import { saveEmployeeStructure } from "../services/salaryComponentService";
 import "./Employees.css";
 import { getDepartmentName } from "../services/departmentService";
 import {
+  DOC_CATEGORIES,
+  DOC_TYPE_ACCEPT,
+  DOC_TYPE_OPTIONS,
+  acceptFor,
+  docTypeLabel,
+  filterDocuments,
+  isAllowedFile,
+} from "../utils/documentTypes";
+import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
@@ -438,6 +447,8 @@ function Employees() {
     documentFile,
     setDocumentFile,
   ] = useState(null);
+
+  const [docFilter, setDocFilter] = useState("All");
 
   const [selectedEmployee, setSelectedEmployee] =
     useState(null);
@@ -958,6 +969,15 @@ function Employees() {
       return;
     }
 
+    if (!isAllowedFile(documentType, documentFile.name)) {
+      alert(
+        `Invalid file for ${docTypeLabel(documentType)}. Allowed: ${DOC_TYPE_ACCEPT[
+          documentType
+        ].join(", ")}`
+      );
+      return;
+    }
+
     try {
 
       const formData =
@@ -1155,6 +1175,7 @@ function Employees() {
                           className="emp-grid-btn"
                           onClick={async () => {
                             setSelectedEmployeeForDocs(emp);
+                            setDocFilter("All");
                             await loadEmployeeDocuments(emp._id);
                             setShowDocumentsModal(true);
                           }}
@@ -1736,14 +1757,11 @@ function Employees() {
                   value={documentType}
                   onChange={(e) => setDocumentType(e.target.value)}
                 >
-                  <option value="PHOTO">Photo</option>
-                  <option value="AADHAAR">Aadhaar</option>
-                  <option value="PAN">PAN</option>
-                  <option value="EDUCATION">Education</option>
-                  <option value="BANK">Bank Proof</option>
-                  <option value="MEDICAL_CARD">Medical Card</option>
-                  <option value="SALARY_SLIP">Salary Slip</option>
-                  <option value="APPOINTMENT_LETTER">Appointment Letter</option>
+                  {DOC_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </FormField>
               <div className="emp-field emp-field--full">
@@ -1751,6 +1769,7 @@ function Employees() {
                 <div className="emp-upload-zone">
                   <input
                     type="file"
+                    accept={acceptFor(documentType)}
                     onChange={(e) =>
                       setDocumentFile(e.target.files?.[0] || null)
                     }
@@ -1760,7 +1779,7 @@ function Employees() {
                     Click or drag file to upload
                   </span>
                   <span className="emp-upload-zone__hint">
-                    PDF, JPG, PNG up to 10MB
+                    {DOC_TYPE_ACCEPT[documentType].join(", ")} up to 10MB
                   </span>
                   {documentFile ? (
                     <span className="emp-upload-zone__file">
@@ -1773,31 +1792,59 @@ function Employees() {
 
             <div className="emp-doc-list">
               <h4>Uploaded Documents</h4>
+
+              <div className="document-filters">
+                {DOC_CATEGORIES.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    className={`emp-btn ${
+                      docFilter === category
+                        ? "emp-btn--primary"
+                        : "emp-btn--secondary"
+                    }`}
+                    onClick={() => setDocFilter(category)}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+
               {!Array.isArray(employeeDocuments) ? (
                 <p className="emp-doc-list__empty">Loading…</p>
-              ) : employeeDocuments.length === 0 ? (
-                <p className="emp-doc-list__empty">No documents uploaded yet</p>
               ) : (
-                employeeDocuments.map((doc) => (
-                  <div key={doc._id} className="emp-doc-item">
-                    <div>
-                      <span className="emp-doc-item__type">
-                        {doc.documentType}
-                      </span>
-                      <span className="emp-doc-item__name">
-                        {doc.originalName}
-                      </span>
+                (() => {
+                  const shown = filterDocuments(employeeDocuments, {
+                    category: docFilter,
+                  });
+                  if (shown.length === 0) {
+                    return (
+                      <p className="emp-doc-list__empty">
+                        No documents in this category
+                      </p>
+                    );
+                  }
+                  return shown.map((doc) => (
+                    <div key={doc._id} className="emp-doc-item">
+                      <div>
+                        <span className="emp-doc-item__type">
+                          {docTypeLabel(doc.documentType)}
+                        </span>
+                        <span className="emp-doc-item__name">
+                          {doc.originalName}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="emp-btn emp-btn--secondary"
+                        onClick={() => viewDocument(doc._id)}
+                      >
+                        <Eye size={14} />
+                        View
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className="emp-btn emp-btn--secondary"
-                      onClick={() => viewDocument(doc._id)}
-                    >
-                      <Eye size={14} />
-                      View
-                    </button>
-                  </div>
-                ))
+                  ));
+                })()
               )}
             </div>
           </EmpModal>
