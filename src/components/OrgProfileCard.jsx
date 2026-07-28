@@ -1,27 +1,40 @@
-import React, { useEffect, useState } from "react";
-import { Building2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Building2, Upload } from "lucide-react";
 import {
   getOrgProfile,
   updateOrgProfile,
-  // uploadOrgLogo,
+  uploadOrgLogo,
 } from "../services/vendorService";
-// import { resolveMediaUrl } from "../utils/mediaUrl";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 import "./OrgProfileCard.css";
 import Button from "./Button";
 
 export default function OrgProfileCard() {
-  // const fileRef = useRef(null);
+  const fileRef = useRef(null);
   const [profile, setProfile] = useState(null);
   const [saving, setSaving] = useState(false);
-  // const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  // const [logoBroken, setLogoBroken] = useState(false);
+  const [logoBroken, setLogoBroken] = useState(false);
 
   const loadProfile = () => {
     getOrgProfile()
       .then((res) => {
-        setProfile(res.data?.data || null);
+        const data = res.data?.data || null;
+        setProfile(data);
+        if (data?.logoUrl || data?.logoDisplayUrl) {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const userObj = JSON.parse(storedUser);
+            if (userObj.logoUrl !== data.logoUrl || userObj.logoDisplayUrl !== data.logoDisplayUrl) {
+              userObj.logoUrl = data.logoUrl;
+              userObj.logoDisplayUrl = data.logoDisplayUrl;
+              localStorage.setItem('user', JSON.stringify(userObj));
+              window.dispatchEvent(new Event("user-updated"));
+            }
+          }
+        }
       })
       .catch(() => setError("Failed to load organization profile"));
   };
@@ -55,38 +68,43 @@ export default function OrgProfileCard() {
     }
   };
 
-  // const handleLogoUpload = async (e) => {
-  //   const file = e.target.files?.[0];
-  //   if (!file) return;
-  //   setUploading(true);
-  //   setError("");
-  //   setMessage("");
-  //   try {
-  //     const res = await uploadOrgLogo(file);
-  //     setProfile((prev) => ({
-  //       ...prev,
-  //       logoUrl: res.data?.data?.logoUrl,
-  //       logoDisplayUrl: res.data?.data?.logoDisplayUrl,
-  //     }));
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await uploadOrgLogo(file);
+      const newLogoUrl = res.data?.data?.logoUrl;
+      const newLogoDisplayUrl = res.data?.data?.logoDisplayUrl;
 
-  //     const storedUser = localStorage.getItem('user');
+      setProfile((prev) => ({
+        ...prev,
+        logoUrl: newLogoUrl,
+        logoDisplayUrl: newLogoDisplayUrl,
+      }));
 
-  //     if (storedUser) {
-  //       const userObj = JSON.parse(storedUser);
-  //       userObj.logoUrl = res.data?.data?.logoUrl;
-  //       localStorage.setItem('user', JSON.stringify(userObj));
-  //     }
-      
-  //     setLogoBroken(false);
-  //     setMessage("Logo uploaded. Re-download payslips to see the new branding.");
-  //     setTimeout(() => setMessage(""), 3500);
-  //   } catch (err) {
-  //     setError(err.response?.data?.message || "Logo upload failed");
-  //   } finally {
-  //     setUploading(false);
-  //     if (fileRef.current) fileRef.current.value = "";
-  //   }
-  // };
+      const storedUser = localStorage.getItem('user');
+
+      if (storedUser) {
+        const userObj = JSON.parse(storedUser);
+        userObj.logoUrl = newLogoUrl;
+        userObj.logoDisplayUrl = newLogoDisplayUrl;
+        localStorage.setItem('user', JSON.stringify(userObj));
+        window.dispatchEvent(new Event("user-updated"));
+      }
+
+      setLogoBroken(false);
+      setMessage("Logo uploaded. Re-download payslips to see the new branding.");
+      setTimeout(() => setMessage(""), 3500);
+    } catch (err) {
+      setError(err.response?.data?.message || "Logo upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   if (!profile) {
     return (
@@ -96,8 +114,8 @@ export default function OrgProfileCard() {
     );
   }
 
-  // const logoSrc = resolveMediaUrl(profile.logoDisplayUrl, profile.logoUrl);
-  // const showLogo = Boolean(logoSrc) && !logoBroken;
+  const logoSrc = resolveMediaUrl(profile.logoDisplayUrl, profile.logoUrl);
+  const showLogo = Boolean(logoSrc) && !logoBroken;
 
   return (
     <div className="org-profile-card">
@@ -109,7 +127,7 @@ export default function OrgProfileCard() {
         </div>
       </div>
 
-      {/*<div className="org-profile-card__logo-row">
+      <div className="org-profile-card__logo-row">
         <div className="org-profile-card__logo-preview">
           {showLogo ? (
             <img
@@ -128,7 +146,7 @@ export default function OrgProfileCard() {
             </div>
           )}
         </div>
-         <div>
+        <div>
           <button
             type="button"
             className="org-profile-card__upload-btn"
@@ -138,9 +156,9 @@ export default function OrgProfileCard() {
             <Upload size={15} />
             {uploading ? "Uploading…" : "Upload Logo"}
           </button>
-            <p className="org-profile-card__hint">
-              PNG or JPG, max 2 MB. Used on all payslips for this organization.
-            </p>
+          <p className="org-profile-card__hint">
+            PNG or JPG, max 2 MB. Used on all payslips for this organization.
+          </p>
           <input
             ref={fileRef}
             type="file"
@@ -149,7 +167,7 @@ export default function OrgProfileCard() {
             onChange={handleLogoUpload}
           />
         </div>
-      </div> */}
+      </div>
 
       <div className="org-profile-card__grid">
         <label>
