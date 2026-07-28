@@ -142,11 +142,11 @@ function MainLayout({ children }) {
     },
   ].filter((item) => canAccessRoute(user?.role, item.path));
 
-  const [logo,setLogo] = useState(null);
+  const [logo, setLogo] = useState(null);
 
-  useEffect(()=>{
-    setLogo(resolveMediaUrl(null,user.logoUrl))
-  },[user])
+  useEffect(() => {
+    setLogo(resolveMediaUrl(null, user.logoUrl))
+  }, [user])
 
   // console.log(logo)
 
@@ -160,9 +160,10 @@ function MainLayout({ children }) {
             {/* <h1>
               Aameego <span>Gig</span>
             </h1> */}
-            <img src={logo?logo:defaultLogo} alt="Logo" className="" width="100%" height="auto" style={{padding:'1rem 0rem'}} />
+            <img src={logo ? logo : defaultLogo} alt="Logo" className="" width="100%" height="auto" style={{ padding: '1rem 0rem' }} />
 
-            <p style={{ fontSize: '12px', fontWeight: '700',marginBottom: '5px' }}>We make your lives simpler.</p>
+            <p style={{ fontSize: '12px', fontWeight: '700', marginBottom: '5px' }}>One Workforce.
+              One Platform.</p>
           </div>
 
           {/* <div className="client-info">

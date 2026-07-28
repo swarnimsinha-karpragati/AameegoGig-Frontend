@@ -13,7 +13,7 @@ import {
 import {
   uploadEmployeeDocument,
   getEmployeeDocuments,
-  viewDocument,
+  getDocumentViewUrl,
 } from "../services/documentService";
 
 import {
@@ -53,6 +53,7 @@ import {
 } from "../validators/employeeValidation";
 import { validateStructureDraft } from "../utils/salaryValidation";
 import Button from "../components/Button";
+import DocumentPreview from "../components/DocumentPreview";
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -440,6 +441,8 @@ function Employees() {
     documentFile,
     setDocumentFile,
   ] = useState(null);
+
+  const [docPreviewUrl, setDocPreviewUrl] = useState(null);
 
 
   const [selectedEmployee, setSelectedEmployee] =
@@ -1837,7 +1840,7 @@ function Employees() {
                     <button
                       type="button"
                       className="emp-btn emp-btn--secondary"
-                      onClick={() => viewDocument(doc._id)}
+                      onClick={() => setDocPreviewUrl(getDocumentViewUrl(doc._id))}
                     >
                       <Eye size={14} />
                       View
@@ -1906,6 +1909,12 @@ function Employees() {
               </div>
           </EmpModal>
         ) : null}
+
+        <DocumentPreview
+          isOpen={!!docPreviewUrl}
+          onClose={() => setDocPreviewUrl(null)}
+          url={docPreviewUrl}
+        />
     </MainLayout>
   );
 }
