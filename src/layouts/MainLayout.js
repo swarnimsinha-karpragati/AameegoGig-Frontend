@@ -17,7 +17,8 @@ import {
 import "../pages/Dashboard.css";
 import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
 import { resolveMediaUrl } from "../utils/mediaUrl";
-import defaultLogo from "../assets/logo.png"
+import defaultLogo from "../assets/logo.png";
+import { getOrgProfile } from "../services/vendorService";
 
 
 
@@ -145,10 +146,41 @@ function MainLayout({ children }) {
   const [logo, setLogo] = useState(null);
 
   useEffect(() => {
-    setLogo(resolveMediaUrl(null, user.logoUrl))
-  }, [user])
+    let isMounted = true;
 
-  // console.log(logo)
+    const fetchLogo = async () => {
+      const userLogo = resolveMediaUrl(user?.logoDisplayUrl, user?.logoUrl);
+      if (userLogo) {
+        if (isMounted) setLogo(userLogo);
+        return;
+      }
+
+      try {
+        const res = await getOrgProfile();
+        const profileData = res.data?.data;
+        if (profileData && isMounted) {
+          const resolved = resolveMediaUrl(profileData.logoDisplayUrl, profileData.logoUrl);
+          if (resolved) {
+            setLogo(resolved);
+            const storedUser = getStoredUser();
+            if (storedUser) {
+              storedUser.logoUrl = profileData.logoUrl;
+              storedUser.logoDisplayUrl = profileData.logoDisplayUrl;
+              localStorage.setItem("user", JSON.stringify(storedUser));
+            }
+          }
+        }
+      } catch (err) {
+        // Silently catch error if API is inaccessible or fails
+      }
+    };
+
+    fetchLogo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
 
   return (
@@ -160,7 +192,14 @@ function MainLayout({ children }) {
             {/* <h1>
               Aameego <span>Gig</span>
             </h1> */}
-            <img src={logo ? logo : defaultLogo} alt="Logo" className="" width="100%" height="auto" style={{ padding: '1rem 0rem' }} />
+            <img
+              src={logo ? logo : defaultLogo}
+              alt="Logo"
+              onError={() => setLogo(null)}
+              width="100%"
+              height="auto"
+              style={{ padding: '1rem 0rem' }}
+            />
 
             <p style={{ fontSize: '12px', fontWeight: '700', marginBottom: '5px' }}>One Workforce.
               One Platform.</p>
