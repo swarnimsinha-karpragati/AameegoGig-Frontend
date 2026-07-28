@@ -218,6 +218,7 @@ export default function AppointmentLetterSalary({
             <option value="india_standard">India Standard (40/40)</option>
             <option value="india_50_50">50% Basic, 50% HRA</option>
             <option value="basic_heavy">Basic Heavy (60/30)</option>
+            <option value="minimum_wages">Minimum Wages (100% Basic)</option>
           </select>
         </div>
         
