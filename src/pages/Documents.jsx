@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 import {
-  viewDocument,
+  getDocumentViewUrl,
   downloadDocument,
   getDocuments,
   getEmployeeDocuments,
@@ -28,6 +28,7 @@ import {
   isAllowedFile,
 } from "../utils/documentTypes";
 import Button from "../components/Button";
+import DocumentPreview from "../components/DocumentPreview";
 
 function Documents() {
   const [documents, setDocuments] = useState([]);
@@ -40,6 +41,7 @@ function Documents() {
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   useEffect(() => {
     try {
@@ -130,6 +132,12 @@ function Documents() {
 
   return (
     <MainLayout>
+
+      <DocumentPreview
+        isOpen={!!previewUrl}
+        onClose={() => setPreviewUrl(null)}
+        url={previewUrl}
+      />
       <div className="documents-page">
         <div className="documents-header">
           <div>
@@ -255,7 +263,7 @@ function Documents() {
                     <div className="document-actions">
                       <button
                         className="document-actions__view"
-                        onClick={() => viewDocument(doc._id)}
+                        onClick={() => setPreviewUrl(getDocumentViewUrl(doc._id))}
                       >
                         <Eye size={15} />
                         View

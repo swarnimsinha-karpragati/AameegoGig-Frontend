@@ -13,7 +13,7 @@ import {
 import {
   uploadEmployeeDocument,
   getEmployeeDocuments,
-  viewDocument,
+  getDocumentViewUrl,
 } from "../services/documentService";
 
 import {
@@ -53,6 +53,7 @@ import {
 } from "../validators/employeeValidation";
 import { validateStructureDraft } from "../utils/salaryValidation";
 import Button from "../components/Button";
+import DocumentPreview from "../components/DocumentPreview";
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -441,6 +442,8 @@ function Employees() {
     setDocumentFile,
   ] = useState(null);
 
+  const [docPreviewUrl, setDocPreviewUrl] = useState(null);
+
 
   const [selectedEmployee, setSelectedEmployee] =
     useState(null);
@@ -588,9 +591,15 @@ function Employees() {
 
   const handleChange = (e) => {
     const { name, type, checked, value } = e.target;
+
+    const finalValue =
+      name === "ifscCode" || name === "panNumber"
+        ? value.toUpperCase()
+        : value;
+
     const nextForm = {
       ...form,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: type === "checkbox" ? checked : finalValue,
     };
     setForm(nextForm);
     validateEmployeeField(
@@ -601,9 +610,14 @@ function Employees() {
 
   const handleEditFieldChange = (e) => {
     const { name, type, checked, value } = e.target;
+    const finalValue =
+      name === "ifscCode" || name === "panNumber"
+        ? value.toUpperCase()
+        : value;
+
     const nextEmployee = {
       ...selectedEmployee,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: type === "checkbox" ? checked : finalValue,
     };
     setSelectedEmployee(nextEmployee);
     validateEmployeeField(
@@ -1571,7 +1585,7 @@ function Employees() {
               
                     <div>
                       <label>IFSC Code</label>
-                      <span>{selectedEmployee.ifscCode || "-"}</span>
+                      <span>{selectedEmployee.ifscCode ? selectedEmployee.ifscCode.toUpperCase() : "-"}</span>
                     </div>
                   </div>
                 </div>
@@ -1826,7 +1840,7 @@ function Employees() {
                     <button
                       type="button"
                       className="emp-btn emp-btn--secondary"
-                      onClick={() => viewDocument(doc._id)}
+                      onClick={() => setDocPreviewUrl(getDocumentViewUrl(doc._id))}
                     >
                       <Eye size={14} />
                       View
@@ -1895,6 +1909,12 @@ function Employees() {
               </div>
           </EmpModal>
         ) : null}
+
+        <DocumentPreview
+          isOpen={!!docPreviewUrl}
+          onClose={() => setDocPreviewUrl(null)}
+          url={docPreviewUrl}
+        />
     </MainLayout>
   );
 }

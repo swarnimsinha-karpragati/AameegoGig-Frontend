@@ -328,6 +328,7 @@ const HolidayManager = ({ vendorId }) => {
               value={formData.name}
               onChange={handleChange}
               placeholder="e.g. Independence Day"
+              maxLength={50}
               required
             />
           </div>
