@@ -74,8 +74,8 @@ export const getMonthlyAttendance = async (year, month) => {
   return res.data;
 };
 
-export const getTodayAttendance = async () => {
-  const res = await API.get("/attendance/today");
+export const getTodayAttendance = async (params) => {
+  const res = await API.get("/attendance/today", { params });
   return res.data;
 };
 

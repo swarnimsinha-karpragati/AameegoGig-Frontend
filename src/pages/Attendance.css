@@ -1,4 +1,129 @@
 /* Attendance page — aligned with Payroll / Leave design system */
+.attendance-download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 33px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 8px;
+
+}
+
+.attendance-download-btn:hover {
+  background: #1d4ed8;
+}
+
+.attendance-download-btn:active {
+  transform: scale(0.98);
+}
+
+.attendance-download-btn:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.attendance-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.attendance-panel__head h2 {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.attendance-filter-container {
+  display: flex;
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.attendance-filter-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.attendance-filter-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.attendance-filter-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.attendance-filter-btn {
+  padding: 8px 30px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.attendance-filter-btn:hover {
+  background: #f3f4f6;
+}
+
+.attendance-filter-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.attendance-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.attendance-date-filter input {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.attendance-search {
+  width: 170px;
+  height: 33px;
+  padding: 0 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.attendance-search::placeholder {
+  color: #9ca3af;
+}
+
+.attendance-search:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.attendance-search:hover {
+  border-color: #bdbdbd;
+}
 
 .attendance-page {
   flex: 1;
