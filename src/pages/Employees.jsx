@@ -726,9 +726,9 @@ function Employees() {
   const handleDownloadTemplate = () => {
     const rows = [
       ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
-      ["Name", "Email", "Phone", "Designation", "Location", "UAN", "ESIC No", "DOJ"],
-      ["Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Gurgaon", "100200300400", "1234567890", "2026-01-15"],
-      ["Priya Sharma", "priya.sharma@example.com", "9812345678", "Team Lead", "Bengaluru", "", "", "2026-02-01"],
+      ["EmployeeCode", "Name", "Email", "Phone", "Designation", "Location", "UAN", "ESIC No", "DOJ"],
+      ["EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Gurgaon", "100200300400", "1234567890", "2026-01-15"],
+      ["EMP002", "Priya Sharma", "priya.sharma@example.com", "9812345678", "Team Lead", "Bengaluru", "", "", "2026-02-01"],
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws["!cols"] = [18, 26, 14, 18, 14, 16, 14, 12].map((wch) => ({ wch }));
