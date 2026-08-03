@@ -24,7 +24,7 @@ const WeekOffManager = ({ vendorId }) => {
 
   const initialFormState = {
     department: "",
-    weekOffDays: ["Sunday"],
+    weekOffDays: ["Saturday", "Sunday"],
   };
 
   const [configs, setConfigs] = useState([]);

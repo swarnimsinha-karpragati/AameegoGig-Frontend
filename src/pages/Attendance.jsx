@@ -875,20 +875,20 @@ function Attendance() {
   }, [myTodayRow]);
 
   const shiftMonth = (delta) => {
-    setViewDate(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1)
-    );
-    setFilters((pre) => ({
-      ...pre, month: viewDate.getMonth() + delta,
-      year: viewDate.getFullYear(), filterType: ""
-    }))
+    const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1);
+    setViewDate(newDate);
 
-    if (viewDate.getMonth() + delta === new Date().getMonth()) {
-      setFilters((pre) => ({
-        ...pre, month: new Date().getMonth() + 1,
-        year: viewDate.getFullYear(), filterType: "month"
-      }))
-    }
+    const today = new Date();
+    const isCurrentMonth =
+      newDate.getMonth() === today.getMonth() &&
+      newDate.getFullYear() === today.getFullYear();
+
+    setFilters((pre) => ({
+      ...pre,
+      month: newDate.getMonth() + 1,
+      year: newDate.getFullYear(),
+      filterType: isCurrentMonth ? "month" : "",
+    }));
   };
 
   const handleDaySelect = (day) => {
