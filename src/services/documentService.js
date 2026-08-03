@@ -47,16 +47,17 @@ export const deleteDocument =
 /* =========================
    VIEW DOCUMENT
 ========================= */
-export const viewDocument =
-  (id) => {
-    const token =
-      localStorage.getItem("token");
 
-    window.open(
-      getApiUrl(`/documents/view/${id}?token=${token}`),
-      "_blank"
-    );
-  };
+/** Returns the authenticated URL for a document (no side-effects). */
+export const getDocumentViewUrl = (id) => {
+  const token = localStorage.getItem("token");
+  return getApiUrl(`/documents/view/${id}?token=${token}`);
+};
+
+/** Opens the document in a new browser tab (legacy helper). */
+export const viewDocument = (id) => {
+  window.open(getDocumentViewUrl(id), "_blank");
+};
 
 /* =========================
    DOWNLOAD DOCUMENT
@@ -70,14 +71,14 @@ export const downloadDocument = async (id) => {
     if (!response.ok) throw new Error("Download failed");
 
     const blob = await response.blob();
-    
+
     const blobUrl = window.URL.createObjectURL(blob);
-    
+
     const link = document.createElement("a");
     link.href = blobUrl;
-    
-    link.setAttribute("download", `document-${id}.pdf`); 
-    
+
+    link.setAttribute("download", `document-${id}.pdf`);
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -88,7 +89,7 @@ export const downloadDocument = async (id) => {
 };
 
 
-  export const uploadEmployeeDocument =
+export const uploadEmployeeDocument =
   async (formData) => {
     // No manual Content-Type: axios + the browser add the multipart
     // boundary. A boundary-less header breaks server-side parsing.
@@ -98,12 +99,12 @@ export const downloadDocument = async (id) => {
     );
   };
 
-  /* =========================
-   GET EMPLOYEE DOCUMENTS
+/* =========================
+ GET EMPLOYEE DOCUMENTS
 ========================= */
 export const getEmployeeDocuments =
-async (employeeId) => {
-  return API.get(
-    `/documents/employee/${employeeId}`
-  );
-};
+  async (employeeId) => {
+    return API.get(
+      `/documents/employee/${employeeId}`
+    );
+  };

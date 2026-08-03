@@ -98,23 +98,23 @@ export default function EmployeeSalaryStructureEditor({
         const library = res.data?.data || [];
         const draft = draftValue?.components?.length
           ? {
-              ctcAnnual: draftValue.ctcAnnual || 0,
-              components: library.map((comp) => {
-                const existing = draftValue.components.find((c) => c.code === comp.code);
-                return {
-                  code: comp.code,
-                  name: comp.name,
-                  category: comp.category,
-                  monthlyAmount: existing?.monthlyAmount ?? comp.defaultValue ?? 0,
-                  enabled: existing?.enabled ?? true,
-                  calculationType: comp.calculationType,
-                  rate: comp.rate,
-                  baseComponent: comp.baseComponent,
-                  isOptional: comp.isOptional,
-                  isSystem: comp.isSystem,
-                };
-              }),
-            }
+            ctcAnnual: draftValue.ctcAnnual || 0,
+            components: library.map((comp) => {
+              const existing = draftValue.components.find((c) => c.code === comp.code);
+              return {
+                code: comp.code,
+                name: comp.name,
+                category: comp.category,
+                monthlyAmount: existing?.monthlyAmount ?? comp.defaultValue ?? 0,
+                enabled: existing?.enabled ?? true,
+                calculationType: comp.calculationType,
+                rate: comp.rate,
+                baseComponent: comp.baseComponent,
+                isOptional: comp.isOptional,
+                isSystem: comp.isSystem,
+              };
+            }),
+          }
           : buildDraftFromLibrary(library);
 
         setTemplate({ hasStructure: false });
@@ -155,9 +155,9 @@ export default function EmployeeSalaryStructureEditor({
       const next = prev.map((c) =>
         c.code === code
           ? {
-              ...c,
-              [field]: field === "monthlyAmount" ? Number(value) || 0 : value,
-            }
+            ...c,
+            [field]: field === "monthlyAmount" ? Number(value) || 0 : value,
+          }
           : c
       );
       syncDraft(ctcAnnual, next);
@@ -332,8 +332,14 @@ export default function EmployeeSalaryStructureEditor({
             id={isDraftMode ? "emp-salary-ctc-draft" : "emp-salary-ctc"}
             type="number"
             min="0"
+            max="999999999" // Max 9 digits (₹9,99,99,999)
             value={ctcAnnual || ""}
-            onChange={(e) => updateCtc(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "" || Number(value) <= 999999999) {
+                updateCtc(value);
+              }
+            }}
             placeholder="e.g. 600000"
           />
         </div>

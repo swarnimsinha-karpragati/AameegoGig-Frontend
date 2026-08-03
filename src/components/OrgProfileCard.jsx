@@ -7,6 +7,7 @@ import {
 } from "../services/vendorService";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import "./OrgProfileCard.css";
+import Button from "./Button";
 
 export default function OrgProfileCard() {
   const fileRef = useRef(null);
@@ -20,8 +21,20 @@ export default function OrgProfileCard() {
   const loadProfile = () => {
     getOrgProfile()
       .then((res) => {
-        setProfile(res.data?.data || null);
-        setLogoBroken(false);
+        const data = res.data?.data || null;
+        setProfile(data);
+        if (data?.logoUrl || data?.logoDisplayUrl) {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const userObj = JSON.parse(storedUser);
+            if (userObj.logoUrl !== data.logoUrl || userObj.logoDisplayUrl !== data.logoDisplayUrl) {
+              userObj.logoUrl = data.logoUrl;
+              userObj.logoDisplayUrl = data.logoDisplayUrl;
+              localStorage.setItem('user', JSON.stringify(userObj));
+              window.dispatchEvent(new Event("user-updated"));
+            }
+          }
+        }
       })
       .catch(() => setError("Failed to load organization profile"));
   };
@@ -43,6 +56,7 @@ export default function OrgProfileCard() {
         name: profile.name,
         companyAddress: profile.companyAddress,
         contactEmail: profile.contactEmail,
+        employeeCodePrefix: profile.employeeCodePrefix,
       });
       setProfile(res.data?.data);
       setMessage("Organization profile saved. New payslips will use these details.");
@@ -62,20 +76,25 @@ export default function OrgProfileCard() {
     setMessage("");
     try {
       const res = await uploadOrgLogo(file);
+      const newLogoUrl = res.data?.data?.logoUrl;
+      const newLogoDisplayUrl = res.data?.data?.logoDisplayUrl;
+
       setProfile((prev) => ({
         ...prev,
-        logoUrl: res.data?.data?.logoUrl,
-        logoDisplayUrl: res.data?.data?.logoDisplayUrl,
+        logoUrl: newLogoUrl,
+        logoDisplayUrl: newLogoDisplayUrl,
       }));
 
       const storedUser = localStorage.getItem('user');
 
       if (storedUser) {
         const userObj = JSON.parse(storedUser);
-        userObj.logoUrl = res.data?.data?.logoUrl;
+        userObj.logoUrl = newLogoUrl;
+        userObj.logoDisplayUrl = newLogoDisplayUrl;
         localStorage.setItem('user', JSON.stringify(userObj));
+        window.dispatchEvent(new Event("user-updated"));
       }
-      
+
       setLogoBroken(false);
       setMessage("Logo uploaded. Re-download payslips to see the new branding.");
       setTimeout(() => setMessage(""), 3500);
@@ -137,9 +156,9 @@ export default function OrgProfileCard() {
             <Upload size={15} />
             {uploading ? "Uploading…" : "Upload Logo"}
           </button>
-            <p className="org-profile-card__hint">
-              PNG or JPG, max 2 MB. Used on all payslips for this organization.
-            </p>
+          <p className="org-profile-card__hint">
+            PNG or JPG, max 2 MB. Used on all payslips for this organization.
+          </p>
           <input
             ref={fileRef}
             type="file"
@@ -161,6 +180,23 @@ export default function OrgProfileCard() {
         <label>
           Org Code
           <input value={profile.code || ""} disabled />
+        </label>
+        <label>
+          Employee Code Prefix
+          <input
+            value={profile.employeeCodePrefix || ""}
+            maxLength={6}
+            placeholder="e.g. AMG"
+            onChange={(e) =>
+              handleChange(
+                "employeeCodePrefix",
+                e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+              )
+            }
+          />
+          <small className="org-profile-card__field-hint">
+            New employees get codes like {(profile.employeeCodePrefix || "EMP")}-0001.
+          </small>
         </label>
         <label className="full-width">
           Company Address
@@ -187,14 +223,13 @@ export default function OrgProfileCard() {
           {message ? <p className="org-profile-card__msg success">{message}</p> : null}
           {error ? <p className="org-profile-card__msg error">{error}</p> : null}
         </div>
-        <button
+        <Button
           type="button"
-          className="org-profile-card__save"
           onClick={handleSave}
           disabled={saving}
         >
           {saving ? "Saving…" : "Save Organization Profile"}
-        </button>
+        </Button>
       </div>
     </div>
   );

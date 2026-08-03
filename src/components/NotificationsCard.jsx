@@ -24,8 +24,7 @@ export default function NotificationsCard() {
     const fetchNotifications = async () => {
       try {
         const response = await getNotification();
-        console.log("Fetched notifications:", response);
-        
+
         // Safely extract data depending on how your service returns it
         const fetchedData = response?.data?.data || response?.data || response;
         if (fetchedData) {

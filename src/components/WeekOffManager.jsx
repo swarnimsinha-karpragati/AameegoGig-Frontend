@@ -24,7 +24,7 @@ const WeekOffManager = ({ vendorId }) => {
 
   const initialFormState = {
     department: "",
-    weekOffDays: ["Sunday"],
+    weekOffDays: ["Saturday", "Sunday"],
   };
 
   const [configs, setConfigs] = useState([]);
@@ -305,7 +305,7 @@ const WeekOffManager = ({ vendorId }) => {
                   <Button
                     key={day}
                     type="button"
-                    className={`${isSelected ? "active" : "not-active"}`}
+                    className={`${!isSelected ? "active" : "not-active"}`}
                     onClick={() => toggleDay(day)}
                   >
                     {day.slice(0, 3)}

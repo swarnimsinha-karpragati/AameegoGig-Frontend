@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 import MainLayout from "../layouts/MainLayout";
 import {
   addEmployee,
@@ -12,7 +13,7 @@ import {
 import {
   uploadEmployeeDocument,
   getEmployeeDocuments,
-  viewDocument,
+  getDocumentViewUrl,
 } from "../services/documentService";
 
 import {
@@ -24,7 +25,8 @@ import {
   Upload,
   X,
   FileText,
-  FolderOpen
+  FolderOpen,
+  Download
 } from "lucide-react";
 
 
@@ -39,16 +41,19 @@ import { saveEmployeeStructure } from "../services/salaryComponentService";
 import "./Employees.css";
 import { getDepartmentName } from "../services/departmentService";
 import {
+  DOC_TYPE_ACCEPT,
+  DOC_TYPE_OPTIONS,
+  acceptFor,
+  docTypeLabel,
+  isAllowedFile,
+} from "../utils/documentTypes";
+import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
 import { validateStructureDraft } from "../utils/salaryValidation";
 import Button from "../components/Button";
-
-export const generateClientEmpCode = (prefix = "EMP") => {
-  const randomDigits = Math.floor(10000 + Math.random() * 90000);
-  return `${prefix}-${randomDigits}`;
-};
+import DocumentPreview from "../components/DocumentPreview";
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -56,7 +61,6 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Basic Information",
     description: "Primary contact and role details",
     fields: [
-      { key: "employeeCode", label: "Employee Code", required: true },
       { key: "name", label: "Full Name", required: true },
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
@@ -362,7 +366,6 @@ function Employees() {
   ========================= */
 
   const initialForm = {
-    employeeCode:generateClientEmpCode(),
     name: "",
     email: "",
     phone: "",
@@ -438,6 +441,9 @@ function Employees() {
     documentFile,
     setDocumentFile,
   ] = useState(null);
+
+  const [docPreviewUrl, setDocPreviewUrl] = useState(null);
+
 
   const [selectedEmployee, setSelectedEmployee] =
     useState(null);
@@ -585,9 +591,15 @@ function Employees() {
 
   const handleChange = (e) => {
     const { name, type, checked, value } = e.target;
+
+    const finalValue =
+      name === "ifscCode" || name === "panNumber"
+        ? value.toUpperCase()
+        : value;
+
     const nextForm = {
       ...form,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: type === "checkbox" ? checked : finalValue,
     };
     setForm(nextForm);
     validateEmployeeField(
@@ -598,9 +610,14 @@ function Employees() {
 
   const handleEditFieldChange = (e) => {
     const { name, type, checked, value } = e.target;
+    const finalValue =
+      name === "ifscCode" || name === "panNumber"
+        ? value.toUpperCase()
+        : value;
+
     const nextEmployee = {
       ...selectedEmployee,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: type === "checkbox" ? checked : finalValue,
     };
     setSelectedEmployee(nextEmployee);
     validateEmployeeField(
@@ -703,6 +720,22 @@ function Employees() {
   /* =========================
      BULK UPLOAD
   ========================= */
+
+  // Sample template. Row 1 is a title (the importer skips it, range:1),
+  // row 2 is the header, rows 3+ are examples — matching the parser exactly.
+  const handleDownloadTemplate = () => {
+    const rows = [
+      ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
+      ["EmployeeCode", "Name", "Email", "Phone", "Designation", "Location", "UAN", "ESIC No", "DOJ"],
+      ["EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Gurgaon", "100200300400", "1234567890", "2026-01-15"],
+      ["EMP002", "Priya Sharma", "priya.sharma@example.com", "9812345678", "Team Lead", "Bengaluru", "", "", "2026-02-01"],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [18, 26, 14, 18, 14, 16, 14, 12].map((wch) => ({ wch }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Employees");
+    XLSX.writeFile(wb, "employee-bulk-upload-template.xlsx");
+  };
 
   const handleBulkUpload = async () => {
     if (!uploadFile) {
@@ -958,6 +991,15 @@ function Employees() {
       return;
     }
 
+    if (!isAllowedFile(documentType, documentFile.name)) {
+      alert(
+        `Invalid file for ${docTypeLabel(documentType)}. Allowed: ${DOC_TYPE_ACCEPT[
+          documentType
+        ].join(", ")}`
+      );
+      return;
+    }
+
     try {
 
       const formData =
@@ -1041,10 +1083,7 @@ function Employees() {
             <Button
               icon={<Plus size={18} />}
               onClick={() => {
-                setForm({
-                  ...initialForm,
-                  employeeCode: generateClientEmpCode(),
-                });
+                setForm({ ...initialForm });
                 setSalaryDraft(initialSalaryDraft);
                 setErrors({});
                 setShowAddModal(true);
@@ -1292,8 +1331,19 @@ function Employees() {
           >
             <FormSection
               title="Excel File"
-              description="Use the official template with employee columns"
+              description="Download the template, fill it in, then upload it here."
             >
+              <div className="emp-field emp-field--full">
+                <button
+                  type="button"
+                  className="emp-btn emp-btn--secondary"
+                  onClick={handleDownloadTemplate}
+                  style={{ marginBottom: 14 }}
+                >
+                  <Download size={15} />
+                  Download sample template
+                </button>
+              </div>
               <div className="emp-field emp-field--full">
                 <div className="emp-upload-zone">
                   <input
@@ -1535,7 +1585,7 @@ function Employees() {
               
                     <div>
                       <label>IFSC Code</label>
-                      <span>{selectedEmployee.ifscCode || "-"}</span>
+                      <span>{selectedEmployee.ifscCode ? selectedEmployee.ifscCode.toUpperCase() : "-"}</span>
                     </div>
                   </div>
                 </div>
@@ -1736,14 +1786,11 @@ function Employees() {
                   value={documentType}
                   onChange={(e) => setDocumentType(e.target.value)}
                 >
-                  <option value="PHOTO">Photo</option>
-                  <option value="AADHAAR">Aadhaar</option>
-                  <option value="PAN">PAN</option>
-                  <option value="EDUCATION">Education</option>
-                  <option value="BANK">Bank Proof</option>
-                  <option value="MEDICAL_CARD">Medical Card</option>
-                  <option value="SALARY_SLIP">Salary Slip</option>
-                  <option value="APPOINTMENT_LETTER">Appointment Letter</option>
+                  {DOC_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </FormField>
               <div className="emp-field emp-field--full">
@@ -1751,6 +1798,7 @@ function Employees() {
                 <div className="emp-upload-zone">
                   <input
                     type="file"
+                    accept={acceptFor(documentType)}
                     onChange={(e) =>
                       setDocumentFile(e.target.files?.[0] || null)
                     }
@@ -1760,7 +1808,7 @@ function Employees() {
                     Click or drag file to upload
                   </span>
                   <span className="emp-upload-zone__hint">
-                    PDF, JPG, PNG up to 10MB
+                    {DOC_TYPE_ACCEPT[documentType].join(", ")} up to 10MB
                   </span>
                   {documentFile ? (
                     <span className="emp-upload-zone__file">
@@ -1773,6 +1821,7 @@ function Employees() {
 
             <div className="emp-doc-list">
               <h4>Uploaded Documents</h4>
+
               {!Array.isArray(employeeDocuments) ? (
                 <p className="emp-doc-list__empty">Loading…</p>
               ) : employeeDocuments.length === 0 ? (
@@ -1782,7 +1831,7 @@ function Employees() {
                   <div key={doc._id} className="emp-doc-item">
                     <div>
                       <span className="emp-doc-item__type">
-                        {doc.documentType}
+                        {docTypeLabel(doc.documentType)}
                       </span>
                       <span className="emp-doc-item__name">
                         {doc.originalName}
@@ -1791,7 +1840,7 @@ function Employees() {
                     <button
                       type="button"
                       className="emp-btn emp-btn--secondary"
-                      onClick={() => viewDocument(doc._id)}
+                      onClick={() => setDocPreviewUrl(getDocumentViewUrl(doc._id))}
                     >
                       <Eye size={14} />
                       View
@@ -1860,6 +1909,12 @@ function Employees() {
               </div>
           </EmpModal>
         ) : null}
+
+        <DocumentPreview
+          isOpen={!!docPreviewUrl}
+          onClose={() => setDocPreviewUrl(null)}
+          url={docPreviewUrl}
+        />
     </MainLayout>
   );
 }

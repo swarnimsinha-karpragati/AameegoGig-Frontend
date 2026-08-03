@@ -43,6 +43,8 @@ import {
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
 import "./Attendance.css";
 import Card from "../components/Card";
+import * as XLSX from "xlsx";
+
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -380,14 +382,124 @@ function AttendanceCalendar({
   );
 }
 
-function TodayAttendanceTable({ title, rows, loading, showActions = false }) {
+function TodayAttendanceTable({
+  title,
+  rows,
+  loading,
+  showActions = false,
+  filters,
+  setFilters,
+}) {
   const [expandedRowId, setExpandedRowId] = useState(null);
+  const onChangeHandler = (key, value) => {
+    setFilters((pre) => ({
+      ...pre,
+      [key]: value
+    }))
+  }
+
+  const downloadAttandace = () => {
+    const data = rows.map((row) => ({
+      "Employee Name": row.name,
+      "Employee ID": row.id,
+      "Check In": row.checkIn,
+      "Check Out": row.checkOut,
+      "Working Hours": row.hours,
+
+      "Present Days": row.presentDays ?? "-",
+      "Absent Days": row.absentDays ?? "-",
+      "Half Days": row.halfDays ?? "-",
+      "Late Days": row.lateDays ?? "-",
+
+      "Paid Days": row.paidDays ?? "-",
+      "Working Days": row.workingDays ?? "-",
+      "Calendar Days": row.calendarDays ?? "-",
+
+      "Status": row.status,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+
+    ws["!cols"] = [
+      { wch: 25 }, // Employee Name
+      { wch: 18 }, // Employee ID
+      { wch: 15 }, // Check In
+      { wch: 15 }, // Check Out
+      { wch: 18 }, // Working Hours
+      { wch: 15 }, // Present Days
+      { wch: 15 }, // Absent Days
+      { wch: 15 }, // Half Days
+      { wch: 15 }, // Late Days
+      { wch: 15 }, // Paid Days
+      { wch: 15 }, // Working Days
+      { wch: 15 }, // Calendar Days
+      { wch: 15 }, // Status
+    ];
+
+    const wb = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      ws,
+      "Attendance Report"
+    );
+
+    XLSX.writeFile(
+      wb,
+      `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`
+    );
+  };
 
   return (
     <section className="attendance-panel attendance-glass attendance-table-card">
       <header className="attendance-panel__head">
         <h2>{title}</h2>
+        {setFilters && (
+          <div className="attendance-filter-container">
+            <div className="attendance-filter-buttons">
+              <input
+                type="text"
+                placeholder="Search Employee..."
+                value={filters.search}
+                onChange={(e) => onChangeHandler("search", e.target.value)}
+                className="attendance-search"
+              />
+              <button
+                type="button"
+                className={`attendance-filter-btn ${filters.filterType === "today" ? "active" : ""
+                  }`}
+                onClick={() => onChangeHandler("filterType", "today")}
+              >
+                Today
+              </button>
+
+              <button
+                type="button"
+                className={`attendance-filter-btn ${filters.filterType === "week" ? "active" : ""
+                  }`}
+                onClick={() => onChangeHandler("filterType", "week")}
+              >
+                This Week
+              </button>
+
+              <button
+                type="button"
+                className={`attendance-filter-btn ${filters.filterType === "month" ? "active" : ""
+                  }`}
+                onClick={() => onChangeHandler("filterType", "month")}
+              >
+                This Month
+              </button>
+
+              <button className="attendance-download-btn" onClick={downloadAttandace}>
+                <Download size={16} />
+                <span>Download</span>
+              </button>
+            </div>
+          </div>
+        )}
       </header>
+
       <div className="attendance-table-wrap">
         <table className="attendance-table">
           <thead>
@@ -399,17 +511,22 @@ function TodayAttendanceTable({ title, rows, loading, showActions = false }) {
               <th>Sessions</th>
               <th>Hours</th>
               <th>Status</th>
-              {showActions ? <th>Actions</th> : null}
+              {showActions && <th>Actions</th>}
             </tr>
           </thead>
+
           <tbody>
-            {!loading && rows.length === 0 ? (
+            {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={showActions ? 8 : 7} className="attendance-empty">
-                  No attendance records found for today.
+                <td
+                  colSpan={showActions ? 8 : 7}
+                  className="attendance-empty"
+                >
+                  No attendance records found.
                 </td>
               </tr>
-            ) : null}
+            )}
+
             {rows.map((row) => {
               const rowKey = String(row.employeeId || row.id);
               const isExpanded = expandedRowId === rowKey;
@@ -420,57 +537,90 @@ function TodayAttendanceTable({ title, rows, loading, showActions = false }) {
                   <tr>
                     <td>
                       <div className="employee-cell">
-                        <span className="employee-avatar">{row.initials}</span>
+                        <span className="employee-avatar">
+                          {row.initials}
+                        </span>
+
                         <div className="employee-info">
-                          <span className="employee-name">{row.name}</span>
-                          <span className="muted-cell employee-code">{row.id}</span>
+                          <span className="employee-name">
+                            {row.name}
+                          </span>
+
+                          <span className="muted-cell employee-code">
+                            {row.id}
+                          </span>
                         </div>
                       </div>
                     </td>
+
                     <td className="muted-cell">{row.id}</td>
+
                     <td>{row.checkIn}</td>
-                    <td>{row.isCheckedIn ? "—" : row.checkOut}</td>
+
+                    <td>
+                      {row.isCheckedIn ? "—" : row.checkOut}
+                    </td>
+
                     <td>
                       {hasSessions ? (
                         <button
                           type="button"
                           className="attendance-session-toggle"
                           onClick={() =>
-                            setExpandedRowId(isExpanded ? null : rowKey)
+                            setExpandedRowId(
+                              isExpanded ? null : rowKey
+                            )
                           }
                         >
                           {row.sessionCount || row.sessions.length}
-                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+
+                          {isExpanded ? (
+                            <ChevronUp size={14} />
+                          ) : (
+                            <ChevronDown size={14} />
+                          )}
                         </button>
                       ) : (
                         "0"
                       )}
                     </td>
+
                     <td>{row.hours}</td>
+
                     <td>
                       <span
-                        className={`status-text ${
-                          statusTextClass[row.status] || "status-text-late"
-                        }`}
+                        className={`status-text ${statusTextClass[row.status] ||
+                          "status-text-late"
+                          }`}
                       >
-                        {row.isCheckedIn ? "Checked In" : row.status}
+                        {row.isCheckedIn
+                          ? "Checked In"
+                          : row.status}
                       </span>
                     </td>
-                    {showActions ? (
+
+                    {showActions && (
                       <td>
-                        <Button type="button" className="action-btn-edit attendance-action-btn" >
+                        <Button
+                          type="button"
+                          className="action-btn-edit attendance-action-btn"
+                        >
                           Review
                         </Button>
                       </td>
-                    ) : null}
+                    )}
                   </tr>
-                  {isExpanded && hasSessions ? (
+
+                  {isExpanded && hasSessions && (
                     <tr className="attendance-sessions-expand-row">
                       <td colSpan={showActions ? 8 : 7}>
-                        <SessionList sessions={row.sessions} totalHours={row.hours} />
+                        <SessionList
+                          sessions={row.sessions}
+                          totalHours={row.hours}
+                        />
                       </td>
                     </tr>
-                  ) : null}
+                  )}
                 </Fragment>
               );
             })}
@@ -500,6 +650,13 @@ function Attendance() {
   const [attendanceAction, setAttendanceAction] = useState("checkin");
   const [checkInMessage, setCheckInMessage] = useState("");
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
+  const [filters, setFilters] = useState({
+    filterType: "today",
+    search: "",
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+  });
+
   const [markForm, setMarkForm] = useState({
     employeeId: "",
     status: "Present",
@@ -548,9 +705,8 @@ function Attendance() {
       const year = viewDate.getFullYear();
       const month = viewDate.getMonth() + 1;
 
-      const [monthData, todayData] = await Promise.all([
+      const [monthData,] = await Promise.all([
         getMonthlyAttendance(year, month),
-        getTodayAttendance(),
       ]);
 
       setCalendarMap(monthData.calendar || {});
@@ -558,7 +714,6 @@ function Attendance() {
       setWeekOffMap(monthData.weekOffs || {});
       setSummaryStats(monthData.stats || EMPTY_STATS);
       setDayRecords(monthData.dayRecords || {});
-      setTodayRows(todayData.rows || []);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load attendance data");
     } finally {
@@ -709,8 +864,6 @@ function Attendance() {
     return null;
   }, [myTodayRow]);
 
-  console.log(myLatestCheckOutSelfieUrl);
-console.log(myLatestCheckInSelfieUrl);
   const myLatestCheckInLocation = useMemo(() => {
     const sessions = myTodayRow.sessions || [];
     for (let i = sessions.length - 1; i >= 0; i -= 1) {
@@ -722,9 +875,20 @@ console.log(myLatestCheckInSelfieUrl);
   }, [myTodayRow]);
 
   const shiftMonth = (delta) => {
-    setViewDate(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1)
-    );
+    const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1);
+    setViewDate(newDate);
+
+    const today = new Date();
+    const isCurrentMonth =
+      newDate.getMonth() === today.getMonth() &&
+      newDate.getFullYear() === today.getFullYear();
+
+    setFilters((pre) => ({
+      ...pre,
+      month: newDate.getMonth() + 1,
+      year: newDate.getFullYear(),
+      filterType: isCurrentMonth ? "month" : "",
+    }));
   };
 
   const handleDaySelect = (day) => {
@@ -764,19 +928,20 @@ console.log(myLatestCheckInSelfieUrl);
     }
   }
 
-  try {
-    await markAttendance({
-      ...markForm,
-      checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
-      checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
-      date: toLocalDateString(new Date()),
-    });
-    toast.success("Attendance saved successfully");
-    loadMonthData();
-  } catch (err) {
-    toast.error(err.response?.data?.message || "Unable to save attendance");
-  }
-};
+    try {
+      await markAttendance({
+        ...markForm,
+        checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
+        checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
+        date: toLocalDateString(new Date()),
+      });
+      toast.success("Attendance saved successfully");
+      loadMonthData();
+      fetchAttendance();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Unable to save attendance");
+    }
+  };
 
   const handleCheckIn = () => {
     setCheckInMessage("");
@@ -832,6 +997,28 @@ console.log(myLatestCheckInSelfieUrl);
     setAttendanceAction("checkout");
     setShowSelfieModal(true);
   };
+
+  useEffect(() => {
+    fetchAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  const fetchAttendance = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.append("filterType", filters.filterType);
+      if (filters.search) {
+        params.append("search", filters.search);
+      }
+      params.append("month", filters.month);
+      params.append("year", filters.year);
+      const data = await getTodayAttendance(params);
+      setTodayRows(data.rows || []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
 
   const renderCalendarSection = (title) => (
     <>
@@ -1132,9 +1319,11 @@ console.log(myLatestCheckInSelfieUrl);
       {canMarkAttendance ? renderMarkForm(employees, "Mark Attendance") : null}
       {renderCalendarSection(monthLabel)}
       <TodayAttendanceTable
-        title="Today's Attendance"
+        title={filters.filterType === "month" ? monthLabel + " Attendance" : filters.filterType === "week" ? "Week Attendance" : "Today's Attendance"}
         rows={todayRows}
         loading={loading}
+        filters={filters}
+        setFilters={setFilters}
       />
     </>
   );
@@ -1162,10 +1351,12 @@ console.log(myLatestCheckInSelfieUrl);
       {renderMarkForm(employees, "Mark / Correct Attendance")}
       {renderCalendarSection(`${monthLabel} — Organization`)}
       <TodayAttendanceTable
-        title="Today's Attendance — All Employees"
+        title={filters.filterType === "month" ? monthLabel + " Attendance All Employees" : filters.filterType === "week" ? "Week Attendance All Employees" : "Today's Attendance All Employees"}
         rows={todayRows}
         loading={loading}
         showActions
+        setFilters={setFilters}
+        filters={filters}
       />
     </>
   );
@@ -1197,6 +1388,8 @@ console.log(myLatestCheckInSelfieUrl);
         title="Today's Attendance — My Team"
         rows={todayRows}
         loading={loading}
+        filters={null}
+        setFilters={null}
       />
     </>
   );
