@@ -64,8 +64,8 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "name", label: "Full Name", required: true },
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
-      { key: "designation", label: "Designation" },
-      { key: "department", label: "Department" },
+      { key: "designation", label: "Designation", required: true },
+      { key: "department", label: "Department", required: true },
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
       { key: "dateOfJoining", label: "Date of Joining", type: "date" },
@@ -201,16 +201,18 @@ function EmployeeFormFields({
     if (field.key === "department") {
       return (
         <>
-        <select {...common}>
-          {department && department.map((dept) => (
-            <option key={dept?._id} value={dept?.name}>
-              {dept?.name}
-            </option>
-          ))}
-        </select>
-        {fieldError(field.key) ? (
-          <p className="emp-field-error">{fieldError(field.key)}</p>
-        ) : null}
+          <select {...common}>
+            <option value="">Select department</option>
+            {department &&
+              department.map((dept) => (
+                <option key={dept?._id} value={dept?._id}>
+                  {dept?.name}
+                </option>
+              ))}
+          </select>
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
         </>
       );
     }
@@ -218,19 +220,19 @@ function EmployeeFormFields({
     if (field.type === "manager") {
       return (
         <>
-        <select {...common} value={values.managerId || ""}>
-          <option value="">Select manager (optional)</option>
-          {employees
-            .filter((emp) => emp._id !== excludeEmployeeId)
-            .map((emp) => (
-              <option key={emp._id} value={emp._id}>
-                {emp.employeeCode} — {emp.name}
-              </option>
-            ))}
-        </select>
-        {fieldError(field.key) ? (
-          <p className="emp-field-error">{fieldError(field.key)}</p>
-        ) : null}
+          <select {...common} value={values.managerId || ""}>
+            <option value="">Select manager (optional)</option>
+            {employees
+              .filter((emp) => emp._id !== excludeEmployeeId)
+              .map((emp) => (
+                <option key={emp._id} value={emp._id}>
+                  {emp.employeeCode} — {emp.name}
+                </option>
+              ))}
+          </select>
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
         </>
       );
     }
@@ -243,24 +245,24 @@ function EmployeeFormFields({
 
       return (
         <>
-        <input {...common} {...dateInputProps} type="date" />
-        {fieldError(field.key) ? (
-          <p className="emp-field-error">{fieldError(field.key)}</p>
-        ) : null}
+          <input {...common} {...dateInputProps} type="date" />
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
         </>
       );
     }
 
     return (
       <>
-      <input
-        {...common}
-        type={field.type || "text"}
-        placeholder={`Enter ${field.label.toLowerCase()}`}
-      />
-      {fieldError(field.key) ? (
-        <p className="emp-field-error">{fieldError(field.key)}</p>
-      ) : null}
+        <input
+          {...common}
+          type={field.type || "text"}
+          placeholder={`Enter ${field.label.toLowerCase()}`}
+        />
+        {fieldError(field.key) ? (
+          <p className="emp-field-error">{fieldError(field.key)}</p>
+        ) : null}
       </>
     );
   };
@@ -369,29 +371,29 @@ function Employees() {
     name: "",
     email: "",
     phone: "",
-  
+
     designation: "",
     department: "",
     location: "",
-  
+
     dob: "",
     bloodGroup: "",
     emergencyContact: "",
-  
+
     aadhaarNumber: "",
     panNumber: "",
-  
+
     uan: "",
     pfNumber: "",
     esicNumber: "",
-  
+
     bankName: "",
     accountHolderName: "",
     accountNumber: "",
     ifscCode: "",
-  
+
     highestQualification: "",
-  
+
     dateOfJoining: "",
     relievingDate: "",
     managerId: "",
@@ -415,7 +417,7 @@ function Employees() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [department,setDepartment] = useState(null);
+  const [department, setDepartment] = useState([]);
 
   const [
     showDocumentsModal,
@@ -426,17 +428,17 @@ function Employees() {
     employeeDocuments,
     setEmployeeDocuments,
   ] = useState([]);
-  
+
   const [
     selectedEmployeeForDocs,
     setSelectedEmployeeForDocs,
   ] = useState(null);
-  
+
   const [
     documentType,
     setDocumentType,
   ] = useState("AADHAAR");
-  
+
   const [
     documentFile,
     setDocumentFile,
@@ -466,22 +468,22 @@ function Employees() {
   const [showUploadModal, setShowUploadModal] =
     useState(false);
 
-    const [
-      showLetterModal,
-      setShowLetterModal,
-    ] = useState(false);
-    
-    const [letterData, setLetterData] =
-  useState({
-    employeeId:"",
-    employeeName: "",
-    designation: "",
-    joiningDate: "",
-    annualCTC: "",
-    monthlySalary: "",
-    workLocation: "Gurgaon",
-    salaryComponents: [],
-  });
+  const [
+    showLetterModal,
+    setShowLetterModal,
+  ] = useState(false);
+
+  const [letterData, setLetterData] =
+    useState({
+      employeeId: "",
+      employeeName: "",
+      designation: "",
+      joiningDate: "",
+      annualCTC: "",
+      monthlySalary: "",
+      workLocation: "Gurgaon",
+      salaryComponents: [],
+    });
 
   const [letterEmployeeId, setLetterEmployeeId] = useState(null);
 
@@ -505,46 +507,46 @@ function Employees() {
 
   useEffect(() => {
     const loggedUser = localStorage.getItem('user')
-    const {vendorId} = JSON.parse(loggedUser)
+    const { vendorId } = JSON.parse(loggedUser)
     fetchEmployees();
     fetchDepartment(vendorId);
   }, []);
 
-  const fetchDepartment = async(vendorId) =>{
-    try{
-      if(!vendorId) return
+  const fetchDepartment = async (vendorId) => {
+    try {
+      if (!vendorId) return
       const res = await getDepartmentName(vendorId);
       setDepartment(res.data)
-      
-    }catch(err){
+
+    } catch (err) {
       console.log(err)
     }
   }
-  
+
 
   const loadEmployeeDocuments =
-  async (employeeId) => {
-    try {
+    async (employeeId) => {
+      try {
 
-      const response =
-        await getEmployeeDocuments(
-          employeeId
+        const response =
+          await getEmployeeDocuments(
+            employeeId
+          );
+
+        console.log(
+          "DOCUMENT RESPONSE",
+          response.data
         );
 
-      console.log(
-        "DOCUMENT RESPONSE",
-        response.data
-      );
+        setEmployeeDocuments(
+          response.data.documents || []
+        );
 
-      setEmployeeDocuments(
-        response.data.documents || []
-      );
+      } catch (error) {
 
-    } catch (error) {
-
-      console.error(error);
-    }
-  };
+        console.error(error);
+      }
+    };
   /* =========================
      HANDLE INPUT CHANGE
   ========================= */
@@ -640,14 +642,19 @@ function Employees() {
       temporaryPassword: loginInfo.temporaryPassword,
       organizationCode: loginInfo.organizationCode,
       linkedExisting: Boolean(loginInfo.linkedExisting),
+      phone: loginInfo.phone,
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (form.createAppLogin && !form.email?.trim()) {
-      alert("Email is required when enabling app login.");
+    if (
+      form.createAppLogin &&
+      !form.email?.trim() &&
+      !form.phone?.trim()
+    ) {
+      alert("Please enter either an email or a phone number.");
       return;
     }
 
@@ -687,7 +694,7 @@ function Employees() {
         } catch (structureError) {
           alert(
             structureError.response?.data?.message ||
-              "Employee was created but salary structure could not be saved. Edit the employee to set salary."
+            "Employee was created but salary structure could not be saved. Edit the employee to set salary."
           );
         }
       }
@@ -697,7 +704,7 @@ function Employees() {
       } else if (form.createAppLogin) {
         alert(
           data.message ||
-            "Employee was saved but app login was not created. Check API URL in .env / src/config/api.js, ensure backend is running, and email is provided."
+          "Employee was saved but app login was not created. Check API URL in .env / src/config/api.js, ensure backend is running, and email is provided."
         );
       } else {
         alert(data.message || "Employee added successfully");
@@ -742,38 +749,38 @@ function Employees() {
       alert("Please select an Excel file");
       return;
     }
-  
+
     // Clear old message before new upload
     setUploadMessage("");
-  
+
     try {
       setLoading(true);
-  
+
       const res = await bulkUploadEmployees(uploadFile);
-  
+
       const errorList = res.data.errors || [];
-  
+
       let message =
         `Upload Complete: ${res.data.inserted} inserted, ${res.data.skipped} skipped`;
-  
+
       if (errorList.length > 0) {
         message +=
           "\n\nErrors:\n" +
           errorList.join("\n");
       }
-  
+
       // Show result in modal
       setUploadMessage(message);
-  
+
       // Clear selected file
       setUploadFile(null);
-  
+
       // Refresh table
       fetchEmployees();
-  
+
       // ❌ modal close mat karo
       // setShowUploadModal(false);
-  
+
     } catch (error) {
       setUploadMessage(
         error.response?.data?.message ||
@@ -801,12 +808,16 @@ function Employees() {
     setErrors({});
     setSelectedEmployee({
       ...emp,
+      department:
+        emp.department && typeof emp.department === "object"
+          ? emp.department._id || ""
+          : emp.department || "",
       managerId: emp.managerId?._id || emp.managerId || "",
       dob: emp.dob ? emp.dob.split("T")[0] : "",
       dateOfJoining:
         emp.dateOfJoining
           ? emp.dateOfJoining
-              .split("T")[0]
+            .split("T")[0]
           : "",
       relievingDate:
         emp.relievingDate
@@ -826,11 +837,14 @@ function Employees() {
 
   const handleUpdate = async () => {
     try {
-      if (enableLoginOnUpdate && !selectedEmployee.email?.trim()) {
-        alert("Email is required before enabling app login.");
+      if (
+        enableLoginOnUpdate &&
+        !selectedEmployee.email?.trim() &&
+        !selectedEmployee.phone?.trim()
+      ) {
+        alert("Please enter either an email or a phone number to enable app login.");
         return;
       }
-
       const payload = buildEmployeePayload(selectedEmployee, {
         createAppLogin: enableLoginOnUpdate,
       });
@@ -854,7 +868,7 @@ function Employees() {
       } else if (enableLoginOnUpdate) {
         alert(
           res.data?.message ||
-            "Employee updated but app login was not created. Add email and try again."
+          "Employee updated but app login was not created. Add email and try again."
         );
       } else {
         alert(res.data?.message || "Employee updated successfully");
@@ -898,7 +912,7 @@ function Employees() {
       alert(
         error.response?.data
           ?.message ||
-          "Delete failed"
+        "Delete failed"
       );
     }
   };
@@ -913,53 +927,53 @@ function Employees() {
 
 
   const handleGenerateLetter =
-  async () => {
+    async () => {
 
-    if (
-      !letterData.employeeName ||
-      !letterData.designation ||
-      !letterData.joiningDate ||
-      !letterData.annualCTC ||
-      !letterData.monthlySalary ||
-      !letterData.workLocation ||
-      !letterData.salaryComponents?.length
-    ) {
-      alert(
-        "Please fill all mandatory fields and apply a CTC split or enter salary components"
-      );
-      return;
-    }
-    
-    
+      if (
+        !letterData.employeeName ||
+        !letterData.designation ||
+        !letterData.joiningDate ||
+        !letterData.annualCTC ||
+        !letterData.monthlySalary ||
+        !letterData.workLocation ||
+        !letterData.salaryComponents?.length
+      ) {
+        alert(
+          "Please fill all mandatory fields and apply a CTC split or enter salary components"
+        );
+        return;
+      }
 
-    try {
-      setLoading(true);
-      await generateAppointmentLetter({
-        ...letterData,
-        salaryComponents: (letterData.salaryComponents || []).map((c) => ({
-          code: c.code,
-          componentName: c.componentName || c.name,
-          monthly: c.monthly,
-          annual: c.annual,
-        })),
-      });
 
-      alert(
-        "Appointment Letter Generated Successfully"
-      );
 
-      setShowLetterModal(false);
+      try {
+        setLoading(true);
+        await generateAppointmentLetter({
+          ...letterData,
+          salaryComponents: (letterData.salaryComponents || []).map((c) => ({
+            code: c.code,
+            componentName: c.componentName || c.name,
+            monthly: c.monthly,
+            annual: c.annual,
+          })),
+        });
 
-    } catch (error) {
-      alert(
-        error.response?.data
-          ?.message ||
+        alert(
+          "Appointment Letter Generated Successfully"
+        );
+
+        setShowLetterModal(false);
+
+      } catch (error) {
+        alert(
+          error.response?.data
+            ?.message ||
           "Generation failed"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
 
   /* =========================
      FILTER EMPLOYEES
@@ -981,64 +995,64 @@ function Employees() {
         )
     );
 
-    const handleUploadDocument =
-  async () => {
+  const handleUploadDocument =
+    async () => {
 
-    if (!documentFile) {
-      alert(
-        "Please select file"
-      );
-      return;
-    }
+      if (!documentFile) {
+        alert(
+          "Please select file"
+        );
+        return;
+      }
 
-    if (!isAllowedFile(documentType, documentFile.name)) {
-      alert(
-        `Invalid file for ${docTypeLabel(documentType)}. Allowed: ${DOC_TYPE_ACCEPT[
+      if (!isAllowedFile(documentType, documentFile.name)) {
+        alert(
+          `Invalid file for ${docTypeLabel(documentType)}. Allowed: ${DOC_TYPE_ACCEPT[
+            documentType
+          ].join(", ")}`
+        );
+        return;
+      }
+
+      try {
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "file",
+          documentFile
+        );
+
+        formData.append(
+          "employeeId",
+          selectedEmployeeForDocs._id
+        );
+
+        formData.append(
+          "documentType",
           documentType
-        ].join(", ")}`
-      );
-      return;
-    }
+        );
 
-    try {
+        await uploadEmployeeDocument(
+          formData
+        );
 
-      const formData =
-        new FormData();
+        loadEmployeeDocuments(selectedEmployeeForDocs._id);
 
-      formData.append(
-        "file",
-        documentFile
-      );
+        alert(
+          "Document uploaded successfully"
+        );
 
-      formData.append(
-        "employeeId",
-        selectedEmployeeForDocs._id
-      );
+        setDocumentFile(null);
 
-      formData.append(
-        "documentType",
-        documentType
-      );
+      } catch (error) {
 
-      await uploadEmployeeDocument(
-        formData
-      );
-
-      loadEmployeeDocuments(selectedEmployeeForDocs._id);
-
-      alert(
-        "Document uploaded successfully"
-      );
-
-      setDocumentFile(null);
-
-    } catch (error) {
-
-      alert(
-        "Upload failed"
-      );
-    }
-  };
+        alert(
+          "Upload failed"
+        );
+      }
+    };
 
   return (
     <MainLayout>
@@ -1094,140 +1108,138 @@ function Employees() {
           </div>
         </div>
 
-       <div className="employee-table-card">
+        <div className="employee-table-card">
           <div className="employee-table-scroll">
-          <table className="employee-table">
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Designation</th>
-                <th>App Login</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+            <table className="employee-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Designation</th>
+                  <th>App Login</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-            <tbody>
-            {filteredEmployees.length > 0 ? (
-                filteredEmployees.map((emp) => (
-                  <tr key={emp._id}>
-                    <td>{emp.employeeCode}</td>
+              <tbody>
+                {filteredEmployees.length > 0 ? (
+                  filteredEmployees.map((emp) => (
+                    <tr key={emp._id}>
+                      <td>{emp.employeeCode}</td>
 
-                    <td>{emp.name}</td>
+                      <td>{emp.name}</td>
 
-                    <td>
-                      {emp.phone || "-"}
-                    </td>
+                      <td>
+                        {emp.phone || "-"}
+                      </td>
 
-                    <td>
-                      {emp.designation || "-"}
-                    </td>
+                      <td>
+                        {emp.designation || "-"}
+                      </td>
 
-                    <td>
-                      <span
-                        className={`status-badge ${
-                          emp.hasAppLogin ? "active" : "inactive"
-                        }`}
-                      >
-                        {emp.hasAppLogin ? "Login enabled" : "No login"}
-                      </span>
-                    </td>
+                      <td>
+                        <span
+                          className={`status-badge ${emp.hasAppLogin ? "active" : "inactive"
+                            }`}
+                        >
+                          {emp.hasAppLogin ? "Login enabled" : "No login"}
+                        </span>
+                      </td>
 
-                    <td>
-                      <span
-                        className={`status-badge ${
-                          emp.isActive
+                      <td>
+                        <span
+                          className={`status-badge ${emp.isActive
                             ? "active"
                             : "inactive"
-                        }`}
-                      >
-                        {emp.isActive
-                          ? "Active"
-                          : "Inactive"}
-                      </span>
-                    </td>
-
-                    <td>
-                      <div className="emp-action-buttons">
-
-                        <button
-                          className="emp-grid-btn"
-                          onClick={() =>
-                            handleView(emp)
-                          }
+                            }`}
                         >
-                          <Eye />
-                        </button>
+                          {emp.isActive
+                            ? "Active"
+                            : "Inactive"}
+                        </span>
+                      </td>
 
-                        <button
-                          className="emp-grid-btn"
-                          onClick={() =>
-                            handleEdit(emp)
-                          }
-                        >
-                          <Pencil />
-                        </button>
+                      <td>
+                        <div className="emp-action-buttons">
 
-                        <button
-                          className="emp-grid-btn"
-                          onClick={() => {
-                            setLetterEmployeeId(emp._id);
-                            setLetterData({
-                              employeeId: emp._id,
-                              employeeName: emp.name || "",
-                              designation: emp.designation || "",
-                              joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                              annualCTC: "",
-                              monthlySalary: "",
-                              workLocation: emp.location || "Gurgaon",
-                              salaryComponents: [],
-                            });
-                            setShowLetterModal(true);
-                          }}
-                        >
-                          <FileText />
-                        </button>
+                          <button
+                            className="emp-grid-btn"
+                            onClick={() =>
+                              handleView(emp)
+                            }
+                          >
+                            <Eye />
+                          </button>
 
-                        <button
-                          className="emp-grid-btn"
-                          onClick={async () => {
-                            setSelectedEmployeeForDocs(emp);
-                            await loadEmployeeDocuments(emp._id);
-                            setShowDocumentsModal(true);
-                          }}
-                        >
-                          <FolderOpen />
-                        </button>
+                          <button
+                            className="emp-grid-btn"
+                            onClick={() =>
+                              handleEdit(emp)
+                            }
+                          >
+                            <Pencil />
+                          </button>
 
-                        <button
-                          className=" emp-grid-btn"
-                          onClick={() =>
-                            handleDelete(
-                              emp._id
-                            )
-                          }
-                        >
-                          <Trash2 />
-                        </button>
+                          <button
+                            className="emp-grid-btn"
+                            onClick={() => {
+                              setLetterEmployeeId(emp._id);
+                              setLetterData({
+                                employeeId: emp._id,
+                                employeeName: emp.name || "",
+                                designation: emp.designation || "",
+                                joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                                annualCTC: "",
+                                monthlySalary: "",
+                                workLocation: emp.location || "Gurgaon",
+                                salaryComponents: [],
+                              });
+                              setShowLetterModal(true);
+                            }}
+                          >
+                            <FileText />
+                          </button>
 
-                      </div>
+                          <button
+                            className="emp-grid-btn"
+                            onClick={async () => {
+                              setSelectedEmployeeForDocs(emp);
+                              await loadEmployeeDocuments(emp._id);
+                              setShowDocumentsModal(true);
+                            }}
+                          >
+                            <FolderOpen />
+                          </button>
+
+                          <button
+                            className=" emp-grid-btn"
+                            onClick={() =>
+                              handleDelete(
+                                emp._id
+                              )
+                            }
+                          >
+                            <Trash2 />
+                          </button>
+
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan="7"
+                      className="empty-row"
+                    >
+                      No employees found.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="7"
-                    className="empty-row"
-                  >
-                    No employees found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -1316,7 +1328,7 @@ function Employees() {
         {showUploadModal ? (
           <EmpModal
             title="Bulk Upload Employees"
-            onClose={() => {setShowUploadModal(false); setErrors({})}}
+            onClose={() => { setShowUploadModal(false); setErrors({}) }}
             size="md"
             footer={
               <button
@@ -1385,7 +1397,7 @@ function Employees() {
                   <Button
                     type="button"
                     className="secondary-btn"
-                    onClick={() => {setSelectedEmployee(null); setErrors({})}}
+                    onClick={() => { setSelectedEmployee(null); setErrors({}) }}
                   >
                     Cancel
                   </Button>
@@ -1400,139 +1412,139 @@ function Employees() {
               ) : null
             }
           >
-              {isEditing ? (
-                <>
-                  <EmployeeFormFields
-                    sections={EMPLOYEE_FORM_SECTIONS}
-                    values={selectedEmployee}
-                    onFieldChange={handleEditFieldChange}
-                    employees={employees}
-                    excludeEmployeeId={selectedEmployee._id}
-                    emailRequired={enableLoginOnUpdate}
-                    department={department}
-                    errors={errors}
+            {isEditing ? (
+              <>
+                <EmployeeFormFields
+                  sections={EMPLOYEE_FORM_SECTIONS}
+                  values={selectedEmployee}
+                  onFieldChange={handleEditFieldChange}
+                  employees={employees}
+                  excludeEmployeeId={selectedEmployee._id}
+                  emailRequired={enableLoginOnUpdate}
+                  department={department}
+                  errors={errors}
+                />
+                <FormSection title="App Access">
+                  <AppLoginSection
+                    enabled={enableLoginOnUpdate}
+                    onToggle={(e) =>
+                      setEnableLoginOnUpdate(e.target.checked)
+                    }
+                    userRole={selectedEmployee.userRole || "Employee"}
+                    onRoleChange={(e) =>
+                      setSelectedEmployee({
+                        ...selectedEmployee,
+                        userRole: e.target.value,
+                      })
+                    }
+                    userPassword={selectedEmployee.userPassword || ""}
+                    onPasswordChange={(e) =>
+                      setSelectedEmployee({
+                        ...selectedEmployee,
+                        userPassword: e.target.value,
+                      })
+                    }
+                    alreadyEnabled={selectedEmployee.hasAppLogin}
+                    linkedEmail={selectedEmployee.linkedUser?.email}
                   />
-                  <FormSection title="App Access">
-                    <AppLoginSection
-                      enabled={enableLoginOnUpdate}
-                      onToggle={(e) =>
-                        setEnableLoginOnUpdate(e.target.checked)
-                      }
-                      userRole={selectedEmployee.userRole || "Employee"}
-                      onRoleChange={(e) =>
-                        setSelectedEmployee({
-                          ...selectedEmployee,
-                          userRole: e.target.value,
-                        })
-                      }
-                      userPassword={selectedEmployee.userPassword || ""}
-                      onPasswordChange={(e) =>
-                        setSelectedEmployee({
-                          ...selectedEmployee,
-                          userPassword: e.target.value,
-                        })
-                      }
-                      alreadyEnabled={selectedEmployee.hasAppLogin}
-                      linkedEmail={selectedEmployee.linkedUser?.email}
-                    />
-                  </FormSection>
-                  <FormSection
-                    title="Salary Structure"
-                    description="Dynamic earnings and deductions from your organization library"
-                    fullWidth
-                  >
-                    <EmployeeSalaryStructureEditor employeeId={selectedEmployee._id} />
-                  </FormSection>
-                </>
-              ) : (
-                <div className="emp-view-body">
+                </FormSection>
+                <FormSection
+                  title="Salary Structure"
+                  description="Dynamic earnings and deductions from your organization library"
+                  fullWidth
+                >
+                  <EmployeeSalaryStructureEditor employeeId={selectedEmployee._id} />
+                </FormSection>
+              </>
+            ) : (
+              <div className="emp-view-body">
                 <div className="profile-section">
                   <h4>Basic Information</h4>
-              
+
                   <div className="profile-grid">
                     <div>
                       <label>Employee Code</label>
                       <span>{selectedEmployee.employeeCode}</span>
                     </div>
-              
+
                     <div>
                       <label>Name</label>
                       <span>{selectedEmployee.name}</span>
                     </div>
-              
+
                     <div>
                       <label>Email</label>
                       <span>{selectedEmployee.email || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>Phone</label>
                       <span>{selectedEmployee.phone || "-"}</span>
                     </div>
                   </div>
                 </div>
-              
+
                 <div className="profile-section">
                   <h4>Employment Details</h4>
-              
+
                   <div className="profile-grid">
                     <div>
                       <label>Designation</label>
                       <span>{selectedEmployee.designation || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>Department</label>
                       <span>{selectedEmployee.department || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>Location</label>
                       <span>{selectedEmployee.location || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>Date Of Joining</label>
                       <span>
                         {selectedEmployee.dateOfJoining
                           ? new Date(
-                              selectedEmployee.dateOfJoining
-                            ).toLocaleDateString()
+                            selectedEmployee.dateOfJoining
+                          ).toLocaleDateString()
                           : "-"}
                       </span>
                     </div>
-              
+
                     <div>
                       <label>UAN</label>
                       <span>{selectedEmployee.uan || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>ESIC</label>
                       <span>{selectedEmployee.esicNumber || "-"}</span>
                     </div>
                   </div>
                 </div>
-              
+
                 <div className="profile-section">
                   <h4>Personal Details</h4>
-              
+
                   <div className="profile-grid">
                     <div>
                       <label>Blood Group</label>
                       <span>{selectedEmployee.bloodGroup || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>Emergency Contact</label>
                       <span>{selectedEmployee.emergencyContact || "-"}</span>
                     </div>
                   </div>
                 </div>
-              
+
                 <div className="profile-section">
                   <h4>Government Details</h4>
-              
+
                   <div className="profile-grid">
                     <div>
                       <label>Aadhaar Number</label>
@@ -1542,57 +1554,57 @@ function Employees() {
                           : "-"}
                       </span>
                     </div>
-              
+
                     <div>
                       <label>PAN Number</label>
                       <span>
                         {selectedEmployee.panNumber
                           ? `${selectedEmployee.panNumber.slice(
-                              0,
-                              2
-                            )}XXXXX${selectedEmployee.panNumber.slice(
-                              -3
-                            )}`
+                            0,
+                            2
+                          )}XXXXX${selectedEmployee.panNumber.slice(
+                            -3
+                          )}`
                           : "-"}
                       </span>
                     </div>
-              
+
                     <div>
                       <label>PF Number</label>
                       <span>{selectedEmployee.pfNumber || "-"}</span>
                     </div>
                   </div>
                 </div>
-              
+
                 <div className="profile-section">
                   <h4>Bank Details</h4>
-              
+
                   <div className="profile-grid">
                     <div>
                       <label>Bank Name</label>
                       <span>{selectedEmployee.bankName || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>Account Holder</label>
                       <span>{selectedEmployee.accountHolderName || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>Account Number</label>
                       <span>{selectedEmployee.accountNumber || "-"}</span>
                     </div>
-              
+
                     <div>
                       <label>IFSC Code</label>
                       <span>{selectedEmployee.ifscCode ? selectedEmployee.ifscCode.toUpperCase() : "-"}</span>
                     </div>
                   </div>
                 </div>
-              
+
                 <div className="profile-section">
                   <h4>Education</h4>
-              
+
                   <div className="profile-grid">
                     <div>
                       <label>Highest Qualification</label>
@@ -1606,8 +1618,8 @@ function Employees() {
                   <h4>Salary Structure</h4>
                   <EmployeeSalaryStructureView employeeId={selectedEmployee._id} />
                 </div>
-                </div>
-              )}
+              </div>
+            )}
           </EmpModal>
         ) : null}
 
@@ -1749,172 +1761,172 @@ function Employees() {
 
       </div>
 
-        {showDocumentsModal ? (
-          <EmpModal
-            title="Employee Documents"
-            onClose={() => setShowDocumentsModal(false)}
-            size="md"
-            footer={
-              <Button
-                type="button"
-                icon={<Upload size={16} />}
-                onClick={handleUploadDocument}
-                disabled={!documentFile}
-                style={{flex:1}}
-              >
-                
-                Upload Document
-              </Button>
-            }
-          >
-            <div className="emp-doc-hero">
-              <div className="emp-doc-hero__icon">
-                <FolderOpen size={22} />
-              </div>
-              <div>
-                <span className="emp-doc-hero__label">Employee</span>
-                <p className="emp-doc-hero__name">
-                  {selectedEmployeeForDocs?.name}
-                </p>
-              </div>
+      {showDocumentsModal ? (
+        <EmpModal
+          title="Employee Documents"
+          onClose={() => setShowDocumentsModal(false)}
+          size="md"
+          footer={
+            <Button
+              type="button"
+              icon={<Upload size={16} />}
+              onClick={handleUploadDocument}
+              disabled={!documentFile}
+              style={{ flex: 1 }}
+            >
+
+              Upload Document
+            </Button>
+          }
+        >
+          <div className="emp-doc-hero">
+            <div className="emp-doc-hero__icon">
+              <FolderOpen size={22} />
             </div>
-
-            <FormSection title="Upload New Document">
-              <FormField label="Document Type" htmlFor="doc-type" fullWidth>
-                <select
-                  id="doc-type"
-                  value={documentType}
-                  onChange={(e) => setDocumentType(e.target.value)}
-                >
-                  {DOC_TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <div className="emp-field emp-field--full">
-                <label>File</label>
-                <div className="emp-upload-zone">
-                  <input
-                    type="file"
-                    accept={acceptFor(documentType)}
-                    onChange={(e) =>
-                      setDocumentFile(e.target.files?.[0] || null)
-                    }
-                  />
-                  <Upload size={24} color="#64748b" />
-                  <span className="emp-upload-zone__title">
-                    Click or drag file to upload
-                  </span>
-                  <span className="emp-upload-zone__hint">
-                    {DOC_TYPE_ACCEPT[documentType].join(", ")} up to 10MB
-                  </span>
-                  {documentFile ? (
-                    <span className="emp-upload-zone__file">
-                      {documentFile.name}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </FormSection>
-
-            <div className="emp-doc-list">
-              <h4>Uploaded Documents</h4>
-
-              {!Array.isArray(employeeDocuments) ? (
-                <p className="emp-doc-list__empty">Loading…</p>
-              ) : employeeDocuments.length === 0 ? (
-                <p className="emp-doc-list__empty">No documents uploaded yet</p>
-              ) : (
-                employeeDocuments.map((doc) => (
-                  <div key={doc._id} className="emp-doc-item">
-                    <div>
-                      <span className="emp-doc-item__type">
-                        {docTypeLabel(doc.documentType)}
-                      </span>
-                      <span className="emp-doc-item__name">
-                        {doc.originalName}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="emp-btn emp-btn--secondary"
-                      onClick={() => setDocPreviewUrl(getDocumentViewUrl(doc._id))}
-                    >
-                      <Eye size={14} />
-                      View
-                    </button>
-                  </div>
-                ))
-              )}
+            <div>
+              <span className="emp-doc-hero__label">Employee</span>
+              <p className="emp-doc-hero__name">
+                {selectedEmployeeForDocs?.name}
+              </p>
             </div>
-          </EmpModal>
-        ) : null}
+          </div>
 
-        {loginCredentials ? (
-          <EmpModal
-            title="App Login Details"
-            onClose={() => setLoginCredentials(null)}
-            size="md"
-            footer={
-              <button
-                type="button"
-                className="emp-btn emp-btn--primary emp-btn--block"
-                onClick={() => setLoginCredentials(null)}
+          <FormSection title="Upload New Document">
+            <FormField label="Document Type" htmlFor="doc-type" fullWidth>
+              <select
+                id="doc-type"
+                value={documentType}
+                onChange={(e) => setDocumentType(e.target.value)}
               >
-                Done
-              </button>
-            }
-          >
-              <div className="credentials-body">
-                <p>
-                  <strong>{loginCredentials.employeeName}</strong> can now sign in
-                  to the app.
-                </p>
-
-                <div className="credentials-row">
-                  <span>Email / login</span>
-                  <strong>{loginCredentials.email}</strong>
-                </div>
-
-                <div className="credentials-row">
-                  <span>Role</span>
-                  <strong>{loginCredentials.role}</strong>
-                </div>
-
-                {loginCredentials.organizationCode ? (
-                  <div className="credentials-row">
-                    <span>Organization code (for login page)</span>
-                    <strong>{loginCredentials.organizationCode}</strong>
-                  </div>
+                {DOC_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <div className="emp-field emp-field--full">
+              <label>File</label>
+              <div className="emp-upload-zone">
+                <input
+                  type="file"
+                  accept={acceptFor(documentType)}
+                  onChange={(e) =>
+                    setDocumentFile(e.target.files?.[0] || null)
+                  }
+                />
+                <Upload size={24} color="#64748b" />
+                <span className="emp-upload-zone__title">
+                  Click or drag file to upload
+                </span>
+                <span className="emp-upload-zone__hint">
+                  {DOC_TYPE_ACCEPT[documentType].join(", ")} up to 10MB
+                </span>
+                {documentFile ? (
+                  <span className="emp-upload-zone__file">
+                    {documentFile.name}
+                  </span>
                 ) : null}
-
-                {loginCredentials.temporaryPassword ? (
-                  <div className="credentials-password-box">
-                    <span>Temporary password (shown only once)</span>
-                    <strong>{loginCredentials.temporaryPassword}</strong>
-                    <p>
-                      Share this with the employee. This password is shown only
-                      once — copy it now.
-                    </p>
-                  </div>
-                ) : (
-                  <p className="employee-login-hint">
-                    {loginCredentials.linkedExisting
-                      ? "This employee was linked to an existing user account. They should use their current password."
-                      : "Login enabled with the password you set."}
-                  </p>
-                )}
               </div>
-          </EmpModal>
-        ) : null}
+            </div>
+          </FormSection>
 
-        <DocumentPreview
-          isOpen={!!docPreviewUrl}
-          onClose={() => setDocPreviewUrl(null)}
-          url={docPreviewUrl}
-        />
+          <div className="emp-doc-list">
+            <h4>Uploaded Documents</h4>
+
+            {!Array.isArray(employeeDocuments) ? (
+              <p className="emp-doc-list__empty">Loading…</p>
+            ) : employeeDocuments.length === 0 ? (
+              <p className="emp-doc-list__empty">No documents uploaded yet</p>
+            ) : (
+              employeeDocuments.map((doc) => (
+                <div key={doc._id} className="emp-doc-item">
+                  <div>
+                    <span className="emp-doc-item__type">
+                      {docTypeLabel(doc.documentType)}
+                    </span>
+                    <span className="emp-doc-item__name">
+                      {doc.originalName}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="emp-btn emp-btn--secondary"
+                    onClick={() => setDocPreviewUrl(getDocumentViewUrl(doc._id))}
+                  >
+                    <Eye size={14} />
+                    View
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </EmpModal>
+      ) : null}
+
+      {loginCredentials ? (
+        <EmpModal
+          title="App Login Details"
+          onClose={() => setLoginCredentials(null)}
+          size="md"
+          footer={
+            <button
+              type="button"
+              className="emp-btn emp-btn--primary emp-btn--block"
+              onClick={() => setLoginCredentials(null)}
+            >
+              Done
+            </button>
+          }
+        >
+          <div className="credentials-body">
+            <p>
+              <strong>{loginCredentials.employeeName}</strong> can now sign in
+              to the app.
+            </p>
+
+            <div className="credentials-row">
+              <span>Email / phone login</span>
+              <strong>{loginCredentials.email || loginCredentials.phone}</strong>
+            </div>
+
+            <div className="credentials-row">
+              <span>Role</span>
+              <strong>{loginCredentials.role}</strong>
+            </div>
+
+            {loginCredentials.organizationCode ? (
+              <div className="credentials-row">
+                <span>Organization code (for login page)</span>
+                <strong>{loginCredentials.organizationCode}</strong>
+              </div>
+            ) : null}
+
+            {loginCredentials.temporaryPassword ? (
+              <div className="credentials-password-box">
+                <span>Temporary password (shown only once)</span>
+                <strong>{loginCredentials.temporaryPassword}</strong>
+                <p>
+                  Share this with the employee. This password is shown only
+                  once — copy it now.
+                </p>
+              </div>
+            ) : (
+              <p className="employee-login-hint">
+                {loginCredentials.linkedExisting
+                  ? "This employee was linked to an existing user account. They should use their current password."
+                  : "Login enabled with the password you set."}
+              </p>
+            )}
+          </div>
+        </EmpModal>
+      ) : null}
+
+      <DocumentPreview
+        isOpen={!!docPreviewUrl}
+        onClose={() => setDocPreviewUrl(null)}
+        url={docPreviewUrl}
+      />
     </MainLayout>
   );
 }
