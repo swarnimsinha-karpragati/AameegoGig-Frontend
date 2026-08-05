@@ -249,9 +249,8 @@ function DaySessionsPanel({ day, monthLabel, records = [], showEmployee = false,
                   <strong>{record.name}</strong>
                   <span className="muted-cell">{record.employeeCode || record.id}</span>
                   <span
-                    className={`status-text ${
-                      statusTextClass[record.status] || "status-text-late"
-                    }`}
+                    className={`status-text ${statusTextClass[record.status] || "status-text-late"
+                      }`}
                   >
                     {record.status}
                   </span>
@@ -307,20 +306,17 @@ function AttendanceCalendar({
             <button
               key={cell.key}
               type="button"
-              className={`calendar-day ${cell.status} ${cell.isToday ? "today" : ""} ${
-                cell.hasSessions ? "has-sessions" : ""
-              } ${cell.holiday ? "holiday" : ""} ${cell.weekOff ? "week-off" : ""} ${
-                selectedDay === cell.day ? "selected" : ""
-              }`}
+              className={`calendar-day ${cell.status} ${cell.isToday ? "today" : ""} ${cell.hasSessions ? "has-sessions" : ""
+                } ${cell.holiday ? "holiday" : ""} ${cell.weekOff ? "week-off" : ""} ${selectedDay === cell.day ? "selected" : ""
+                }`}
               onClick={() =>
                 cell.hasSessions || cell.holiday || cell.weekOff
                   ? onDaySelect(cell.day)
                   : onDaySelect(null)
               }
               disabled={!cell.hasSessions && !cell.holiday && !cell.weekOff}
-              aria-label={`Day ${cell.day}${cell.holiday ? `, ${cell.holiday.name}` : ""}${
-                cell.weekOff ? `, ${cell.weekOff.dayName} week off` : ""
-              }${cell.hasSessions ? ", view sessions" : ""}`}
+              aria-label={`Day ${cell.day}${cell.holiday ? `, ${cell.holiday.name}` : ""}${cell.weekOff ? `, ${cell.weekOff.dayName} week off` : ""
+                }${cell.hasSessions ? ", view sessions" : ""}`}
               title={
                 cell.holiday
                   ? cell.holiday.name
@@ -663,6 +659,7 @@ function Attendance() {
     checkIn: "",
     checkOut: "",
     notes: "",
+    date: new Date().toISOString().split('T')[0],
   });
 
   /* ── Confirm modal ── */
@@ -848,7 +845,7 @@ function Attendance() {
 
   const myLatestCheckOutSelfieUrl = useMemo(() => {
     const sessions = myTodayRow.sessions || [];
-  
+
     for (
       let i = sessions.length - 1;
       i >= 0;
@@ -860,7 +857,7 @@ function Attendance() {
         );
       }
     }
-  
+
     return null;
   }, [myTodayRow]);
 
@@ -905,35 +902,35 @@ function Attendance() {
   };
 
   const handleMarkAttendance = async (e) => {
-  e.preventDefault();
-  
-  if (!markForm.employeeId) {
-    toast.warning("Please select an employee");
-    return;
-  }
+    e.preventDefault();
 
-
-  if (markForm.checkIn && markForm.checkOut) {
-    const timeToMinutes = (timeStr) => {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-
-    const checkInMinutes = timeToMinutes(markForm.checkIn);
-    const checkOutMinutes = timeToMinutes(markForm.checkOut);
-
-    if (checkOutMinutes <= checkInMinutes) {
-      toast.warning("Check-out time must be later than Check-in time.");
+    if (!markForm.employeeId) {
+      toast.warning("Please select an employee");
       return;
     }
-  }
+
+
+    if (markForm.checkIn && markForm.checkOut) {
+      const timeToMinutes = (timeStr) => {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+      };
+
+      const checkInMinutes = timeToMinutes(markForm.checkIn);
+      const checkOutMinutes = timeToMinutes(markForm.checkOut);
+
+      if (checkOutMinutes <= checkInMinutes) {
+        toast.warning("Check-out time must be later than Check-in time.");
+        return;
+      }
+    }
 
     try {
       await markAttendance({
         ...markForm,
         checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
         checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
-        date: toLocalDateString(new Date()),
+        date: markForm.date || new Date().toISOString().split('T')[0],
       });
       toast.success("Attendance saved successfully");
       loadMonthData();
@@ -948,38 +945,38 @@ function Attendance() {
     setAttendanceAction("checkin");
     setShowSelfieModal(true);
   };
-  
+
   const handleSelfieCapture = async (selfieBlob) => {
     setCheckInSubmitting(true);
     setActionLoading(true);
-  
+
     try {
       setCheckInMessage("Detecting your location...");
-  
+
       const location = await getAttendanceLocation(
         attendanceAction === "checkin" ? "check in" : "check out"
       );
-  
+
       let res;
-  
+
       if (attendanceAction === "checkin") {
         res = await checkInAttendance(selfieBlob, location);
       } else {
         res = await checkOutAttendance(selfieBlob, location);
       }
-  
+
       setCheckInMessage(
         res.message ||
-          (attendanceAction === "checkin"
-            ? "Checked in successfully"
-            : "Checked out successfully")
+        (attendanceAction === "checkin"
+          ? "Checked in successfully"
+          : "Checked out successfully")
       );
 
       applyTodayRowUpdate(res);
       setShowSelfieModal(false);
 
       await loadMonthData();
-  
+
     } catch (err) {
       setCheckInMessage(
         err.message ||
@@ -1072,12 +1069,11 @@ function Attendance() {
             </p>
           </div>
           <span
-            className={`attendance-status-pill ${
-              myTodayRow.isCheckedIn
-                ? "live"
-                : statusTextClass[myTodayRow.status]?.replace("status-text-", "") ||
-                  "absent"
-            }`}
+            className={`attendance-status-pill ${myTodayRow.isCheckedIn
+              ? "live"
+              : statusTextClass[myTodayRow.status]?.replace("status-text-", "") ||
+              "absent"
+              }`}
           >
             {myTodayRow.isCheckedIn ? "● Checked In" : myTodayRow.status}
           </span>
@@ -1256,6 +1252,19 @@ function Attendance() {
 
         <div className="attendance-mark-form__row attendance-mark-form__row--details">
           <div className="attendance-field">
+            <label htmlFor="mark-check-in">Date</label>
+            <input
+              id="mark-date"
+              type="date"
+              className="attendance-control"
+              max={new Date().toISOString().split('T')[0]}
+              value={markForm.date}
+              onChange={(e) =>
+                setMarkForm((prev) => ({ ...prev, date: e.target.value }))
+              }
+            />
+          </div>
+          <div className="attendance-field">
             <label htmlFor="mark-check-in">Check In</label>
             <input
               id="mark-check-in"
@@ -1331,7 +1340,7 @@ function Attendance() {
   const renderHRView = () => (
     <>
       <div className="attendance-hr-actions" >
-        <Button type="button" icon ={<ShieldCheck size={16} />}>
+        <Button type="button" icon={<ShieldCheck size={16} />}>
           Review Corrections
         </Button>
         <Button type="button" className="secondary-btn" icon={<Download size={16} />}>

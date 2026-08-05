@@ -37,6 +37,10 @@ export const employeeValidationSchema = Yup.object().shape({
     .trim()
     .required("Designation is required"),
 
+  department: Yup.string()
+    .trim()
+    .required("Department is required"),
+
   location: Yup.string().trim().default(""),
 
   dob: Yup.date()
