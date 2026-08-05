@@ -508,6 +508,7 @@ function TodayAttendanceTable({
               <th>Hours</th>
               <th>Status</th>
               {showActions && <th>Actions</th>}
+              <th>Notes</th>
             </tr>
           </thead>
 
@@ -593,6 +594,13 @@ function TodayAttendanceTable({
                           ? "Checked In"
                           : row.status}
                       </span>
+                    </td>
+                    <td>
+                      {row?.notes
+                        ? row.notes.length > 30
+                          ? `${row.notes.slice(0, 30)}...`
+                          : row.notes
+                        : "-"}
                     </td>
 
                     {showActions && (
@@ -1256,6 +1264,9 @@ function Attendance() {
             <input
               id="mark-date"
               type="date"
+              min={new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)
+                .toISOString()
+                .split("T")[0]}
               className="attendance-control"
               max={new Date().toISOString().split('T')[0]}
               value={markForm.date}
