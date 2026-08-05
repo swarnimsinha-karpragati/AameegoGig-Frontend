@@ -78,7 +78,6 @@ export const employeeValidationSchema = Yup.object().shape({
     .matches(PATTERNS.PAN, "Invalid PAN card format")
     .default(null),
 
-  department: Yup.string().trim().default(""),
   pfNumber: Yup.string().trim().default(""),
 
   managerId: Yup.string()

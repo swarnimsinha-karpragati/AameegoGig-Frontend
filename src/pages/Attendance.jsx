@@ -32,7 +32,7 @@ import {
   summarizeAttendanceSessions,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
-  toLocalDateString,
+  // toLocalDateString,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
