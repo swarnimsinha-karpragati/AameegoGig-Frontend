@@ -3,8 +3,9 @@ const getLocationErrorMessage = (action = "check in") => {
   return {
     unsupported: "Geolocation is not supported on this device or browser.",
     denied: `Location permission denied. Please allow location access to ${label}.`,
+    unavailable: "Location services are turned off. Please turn on GPS on your device and try again.",
     timeout: "Unable to detect location in time. Please try again.",
-    default: "Unable to detect your location. Please try again.",
+    default: "Unable to detect your location. Please ensure location is enabled and try again.",
   };
 };
 
@@ -13,6 +14,7 @@ export const getAttendanceLocation = (action = "check in") =>
     const messages = getLocationErrorMessage(action);
 
     if (!navigator.geolocation) {
+      alert(messages.unsupported);
       reject(new Error(messages.unsupported));
       return;
     }
@@ -26,22 +28,25 @@ export const getAttendanceLocation = (action = "check in") =>
         });
       },
       (error) => {
+        let errorMessage = messages.default;
+
         if (error.code === error.PERMISSION_DENIED) {
-          reject(new Error(messages.denied));
-          return;
+          errorMessage = messages.denied;
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMessage = messages.unavailable;
+        } else if (error.code === error.TIMEOUT) {
+          errorMessage = messages.timeout;
         }
 
-        if (error.code === error.TIMEOUT) {
-          reject(new Error(messages.timeout));
-          return;
-        }
+        // Trigger browser alert popup
+        alert(errorMessage);
 
-        reject(new Error(messages.default));
+        reject(new Error(errorMessage));
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
+        timeout: 60000,
+        maximumAge: 5000,
       }
     );
   });
