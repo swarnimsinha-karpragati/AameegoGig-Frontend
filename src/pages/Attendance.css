@@ -14,7 +14,6 @@
   cursor: pointer;
   transition: all 0.2s ease;
   gap: 8px;
-
 }
 
 .attendance-download-btn:hover {
@@ -47,6 +46,7 @@
 .attendance-filter-container {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   flex: 1;
 }
 
@@ -57,25 +57,19 @@
   flex-wrap: wrap;
 }
 
-.attendance-filter-container {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-}
-
-.attendance-filter-buttons {
-  display: flex;
-  gap: 8px;
-}
-
 .attendance-filter-btn {
-  padding: 8px 30px;
+  padding: 8px 18px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
   transition: all 0.2s ease;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .attendance-filter-btn:hover {
@@ -86,6 +80,7 @@
   background: #2563eb;
   color: #fff;
   border-color: #2563eb;
+  font-weight: 600;
 }
 
 .attendance-date-filter {
@@ -211,25 +206,6 @@
 .attendance-employee-calendar-wrap .attendance-day-sessions-card {
   margin-top: 0;
 }
-/* 
-.attendance-page .payroll-stats-grid .generic-card {
-  max-width: none;
-  padding: 16px 18px;
-}
-
-.attendance-page .payroll-stats-grid .card-icon-sidebar {
-  width: 48px;
-  height: 48px;
-  font-size: 22px;
-}
-
-.attendance-page .payroll-stats-grid .card-header {
-  font-size: 14px;
-}
-
-.attendance-page .payroll-stats-grid .card-body {
-  font-size: 22px;
-} */
 
 .attendance-page .stat-card {
   background: #ffffff;
@@ -822,7 +798,7 @@ input.attendance-control[type="time"] {
 
 .attendance-today-sessions-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #0f172a;
 }
@@ -899,6 +875,14 @@ input.attendance-control[type="time"] {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 14px;
+}
+
+.attendance-session-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .attendance-live-pill {
@@ -1912,6 +1896,171 @@ input.attendance-control[type="time"] {
 .status-text-late {
   color: #2563eb;
 }
+
+/* ==========================================================================
+   NEW ADD-ON UI: Date Range Control & Table Action Buttons
+   ========================================================================== */
+
+/* Custom Date Range Picker Container */
+.attendance-date-range-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  height: 33px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #64748b;
+  box-sizing: border-box;
+}
+
+.attendance-date-input {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0f172a;
+  outline: none;
+  font-family: inherit;
+  padding: 0;
+}
+
+.attendance-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+
+.attendance-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* Table Row Selfie View Icon Buttons */
+.attendance-selfie-icon-btn,
+.attendance-selfie-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #4f46e5;
+  border: 1px solid #c7d2fe;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.attendance-selfie-icon-btn:hover,
+.attendance-selfie-btn:hover {
+  background: #e0e7ff;
+  border-color: #a5b4fc;
+}
+
+/* Table Row Geolocation External Map Buttons */
+.attendance-location-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 6px;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.attendance-location-btn:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+
+/* Table Inline Expandable Session Row Shell */
+.attendance-inline-session-wrapper {
+  background: #ffffff;
+  margin: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* Selfie Lightbox Preview Modal Overlay */
+.attendance-selfie-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.attendance-selfie-modal-content {
+  background: #ffffff;
+  border-radius: 12px;
+  max-width: 440px;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.attendance-selfie-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.attendance-selfie-modal-header h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.attendance-selfie-close-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.attendance-selfie-close-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.attendance-selfie-modal-body {
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  background: #f8fafc;
+}
+
+.attendance-selfie-preview-img {
+  max-width: 100%;
+  max-height: 65vh;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+/* ==========================================================================
+   Media Queries
+   ========================================================================== */
 
 @media (max-width: 1200px) {
   .attendance-employee-layout {
