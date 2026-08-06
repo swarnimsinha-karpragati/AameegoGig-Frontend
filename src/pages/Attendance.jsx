@@ -16,6 +16,11 @@ import {
   MapPin,
   ClipboardCheck,
   Check,
+  Camera,
+  ExternalLink,
+  X,
+  Calendar as CalendarIcon,
+  RotateCcw,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
@@ -32,7 +37,6 @@ import {
   summarizeAttendanceSessions,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
-  // toLocalDateString,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -44,7 +48,6 @@ import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
 import "./Attendance.css";
 import Card from "../components/Card";
 import * as XLSX from "xlsx";
-
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -73,6 +76,7 @@ const EMPTY_MY_ROW = {
   id: "—",
   name: "You",
   initials: "YO",
+  date: "—",
   checkIn: "—",
   checkOut: "—",
   hours: "—",
@@ -82,22 +86,101 @@ const EMPTY_MY_ROW = {
   sessionCount: 0,
 };
 
+/* ── Date Formatter Helper ── */
+function formatDate(dateVal) {
+  if (!dateVal) return new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return String(dateVal);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+/* ── Normalizer to guarantee Employee ID / Code & Date across all API payloads ── */
+function normalizeRecord(row, defaultDay = null, monthLabel = "") {
+  const empCode =
+    row.id ||
+    row.employeeCode ||
+    row.empCode ||
+    row.code ||
+    (row.employeeId ? String(row.employeeId).slice(-6).toUpperCase() : "—");
+
+  const empName = row.name || row.employeeName || "Unknown";
+
+  const initials =
+    row.initials ||
+    empName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+
+  // Extract / Format Date
+  let dateFormatted = "—";
+  if (row.date) {
+    dateFormatted = formatDate(row.date);
+  } else if (defaultDay && monthLabel) {
+    dateFormatted = `${monthLabel} ${String(defaultDay).padStart(2, "0")}`;
+  } else {
+    dateFormatted = formatDate(new Date());
+  }
+
+  return {
+    ...row,
+    id: empCode,
+    employeeCode: empCode,
+    name: empName,
+    initials,
+    formattedDate: dateFormatted,
+  };
+}
+
+/* ── Selfie Lightbox Modal Component ── */
+function SelfieModal({ open, imageUrl, title, onClose }) {
+  if (!open || !imageUrl) return null;
+
+  return (
+    <div className="attendance-selfie-modal-overlay" onClick={onClose}>
+      <div
+        className="attendance-selfie-modal-content"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="attendance-selfie-modal-header">
+          <h3>{title}</h3>
+          <button
+            type="button"
+            className="attendance-selfie-close-btn"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="attendance-selfie-modal-body">
+          <img src={imageUrl} alt={title} className="attendance-selfie-preview-img" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SessionLocationLink({ location, prefix }) {
   const formatted = formatGeoLocation(location);
   if (!formatted) return null;
 
   return (
     <a
-      className="attendance-session-location"
+      className="attendance-location-btn"
       href={formatted.mapsUrl}
       target="_blank"
       rel="noopener noreferrer"
+      title={`${prefix}: ${formatted.label}`}
     >
       <MapPin size={14} />
-      <span>
-        {prefix}: {formatted.label}
-        {formatted.accuracy ? ` (${formatted.accuracy})` : ""}
-      </span>
+      <span>{prefix}</span>
+      <ExternalLink size={12} />
     </a>
   );
 }
@@ -140,7 +223,12 @@ function TodayMetricsGrid({ metrics }) {
   );
 }
 
-function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions recorded." }) {
+function SessionList({
+  sessions = [],
+  totalHours,
+  emptyMessage = "No sessions recorded.",
+  onViewSelfie,
+}) {
   if (!sessions.length) {
     return (
       <div className="attendance-sessions-empty-wrap">
@@ -154,7 +242,7 @@ function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions re
     <div className="attendance-sessions-timeline">
       {sessions.map((session, index) => (
         <article
-          key={session.sessionNumber}
+          key={session.sessionNumber || index}
           className={`attendance-timeline-item ${session.isOpen ? "open" : ""}`}
         >
           <div className="attendance-timeline-rail">
@@ -164,7 +252,7 @@ function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions re
           <div className="attendance-timeline-card">
             <div className="attendance-timeline-card-header">
               <span className="attendance-session-badge">
-                Session {session.sessionNumber}
+                Session {session.sessionNumber || index + 1}
               </span>
               {session.isOpen ? (
                 <span className="attendance-live-pill">Live</span>
@@ -172,6 +260,7 @@ function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions re
                 <span className="attendance-session-hours">{session.hours}</span>
               )}
             </div>
+
             <div className="attendance-timeline-times">
               <div className="attendance-timeline-time in">
                 <LogIn size={15} />
@@ -188,11 +277,47 @@ function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions re
                 </div>
               </div>
             </div>
-            <div className="attendance-session-locations">
+
+            <div
+              className="attendance-session-actions-wrap"
+              style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.75rem" }}
+            >
+              {session.checkInSelfieUrl && (
+                <button
+                  type="button"
+                  className="attendance-selfie-btn"
+                  onClick={() =>
+                    onViewSelfie?.(
+                      getCheckInSelfieUrl(session.checkInSelfieUrl),
+                      `Session ${session.sessionNumber || index + 1} — Check-In Selfie`
+                    )
+                  }
+                >
+                  <Camera size={14} />
+                  <span>In Selfie</span>
+                </button>
+              )}
+
+              {session.checkOutSelfieUrl && (
+                <button
+                  type="button"
+                  className="attendance-selfie-btn"
+                  onClick={() =>
+                    onViewSelfie?.(
+                      getCheckInSelfieUrl(session.checkOutSelfieUrl),
+                      `Session ${session.sessionNumber || index + 1} — Check-Out Selfie`
+                    )
+                  }
+                >
+                  <Camera size={14} />
+                  <span>Out Selfie</span>
+                </button>
+              )}
+
               <SessionLocationLink location={session.checkInLocation} prefix="Check-in" />
-              {!session.isOpen ? (
+              {!session.isOpen && (
                 <SessionLocationLink location={session.checkOutLocation} prefix="Check-out" />
-              ) : null}
+              )}
             </div>
           </div>
         </article>
@@ -207,72 +332,9 @@ function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions re
   );
 }
 
-function DaySessionsPanel({ day, monthLabel, records = [], showEmployee = false, holiday = null, weekOff = null }) {
-  if (!day) return null;
-
-  return (
-    <section className="attendance-panel attendance-glass attendance-day-sessions-card">
-      <header className="attendance-panel__head">
-        <h2>
-          Sessions — {monthLabel} {day}
-        </h2>
-      </header>
-      {holiday ? (
-        <div className="attendance-holiday-banner">
-          <strong>{holiday.name}</strong>
-          <span>{holiday.type || "Holiday"}</span>
-        </div>
-      ) : null}
-      {weekOff && !holiday ? (
-        <div className="attendance-weekoff-banner">
-          <strong>{weekOff.dayName} — Weekly Off</strong>
-          <span>Non-working day</span>
-        </div>
-      ) : null}
-      {!records.length ? (
-        <p className="attendance-sessions-empty">
-          {holiday
-            ? "Paid holiday — no attendance sessions recorded."
-            : weekOff
-              ? "Weekly off — no attendance sessions recorded."
-              : "No attendance sessions for this day."}
-        </p>
-      ) : (
-        <div className="attendance-day-records">
-          {records.map((record) => (
-            <article
-              key={`${record.employeeId || record.name}-${day}`}
-              className="attendance-day-record"
-            >
-              {showEmployee ? (
-                <div className="attendance-day-record-header">
-                  <strong>{record.name}</strong>
-                  <span className="muted-cell">{record.employeeCode || record.id}</span>
-                  <span
-                    className={`status-text ${statusTextClass[record.status] || "status-text-late"
-                      }`}
-                  >
-                    {record.status}
-                  </span>
-                </div>
-              ) : null}
-              <SessionList
-                sessions={record.sessions}
-                totalHours={record.hours}
-                emptyMessage="No check-in/out sessions for this day."
-              />
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 function AttendanceCalendar({
   monthLabel,
   calendarDays,
-  dayRecords,
   selectedDay,
   onDaySelect,
   onPrev,
@@ -306,23 +368,21 @@ function AttendanceCalendar({
             <button
               key={cell.key}
               type="button"
-              className={`calendar-day ${cell.status} ${cell.isToday ? "today" : ""} ${cell.hasSessions ? "has-sessions" : ""
-                } ${cell.holiday ? "holiday" : ""} ${cell.weekOff ? "week-off" : ""} ${selectedDay === cell.day ? "selected" : ""
-                }`}
-              onClick={() =>
-                cell.hasSessions || cell.holiday || cell.weekOff
-                  ? onDaySelect(cell.day)
-                  : onDaySelect(null)
-              }
-              disabled={!cell.hasSessions && !cell.holiday && !cell.weekOff}
-              aria-label={`Day ${cell.day}${cell.holiday ? `, ${cell.holiday.name}` : ""}${cell.weekOff ? `, ${cell.weekOff.dayName} week off` : ""
-                }${cell.hasSessions ? ", view sessions" : ""}`}
+              className={`calendar-day ${cell.status} ${cell.isToday ? "today" : ""} ${
+                cell.hasSessions ? "has-sessions" : ""
+              } ${cell.holiday ? "holiday" : ""} ${cell.weekOff ? "week-off" : ""} ${
+                selectedDay === cell.day ? "selected" : ""
+              }`}
+              onClick={() => onDaySelect(cell.day)}
+              aria-label={`Day ${cell.day}${cell.holiday ? `, ${cell.holiday.name}` : ""}${
+                cell.weekOff ? `, ${cell.weekOff.dayName} week off` : ""
+              }`}
               title={
                 cell.holiday
                   ? cell.holiday.name
                   : cell.weekOff
-                    ? `${cell.weekOff.dayName} — Weekly Off`
-                    : undefined
+                  ? `${cell.weekOff.dayName} — Weekly Off`
+                  : undefined
               }
             >
               <span className="calendar-day-num">{cell.day}</span>
@@ -338,8 +398,6 @@ function AttendanceCalendar({
                   <small className="calendar-day-sessions">
                     {cell.sessionCount || 1}
                   </small>
-                ) : cell.weekOff && cell.hasSessions ? (
-                  <small className="calendar-day-weekoff calendar-day-weekoff--compact">Off</small>
                 ) : null}
               </span>
             </button>
@@ -348,31 +406,13 @@ function AttendanceCalendar({
       </div>
 
       <div className="calendar-legend">
-        <span>
-          <i className="legend-dot present" />
-          Present
-        </span>
-        <span>
-          <i className="legend-dot absent" />
-          Absent
-        </span>
-        <span>
-          <i className="legend-dot half-day" />
-          Half Day
-        </span>
-        <span>
-          <i className="legend-dot late" />
-          Late
-        </span>
-        <span>
-          <i className="legend-dot holiday" />
-          Holiday
-        </span>
-        <span>
-          <i className="legend-dot week-off" />
-          Week Off
-        </span>
-        <span className="calendar-legend-hint">Click a highlighted day to view sessions, holidays, or week-offs</span>
+        <span><i className="legend-dot present" /> Present</span>
+        <span><i className="legend-dot absent" /> Absent</span>
+        <span><i className="legend-dot half-day" /> Half Day</span>
+        <span><i className="legend-dot late" /> Late</span>
+        <span><i className="legend-dot holiday" /> Holiday</span>
+        <span><i className="legend-dot week-off" /> Week Off</span>
+        <span className="calendar-legend-hint">Click any day to view its records in the table below</span>
       </div>
     </section>
   );
@@ -384,254 +424,370 @@ function TodayAttendanceTable({
   loading,
   showActions = false,
   filters,
-  setFilters,
+  onFilterChange,
+  holiday = null,
+  weekOff = null,
+  isCalendarSelection = false,
+  onClearSelectedDay,
 }) {
   const [expandedRowId, setExpandedRowId] = useState(null);
-  const onChangeHandler = (key, value) => {
-    setFilters((pre) => ({
-      ...pre,
-      [key]: value
-    }))
-  }
+  const [selfieModal, setSelfieModal] = useState({ open: false, imageUrl: "", title: "" });
 
-  const downloadAttandace = () => {
-    const data = rows.map((row) => ({
-      "Employee Name": row.name,
-      "Employee ID": row.id,
-      "Check In": row.checkIn,
-      "Check Out": row.checkOut,
-      "Working Hours": row.hours,
+  const handleOpenSelfie = (imageUrl, title) => {
+    setSelfieModal({ open: true, imageUrl, title });
+  };
 
-      "Present Days": row.presentDays ?? "-",
-      "Absent Days": row.absentDays ?? "-",
-      "Half Days": row.halfDays ?? "-",
-      "Late Days": row.lateDays ?? "-",
-
-      "Paid Days": row.paidDays ?? "-",
-      "Working Days": row.workingDays ?? "-",
-      "Calendar Days": row.calendarDays ?? "-",
-
-      "Status": row.status,
-    }));
+  const downloadAttendance = () => {
+    const data = rows.map((r) => {
+      const row = normalizeRecord(r);
+      return {
+        "Employee Name": row.name,
+        "Employee ID": row.id,
+        "Date": row.formattedDate,
+        "Check In": row.checkIn,
+        "Check Out": row.checkOut,
+        "Working Hours": row.hours,
+        "Present Days": row.presentDays ?? "-",
+        "Absent Days": row.absentDays ?? "-",
+        "Half Days": row.halfDays ?? "-",
+        "Late Days": row.lateDays ?? "-",
+        "Paid Days": row.paidDays ?? "-",
+        "Working Days": row.workingDays ?? "-",
+        "Calendar Days": row.calendarDays ?? "-",
+        Status: row.status,
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(data);
-
     ws["!cols"] = [
-      { wch: 25 }, // Employee Name
-      { wch: 18 }, // Employee ID
-      { wch: 15 }, // Check In
-      { wch: 15 }, // Check Out
-      { wch: 18 }, // Working Hours
-      { wch: 15 }, // Present Days
-      { wch: 15 }, // Absent Days
-      { wch: 15 }, // Half Days
-      { wch: 15 }, // Late Days
-      { wch: 15 }, // Paid Days
-      { wch: 15 }, // Working Days
-      { wch: 15 }, // Calendar Days
-      { wch: 15 }, // Status
+      { wch: 15 }, { wch: 25 }, { wch: 18 }, { wch: 15 }, { wch: 15 },
+      { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
     ];
 
     const wb = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-      wb,
-      ws,
-      "Attendance Report"
-    );
-
-    XLSX.writeFile(
-      wb,
-      `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`
-    );
+    XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
+    XLSX.writeFile(wb, `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   return (
-    <section className="attendance-panel attendance-glass attendance-table-card">
-      <header className="attendance-panel__head">
-        <h2>{title}</h2>
-        {setFilters && (
-          <div className="attendance-filter-container">
-            <div className="attendance-filter-buttons">
-              <input
-                type="text"
-                placeholder="Search Employee..."
-                value={filters.search}
-                onChange={(e) => onChangeHandler("search", e.target.value)}
-                className="attendance-search"
-              />
+    <>
+      <section className="attendance-panel attendance-glass attendance-table-card">
+        <header className="attendance-panel__head">
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <h2>{title}</h2>
+            {/* {isCalendarSelection && (
               <button
                 type="button"
-                className={`attendance-filter-btn ${filters.filterType === "today" ? "active" : ""
-                  }`}
-                onClick={() => onChangeHandler("filterType", "today")}
+                className="attendance-filter-btn active"
+                onClick={onClearSelectedDay}
+                style={{ fontSize: "0.8rem", padding: "0.25rem 0.6rem" }}
               >
-                Today
+                Clear Day Selection ✕
               </button>
-
-              <button
-                type="button"
-                className={`attendance-filter-btn ${filters.filterType === "week" ? "active" : ""
-                  }`}
-                onClick={() => onChangeHandler("filterType", "week")}
-              >
-                This Week
-              </button>
-
-              <button
-                type="button"
-                className={`attendance-filter-btn ${filters.filterType === "month" ? "active" : ""
-                  }`}
-                onClick={() => onChangeHandler("filterType", "month")}
-              >
-                This Month
-              </button>
-
-              <button className="attendance-download-btn" onClick={downloadAttandace}>
-                <Download size={16} />
-                <span>Download</span>
-              </button>
-            </div>
+            )} */}
           </div>
-        )}
-      </header>
 
-      <div className="attendance-table-wrap">
-        <table className="attendance-table">
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>ID</th>
-              <th>Check In</th>
-              <th>Check Out</th>
-              <th>Sessions</th>
-              <th>Hours</th>
-              <th>Status</th>
-              {showActions && <th>Actions</th>}
-              <th>Notes</th>
-            </tr>
-          </thead>
+          {onFilterChange && (
+            <div className="attendance-filter-container">
+              <div className="attendance-filter-buttons">
+                {/* Search Bar */}
+                <input
+                  type="text"
+                  placeholder="Search Employee..."
+                  value={filters.search}
+                  onChange={(e) => onFilterChange("search", e.target.value)}
+                  className="attendance-search"
+                />
 
-          <tbody>
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={showActions ? 8 : 7}
-                  className="attendance-empty"
-                >
-                  No attendance records found.
-                </td>
-              </tr>
-            )}
-
-            {rows.map((row) => {
-              const rowKey = String(row.employeeId || row.id);
-              const isExpanded = expandedRowId === rowKey;
-              const hasSessions = (row.sessions || []).length > 0;
-
-              return (
-                <Fragment key={rowKey}>
-                  <tr>
-                    <td>
-                      <div className="employee-cell">
-                        <span className="employee-avatar">
-                          {row.initials}
-                        </span>
-
-                        <div className="employee-info">
-                          <span className="employee-name">
-                            {row.name}
-                          </span>
-
-                          <span className="muted-cell employee-code">
-                            {row.id}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="muted-cell">{row.id}</td>
-
-                    <td>{row.checkIn}</td>
-
-                    <td>
-                      {row.isCheckedIn ? "—" : row.checkOut}
-                    </td>
-
-                    <td>
-                      {hasSessions ? (
-                        <button
-                          type="button"
-                          className="attendance-session-toggle"
-                          onClick={() =>
-                            setExpandedRowId(
-                              isExpanded ? null : rowKey
-                            )
-                          }
-                        >
-                          {row.sessionCount || row.sessions.length}
-
-                          {isExpanded ? (
-                            <ChevronUp size={14} />
-                          ) : (
-                            <ChevronDown size={14} />
-                          )}
-                        </button>
-                      ) : (
-                        "0"
-                      )}
-                    </td>
-
-                    <td>{row.hours}</td>
-
-                    <td>
-                      <span
-                        className={`status-text ${statusTextClass[row.status] ||
-                          "status-text-late"
-                          }`}
-                      >
-                        {row.isCheckedIn
-                          ? "Checked In"
-                          : row.status}
-                      </span>
-                    </td>
-                    <td>
-                      {row?.notes
-                        ? row.notes.length > 30
-                          ? `${row.notes.slice(0, 30)}...`
-                          : row.notes
-                        : "-"}
-                    </td>
-
-                    {showActions && (
-                      <td>
-                        <Button
-                          type="button"
-                          className="action-btn-edit attendance-action-btn"
-                        >
-                          Review
-                        </Button>
-                      </td>
-                    )}
-                  </tr>
-
-                  {isExpanded && hasSessions && (
-                    <tr className="attendance-sessions-expand-row">
-                      <td colSpan={showActions ? 8 : 7}>
-                        <SessionList
-                          sessions={row.sessions}
-                          totalHours={row.hours}
-                        />
-                      </td>
-                    </tr>
+                {/* Date Range Picker (Start & End Date) */}
+                <div className="attendance-date-range-wrap" style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                  <CalendarIcon size={16} className="text-muted" />
+                  <input
+                    type="date"
+                    className="attendance-date-input"
+                    value={filters.startDate || ""}
+                    onChange={(e) => onFilterChange("startDate", e.target.value)}
+                    title="Start Date"
+                  />
+                  <span>to</span>
+                  <input
+                    type="date"
+                    className="attendance-date-input"
+                    value={filters.endDate || ""}
+                    onChange={(e) => onFilterChange("endDate", e.target.value)}
+                    title="End Date"
+                  />
+                  {(filters.startDate || filters.endDate) && (
+                    <button
+                      type="button"
+                      className="attendance-filter-btn"
+                      onClick={() => onFilterChange("clearDates", true)}
+                      title="Clear Custom Dates"
+                      style={{ padding: "0.35rem 0.5rem" }}
+                    >
+                      <RotateCcw size={13} />
+                    </button>
                   )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                </div>
+
+                {/* Preset Filter Buttons */}
+                <button
+                  type="button"
+                  className={`attendance-filter-btn ${
+                    filters.filterType === "today" && !isCalendarSelection && !filters.startDate ? "active" : ""
+                  }`}
+                  onClick={() => onFilterChange("filterType", "today")}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  className={`attendance-filter-btn ${
+                    filters.filterType === "week" && !isCalendarSelection && !filters.startDate ? "active" : ""
+                  }`}
+                  onClick={() => onFilterChange("filterType", "week")}
+                >
+                  This Week
+                </button>
+                <button
+                  type="button"
+                  className={`attendance-filter-btn ${
+                    filters.filterType === "month" && !isCalendarSelection && !filters.startDate ? "active" : ""
+                  }`}
+                  onClick={() => onFilterChange("filterType", "month")}
+                >
+                  This Month
+                </button>
+
+                <button className="attendance-download-btn" onClick={downloadAttendance}>
+                  <Download size={16} />
+                  <span>Download</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </header>
+
+        {isCalendarSelection && holiday ? (
+          <div className="attendance-holiday-banner" style={{ margin: "1rem 1.5rem" }}>
+            <strong>{holiday.name}</strong> — <span>{holiday.type || "Paid Holiday"}</span>
+          </div>
+        ) : isCalendarSelection && weekOff ? (
+          <div className="attendance-weekoff-banner" style={{ margin: "1rem 1.5rem" }}>
+            <strong>{weekOff.dayName} — Weekly Off</strong> — <span>Non-working day</span>
+          </div>
+        ) : null}
+
+        <div className="attendance-table-wrap">
+          <table className="attendance-table">
+            <thead>
+              <tr>
+                
+                <th>Employee</th>
+                <th>ID</th>
+                <th>Date</th>
+                <th>Check In</th>
+                <th>Check Out</th>
+                <th>Selfie</th>
+                <th>In Location</th>
+                <th>Out Location</th>
+                <th>Sessions</th>
+                <th>Hours</th>
+                <th>Status</th>
+                <th>Notes</th>
+                {showActions && <th>Actions</th>}
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={showActions ? 13 : 12} className="attendance-empty">
+                    Loading attendance records...
+                  </td>
+                </tr>
+              )}
+
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={showActions ? 13 : 12} className="attendance-empty">
+                    {isCalendarSelection && holiday
+                      ? "Paid holiday — no attendance recorded for this day."
+                      : isCalendarSelection && weekOff
+                      ? "Weekly off — no attendance recorded for this day."
+                      : "No attendance records found."}
+                  </td>
+                </tr>
+              )}
+
+              {!loading &&
+                rows.map((unnormalizedRow) => {
+                  const row = normalizeRecord(unnormalizedRow);
+                  const rowKey = String(row.employeeId || row.id);
+                  const isExpanded = expandedRowId === rowKey;
+                  const sessions = row.sessions || [];
+                  const hasSessions = sessions.length > 0;
+
+                  const lastInSession = [...sessions].reverse().find((s) => s.checkInSelfieUrl);
+                  const lastOutSession = [...sessions].reverse().find((s) => s.checkOutSelfieUrl);
+                  const lastInLocSession = [...sessions].reverse().find((s) => s.checkInLocation);
+                  const lastOutLocSession = [...sessions].reverse().find((s) => s.checkOutLocation);
+
+                  return (
+                    <Fragment key={rowKey}>
+                      <tr>
+                        {/* Formatted Date Column */}
+                        
+
+                        <td>
+                          <div className="employee-cell">
+                            <span className="employee-avatar">{row.initials}</span>
+                            <div className="employee-info">
+                              <span className="employee-name">{row.name}</span>
+                              <span className="muted-cell employee-code">{row.id}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="muted-cell font-semibold">{row.id}</td>
+                        <td className="font-medium text-slate-700">{row.formattedDate}</td>
+
+                        <td>{row.checkIn}</td>
+                        <td>{row.isCheckedIn ? "—" : row.checkOut}</td>
+
+                        <td>
+                          <div style={{ display: "flex", gap: "0.25rem" }}>
+                            {lastInSession ? (
+                              <button
+                                type="button"
+                                className="attendance-selfie-icon-btn"
+                                title="View Check-In Selfie"
+                                onClick={() =>
+                                  handleOpenSelfie(
+                                    getCheckInSelfieUrl(lastInSession.checkInSelfieUrl),
+                                    `${row.name} (${row.id}) — Check-In Selfie`
+                                  )
+                                }
+                              >
+                                <Camera size={14} />
+                                <span>In</span>
+                              </button>
+                            ) : null}
+
+                            {lastOutSession ? (
+                              <button
+                                type="button"
+                                className="attendance-selfie-icon-btn"
+                                title="View Check-Out Selfie"
+                                onClick={() =>
+                                  handleOpenSelfie(
+                                    getCheckInSelfieUrl(lastOutSession.checkOutSelfieUrl),
+                                    `${row.name} (${row.id}) — Check-Out Selfie`
+                                  )
+                                }
+                              >
+                                <Camera size={14} />
+                                <span>Out</span>
+                              </button>
+                            ) : null}
+
+                            {!lastInSession && !lastOutSession ? (
+                              <span className="muted-cell">—</span>
+                            ) : null}
+                          </div>
+                        </td>
+
+                        <td>
+                          {lastInLocSession ? (
+                            <SessionLocationLink
+                              location={lastInLocSession.checkInLocation}
+                              prefix="Check-In"
+                            />
+                          ) : (
+                            <span className="muted-cell">—</span>
+                          )}
+                        </td>
+
+                        <td>
+                          {lastOutLocSession ? (
+                            <SessionLocationLink
+                              location={lastOutLocSession.checkOutLocation}
+                              prefix="Check-Out"
+                            />
+                          ) : (
+                            <span className="muted-cell">—</span>
+                          )}
+                        </td>
+
+                        <td>
+                          {hasSessions ? (
+                            <button
+                              type="button"
+                              className="attendance-session-toggle"
+                              onClick={() => setExpandedRowId(isExpanded ? null : rowKey)}
+                            >
+                              {row.sessionCount || sessions.length}
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                          ) : (
+                            "0"
+                          )}
+                        </td>
+                        <td>{row.hours}</td>
+                        <td>
+                          <span
+                            className={`status-text ${
+                              statusTextClass[row.status] || "status-text-late"
+                            }`}
+                          >
+                            {row.isCheckedIn ? "Checked In" : row.status}
+                          </span>
+                        </td>
+                        <td>
+                          {row?.notes
+                            ? row.notes.length > 30
+                              ? `${row.notes.slice(0, 30)}...`
+                              : row.notes
+                            : "-"}
+                        </td>
+                        {showActions && (
+                          <td>
+                            <Button type="button" className="action-btn-edit attendance-action-btn">
+                              Review
+                            </Button>
+                          </td>
+                        )}
+                      </tr>
+
+                      {isExpanded && (
+                        <tr className="attendance-sessions-expand-row">
+                          <td colSpan={showActions ? 13 : 12}>
+                            <div className="attendance-inline-session-wrapper" style={{ padding: "1rem" }}>
+                              <SessionList
+                                sessions={sessions}
+                                totalHours={row.hours}
+                                emptyMessage="No individual check-in/out session details recorded."
+                                onViewSelfie={handleOpenSelfie}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <SelfieModal
+        open={selfieModal.open}
+        imageUrl={selfieModal.imageUrl}
+        title={selfieModal.title}
+        onClose={() => setSelfieModal({ open: false, imageUrl: "", title: "" })}
+      />
+    </>
   );
 }
 
@@ -654,9 +810,12 @@ function Attendance() {
   const [attendanceAction, setAttendanceAction] = useState("checkin");
   const [checkInMessage, setCheckInMessage] = useState("");
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
+
   const [filters, setFilters] = useState({
     filterType: "today",
     search: "",
+    startDate: "",
+    endDate: "",
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
   });
@@ -667,10 +826,9 @@ function Attendance() {
     checkIn: "",
     checkOut: "",
     notes: "",
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split("T")[0],
   });
 
-  /* ── Confirm modal ── */
   const [modal, setModal] = useState({
     open: false,
     title: "",
@@ -682,7 +840,6 @@ function Attendance() {
 
   const toast = useToast();
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
-  // const openModal = (config) => setModal({ open: true, ...config }); // reserved for future use
 
   const canMarkAttendance = roleCanMarkAttendance(user?.role);
   const isEmployeeView = viewRole === "Employee";
@@ -709,10 +866,7 @@ function Attendance() {
     try {
       const year = viewDate.getFullYear();
       const month = viewDate.getMonth() + 1;
-
-      const [monthData,] = await Promise.all([
-        getMonthlyAttendance(year, month),
-      ]);
+      const [monthData] = await Promise.all([getMonthlyAttendance(year, month)]);
 
       setCalendarMap(monthData.calendar || {});
       setHolidayMap(monthData.holidays || {});
@@ -736,20 +890,62 @@ function Attendance() {
         setMarkForm((prev) => ({ ...prev, employeeId: list[0]._id }));
       }
     } catch {
-      // non-blocking for page load
+      // non-blocking
     }
   };
 
   useEffect(() => {
     loadMonthData();
     setSelectedDay(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, [viewDate]);
 
   useEffect(() => {
     loadEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, [user?.role]);
+
+  const handleFilterChange = (key, value) => {
+    setSelectedDay(null);
+
+    if (key === "clearDates") {
+      setFilters((prev) => ({
+        ...prev,
+        startDate: "",
+        endDate: "",
+        filterType: "today",
+      }));
+      return;
+    }
+
+    if (key === "startDate" || key === "endDate") {
+      setFilters((prev) => ({
+        ...prev,
+        [key]: value,
+        filterType: "custom",
+      }));
+      return;
+    }
+
+    if (key === "filterType") {
+      setFilters((prev) => ({
+        ...prev,
+        filterType: value,
+        startDate: "",
+        endDate: "",
+      }));
+      return;
+    }
+
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleDaySelect = (day) => {
+    setSelectedDay((prev) => (prev === day ? null : day));
+  };
 
   const calendarDays = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -824,22 +1020,23 @@ function Attendance() {
     };
   }, [todayRows, user]);
 
-  const selectedDayRecords = useMemo(() => {
-    if (!selectedDay) return [];
+  const displayedRows = useMemo(() => {
+    if (selectedDay !== null) {
+      const records = (dayRecords[selectedDay] || []).map((r) =>
+        normalizeRecord(r, selectedDay, monthLabel)
+      );
+      if (!isEmployeeView) return records;
 
-    const records = dayRecords[selectedDay] || [];
-    if (!isEmployeeView) return records;
+      const match = records.find(
+        (record) =>
+          (user?.employeeId && String(record.employeeId) === String(user.employeeId)) ||
+          record.name?.toLowerCase() === user?.name?.toLowerCase()
+      );
+      return match ? [match] : [];
+    }
 
-    const byEmployee = records.find(
-      (record) => user?.employeeId && String(record.employeeId) === String(user.employeeId)
-    );
-    const byName = records.find(
-      (record) => record.name?.toLowerCase() === user?.name?.toLowerCase()
-    );
-
-    const match = byEmployee || byName;
-    return match ? [match] : [];
-  }, [selectedDay, dayRecords, isEmployeeView, user]);
+    return todayRows.map((r) => normalizeRecord(r));
+  }, [selectedDay, dayRecords, todayRows, isEmployeeView, user, monthLabel]);
 
   const myLatestCheckInSelfieUrl = useMemo(() => {
     const sessions = myTodayRow.sessions || [];
@@ -853,19 +1050,11 @@ function Attendance() {
 
   const myLatestCheckOutSelfieUrl = useMemo(() => {
     const sessions = myTodayRow.sessions || [];
-
-    for (
-      let i = sessions.length - 1;
-      i >= 0;
-      i -= 1
-    ) {
+    for (let i = sessions.length - 1; i >= 0; i -= 1) {
       if (sessions[i]?.checkOutSelfieUrl) {
-        return getCheckInSelfieUrl(
-          sessions[i].checkOutSelfieUrl
-        );
+        return getCheckInSelfieUrl(sessions[i].checkOutSelfieUrl);
       }
     }
-
     return null;
   }, [myTodayRow]);
 
@@ -888,16 +1077,15 @@ function Attendance() {
       newDate.getMonth() === today.getMonth() &&
       newDate.getFullYear() === today.getFullYear();
 
+    setSelectedDay(null);
     setFilters((pre) => ({
       ...pre,
       month: newDate.getMonth() + 1,
       year: newDate.getFullYear(),
       filterType: isCurrentMonth ? "month" : "",
+      startDate: "",
+      endDate: "",
     }));
-  };
-
-  const handleDaySelect = (day) => {
-    setSelectedDay((prev) => (prev === day ? null : day));
   };
 
   const formatTimeForApi = (time24) => {
@@ -917,10 +1105,9 @@ function Attendance() {
       return;
     }
 
-
     if (markForm.checkIn && markForm.checkOut) {
       const timeToMinutes = (timeStr) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
+        const [hours, minutes] = timeStr.split(":").map(Number);
         return hours * 60 + minutes;
       };
 
@@ -938,7 +1125,7 @@ function Attendance() {
         ...markForm,
         checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
         checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
-        date: markForm.date || new Date().toISOString().split('T')[0],
+        date: markForm.date || new Date().toISOString().split("T")[0],
       });
       toast.success("Attendance saved successfully");
       loadMonthData();
@@ -952,6 +1139,7 @@ function Attendance() {
     setCheckInMessage("");
     setAttendanceAction("checkin");
     setShowSelfieModal(true);
+    // eslint-disable-next-line
   };
 
   const handleSelfieCapture = async (selfieBlob) => {
@@ -960,13 +1148,11 @@ function Attendance() {
 
     try {
       setCheckInMessage("Detecting your location...");
-
       const location = await getAttendanceLocation(
         attendanceAction === "checkin" ? "check in" : "check out"
       );
 
       let res;
-
       if (attendanceAction === "checkin") {
         res = await checkInAttendance(selfieBlob, location);
       } else {
@@ -975,21 +1161,19 @@ function Attendance() {
 
       setCheckInMessage(
         res.message ||
-        (attendanceAction === "checkin"
-          ? "Checked in successfully"
-          : "Checked out successfully")
+          (attendanceAction === "checkin"
+            ? "Checked in successfully"
+            : "Checked out successfully")
       );
 
       applyTodayRowUpdate(res);
       setShowSelfieModal(false);
-
       await loadMonthData();
-
     } catch (err) {
       setCheckInMessage(
         err.message ||
-        err.response?.data?.message ||
-        "Unable to process attendance"
+          err.response?.data?.message ||
+          "Unable to process attendance"
       );
     } finally {
       setActionLoading(false);
@@ -1003,48 +1187,41 @@ function Attendance() {
     setShowSelfieModal(true);
   };
 
-  useEffect(() => {
-    fetchAttendance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
-
   const fetchAttendance = async () => {
+    setLoading(true);
     try {
       const params = new URLSearchParams();
       params.append("filterType", filters.filterType);
-      if (filters.search) {
-        params.append("search", filters.search);
-      }
+      if (filters.search) params.append("search", filters.search);
+      if (filters.startDate) params.append("startDate", filters.startDate);
+      if (filters.endDate) params.append("endDate", filters.endDate);
       params.append("month", filters.month);
       params.append("year", filters.year);
+
       const data = await getTodayAttendance(params);
       setTodayRows(data.rows || []);
     } catch (error) {
       console.error(error);
+    } finally {
+      setLoading(false);
     }
+    // eslint-disable-next-line
   };
 
+  useEffect(() => {
+    fetchAttendance();
+    // eslint-disable-next-line
+  }, [filters]);
 
   const renderCalendarSection = (title) => (
-    <>
-      <AttendanceCalendar
-        monthLabel={title || monthLabel}
-        calendarDays={calendarDays}
-        dayRecords={dayRecords}
-        selectedDay={selectedDay}
-        onDaySelect={handleDaySelect}
-        onPrev={() => shiftMonth(-1)}
-        onNext={() => shiftMonth(1)}
-      />
-      <DaySessionsPanel
-        day={selectedDay}
-        monthLabel={monthLabel}
-        records={selectedDayRecords}
-        showEmployee={!isEmployeeView}
-        holiday={selectedDay ? holidayMap[selectedDay] || null : null}
-        weekOff={selectedDay ? weekOffMap[selectedDay] || null : null}
-      />
-    </>
+    <AttendanceCalendar
+      monthLabel={title || monthLabel}
+      calendarDays={calendarDays}
+      selectedDay={selectedDay}
+      onDaySelect={handleDaySelect}
+      onPrev={() => shiftMonth(-1)}
+      onNext={() => shiftMonth(1)}
+    />
   );
 
   const renderSelfAttendanceSection = (title = "My Check In / Out") => {
@@ -1077,11 +1254,11 @@ function Attendance() {
             </p>
           </div>
           <span
-            className={`attendance-status-pill ${myTodayRow.isCheckedIn
-              ? "live"
-              : statusTextClass[myTodayRow.status]?.replace("status-text-", "") ||
-              "absent"
-              }`}
+            className={`attendance-status-pill ${
+              myTodayRow.isCheckedIn
+                ? "live"
+                : statusTextClass[myTodayRow.status]?.replace("status-text-", "") || "absent"
+            }`}
           >
             {myTodayRow.isCheckedIn ? "● Checked In" : myTodayRow.status}
           </span>
@@ -1089,34 +1266,10 @@ function Attendance() {
 
         <TodayMetricsGrid
           metrics={[
-            {
-              key: "in",
-              label: "First In",
-              value: myTodayRow.checkIn,
-              icon: LogIn,
-              accent: "accent-green",
-            },
-            {
-              key: "out",
-              label: "Last Out",
-              value: myTodayRow.isCheckedIn ? "—" : myTodayRow.checkOut,
-              icon: LogOut,
-              accent: "accent-slate",
-            },
-            {
-              key: "hours",
-              label: "Total Hours",
-              value: myTodayRow.hours,
-              icon: Clock,
-              accent: "accent-blue",
-            },
-            {
-              key: "sessions",
-              label: "Sessions",
-              value: myTodayRow.sessionCount || myTodayRow.sessions?.length || 0,
-              icon: UserCheck,
-              accent: "accent-violet",
-            },
+            { key: "in", label: "First In", value: myTodayRow.checkIn, icon: LogIn, accent: "accent-green" },
+            { key: "out", label: "Last Out", value: myTodayRow.isCheckedIn ? "—" : myTodayRow.checkOut, icon: LogOut, accent: "accent-slate" },
+            { key: "hours", label: "Total Hours", value: myTodayRow.hours, icon: Clock, accent: "accent-blue" },
+            { key: "sessions", label: "Sessions", value: myTodayRow.sessionCount || myTodayRow.sessions?.length || 0, icon: UserCheck, accent: "accent-violet" },
           ]}
         />
 
@@ -1141,8 +1294,8 @@ function Attendance() {
         </div>
         {checkInMessage ? <p className="attendance-save-msg">{checkInMessage}</p> : null}
         {myLatestCheckInSelfieUrl ||
-          myLatestCheckOutSelfieUrl ||
-          myLatestCheckInLocation ? (
+        myLatestCheckOutSelfieUrl ||
+        myLatestCheckInLocation ? (
           <div className="attendance-checkin-proof">
             {myLatestCheckInSelfieUrl ? (
               <div className="attendance-checkin-selfie">
@@ -1190,7 +1343,7 @@ function Attendance() {
           </div>
         ) : null}
 
-        <div className="attendance-today-sessions">
+        <div className="attendance-today-sessions" style={{ marginTop: "1.5rem" }}>
           <div className="attendance-today-sessions-header">
             <h3>Today&apos;s Sessions</h3>
             <span className="attendance-today-sessions-count">
@@ -1268,7 +1421,7 @@ function Attendance() {
                 .toISOString()
                 .split("T")[0]}
               className="attendance-control"
-              max={new Date().toISOString().split('T')[0]}
+              max={new Date().toISOString().split("T")[0]}
               value={markForm.date}
               onChange={(e) =>
                 setMarkForm((prev) => ({ ...prev, date: e.target.value }))
@@ -1333,50 +1486,72 @@ function Attendance() {
     </section>
   );
 
+  const getTableTitle = (defaultTitle) => {
+    if (selectedDay !== null) {
+      return `Attendance — ${monthLabel} ${selectedDay}`;
+    }
+    if (filters.startDate && filters.endDate) {
+      return `Attendance (${filters.startDate} to ${filters.endDate})`;
+    }
+    return defaultTitle;
+  };
+
   const renderOrganizationView = () => (
     <>
       <AttendanceStats stats={summaryStats} />
       {canMarkAttendance ? renderMarkForm(employees, "Mark Attendance") : null}
       {renderCalendarSection(monthLabel)}
       <TodayAttendanceTable
-        title={filters.filterType === "month" ? monthLabel + " Attendance" : filters.filterType === "week" ? "Week Attendance" : "Today's Attendance"}
-        rows={todayRows}
+        key={
+          selectedDay
+            ? `day-${selectedDay}`
+            : `filter-${filters.filterType}-${filters.startDate}-${filters.endDate}-${filters.search}`
+        }
+        title={getTableTitle(
+          filters.filterType === "month"
+            ? monthLabel + " Attendance"
+            : filters.filterType === "week"
+            ? "Week Attendance"
+            : "Today's Attendance"
+        )}
+        rows={displayedRows}
         loading={loading}
         filters={filters}
-        setFilters={setFilters}
+        onFilterChange={handleFilterChange}
+        holiday={selectedDay !== null ? holidayMap[selectedDay] : null}
+        weekOff={selectedDay !== null ? weekOffMap[selectedDay] : null}
+        isCalendarSelection={selectedDay !== null}
+        onClearSelectedDay={() => setSelectedDay(null)}
       />
     </>
   );
 
   const renderHRView = () => (
     <>
-      <div className="attendance-hr-actions" >
-        <Button type="button" icon={<ShieldCheck size={16} />}>
-          Review Corrections
-        </Button>
-        <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
-          Export Report
-        </Button>
+      <div className="attendance-hr-actions">
+        <Button type="button" icon={<ShieldCheck size={16} />}>Review Corrections</Button>
+        <Button type="button" className="secondary-btn" icon={<Download size={16} />}>Export Report</Button>
       </div>
-      <AttendanceStats
-        stats={summaryStats}
-        labels={{
-          Present: "Present (Org)",
-          Absent: "Absent (Org)",
-          "Half Day": "Half Day (Org)",
-          Late: "Late (Org)",
-        }}
-      />
+      <AttendanceStats stats={summaryStats} />
       {renderSelfAttendanceSection("My Check In / Out")}
       {renderMarkForm(employees, "Mark / Correct Attendance")}
       {renderCalendarSection(`${monthLabel} — Organization`)}
       <TodayAttendanceTable
-        title={filters.filterType === "month" ? monthLabel + " Attendance All Employees" : filters.filterType === "week" ? "Week Attendance All Employees" : "Today's Attendance All Employees"}
-        rows={todayRows}
+        key={
+          selectedDay
+            ? `day-${selectedDay}`
+            : `filter-${filters.filterType}-${filters.startDate}-${filters.endDate}-${filters.search}`
+        }
+        title={getTableTitle("All Employees Attendance")}
+        rows={displayedRows}
         loading={loading}
         showActions
-        setFilters={setFilters}
+        onFilterChange={handleFilterChange}
         filters={filters}
+        holiday={selectedDay !== null ? holidayMap[selectedDay] : null}
+        weekOff={selectedDay !== null ? weekOffMap[selectedDay] : null}
+        isCalendarSelection={selectedDay !== null}
+        onClearSelectedDay={() => setSelectedDay(null)}
       />
     </>
   );
@@ -1385,57 +1560,54 @@ function Attendance() {
     <>
       <div className="attendance-role-banner manager">
         <Users size={18} />
-        <span>
-          Team view — {employees.length} team member
-          {employees.length === 1 ? "" : "s"} under your management
-        </span>
+        <span>Team view — {employees.length} team members</span>
       </div>
-      <AttendanceStats
-        stats={summaryStats}
-        labels={{
-          Present: "Team Present",
-          Absent: "Team Absent",
-          "Half Day": "Team Half Day",
-          Late: "Team Late",
-        }}
-      />
+      <AttendanceStats stats={summaryStats} />
       {renderSelfAttendanceSection("My Check In / Out")}
-      {employees.length > 0
-        ? renderMarkForm(employees, "Mark Team Attendance")
-        : null}
+      {employees.length > 0 ? renderMarkForm(employees, "Mark Team Attendance") : null}
       {renderCalendarSection(`${monthLabel} — Team Overview`)}
       <TodayAttendanceTable
-        title="Today's Attendance — My Team"
-        rows={todayRows}
+        key={
+          selectedDay
+            ? `day-${selectedDay}`
+            : `filter-${filters.filterType}-${filters.startDate}-${filters.endDate}-${filters.search}`
+        }
+        title={getTableTitle("Today's Attendance — My Team")}
+        rows={displayedRows}
         loading={loading}
-        filters={null}
-        setFilters={null}
+        holiday={selectedDay !== null ? holidayMap[selectedDay] : null}
+        weekOff={selectedDay !== null ? weekOffMap[selectedDay] : null}
+        isCalendarSelection={selectedDay !== null}
+        onClearSelectedDay={() => setSelectedDay(null)}
       />
     </>
   );
 
   const renderEmployeeView = () => (
     <>
-      <AttendanceStats
-        stats={summaryStats}
-        labels={{
-          Present: "Days Present",
-          Absent: "Days Absent",
-          "Half Day": "Half Days",
-          Late: "Late Arrivals",
-        }}
-      />
-
+      <AttendanceStats stats={summaryStats} />
       <div className="attendance-employee-layout">
         <div className="attendance-employee-primary">
           {renderSelfAttendanceSection("Today's Check In / Out")}
         </div>
         <div className="attendance-employee-secondary">
-          <div className="attendance-employee-calendar-wrap">
-            {renderCalendarSection(`${monthLabel} — My Calendar`)}
-          </div>
+          {renderCalendarSection(`${monthLabel} — My Calendar`)}
         </div>
       </div>
+      <TodayAttendanceTable
+        key={
+          selectedDay
+            ? `day-${selectedDay}`
+            : `filter-${filters.filterType}-${filters.startDate}-${filters.endDate}-${filters.search}`
+        }
+        title={getTableTitle("My Attendance History")}
+        rows={displayedRows}
+        loading={loading}
+        holiday={selectedDay !== null ? holidayMap[selectedDay] : null}
+        weekOff={selectedDay !== null ? weekOffMap[selectedDay] : null}
+        isCalendarSelection={selectedDay !== null}
+        onClearSelectedDay={() => setSelectedDay(null)}
+      />
     </>
   );
 
@@ -1459,14 +1631,11 @@ function Attendance() {
         {error ? <p className="attendance-alert attendance-alert--error">{error}</p> : null}
         {roleViews[viewRole]?.()}
 
+        {/* Selfie Camera Capture Modal */}
         <SelfieCapture
           open={showSelfieModal}
           mode={attendanceAction}
-          onClose={() => {
-            if (!checkInSubmitting) {
-              setShowSelfieModal(false);
-            }
-          }}
+          onClose={() => !checkInSubmitting && setShowSelfieModal(false)}
           onCapture={handleSelfieCapture}
           submitting={checkInSubmitting}
         />
@@ -1487,15 +1656,10 @@ function Attendance() {
   );
 }
 
-/* ===========================
-   PAGE EXPORT — wrapped in ToastProvider
-=========================== */
-function AttendancePage() {
+export default function AttendancePage() {
   return (
     <ToastProvider>
       <Attendance />
     </ToastProvider>
   );
 }
-
-export default AttendancePage;
