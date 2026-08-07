@@ -54,6 +54,10 @@ import {
 import { validateStructureDraft } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
+import { isSiteVendor } from "../utils/vendorIdhelper";
+
+const isSite = isSiteVendor();
+const name = isSite ? "Site" : "Department";
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -418,6 +422,7 @@ function Employees() {
   const [loading, setLoading] = useState(false);
 
   const [department, setDepartment] = useState([]);
+  const [departmentFilter, setDepartmentFilter] = useState("");
 
   const [
     showDocumentsModal,
@@ -491,9 +496,9 @@ function Employees() {
      FETCH EMPLOYEES
   ========================= */
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (departmentId) => {
     try {
-      const res = await getEmployees();
+      const res = await getEmployees({ departmentId });
       setEmployees(
         res.data.employees || []
       );
@@ -508,9 +513,9 @@ function Employees() {
   useEffect(() => {
     const loggedUser = localStorage.getItem('user')
     const { vendorId } = JSON.parse(loggedUser)
-    fetchEmployees();
+    fetchEmployees(departmentFilter);
     fetchDepartment(vendorId);
-  }, []);
+  }, [departmentFilter]);
 
   const fetchDepartment = async (vendorId) => {
     try {
@@ -1082,6 +1087,23 @@ function Employees() {
           {/* ACTION BUTTONS */}
           <div className="toolbar-actions">
 
+            <div className="employee-filter">
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+              >
+                <option value="">
+                  {isSiteVendor() ? "All Sites" : "All Departments"}
+                </option>
+
+                {department.map((item) => (
+                  <option key={item._id} value={item._id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <Button
               variant="secondary"
               icon={<Upload size={18} />}
@@ -1117,6 +1139,8 @@ function Employees() {
                   <th>Name</th>
                   <th>Phone</th>
                   <th>Designation</th>
+                  <th>{name} name</th>
+                  <th>State name</th>
                   <th>App Login</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -1137,6 +1161,18 @@ function Employees() {
 
                       <td>
                         {emp.designation || "-"}
+                      </td>
+
+                      <td>
+                        {emp.department || "-"}
+                      </td>
+
+                      <td>
+                        {emp.sitePayoutRule || "-"}
+                      </td>
+
+                      <td>
+                        {emp.stateName || "-"}
                       </td>
 
                       <td>

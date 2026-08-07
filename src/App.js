@@ -28,7 +28,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/forgot-org-code" element={<ForgotOrgCode />} />
         <Route
-          path="/dashboard"
+          path=":vendor/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />
@@ -36,7 +36,7 @@ function App() {
           }
         />
         <Route
-          path="/departments"
+          path=":vendor/departments"
           element={
             <ProtectedRoute>
               <Departments />
@@ -44,7 +44,15 @@ function App() {
           }
         />
         <Route
-          path="/employees"
+          path=":vendor/sites"
+          element={
+            <ProtectedRoute>
+              <Departments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path=":vendor/employees"
           element={
             <ProtectedRoute>
               <Employees />
@@ -52,7 +60,7 @@ function App() {
           }
         />
         <Route
-          path="/documents"
+          path=":vendor/documents"
           element={
             <ProtectedRoute>
               <Documents />
@@ -60,7 +68,7 @@ function App() {
           }
         />
         <Route
-          path="/settings"
+          path=":vendor/settings"
           element={
             <ProtectedRoute>
               <Settings />
@@ -68,7 +76,7 @@ function App() {
           }
         />
         <Route
-          path="/payroll"
+          path=":vendor/payroll"
           element={
             <ProtectedRoute>
               <Payroll />
@@ -76,7 +84,7 @@ function App() {
           }
         />
         <Route
-          path="/attendance"
+          path=":vendor/attendance"
           element={
             <ProtectedRoute>
               <Attendance />
@@ -84,7 +92,7 @@ function App() {
           }
         />
         <Route
-          path="/leave"
+          path=":vendor/leave"
           element={
             <ProtectedRoute>
               <Leave />
@@ -92,7 +100,7 @@ function App() {
           }
         />
         <Route
-          path="/expenses"
+          path=":vendor/expenses"
           element={
             <ProtectedRoute>
               <Expense />
@@ -100,7 +108,7 @@ function App() {
           }
         />
         <Route
-          path="/resignation"
+          path=":vendor/resignation"
           element={
             <ProtectedRoute>
               <Resignations />

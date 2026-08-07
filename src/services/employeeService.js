@@ -73,8 +73,8 @@ export const buildEmployeePayload = (data, extras = {}) => {
 /* =========================
    GET ALL EMPLOYEES
 ========================= */
-export const getEmployees = async () => {
-  return API.get("/employees");
+export const getEmployees = async (params = {}) => {
+  return API.get("/employees", { params });
 };
 
 /* =========================
