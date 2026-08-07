@@ -21,13 +21,16 @@ import {
 
 import "./Department.css";
 import Button from "../components/Button";
+import { isSiteVendor } from "../utils/vendorIdhelper";
 
+const isSite = isSiteVendor();
+const name = isSite ? "Site" : "Department";
 
 
 function DepModal({ title, onClose, size = "md", children, footer }) {
   return (
     <div
-    
+
       className="manage-depts-overlay"
       onClick={(e) => e.target === e.currentTarget && onClose?.()}
     >
@@ -70,7 +73,7 @@ function FormField({ label, htmlFor, required, fullWidth, children }) {
 }
 
 function Departments() {
-  const [vendorId, setVendorId] = useState(null); 
+  const [vendorId, setVendorId] = useState(null);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -86,12 +89,14 @@ function Departments() {
     shift: "",
     otPolicy: "",
     departmentHead: "",
-  };
+    sitePayoutRule: "",
+    stateName: "",
+  }
 
   const [form, setForm] = useState(initialForm);
   const [departments, setDepartments] = useState([]);
   const [search, setSearch] = useState("");
-  
+
   const [shifts, setShifts] = useState([]);
   const [otPolicies, setOtPolicies] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -112,13 +117,13 @@ function Departments() {
         getOtPolicies(vendorId),
         getEmployees(vendorId)
       ]);
-      
+
       setDepartments(depRes.data || []);
       setShifts(shiftRes.data || []);
       setOtPolicies(otRes.data || []);
       setEmployees(empRes.data || []);
     } catch (error) {
-      console.error("Error standardizing department view initialization:", error);
+      console.error("Error standardizing " + name + " view initialization:", error);
     } finally {
       setLoading(false);
     }
@@ -148,7 +153,7 @@ function Departments() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      alert("Department name is required");
+      alert(name + " is required");
       return;
     }
 
@@ -159,15 +164,17 @@ function Departments() {
       shift: form.shift || null,
       otPolicy: form.otPolicy || null,
       departmentHead: form.departmentHead || null,
+      sitePayoutRule: form.sitePayoutRule || null,
+      stateName: form.stateName || null,
     };
 
     try {
       if (isEditing && selectedDepartment) {
         await updateDepartment(selectedDepartment._id, payload);
-        alert("Department updated successfully");
+        alert(name + " updated successfully");
       } else {
         await createDepartment(payload);
-        alert("Department created successfully");
+        alert(name + " created successfully");
       }
       handleModalClose();
       const depRes = await getDepartments(vendorId);
@@ -185,6 +192,8 @@ function Departments() {
       shift: dep.shift?._id || "",
       otPolicy: dep.otPolicy?._id || "",
       departmentHead: dep.departmentHead?._id || "",
+      stateName: dep.stateName || "",
+      sitePayoutRule: dep.sitePayoutRule || "",
     });
     setIsViewing(true);
   };
@@ -197,6 +206,8 @@ function Departments() {
       shift: dep.shift?._id || "",
       otPolicy: dep.otPolicy?._id || "",
       departmentHead: dep.departmentHead?._id || "",
+      stateName: dep.stateName || "",
+      sitePayoutRule: dep.sitePayoutRule || "",
     });
     setIsEditing(true);
     setShowAddModal(true);
@@ -215,7 +226,7 @@ function Departments() {
   };
 
   const filteredDepartments = departments.filter((dep) =>
-    [dep.name, dep.description, dep.departmentHead?.name]
+    [dep.name, dep.description, dep.departmentHead?.name, dep.stateName, dep.sitePayoutRule]
       .join(" ")
       .toLowerCase()
       .includes(search.toLowerCase())
@@ -248,6 +259,59 @@ function Departments() {
           />
         </FormField>
       </FormSection>
+
+      {isSiteVendor() && (
+        <div className="site-extra-fields">
+          <div className="site-payout-rule">
+            <FormField
+              label="Site Payout Rule"
+              htmlFor="site-payout-rule"
+            >
+              <select
+                id="site-payout-rule"
+                name="sitePayoutRule"
+                value={form.sitePayoutRule || ""}
+                onChange={handleChange}
+                disabled={isDisabled}
+              >
+                <option value="">Select Payout Rule</option>
+                <option value="Daily">Daily</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+            </FormField>
+          </div>
+
+          <div className="site-state-name">
+            <FormField
+              label="Site State Name"
+              htmlFor="site-state-name"
+            >
+              <select
+                id="site-state-name"
+                name="stateName"
+                value={form.stateName || ""}
+                onChange={handleChange}
+                disabled={isDisabled}
+              >
+                <option value="">Select State</option>
+                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                <option value="Delhi">Delhi</option>
+                <option value="Gujarat">Gujarat</option>
+                <option value="Haryana">Haryana</option>
+                <option value="Karnataka">Karnataka</option>
+                <option value="Madhya Pradesh">Madhya Pradesh</option>
+                <option value="Maharashtra">Maharashtra</option>
+                <option value="Punjab">Punjab</option>
+                <option value="Rajasthan">Rajasthan</option>
+                <option value="Tamil Nadu">Tamil Nadu</option>
+                <option value="Telangana">Telangana</option>
+                <option value="Uttar Pradesh">Uttar Pradesh</option>
+                <option value="West Bengal">West Bengal</option>
+              </select>
+            </FormField>
+          </div>
+        </div>
+      )}
 
       <FormSection title="Operational Rules & Leadership" description="Link shifts, rules, and heads">
         <FormField label="Assigned Operational Shift" htmlFor="dep-shift">
@@ -284,7 +348,7 @@ function Departments() {
     <MainLayout>
       <div className="manage-depts-container">
         <p className="manage-depts-stats">
-          Total Departments Monitored: <strong>{departments.length}</strong>
+          Total {isSiteVendor() ? "Sites" : "Departments"} Monitored: <strong>{departments.length}</strong>
         </p>
 
         <div className="manage-depts-toolbar">
@@ -292,15 +356,15 @@ function Departments() {
             <Search size={22} />
             <input
               type="text"
-              placeholder="Search by department name, lead..."
+              placeholder={"Search by " + name + " name, lead..."}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
           <div className="manage-depts-actions">
-            <Button  icon={<Plus size={20} />} onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
-              Add Department
+            <Button icon={<Plus size={20} />} onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
+              Add {name}
             </Button>
           </div>
         </div>
@@ -310,7 +374,7 @@ function Departments() {
             <table className="manage-depts-table">
               <thead>
                 <tr>
-                  <th>Department Name</th>
+                  <th>{name} Name</th>
                   <th>Description</th>
                   <th>Default Shift</th>
                   <th>Overtime Rule</th>
@@ -356,7 +420,7 @@ function Departments() {
 
         {showAddModal ? (
           <DepModal
-            title={isEditing ? "Modify Department Record" : "Register New Department Branch"}
+            title={isEditing ? "Modify " + name + " Record" : "Register New " + name}
             onClose={handleModalClose}
             size="lg"
             footer={
@@ -375,7 +439,7 @@ function Departments() {
         ) : null}
 
         {isViewing ? (
-          <DepModal title="Department Analysis Review" onClose={handleModalClose} size="lg">
+          <DepModal title={name + "Analysis Review"} onClose={handleModalClose} size="lg">
             {renderFormFields(true)}
           </DepModal>
         ) : null}
