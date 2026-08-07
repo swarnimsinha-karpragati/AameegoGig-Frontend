@@ -17,7 +17,6 @@ import {
   ClipboardCheck,
   Check,
   Camera,
-  ExternalLink,
   X,
   Calendar as CalendarIcon,
   RotateCcw,
@@ -179,8 +178,6 @@ function SessionLocationLink({ location, prefix }) {
       title={`${prefix}: ${formatted.label}`}
     >
       <MapPin size={14} />
-      <span>{prefix}</span>
-      <ExternalLink size={12} />
     </a>
   );
 }
@@ -342,7 +339,7 @@ function AttendanceCalendar({
 }) {
   return (
     <section className="attendance-panel attendance-glass attendance-calendar-card">
-      <header className="attendance-panel__head calendar-toolbar">
+      <header className="attendance-panel__head calendar-toolbar" style={{display:'flex',flexDirection:'row'}}>
         <h2>{monthLabel}</h2>
         <div className="calendar-nav">
           <button type="button" aria-label="Previous month" onClick={onPrev}>
@@ -474,8 +471,9 @@ function TodayAttendanceTable({
     <>
       <section className="attendance-panel attendance-glass attendance-table-card">
         <header className="attendance-panel__head">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <h2>{title}</h2>
+          <div>
+              <h2>{title}</h2>
+            
             {/* {isCalendarSelection && (
               <button
                 type="button"
@@ -590,8 +588,8 @@ function TodayAttendanceTable({
                 <th>Check In</th>
                 <th>Check Out</th>
                 <th>Selfie</th>
-                <th>In Location</th>
-                <th>Out Location</th>
+                <th>In</th>
+                <th>Out</th>
                 <th>Sessions</th>
                 <th>Hours</th>
                 <th>Status</th>

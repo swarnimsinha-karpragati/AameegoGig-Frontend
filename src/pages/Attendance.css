@@ -32,10 +32,11 @@
 
 .attendance-panel__head {
   display: flex;
-  align-items: center;
+  align-items: start;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  flex-direction: column;
 }
 
 .attendance-panel__head h2 {
@@ -48,12 +49,14 @@
   justify-content: flex-end;
   align-items: center;
   flex: 1;
+  width: 100%;
 }
 
 .attendance-filter-buttons {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 1rem;
   flex-wrap: wrap;
 }
 
