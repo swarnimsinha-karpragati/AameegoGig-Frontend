@@ -32,10 +32,11 @@ function MainLayout({ children }) {
 
   useEffect(() => {
     const refreshUser = () => {
-      setUser(getStoredUser());
+      const storedUser = getStoredUser();
+      setUser(storedUser);
       setAvatarBroken(false);
-      const formatName = getStoredUser().vendorName.trim().replace(/\s+/g, "-").toLowerCase();
-      setVendorCode(formatName)
+      const formatName = storedUser?.vendorName?.trim()?.replace(/\s+/g, "-").toLowerCase() || "";
+      setVendorCode(formatName);
     };
     window.addEventListener("storage", refreshUser);
     window.addEventListener("user-updated", refreshUser);
@@ -49,6 +50,16 @@ function MainLayout({ children }) {
   const avatarSrc = resolveMediaUrl(user?.photoDisplayUrl, user?.photoUrl);
 
   const isSite = isSiteVendor();
+
+  const normalizeRoutePath = (pathname) => {
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length > 1) {
+      return `/${segments.slice(1).join("/")}`;
+    }
+    return pathname || "/";
+  };
+
+  const currentPath = normalizeRoutePath(location.pathname);
 
   const pageMeta = {
     "/dashboard": {
@@ -98,7 +109,7 @@ function MainLayout({ children }) {
   };
 
   const currentPage =
-    pageMeta[location.pathname] || pageMeta["/dashboard"];
+    pageMeta[currentPath] || pageMeta["/dashboard"];
 
   const menuItems = [
     {
@@ -221,7 +232,7 @@ function MainLayout({ children }) {
           <nav className="sidebar-menu">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+              const isActive = currentPath === item.path;
 
               return (
                 <button
