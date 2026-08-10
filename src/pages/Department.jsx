@@ -247,7 +247,7 @@ function Departments() {
   const renderFormFields = (isDisabled = false) => (
     <form id="department-core-form" onSubmit={handleSubmit}>
       <FormSection title="Primary Details" description="Identify core naming scope values">
-        <FormField label="Department Name" htmlFor="dep-name" required fullWidth>
+        <FormField label={`${name} Name`} htmlFor="dep-name" required fullWidth>
           <input
             id="dep-name"
             name="name"

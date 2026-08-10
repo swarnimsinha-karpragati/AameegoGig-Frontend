@@ -1310,10 +1310,6 @@ function Employees() {
                       </td>
 
                       <td>
-                        {emp.sitePayoutRule || "-"}
-                      </td>
-
-                      <td>
                         {emp.stateName || "-"}
                       </td>
 
