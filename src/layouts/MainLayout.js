@@ -44,7 +44,7 @@ function MainLayout({ children }) {
       window.removeEventListener("storage", refreshUser);
       window.removeEventListener("user-updated", refreshUser);
     };
-  }, [location.pathname]);
+  }, []);
 
   const avatarSrc = resolveMediaUrl(user?.photoDisplayUrl, user?.photoUrl);
 
@@ -153,7 +153,10 @@ function MainLayout({ children }) {
     },
   ].filter((item) => canAccessRoute(user?.role, item.path));
 
-  const [logo, setLogo] = useState(null);
+  const [logo, setLogo] = useState(() => {
+    const storedUser = getStoredUser();
+    return resolveMediaUrl(storedUser?.logoDisplayUrl, storedUser?.logoUrl) || null;
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -190,7 +193,8 @@ function MainLayout({ children }) {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+     // eslint-disable-next-line
+  }, []);
 
 
   return (

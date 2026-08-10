@@ -26,7 +26,8 @@ import {
   X,
   FileText,
   FolderOpen,
-  Download
+  Download,
+  MoreVertical
 } from "lucide-react";
 
 
@@ -423,6 +424,18 @@ function Employees() {
 
   const [department, setDepartment] = useState([]);
   const [departmentFilter, setDepartmentFilter] = useState("");
+
+  const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest(".action-dropdown-wrapper")) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const [
     showDocumentsModal,
@@ -1198,68 +1211,88 @@ function Employees() {
                       </td>
 
                       <td>
-                        <div className="emp-action-buttons">
-
+                        <div className="action-dropdown-wrapper">
                           <button
-                            className="emp-grid-btn"
-                            onClick={() =>
-                              handleView(emp)
-                            }
-                          >
-                            <Eye />
-                          </button>
-
-                          <button
-                            className="emp-grid-btn"
-                            onClick={() =>
-                              handleEdit(emp)
-                            }
-                          >
-                            <Pencil />
-                          </button>
-
-                          <button
-                            className="emp-grid-btn"
-                            onClick={() => {
-                              setLetterEmployeeId(emp._id);
-                              setLetterData({
-                                employeeId: emp._id,
-                                employeeName: emp.name || "",
-                                designation: emp.designation || "",
-                                joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                                annualCTC: "",
-                                monthlySalary: "",
-                                workLocation: emp.location || "Gurgaon",
-                                salaryComponents: [],
-                              });
-                              setShowLetterModal(true);
+                            className="emp-grid-btn dropdown-toggle"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDropdownId(
+                                openDropdownId === emp._id ? null : emp._id
+                              );
                             }}
                           >
-                            <FileText />
+                            <MoreVertical size={18} />
                           </button>
 
-                          <button
-                            className="emp-grid-btn"
-                            onClick={async () => {
-                              setSelectedEmployeeForDocs(emp);
-                              await loadEmployeeDocuments(emp._id);
-                              setShowDocumentsModal(true);
-                            }}
-                          >
-                            <FolderOpen />
-                          </button>
+                          {openDropdownId === emp._id && (
+                            <div className="action-dropdown-menu">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleView(emp);
+                                }}
+                              >
+                                <Eye size={16} /> View Profile
+                              </button>
 
-                          <button
-                            className=" emp-grid-btn"
-                            onClick={() =>
-                              handleDelete(
-                                emp._id
-                              )
-                            }
-                          >
-                            <Trash2 />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleEdit(emp);
+                                }}
+                              >
+                                <Pencil size={16} /> Edit Details
+                              </button>
 
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  setLetterEmployeeId(emp._id);
+                                  setLetterData({
+                                    employeeId: emp._id,
+                                    employeeName: emp.name || "",
+                                    designation: emp.designation || "",
+                                    joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                                    annualCTC: "",
+                                    monthlySalary: "",
+                                    workLocation: emp.location || "Gurgaon",
+                                    salaryComponents: [],
+                                  });
+                                  setShowLetterModal(true);
+                                }}
+                              >
+                                <FileText size={16} /> Appointment Letter
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setOpenDropdownId(null);
+                                  setSelectedEmployeeForDocs(emp);
+                                  await loadEmployeeDocuments(emp._id);
+                                  setShowDocumentsModal(true);
+                                }}
+                              >
+                                <FolderOpen size={16} /> Documents
+                              </button>
+
+                              <div className="dropdown-divider"></div>
+
+                              <button
+                                type="button"
+                                className="dropdown-item-danger"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleDelete(emp._id);
+                                }}
+                              >
+                                <Trash2 size={16} /> Delete Employee
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
