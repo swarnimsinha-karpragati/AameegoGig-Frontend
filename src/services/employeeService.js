@@ -35,6 +35,8 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "managerId",
   "client",
   "state",
+  "ctc",
+  "ctcStructureName",
   "basicSalary",
   "hra",
   "conveyanceAllowance",

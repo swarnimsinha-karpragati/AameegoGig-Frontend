@@ -69,7 +69,7 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
       { key: "designation", label: "Designation", required: true },
-      { key: "departmentId", label: "Department", required: true },
+      { key: "departmentId", label: name, required: true },
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
       { key: "dateOfJoining", label: "Date of Joining", type: "date" },
@@ -227,7 +227,7 @@ function EmployeeFormFields({
       return (
         <>
           <select {...common}>
-            <option value="">Select department</option>
+            <option value="">Select {name}</option>
             {department &&
               department.map((dept) => (
                 <option key={dept?._id} value={dept?._id}>
@@ -786,7 +786,7 @@ function Employees() {
       ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
       [
         // Basic & Organization Details
-        "EmployeeCode", "Name", "Email", "Phone", "Designation", "departmentId", "Client",
+        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id`, "Client",
 
         // Personal & Contact Details
         "DOB", "DOJ", "Date Of Exit", "Gender", "Father/Husband Name", "Relation", "Nationality", "Marital Status",
@@ -803,9 +803,9 @@ function Employees() {
       ],
       [
         // Sample Data Row
-        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_site_depatment_ID", "Client_Name",
+        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID", "Client_Name",
 
-        "1995-08-20", "2026-01-15", "", "Male", "Suresh Kumar", "Father", "Indian", "Married",
+        "1995-08-20", "2026-01-15", "2027-01-15", "Male", "Suresh Kumar", "Father", "Indian", "Married",
         "H.No 123, Sector 15, Gurgaon, Haryana", "O+", "9876543211", "Graduate",
 
         "[Aadhaar Redacted]", "Ravi Kumar", "ABCDE1234F", "Ravi Kumar", "100200300400", "1234567890", "PF12345",
