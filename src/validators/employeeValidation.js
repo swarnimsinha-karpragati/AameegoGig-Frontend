@@ -37,7 +37,7 @@ export const employeeValidationSchema = Yup.object().shape({
     .trim()
     .required("Designation is required"),
 
-  department: Yup.string()
+  departmentId: Yup.string()
     .trim()
     .required("Department is required"),
 
@@ -63,12 +63,50 @@ export const employeeValidationSchema = Yup.object().shape({
 
   emergencyContact: Yup.string().trim().default(""),
 
+  // ---- Family & Personal ----
+  gender: Yup.string()
+    .trim()
+    .oneOf(["", "Male", "Female", "Other"], "Invalid gender")
+    .default(""),
+
+  fatherHusbandName: Yup.string()
+    .trim()
+    .matches(PATTERNS.PERSON_NAME, {
+      message: "Name must start with a letter and contain no numbers",
+      excludeEmptyString: true,
+    })
+    .default(""),
+
+  relationWithMember: Yup.string()
+    .trim()
+    .oneOf(["", "Father", "Husband", "Spouse"], "Invalid relationship")
+    .default(""),
+
+  nationality: Yup.string().trim().default(""),
+
+  maritalStatus: Yup.string()
+    .trim()
+    .oneOf(["", "Single", "Married"], "Invalid marital status")
+    .default(""),
+
+  // ---- Address ----
+  permanentAddress: Yup.string().trim().default(""),
+
+  // ---- Identity & Compliance ----
   aadhaarNumber: Yup.string()
     .trim()
     .nullable()
     .transform((value) => (value === "" ? null : value))
     .matches(PATTERNS.AADHAAR, "Aadhaar number must be exactly 12 digits")
     .default(null),
+
+  nameAsPerAadhaar: Yup.string()
+    .trim()
+    .matches(PATTERNS.PERSON_NAME, {
+      message: "Name must start with a letter and contain no numbers",
+      excludeEmptyString: true,
+    })
+    .default(""),
 
   panNumber: Yup.string()
     .trim()
@@ -77,6 +115,14 @@ export const employeeValidationSchema = Yup.object().shape({
     .transform((value) => (value === "" ? null : value))
     .matches(PATTERNS.PAN, "Invalid PAN card format")
     .default(null),
+
+  nameAsPerPan: Yup.string()
+    .trim()
+    .matches(PATTERNS.PERSON_NAME, {
+      message: "Name must start with a letter and contain no numbers",
+      excludeEmptyString: true,
+    })
+    .default(""),
 
   pfNumber: Yup.string().trim().default(""),
 
@@ -118,6 +164,9 @@ export const employeeValidationSchema = Yup.object().shape({
     .transform((value) => (value === "" ? null : value))
     .matches(PATTERNS.ESIC, "ESIC number must be exactly 10 digits")
     .default(null),
+
+  // ---- Employment ----
+  client: Yup.string().trim().default(""),
 
   dateOfJoining: Yup.date().nullable().default(null),
 

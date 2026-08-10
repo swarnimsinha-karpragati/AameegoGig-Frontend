@@ -16,7 +16,8 @@ import {
   Pencil,
   Trash2,
   X,
-  Plus
+  Plus,
+  Copy
 } from "lucide-react";
 
 import "./Department.css";
@@ -225,6 +226,17 @@ function Departments() {
     }
   };
 
+  const handleCopyDepartmentId = async (id) => {
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(id);
+      alert(name + " Id copied to clipboard");
+    } catch (error) {
+      console.error("Failed to copy " + name + " Id", error);
+      alert("Unable to copy " + name + " Id");
+    }
+  };
+
   const filteredDepartments = departments.filter((dep) =>
     [dep.name, dep.description, dep.departmentHead?.name, dep.stateName, dep.sitePayoutRule]
       .join(" ")
@@ -386,7 +398,19 @@ function Departments() {
                 {filteredDepartments.length > 0 ? (
                   filteredDepartments.map((dep) => (
                     <tr key={dep._id}>
-                      <td style={{ fontWeight: "600" }}>{dep.name}</td>
+                      <td style={{ fontWeight: "600" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span>{dep.name}</span>
+                          <button
+                            type="button"
+                            className="manage-depts-copy-btn"
+                            onClick={() => handleCopyDepartmentId(dep._id)}
+                            title={`Copy ${name} ID`}
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </td>
                       <td>{dep.description || <em style={{ opacity: 0.5 }}>No description</em>}</td>
                       <td>{dep.shift?.name || dep.shift?.shiftName || "-"}</td>
                       <td>{dep.otPolicy?.policyName || dep.otPolicy?.name || "-"}</td>
