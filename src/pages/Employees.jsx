@@ -26,7 +26,8 @@ import {
   X,
   FileText,
   FolderOpen,
-  Download
+  Download,
+  MoreVertical
 } from "lucide-react";
 
 
@@ -470,6 +471,18 @@ function Employees() {
   const [department, setDepartment] = useState([]);
   const [departmentFilter, setDepartmentFilter] = useState("");
 
+  const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest(".action-dropdown-wrapper")) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const [
     showDocumentsModal,
     setShowDocumentsModal,
@@ -786,7 +799,7 @@ function Employees() {
       ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
       [
         // Basic & Organization Details
-        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id`, "Client",
+        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id`, "Client", "workLocation",
 
         // Personal & Contact Details
         "DOB", "DOJ", "Date Of Exit", "Gender", "Father/Husband Name", "Relation", "Nationality", "Marital Status",
@@ -803,7 +816,7 @@ function Employees() {
       ],
       [
         // Sample Data Row
-        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID", "Client_Name",
+        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID", "Client_Name", "Delhi",
 
         "1995-08-20", "2026-01-15", "2027-01-15", "Male", "Suresh Kumar", "Father", "Indian", "Married",
         "H.No 123, Sector 15, Gurgaon, Haryana", "O+", "9876543211", "Graduate",
@@ -948,6 +961,7 @@ function Employees() {
     incentive: emp.incentive ?? "",
     otherAllowance: emp.otherAllowance ?? "",
     professionalTax: emp.professionalTax ?? "",
+    location: emp.location || "",
     client: emp.client || emp.clientName || "",
     siteCode: emp.siteCode || "",
     pfNumber: emp.pfNumber || "",
@@ -1336,68 +1350,88 @@ function Employees() {
                       </td>
 
                       <td>
-                        <div className="emp-action-buttons">
-
+                        <div className="action-dropdown-wrapper">
                           <button
-                            className="emp-grid-btn"
-                            onClick={() =>
-                              handleView(emp)
-                            }
-                          >
-                            <Eye />
-                          </button>
-
-                          <button
-                            className="emp-grid-btn"
-                            onClick={() =>
-                              handleEdit(emp)
-                            }
-                          >
-                            <Pencil />
-                          </button>
-
-                          <button
-                            className="emp-grid-btn"
-                            onClick={() => {
-                              setLetterEmployeeId(emp._id);
-                              setLetterData({
-                                employeeId: emp._id,
-                                employeeName: emp.name || "",
-                                designation: emp.designation || "",
-                                joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                                annualCTC: "",
-                                monthlySalary: "",
-                                workLocation: emp.location || "Gurgaon",
-                                salaryComponents: [],
-                              });
-                              setShowLetterModal(true);
+                            className="emp-grid-btn dropdown-toggle"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDropdownId(
+                                openDropdownId === emp._id ? null : emp._id
+                              );
                             }}
                           >
-                            <FileText />
+                            <MoreVertical size={18} />
                           </button>
 
-                          <button
-                            className="emp-grid-btn"
-                            onClick={async () => {
-                              setSelectedEmployeeForDocs(emp);
-                              await loadEmployeeDocuments(emp._id);
-                              setShowDocumentsModal(true);
-                            }}
-                          >
-                            <FolderOpen />
-                          </button>
+                          {openDropdownId === emp._id && (
+                            <div className="action-dropdown-menu">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleView(emp);
+                                }}
+                              >
+                                <Eye size={16} /> View Profile
+                              </button>
 
-                          <button
-                            className=" emp-grid-btn"
-                            onClick={() =>
-                              handleDelete(
-                                emp._id
-                              )
-                            }
-                          >
-                            <Trash2 />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleEdit(emp);
+                                }}
+                              >
+                                <Pencil size={16} /> Edit Details
+                              </button>
 
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  setLetterEmployeeId(emp._id);
+                                  setLetterData({
+                                    employeeId: emp._id,
+                                    employeeName: emp.name || "",
+                                    designation: emp.designation || "",
+                                    joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                                    annualCTC: "",
+                                    monthlySalary: "",
+                                    workLocation: emp.location || "Gurgaon",
+                                    salaryComponents: [],
+                                  });
+                                  setShowLetterModal(true);
+                                }}
+                              >
+                                <FileText size={16} /> Appointment Letter
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setOpenDropdownId(null);
+                                  setSelectedEmployeeForDocs(emp);
+                                  await loadEmployeeDocuments(emp._id);
+                                  setShowDocumentsModal(true);
+                                }}
+                              >
+                                <FolderOpen size={16} /> Documents
+                              </button>
+
+                              <div className="dropdown-divider"></div>
+
+                              <button
+                                type="button"
+                                className="dropdown-item-danger"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleDelete(emp._id);
+                                }}
+                              >
+                                <Trash2 size={16} /> Delete Employee
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1678,11 +1712,27 @@ function Employees() {
                     </div>
 
                     <div>
+                      <label>Client</label>
+                      <span>{selectedEmployee.client || "-"}</span>
+                    </div>
+
+                    <div>
                       <label>Date Of Joining</label>
                       <span>
                         {selectedEmployee.dateOfJoining
                           ? new Date(
                             selectedEmployee.dateOfJoining
+                          ).toLocaleDateString()
+                          : "-"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Relieving Date</label>
+                      <span>
+                        {selectedEmployee.relievingDate
+                          ? new Date(
+                            selectedEmployee.relievingDate
                           ).toLocaleDateString()
                           : "-"}
                       </span>
@@ -1697,6 +1747,11 @@ function Employees() {
                       <label>ESIC</label>
                       <span>{selectedEmployee.esicNumber || "-"}</span>
                     </div>
+
+                    <div>
+                      <label>PF Number</label>
+                      <span>{selectedEmployee.pfNumber || "-"}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1704,6 +1759,47 @@ function Employees() {
                   <h4>Personal Details</h4>
 
                   <div className="profile-grid">
+                    <div>
+                      <label>Date Of Birth</label>
+                      <span>
+                        {selectedEmployee.dob
+                          ? new Date(
+                            selectedEmployee.dob
+                          ).toLocaleDateString()
+                          : "-"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Gender</label>
+                      <span>{selectedEmployee.gender || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Father / Husband Name</label>
+                      <span>{selectedEmployee.fatherHusbandName || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Relation</label>
+                      <span>{selectedEmployee.relationWithMember || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Nationality</label>
+                      <span>{selectedEmployee.nationality || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Marital Status</label>
+                      <span>{selectedEmployee.maritalStatus || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Permanent Address</label>
+                      <span>{selectedEmployee.permanentAddress || "-"}</span>
+                    </div>
+
                     <div>
                       <label>Blood Group</label>
                       <span>{selectedEmployee.bloodGroup || "-"}</span>
@@ -1730,22 +1826,27 @@ function Employees() {
                     </div>
 
                     <div>
+                      <label>Name as on Aadhaar</label>
+                      <span>
+                        {selectedEmployee.nameAsPerAadhaar || "-"}
+                      </span>
+                    </div>
+
+                    <div>
                       <label>PAN Number</label>
                       <span>
                         {selectedEmployee.panNumber
                           ? `${selectedEmployee.panNumber.slice(
                             0,
                             2
-                          )}XXXXX${selectedEmployee.panNumber.slice(
-                            -3
-                          )}`
+                          )}XXXXX${selectedEmployee.panNumber.slice(-3)}`
                           : "-"}
                       </span>
                     </div>
 
                     <div>
-                      <label>PF Number</label>
-                      <span>{selectedEmployee.pfNumber || "-"}</span>
+                      <label>Name as on PAN</label>
+                      <span>{selectedEmployee.nameAsPerPan || "-"}</span>
                     </div>
                   </div>
                 </div>
@@ -1771,7 +1872,11 @@ function Employees() {
 
                     <div>
                       <label>IFSC Code</label>
-                      <span>{selectedEmployee.ifscCode ? selectedEmployee.ifscCode.toUpperCase() : "-"}</span>
+                      <span>
+                        {selectedEmployee.ifscCode
+                          ? selectedEmployee.ifscCode.toUpperCase()
+                          : "-"}
+                      </span>
                     </div>
                   </div>
                 </div>
