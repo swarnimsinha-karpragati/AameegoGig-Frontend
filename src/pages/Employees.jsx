@@ -70,11 +70,22 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
       { key: "designation", label: "Designation", required: true },
-      { key: "department", label: "Department", required: true },
+      { key: "departmentId", label: name, required: true },
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
       { key: "dateOfJoining", label: "Date of Joining", type: "date" },
       { key: "dob", label: "Date of Birth", type: "date" },
+    ],
+  },
+  {
+    id: "family",
+    title: "Family & Personal",
+    fields: [
+      { key: "gender", label: "Gender", type: "select-gender" },
+      { key: "fatherHusbandName", label: "Father / Husband Name" },
+      { key: "relationWithMember", label: "Relationship with Member", type: "select-relation" },
+      { key: "nationality", label: "Nationality" },
+      { key: "maritalStatus", label: "Marital Status", type: "select-marital" },
     ],
   },
   {
@@ -86,11 +97,20 @@ const EMPLOYEE_FORM_SECTIONS = [
     ],
   },
   {
+    id: "address",
+    title: "Address",
+    fields: [
+      { key: "permanentAddress", label: "Permanent Address", fullWidth: true },
+    ],
+  },
+  {
     id: "identity",
     title: "Identity & Compliance",
     fields: [
       { key: "aadhaarNumber", label: "Aadhaar Number" },
+      { key: "nameAsPerAadhaar", label: "Name as on Aadhaar" },
       { key: "panNumber", label: "PAN Number" },
+      { key: "nameAsPerPan", label: "Name as on PAN" },
       { key: "uan", label: "UAN" },
       { key: "pfNumber", label: "PF Number" },
       { key: "esicNumber", label: "ESIC Number" },
@@ -117,6 +137,7 @@ const EMPLOYEE_FORM_SECTIONS = [
     id: "employment",
     title: "Employment",
     fields: [
+      { key: "client", label: "Client" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
     ],
   },
@@ -203,11 +224,11 @@ function EmployeeFormFields({
       onChange: onFieldChange,
       className: inputClassName(field.key),
     };
-    if (field.key === "department") {
+    if (field.key === "departmentId") {
       return (
         <>
           <select {...common}>
-            <option value="">Select department</option>
+            <option value="">Select {name}</option>
             {department &&
               department.map((dept) => (
                 <option key={dept?._id} value={dept?._id}>
@@ -254,6 +275,48 @@ function EmployeeFormFields({
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-gender") {
+      return (
+        <>
+          <select {...common} value={values.gender || ""}>
+            <option value="">Select</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+
+          </select>
+          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-relation") {
+      return (
+        <>
+          <select {...common} value={values.relationWithMember || ""}>
+            <option value="">Select</option>
+            <option value="Father">Father</option>
+            <option value="Husband">Husband</option>
+            <option value="Spouse">Spouse</option>
+          </select>
+          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-marital") {
+      return (
+        <>
+          <select {...common} value={values.maritalStatus || ""}>
+            <option value="">Select</option>
+            <option value="Single">Single</option>
+            <option value="Married">Married</option>
+          </select>
+          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
         </>
       );
     }
@@ -373,44 +436,27 @@ function Employees() {
   ========================= */
 
   const initialForm = {
-    name: "",
-    email: "",
-    phone: "",
+    name: "", email: "", phone: "",
+    designation: "", departmentId: "", location: "",
+    dob: "", bloodGroup: "", emergencyContact: "",
 
-    designation: "",
-    department: "",
-    location: "",
+    gender: "",
+    fatherHusbandName: "",
+    relationWithMember: "",
+    nationality: "",
+    maritalStatus: "",
+    permanentAddress: "",
+    nameAsPerPan: "",
+    nameAsPerAadhaar: "",
+    client: "",
 
-    dob: "",
-    bloodGroup: "",
-    emergencyContact: "",
-
-    aadhaarNumber: "",
-    panNumber: "",
-
-    uan: "",
-    pfNumber: "",
-    esicNumber: "",
-
-    bankName: "",
-    accountHolderName: "",
-    accountNumber: "",
-    ifscCode: "",
-
+    aadhaarNumber: "", panNumber: "",
+    uan: "", pfNumber: "", esicNumber: "",
+    bankName: "", accountHolderName: "", accountNumber: "", ifscCode: "",
     highestQualification: "",
-
-    dateOfJoining: "",
-    relievingDate: "",
-    managerId: "",
-    basicSalary: "",
-    hra: "",
-    conveyanceAllowance: "",
-    incentive: "",
-    otherAllowance: "",
-    professionalTax: "",
-    createAppLogin: false,
-    userRole: "Employee",
-    userPassword: "",
+    dateOfJoining: "", relievingDate: "", managerId: "",
+    basicSalary: "", hra: "", conveyanceAllowance: "", incentive: "", otherAllowance: "", professionalTax: "",
+    createAppLogin: false, userRole: "Employee", userPassword: "",
   };
 
   const [form, setForm] = useState(initialForm);
@@ -751,12 +797,85 @@ function Employees() {
   const handleDownloadTemplate = () => {
     const rows = [
       ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
-      ["EmployeeCode", "Name", "Email", "Phone", "Designation", "Location", "UAN", "ESIC No", "DOJ"],
-      ["EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Gurgaon", "100200300400", "1234567890", "2026-01-15"],
-      ["EMP002", "Priya Sharma", "priya.sharma@example.com", "9812345678", "Team Lead", "Bengaluru", "", "", "2026-02-01"],
+      [
+        // Basic & Organization Details
+        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id`, "Client",
+
+        // Personal & Contact Details
+        "DOB", "DOJ", "Date Of Exit", "Gender", "Father/Husband Name", "Relation", "Nationality", "Marital Status",
+        "Permanent Address", "Blood Group", "Emergency Contact", "Highest Qualification",
+
+        // Statutory & Govt IDs
+        "Aadhaar Number", "Name as on Aadhaar", "PAN Number", "Name as on PAN", "UAN", "ESIC No", "PF Number",
+
+        // Bank Details
+        "Bank Name", "Bank Account Number", "Bank IFSC", "Name as per Bank details",
+
+        // CTC Keys
+        "CTC", "CTC Structure / Template Name"
+      ],
+      [
+        // Sample Data Row
+        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID", "Client_Name",
+
+        "1995-08-20", "2026-01-15", "2027-01-15", "Male", "Suresh Kumar", "Father", "Indian", "Married",
+        "H.No 123, Sector 15, Gurgaon, Haryana", "O+", "9876543211", "Graduate",
+
+        "[Aadhaar Redacted]", "Ravi Kumar", "ABCDE1234F", "Ravi Kumar", "100200300400", "1234567890", "PF12345",
+
+        "State Bank of India", "98765432101234", "SBIN0001234", "Ravi Kumar",
+
+        "360000", "Standard_Sales_Structure"
+      ],
     ];
+
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [18, 26, 14, 18, 14, 16, 14, 12].map((wch) => ({ wch }));
+
+    // 32 Columns Width Configuration (har column header aur data length ke mutabiq)
+    ws["!cols"] = [
+      // 1-9: Basic & Org Details
+      { wch: 15 }, // EmployeeCode
+      { wch: 20 }, // Name
+      { wch: 25 }, // Email
+      { wch: 15 }, // Phone
+      { wch: 18 }, // Designation
+      { wch: 25 }, // departmentId
+      { wch: 15 }, // Client
+
+      // 10-21: Personal & Contact Details
+      { wch: 12 }, // DOB
+      { wch: 12 }, // DOJ
+      { wch: 14 }, // Date Of Exit
+      { wch: 10 }, // Gender
+      { wch: 22 }, // Father/Husband Name
+      { wch: 12 }, // Relation
+      { wch: 12 }, // Nationality
+      { wch: 14 }, // Marital Status
+      { wch: 35 }, // Permanent Address
+      { wch: 12 }, // Blood Group
+      { wch: 18 }, // Emergency Contact
+      { wch: 22 }, // Highest Qualification
+
+      // 22-28: Statutory & Govt IDs
+      { wch: 18 }, // Aadhaar Number
+      { wch: 20 }, // Name as on Aadhaar
+      { wch: 14 }, // PAN Number
+      { wch: 18 }, // Name as on PAN
+      { wch: 16 }, // UAN
+      { wch: 14 }, // ESIC No
+      { wch: 14 }, // PF Number
+
+      // 29-30: Bank Details
+      { wch: 22 }, // Bank Name
+      { wch: 20 }, // Bank Account Number
+      { wch: 14 }, // Bank IFSC
+      { wch: 22 }, // Name as per Bank details
+
+      // 31-32: CTC Keys
+      { wch: 12 }, // CTC
+      { wch: 30 }  // CTC Structure / Template Name
+    ];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Employees");
     XLSX.writeFile(wb, "employee-bulk-upload-template.xlsx");
@@ -822,32 +941,55 @@ function Employees() {
      EDIT EMPLOYEE
   ========================= */
 
+  const normalizeEmployeeForForm = (emp) => ({
+    ...emp,
+    departmentId: emp.departmentId || emp.department || "",
+    departmentName: emp.departmentName || "",
+    managerId: emp.managerId?._id || emp.managerId || "",
+    dob: emp.dob ? emp.dob.split("T")[0] : "",
+    dateOfJoining:
+      emp.dateOfJoining
+        ? emp.dateOfJoining.split("T")[0]
+        : "",
+    relievingDate:
+      emp.relievingDate
+        ? emp.relievingDate.split("T")[0]
+        : "",
+    basicSalary: emp.basicSalary ?? "",
+    hra: emp.hra ?? "",
+    conveyanceAllowance: emp.conveyanceAllowance ?? "",
+    incentive: emp.incentive ?? "",
+    otherAllowance: emp.otherAllowance ?? "",
+    professionalTax: emp.professionalTax ?? "",
+    client: emp.client || emp.clientName || "",
+    siteCode: emp.siteCode || "",
+    pfNumber: emp.pfNumber || "",
+    accountNumber: emp.accountNumber || "",
+    accountHolderName: emp.accountHolderName || "",
+    ifscCode: emp.ifscCode || "",
+    bankName: emp.bankName || "",
+    state: emp.state || "",
+    country: emp.country || "",
+    city: emp.city || "",
+    emergencyContact: emp.emergencyContact || "",
+    gender: emp.gender || "",
+    fatherHusbandName: emp.fatherHusbandName || emp.fatherName || "",
+    relationWithMember: emp.relationWithMember || emp.relation || "",
+    nationality: emp.nationality || "",
+    maritalStatus: emp.maritalStatus || "",
+    permanentAddress: emp.permanentAddress || emp.address || "",
+    aadhaarNumber: emp.aadhaarNumber || "",
+    nameAsPerAadhaar: emp.nameAsPerAadhaar || "",
+    panNumber: emp.panNumber || "",
+    nameAsPerPan: emp.nameAsPerPan || "",
+    highestQualification: emp.highestQualification || "",
+    uan: emp.uan || "",
+    esicNumber: emp.esicNumber || "",
+  });
+
   const handleEdit = (emp) => {
     setErrors({});
-    setSelectedEmployee({
-      ...emp,
-      department:
-        emp.department && typeof emp.department === "object"
-          ? emp.department._id || ""
-          : emp.department || "",
-      managerId: emp.managerId?._id || emp.managerId || "",
-      dob: emp.dob ? emp.dob.split("T")[0] : "",
-      dateOfJoining:
-        emp.dateOfJoining
-          ? emp.dateOfJoining
-            .split("T")[0]
-          : "",
-      relievingDate:
-        emp.relievingDate
-          ? emp.relievingDate.split("T")[0]
-          : "",
-      basicSalary: emp.basicSalary ?? "",
-      hra: emp.hra ?? "",
-      conveyanceAllowance: emp.conveyanceAllowance ?? "",
-      incentive: emp.incentive ?? "",
-      otherAllowance: emp.otherAllowance ?? "",
-      professionalTax: emp.professionalTax ?? "",
-    });
+    setSelectedEmployee(normalizeEmployeeForForm(emp));
 
     setEnableLoginOnUpdate(false);
     setIsEditing(true);
@@ -1178,10 +1320,6 @@ function Employees() {
 
                       <td>
                         {emp.department || "-"}
-                      </td>
-
-                      <td>
-                        {emp.sitePayoutRule || "-"}
                       </td>
 
                       <td>

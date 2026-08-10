@@ -209,6 +209,29 @@
   background-color: #fee2e2;
 }
 
+.manage-depts-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+  padding: 0;
+  background-color: #f8fafc;
+  color: #475569;
+}
+
+.manage-depts-copy-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.manage-depts-copy-btn:active {
+  transform: scale(0.95);
+}
+
 /* ==========================================================================
    Overlay Dialog View Modals
    ========================================================================== */
