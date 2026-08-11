@@ -22,8 +22,8 @@ export const sendOtp = async (payload) => {
   return res.data;
 };
 
-export const verifyOtp = async ({emailOrPhone,otp}) => {
-  const res = await API.get(authPath(`verify-otp?emailOrPhone=${emailOrPhone}&otp=${otp}`));
+export const verifyOtp = async ({emailOrPhone,otp,vendorCode}) => {
+  const res = await API.get(authPath(`verify-otp?emailOrPhone=${emailOrPhone}&otp=${otp}&vendorCode=${vendorCode}`));
   return res.data;
 };
 

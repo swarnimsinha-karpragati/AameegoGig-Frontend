@@ -118,10 +118,10 @@ function Resignations() {
   }, []);
 
   const fetchAllData = useCallback(async () => {
-    if (!vendorId || !currentUser?.employeeId) return;
+    if (!vendorId) return;
     try {
       setLoading(true);
-      const res = await getResignation(vendorId, currentUser.employeeId);
+      const res = await getResignation(vendorId, currentUser.employeeId?currentUser.employeeId:currentUser.id);
       setMyRecords(res.data.myrecords || []);
       setUnderMeRecords(res.data.underMe || []);
       setFinalApprovalRecords(res.data.finalApproval || []);
@@ -130,10 +130,11 @@ function Resignations() {
     } finally {
       setLoading(false);
     }
-  }, [vendorId, currentUser?.employeeId]);
+    // eslint-disable-next-line 
+  }, [vendorId]);
 
   useEffect(() => {
-    if (vendorId && currentUser) {
+    if (vendorId) {
       fetchAllData();
     }
   }, [vendorId, currentUser, fetchAllData]);
@@ -229,11 +230,14 @@ function Resignations() {
       setIsLoading(true)
         if (isHrFinalizing) {
             const payload = {
-                status: "Approved",
-                isExitApproved: true,
-                approvedBy: currentUser?.employeeId,
-                ...checklistForm,
-                fnfAmount: Number(checklistForm.fnfAmount)
+              status: "Approved",
+              isExitApproved: true,
+              approvedBy: {
+                id: currentUser?.employeeId || currentUser?.id,
+                refModel: currentUser?.employeeId ? "Employee" : "User" 
+              },
+              ...checklistForm,
+              fnfAmount: Number(checklistForm.fnfAmount)
             };
             console.log(payload)
             await finalApproval(approvingRecordId, payload);
@@ -244,7 +248,10 @@ function Resignations() {
             const payload = {
                 status: "Verified",
                 isExitApproved: false,
-                verifiedBy: currentUser?.employeeId,
+                verifiedBy: {
+                  id: currentUser?.employeeId || currentUser?.id,
+                  refModel: currentUser?.employeeId ? "Employee" : "User" 
+                },
                 ...checklistForm,
                 fnfAmount: Number(checklistForm.fnfAmount)
             };
@@ -298,6 +305,8 @@ function Resignations() {
   return (
     <MainLayout>
       <div className="exit-mgmt-container">
+        {currentUser?.role !== 'Admin' && (
+        <>
         <div className="exit-mgmt-header-row">
           <h2 className="exit-mgmt-title">My Resignation Status</h2>
           <Button icon={ <Plus size={22} />} iconPosition="left" onClick={() => setShowAddModal(true)}>
@@ -347,6 +356,7 @@ function Resignations() {
             </table>
           </div>
         </div>
+
 
         <div className="exit-mgmt-header-block">
           <h2 className="exit-mgmt-title">Team Resignation Approvals</h2>
@@ -442,6 +452,8 @@ function Resignations() {
           <div className="exit-mgmt-card exit-mgmt-card--mb-large exit-mgmt-card--empty-state">
             You are not currently assigned as a reporting manager to any active processing records.
           </div>
+        )}
+        </>
         )}
 
         {isHrOrAdmin && (
