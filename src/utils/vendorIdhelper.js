@@ -1,7 +1,7 @@
 import { getStoredUser } from "./roles";
 
 const vendorCode = [
-    "AMG2144",
+    "AMG6864"
 ]
 
 export const isSiteVendor = () => {
