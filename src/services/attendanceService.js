@@ -79,8 +79,19 @@ export const getTodayAttendance = async (params) => {
   return res.data;
 };
 
+export const getManagerAttendance = async (params) => {
+  const res = await API.get("/attendance/mangerRecord", { params });
+  return res.data;
+};
+
+
 export const markAttendance = async (payload) => {
   const res = await API.post("/attendance/mark", payload);
+  return res.data;
+};
+
+export const markMonthAttendance = async (payload) => {
+  const res = await API.post("/attendance/markMonth", payload);
   return res.data;
 };
 

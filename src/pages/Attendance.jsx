@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,6 +20,7 @@ import {
   X,
   Calendar as CalendarIcon,
   RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
@@ -36,6 +37,8 @@ import {
   summarizeAttendanceSessions,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
+  markMonthAttendance,
+  getManagerAttendance,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -99,14 +102,18 @@ function formatDate(dateVal) {
 
 /* ── Normalizer to guarantee Employee ID / Code & Date across all API payloads ── */
 function normalizeRecord(row, defaultDay = null, monthLabel = "") {
+  const empObj = typeof row.employeeId === "object" ? row.employeeId : null;
+  const rawId = empObj?._id || row.employeeId || row._id;
+
   const empCode =
     row.id ||
     row.employeeCode ||
+    empObj?.employeeCode ||
     row.empCode ||
     row.code ||
-    (row.employeeId ? String(row.employeeId).slice(-6).toUpperCase() : "—");
+    (rawId ? String(rawId).slice(-6).toUpperCase() : "—");
 
-  const empName = row.name || row.employeeName || "Unknown";
+  const empName = row.name || row.employeeName || empObj?.name || "Unknown";
 
   const initials =
     row.initials ||
@@ -117,7 +124,6 @@ function normalizeRecord(row, defaultDay = null, monthLabel = "") {
       .slice(0, 2)
       .toUpperCase();
 
-  // Extract / Format Date
   let dateFormatted = "—";
   if (row.date) {
     dateFormatted = formatDate(row.date);
@@ -135,6 +141,101 @@ function normalizeRecord(row, defaultDay = null, monthLabel = "") {
     initials,
     formattedDate: dateFormatted,
   };
+}
+
+/* ── Searchable Employee Dropdown Component ── */
+function SearchableEmployeeSelect({
+  employeeList = [],
+  value,
+  onChange,
+  disabled = false,
+  hasError = false,
+  placeholder = "-- Select Employee --",
+  controlClassName = "month-mark-control",
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef(null);
+
+  const selectedEmployee = employeeList.find((emp) => emp._id === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredEmployees = useMemo(() => {
+    if (!searchTerm.trim()) return employeeList;
+    const term = searchTerm.toLowerCase();
+    return employeeList.filter((emp) => {
+      const codeMatch = emp.employeeCode?.toLowerCase().includes(term);
+      const nameMatch = emp.name?.toLowerCase().includes(term);
+      return codeMatch || nameMatch;
+    });
+  }, [employeeList, searchTerm]);
+
+  const handleSelect = (empId) => {
+    onChange(empId);
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  return (
+    <div className="month-mark-combobox" ref={dropdownRef}>
+      <div
+        className={`${controlClassName} month-mark-combobox__trigger ${
+          hasError ? "month-mark-control--error" : ""
+        } ${disabled ? "month-mark-control--disabled" : ""}`}
+        onClick={() => !disabled && setIsOpen((prev) => !prev)}
+      >
+        <span className={selectedEmployee ? "month-mark-combobox__value" : "month-mark-combobox__placeholder"}>
+          {selectedEmployee
+            ? `${selectedEmployee.employeeCode} - ${selectedEmployee.name}`
+            : placeholder}
+        </span>
+        <span className="month-mark-combobox__arrow">{isOpen ? "▲" : "▼"}</span>
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="month-mark-combobox__dropdown">
+          <div className="month-mark-combobox__search-wrap">
+            <input
+              type="text"
+              className="month-mark-combobox__search-input"
+              placeholder="Search by ID or name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <ul className="month-mark-combobox__list">
+            {filteredEmployees.length > 0 ? (
+              filteredEmployees.map((emp) => (
+                <li
+                  key={emp._id}
+                  className={`month-mark-combobox__item ${
+                    emp._id === value ? "month-mark-combobox__item--selected" : ""
+                  }`}
+                  onClick={() => handleSelect(emp._id)}
+                >
+                  <span className="month-mark-combobox__item-code">{emp.employeeCode}</span>
+                  <span className="month-mark-combobox__item-name">{emp.name}</span>
+                </li>
+              ))
+            ) : (
+              <li className="month-mark-combobox__no-results">No employees found</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ── Selfie Lightbox Modal Component ── */
@@ -339,7 +440,7 @@ function AttendanceCalendar({
 }) {
   return (
     <section className="attendance-panel attendance-glass attendance-calendar-card">
-      <header className="attendance-panel__head calendar-toolbar" style={{display:'flex',flexDirection:'row'}}>
+      <header className="attendance-panel__head calendar-toolbar" style={{ display: 'flex', flexDirection: 'row' }}>
         <h2>{monthLabel}</h2>
         <div className="calendar-nav">
           <button type="button" aria-label="Previous month" onClick={onPrev}>
@@ -472,18 +573,7 @@ function TodayAttendanceTable({
       <section className="attendance-panel attendance-glass attendance-table-card">
         <header className="attendance-panel__head">
           <div>
-              <h2>{title}</h2>
-            
-            {/* {isCalendarSelection && (
-              <button
-                type="button"
-                className="attendance-filter-btn active"
-                onClick={onClearSelectedDay}
-                style={{ fontSize: "0.8rem", padding: "0.25rem 0.6rem" }}
-              >
-                Clear Day Selection ✕
-              </button>
-            )} */}
+            <h2>{title}</h2>
           </div>
 
           {onFilterChange && (
@@ -498,7 +588,7 @@ function TodayAttendanceTable({
                   className="attendance-search"
                 />
 
-                {/* Date Range Picker (Start & End Date) */}
+                {/* Date Range Picker */}
                 <div className="attendance-date-range-wrap" style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
                   <CalendarIcon size={16} className="text-muted" />
                   <input
@@ -581,7 +671,6 @@ function TodayAttendanceTable({
           <table className="attendance-table">
             <thead>
               <tr>
-                
                 <th>Employee</th>
                 <th>ID</th>
                 <th>Date</th>
@@ -622,7 +711,7 @@ function TodayAttendanceTable({
               {!loading &&
                 rows.map((unnormalizedRow) => {
                   const row = normalizeRecord(unnormalizedRow);
-                  const rowKey = String(row.employeeId || row.id);
+                  const rowKey = String(row.employeeId?._id || row.employeeId || row.id);
                   const isExpanded = expandedRowId === rowKey;
                   const sessions = row.sessions || [];
                   const hasSessions = sessions.length > 0;
@@ -635,9 +724,6 @@ function TodayAttendanceTable({
                   return (
                     <Fragment key={rowKey}>
                       <tr>
-                        {/* Formatted Date Column */}
-                        
-
                         <td>
                           <div className="employee-cell">
                             <span className="employee-avatar">{row.initials}</span>
@@ -800,6 +886,7 @@ function Attendance() {
   const [dayRecords, setDayRecords] = useState({});
   const [selectedDay, setSelectedDay] = useState(null);
   const [todayRows, setTodayRows] = useState([]);
+  const [managerRows, setManagerRows] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -884,8 +971,9 @@ function Attendance() {
       const res = await getEmployees();
       const list = res.data?.employees || [];
       setEmployees(list);
-      if (!markForm.employeeId && list.length > 0) {
+      if ((!markForm.employeeId || !markMonthForm.employeeId) && list.length > 0) {
         setMarkForm((prev) => ({ ...prev, employeeId: list[0]._id }));
+        setMarkMonthForm((prev) => ({ ...prev, employeeId: list[0]._id }));
       }
     } catch {
       // non-blocking
@@ -962,7 +1050,7 @@ function Attendance() {
         year === today.getFullYear() &&
         month === today.getMonth() &&
         day === today.getDate();
-      const dayEntries = dayRecords[day] || [];
+      const dayEntries = dayRecords[day] || dayRecords[String(day)] || [];
       const sessionCount = dayEntries.reduce(
         (sum, entry) => sum + (entry.sessionCount || entry.sessions?.length || 0),
         0
@@ -985,7 +1073,7 @@ function Attendance() {
 
   const myTodayRow = useMemo(() => {
     const byEmployee = todayRows.find(
-      (row) => user?.employeeId && String(row.employeeId) === String(user.employeeId)
+      (row) => user?.employeeId && String(row.employeeId?._id || row.employeeId) === String(user?.employeeId?._id || user?.employeeId)
     );
     const byName = todayRows.find(
       (row) => row.name?.toLowerCase() === user?.name?.toLowerCase()
@@ -1020,21 +1108,49 @@ function Attendance() {
 
   const displayedRows = useMemo(() => {
     if (selectedDay !== null) {
-      const records = (dayRecords[selectedDay] || []).map((r) =>
+      const dayEntries = dayRecords[selectedDay] || dayRecords[String(selectedDay)] || [];
+      const records = dayEntries.map((r) =>
         normalizeRecord(r, selectedDay, monthLabel)
       );
+
       if (!isEmployeeView) return records;
 
-      const match = records.find(
-        (record) =>
-          (user?.employeeId && String(record.employeeId) === String(user.employeeId)) ||
-          record.name?.toLowerCase() === user?.name?.toLowerCase()
-      );
+      const currentUserIdStr = String(user?.employeeId?._id || user?.employeeId || "");
+      const currentUserName = user?.name?.toLowerCase() || "";
+
+      const match = records.find((record) => {
+        const recEmpIdStr = String(
+          record.employeeId?._id || record.employeeId || ""
+        );
+        const recName = record.name?.toLowerCase() || "";
+
+        const isIdMatch = currentUserIdStr && recEmpIdStr === currentUserIdStr;
+        const isNameMatch = currentUserName && recName === currentUserName;
+
+        return isIdMatch || isNameMatch;
+      });
+
       return match ? [match] : [];
     }
 
     return todayRows.map((r) => normalizeRecord(r));
   }, [selectedDay, dayRecords, todayRows, isEmployeeView, user, monthLabel]);
+
+  const displayedManagerRows = useMemo(() => {
+    if (selectedDay !== null) {
+      const dayEntries = dayRecords[selectedDay] || dayRecords[String(selectedDay)] || [];
+      const records = dayEntries.map((r) =>
+        normalizeRecord(r, selectedDay, monthLabel)
+      );
+      const managerEmpIds = new Set(
+        managerRows.map((r) => String(r.employeeId?._id || r.employeeId))
+      );
+      return records.filter((record) =>
+        managerEmpIds.has(String(record.employeeId?._id || record.employeeId))
+      );
+    }
+    return managerRows.map((r) => normalizeRecord(r));
+  }, [selectedDay, dayRecords, managerRows, monthLabel]);
 
   const myLatestCheckInSelfieUrl = useMemo(() => {
     const sessions = myTodayRow.sessions || [];
@@ -1095,6 +1211,74 @@ function Attendance() {
     return `${String(hours).padStart(2, "0")}:${minuteStr} ${meridiem}`;
   };
 
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const [markMonthForm, setMarkMonthForm] = useState({
+    employeeId: '',
+    month: MONTHS[new Date().getMonth()],
+    workingDays: '',
+  });
+
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleMonthMarkChange = (field, value) => {
+    setMarkMonthForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!markMonthForm.employeeId) {
+      newErrors.employeeId = 'Please select an employee.';
+    }
+
+    if (!markMonthForm.month) {
+      newErrors.month = 'Please select an attendance month.';
+    }
+
+    const workingDaysNum = Number(markMonthForm.workingDays);
+    if (!markMonthForm.workingDays || markMonthForm.workingDays.toString().trim() === '') {
+      newErrors.workingDays = 'Total working days is required.';
+    } else if (isNaN(workingDaysNum)) {
+      newErrors.workingDays = 'Working days must be a valid number.';
+    } else if (!Number.isInteger(workingDaysNum)) {
+      newErrors.workingDays = 'Working days must be a whole number.';
+    } else if (workingDaysNum < 0 || workingDaysNum > 31) {
+      newErrors.workingDays = 'Working days must be between 0 and 31.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleMarkMonthAttendance = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const res = await markMonthAttendance(markMonthForm);
+      alert(res.message);
+      setMarkMonthForm((prev) => ({ ...prev, workingDays: '' }));
+      setErrors({});
+    } catch (error) {
+      setErrors({ form: error.message || 'Failed to submit attendance. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
 
@@ -1137,7 +1321,6 @@ function Attendance() {
     setCheckInMessage("");
     setAttendanceAction("checkin");
     setShowSelfieModal(true);
-    // eslint-disable-next-line
   };
 
   const handleSelfieCapture = async (selfieBlob) => {
@@ -1196,14 +1379,27 @@ function Attendance() {
       params.append("month", filters.month);
       params.append("year", filters.year);
 
-      const data = await getTodayAttendance(params);
-      setTodayRows(data.rows || []);
+      const [todayRes, managerRes] = await Promise.allSettled([
+        getTodayAttendance(params),
+        getManagerAttendance(params),
+      ]);
+
+      if (todayRes.status === "fulfilled") {
+        setTodayRows(todayRes.value?.rows || []);
+      } else {
+        setTodayRows([]);
+      }
+
+      if (managerRes.status === "fulfilled") {
+        setManagerRows(managerRes.value?.rows || []);
+      } else {
+        setManagerRows([]);
+      }
     } catch (error) {
-      console.error(error);
+      console.error("Error fetching attendance:", error);
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line
   };
 
   useEffect(() => {
@@ -1375,20 +1571,12 @@ function Attendance() {
         <div className="attendance-mark-form__row">
           <div className="attendance-field attendance-field--employee">
             <label htmlFor="mark-employee">Employee</label>
-            <select
-              id="mark-employee"
-              className="attendance-control"
+            <SearchableEmployeeSelect
+              employeeList={employeeList}
               value={markForm.employeeId}
-              onChange={(e) =>
-                setMarkForm((prev) => ({ ...prev, employeeId: e.target.value }))
-              }
-            >
-              {employeeList.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.employeeCode} - {emp.name}
-                </option>
-              ))}
-            </select>
+              onChange={(empId) => setMarkForm((prev) => ({ ...prev, employeeId: empId }))}
+              controlClassName="attendance-control"
+            />
           </div>
 
           <div className="attendance-field attendance-field--status">
@@ -1411,7 +1599,7 @@ function Attendance() {
 
         <div className="attendance-mark-form__row attendance-mark-form__row--details">
           <div className="attendance-field">
-            <label htmlFor="mark-check-in">Date</label>
+            <label htmlFor="mark-date">Date</label>
             <input
               id="mark-date"
               type="date"
@@ -1484,6 +1672,104 @@ function Attendance() {
     </section>
   );
 
+  const renderMarkMonthForm = (employeeList, title) => (
+    <section className="month-mark-card">
+      <header className="month-mark-head">
+        <div className="month-mark-title-wrap">
+          <h2 className="month-mark-heading">
+            <ClipboardCheck size={20} strokeWidth={2} />
+            {title}
+          </h2>
+          <p className="month-mark-subtitle">
+            Record or update monthly attendance status and working days summary
+          </p>
+        </div>
+      </header>
+
+      {errors.form && (
+        <div className="month-mark-alert month-mark-alert--error" role="alert">
+          <AlertCircle size={18} />
+          <span>{errors.form}</span>
+        </div>
+      )}
+
+      <form className="month-mark-form" onSubmit={handleMarkMonthAttendance} noValidate>
+        <div className="month-mark-row">
+          <div className={`month-mark-field ${errors.employeeId ? 'month-mark-field--error' : ''}`}>
+            <label htmlFor="mark-employee" className="month-mark-label">
+              Employee
+            </label>
+            <SearchableEmployeeSelect
+              employeeList={employeeList}
+              value={markMonthForm.employeeId}
+              onChange={(empId) => handleMonthMarkChange('employeeId', empId)}
+              disabled={isSubmitting}
+              hasError={!!errors.employeeId}
+            />
+            {errors.employeeId && (
+              <span className="month-mark-error-msg">{errors.employeeId}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="month-mark-row month-mark-row--split">
+          <div className={`month-mark-field ${errors.month ? 'month-mark-field--error' : ''}`}>
+            <label htmlFor="attendance-month" className="month-mark-label">
+              Attendance Month
+            </label>
+            <select
+              id="attendance-month"
+              className="month-mark-control"
+              value={markMonthForm.month}
+              onChange={(e) => handleMonthMarkChange('month', e.target.value)}
+              disabled={isSubmitting}
+            >
+              {MONTHS.map((month) => (
+                <option key={month} value={month}>
+                  {month}
+                </option>
+              ))}
+            </select>
+            {errors.month && (
+              <span className="month-mark-error-msg">{errors.month}</span>
+            )}
+          </div>
+
+          <div className={`month-mark-field ${errors.workingDays ? 'month-mark-field--error' : ''}`}>
+            <label htmlFor="working-days" className="month-mark-label">
+              Total Working Days
+            </label>
+            <input
+              id="working-days"
+              type="number"
+              min="0"
+              max="31"
+              placeholder="e.g., 22"
+              className="month-mark-control"
+              value={markMonthForm.workingDays}
+              onChange={(e) => handleMonthMarkChange('workingDays', e.target.value)}
+              disabled={isSubmitting}
+            />
+            {errors.workingDays && (
+              <span className="month-mark-error-msg">{errors.workingDays}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="month-mark-actions">
+          <Button
+            type="submit"
+            className="month-mark-btn month-mark-btn--primary"
+            disabled={isSubmitting}
+            icon={<Check size={16} />}
+          >
+            {isSubmitting ? "Saving..." : "Save Attendance"}
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+
   const getTableTitle = (defaultTitle) => {
     if (selectedDay !== null) {
       return `Attendance — ${monthLabel} ${selectedDay}`;
@@ -1498,6 +1784,7 @@ function Attendance() {
     <>
       <AttendanceStats stats={summaryStats} />
       {canMarkAttendance ? renderMarkForm(employees, "Mark Attendance") : null}
+      {renderMarkMonthForm(employees, "Mark / Month Attendance")}
       {renderCalendarSection(monthLabel)}
       <TodayAttendanceTable
         key={
@@ -1533,6 +1820,7 @@ function Attendance() {
       <AttendanceStats stats={summaryStats} />
       {renderSelfAttendanceSection("My Check In / Out")}
       {renderMarkForm(employees, "Mark / Correct Attendance")}
+      {renderMarkMonthForm(employees, "Mark / Month Attendance")}
       {renderCalendarSection(`${monthLabel} — Organization`)}
       <TodayAttendanceTable
         key={
@@ -1592,6 +1880,8 @@ function Attendance() {
           {renderCalendarSection(`${monthLabel} — My Calendar`)}
         </div>
       </div>
+
+      {/* Personal Attendance Table */}
       <TodayAttendanceTable
         key={
           selectedDay
@@ -1601,11 +1891,35 @@ function Attendance() {
         title={getTableTitle("My Attendance History")}
         rows={displayedRows}
         loading={loading}
-        holiday={selectedDay !== null ? holidayMap[selectedDay] : null}
-        weekOff={selectedDay !== null ? weekOffMap[selectedDay] : null}
-        isCalendarSelection={selectedDay !== null}
-        onClearSelectedDay={() => setSelectedDay(null)}
       />
+
+      {/* Team Attendance Table: Displays when manager response contains records */}
+      {managerRows.length > 0 && (
+        <div >
+          <TodayAttendanceTable
+            key={
+              selectedDay
+                ? `team-day-${selectedDay}`
+                : `team-filter-${filters.filterType}-${filters.startDate}-${filters.endDate}-${filters.search}`
+            }
+            title={getTableTitle(
+              filters.filterType === "month"
+                ? `${monthLabel} Team Attendance`
+                : filters.filterType === "week"
+                ? "Team Week Attendance"
+                : "Today's Team Attendance"
+            )}
+            rows={displayedManagerRows}
+            loading={loading}
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            holiday={selectedDay !== null ? holidayMap[selectedDay] : null}
+            weekOff={selectedDay !== null ? weekOffMap[selectedDay] : null}
+            isCalendarSelection={selectedDay !== null}
+            onClearSelectedDay={() => setSelectedDay(null)}
+          />
+        </div>
+      )}
     </>
   );
 
