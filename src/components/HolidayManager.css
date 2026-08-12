@@ -116,7 +116,7 @@
 }
 
 .holiday-btn--primary {
-  background:linear-gradient(135deg,#1E6BD6,#2BB7DA);
+  background: linear-gradient(135deg, #1E6BD6, #2BB7DA);
   color: #fff;
 }
 
@@ -231,4 +231,149 @@
   .holiday-form .form-row {
     flex-direction: column;
   }
+}
+
+/* Section & Form Headers */
+.holiday-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.holiday-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.holiday-form-header h2 {
+  margin: 0;
+}
+
+/* Header Action Layout */
+.holiday-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bulk-upload-trigger-btn {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+}
+
+.bulk-upload-trigger-btn:hover {
+  background-color: #e2e8f0;
+}
+
+/* Modal Template Download Section */
+.modal-template-download {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.template-link-btn {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.85rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.template-link-btn:hover {
+  text-decoration: underline;
+  color: #1d4ed8;
+}
+
+/* Modal Backdrop & Popup Container */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background-color: #ffffff;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 480px;
+  padding: 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.close-modal-btn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #64748b;
+}
+
+/* Drop Zone Styling in Modal */
+.modal-drop-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 32px 16px;
+  text-align: center;
+  background-color: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 16px;
+}
+
+.modal-drop-zone.drag-active {
+  border-color: #2563eb;
+  background-color: #eff6ff;
+}
+
+.modal-drop-zone label span {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.modal-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-bottom: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }

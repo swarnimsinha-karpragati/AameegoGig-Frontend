@@ -238,7 +238,7 @@ function Departments() {
   };
 
   const filteredDepartments = departments.filter((dep) =>
-    [dep.name, dep.description, dep.departmentHead?.name, dep.stateName, dep.sitePayoutRule]
+    [dep.name, dep.description, dep.departmentHead?.name, dep.stateName, dep.sitePayoutRule, dep?.departmentUniqueId]
       .join(" ")
       .toLowerCase()
       .includes(search.toLowerCase())
@@ -404,7 +404,7 @@ function Departments() {
                           <button
                             type="button"
                             className="manage-depts-copy-btn"
-                            onClick={() => handleCopyDepartmentId(dep._id)}
+                            onClick={() => handleCopyDepartmentId(dep?.departmentUniqueId || dep?._id)}
                             title={`Copy ${name} ID`}
                           >
                             <Copy size={14} />
