@@ -67,20 +67,15 @@ export const buildTodayRowFromAttendanceResponse = (response, user) => {
   };
 };
 
-export const getMonthlyAttendance = async (year, month) => {
+export const getMonthlyAttendance = async (year, month, target = "self") => {
   const res = await API.get("/attendance/month", {
-    params: { year, month },
+    params: { year, month, target },
   });
   return res.data;
 };
 
-export const getTodayAttendance = async (params) => {
-  const res = await API.get("/attendance/today", { params });
-  return res.data;
-};
-
-export const getManagerAttendance = async (params) => {
-  const res = await API.get("/attendance/mangerRecord", { params });
+export const getAttendanceList = async (params) => {
+  const res = await API.get("/attendance/list", { params });
   return res.data;
 };
 

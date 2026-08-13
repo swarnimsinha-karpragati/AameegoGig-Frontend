@@ -17,12 +17,22 @@ const DocumentPreview = ({ url, isOpen, onClose }) => {
             try {
                 setLoading(true);
                 setError(null);
-                const user = localStorage.getItem('user')
-                const parsedUser = JSON.parse(user)
-                
+                let parsedUser = null;
+                try {
+                    parsedUser = JSON.parse(localStorage.getItem("user"));
+                } catch {
+                    parsedUser = null;
+                }
+
+                // Only append vendorCode when the logged-in user actually has one
+                // (otherwise the URL ends up with vendorCode=undefined).
+                const requestUrl = new URL(url, window.location.origin);
+                if (parsedUser?.vendor_code) {
+                    requestUrl.searchParams.set("vendorCode", parsedUser.vendor_code);
+                }
 
                 // Fetch the document content as a Blob
-                const response = await axios.get(`${url}&vendorCode=${parsedUser?.vendor_code}`, {
+                const response = await axios.get(requestUrl.toString(), {
                     responseType: "blob",
                 });
 

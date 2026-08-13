@@ -51,7 +51,20 @@ export const deleteDocument =
 /** Returns the authenticated URL for a document (no side-effects). */
 export const getDocumentViewUrl = (id) => {
   const token = localStorage.getItem("token");
-  return getApiUrl(`/documents/view/${id}?token=${token}`);
+
+  let vendorCode = "";
+  try {
+    const user = JSON.parse(localStorage.getItem("user"));
+    vendorCode = user?.vendor_code || "";
+  } catch {
+    vendorCode = "";
+  }
+
+  const separator = vendorCode
+    ? `&vendorCode=${encodeURIComponent(vendorCode)}`
+    : "";
+
+  return getApiUrl(`/documents/view/${id}?token=${token}${separator}`);
 };
 
 /** Opens the document in a new browser tab (legacy helper). */
