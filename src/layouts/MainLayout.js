@@ -226,8 +226,9 @@ function MainLayout({ children }) {
               style={{ padding: '1rem 0rem' }}
             />
 
-            <p style={{ fontSize: '12px', fontWeight: '700', marginBottom: '5px' }}>One Workforce.
-              One Platform.</p>
+            <p style={{ fontSize: '12px', fontWeight: '700', marginBottom: '5px' }}>
+              {isSite ? "We make your lives simpler." : "One Workforce. One Platform."}
+            </p>
           </div>
 
           {/* <div className="client-info">

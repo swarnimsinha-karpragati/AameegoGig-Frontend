@@ -15,6 +15,7 @@ export const getMaxDateOfBirthInputValue = () =>
 
 export const employeeValidationSchema = Yup.object().shape({
   // employeeCode is generated server-side (PREFIX-0001), not entered here.
+  employeeCode: Yup.string().trim(),
   name: Yup.string()
     .trim()
     .required("Name is required")
