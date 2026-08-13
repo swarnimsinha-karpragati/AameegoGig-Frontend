@@ -66,6 +66,7 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Basic Information",
     description: "Primary contact and role details",
     fields: [
+      { key: "employeeCode", label: "Employee Code (leave blank to auto-generate)" },
       { key: "name", label: "Full Name", required: true },
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
