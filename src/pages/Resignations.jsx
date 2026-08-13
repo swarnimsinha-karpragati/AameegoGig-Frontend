@@ -82,7 +82,9 @@ function Resignations() {
   const [approvingRecordId, setApprovingRecordId] = useState(null);
   const [isHrFinalizing, setIsHrFinalizing] = useState(false);
 
-  const [isLoading,setIsLoading] = useState(false)
+  const [isLoading,setIsLoading] = useState(false);
+
+  const today = new Date().toISOString().split("T")[0];
   
   const [checklistForm, setChecklistForm] = useState({
     isExitChecklistCleared: false,
@@ -183,7 +185,7 @@ function Resignations() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.reasonForLeaving.trim() || !form.requestedLastWorkingDay || !form.hrMail) {
-      alert("Please fill in all required fields.");
+      alert("Please fill all required fields.");
       return;
     }
     setIsLoading(true)
@@ -229,6 +231,11 @@ function Resignations() {
     try {
       setIsLoading(true)
         if (isHrFinalizing) {
+            if(!checklistForm.finalSettlementDate || !checklistForm.rolesAndResponsibilities || !checklistForm.conductEvaluation){
+              alert('Please fill all required details!');
+              setIsLoading(false);
+              return;
+            }
             const payload = {
               status: "Approved",
               isExitApproved: true,
@@ -562,6 +569,7 @@ function Resignations() {
                     id="req-lwd"
                     name="requestedLastWorkingDay"
                     type="date"
+                    min={today}
                     value={form.requestedLastWorkingDay}
                     onChange={handleChange}
                     required
@@ -732,6 +740,7 @@ function Resignations() {
                       id="finalSettlementDate"
                       name="finalSettlementDate"
                       type="date"
+                      min={today}
                       value={checklistForm.finalSettlementDate}
                       onChange={handleChecklistChange}
                       required
