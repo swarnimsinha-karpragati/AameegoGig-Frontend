@@ -168,11 +168,11 @@ export default function LoginScreen() {
                                     />
                                     Remember me
                                 </label>
-                                <div className="forgot-links">
+                                {/* <div className="forgot-links">
                                     <Link to="/forgot-org-code" className="forgot-link">
                                         Forgot Organization Code?
                                     </Link>
-                                </div>
+                                </div> */}
                                 <div className="forgot-links">
                                     <Link to="/forgot-password" className="forgot-link">
                                         Forgot Password?
