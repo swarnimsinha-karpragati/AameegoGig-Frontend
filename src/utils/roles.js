@@ -51,7 +51,7 @@ export const getDefaultRouteForRole = (role) => {
 export const getAttendanceViewKey = (role) => {
   if (role === "Admin") return "Organization";
   if (role === "HR") return "HR";
-  if (role === "Manager") return "Manager";
+  if (role === "Manager") return "Employee";
   return "Employee";
 };
 

@@ -122,10 +122,10 @@ function ForgotPassword() {
             {step === "IDENTIFY" && (
               <form onSubmit={handleRequestOtp}>
                 <div className="input-group">
-                  <label>Vendor Code</label>
+                  <label>Organization Code</label>
                   <input
                     type="text"
-                    placeholder="Enter your vendor code"
+                    placeholder="Enter your organization code"
                     value={vendorCode}
                     onChange={(e) => setvendorCode(e.target.value)}
                     required

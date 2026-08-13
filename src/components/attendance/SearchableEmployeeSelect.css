@@ -1,0 +1,145 @@
+/* ── Searchable Employee Dropdown (Combobox) ── */
+
+.month-mark-control {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: #0f172a;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.month-mark-control:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.month-mark-control:disabled,
+.month-mark-control--disabled {
+  background-color: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.month-mark-field--error .month-mark-control,
+.month-mark-control--error {
+  border-color: #ef4444;
+  background-color: #fff5f5;
+}
+
+.month-mark-field--error .month-mark-control:focus,
+.month-mark-control--error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.month-mark-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.month-mark-combobox__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.month-mark-combobox__placeholder {
+  color: #94a3b8;
+}
+
+.month-mark-combobox__value {
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.month-mark-combobox__arrow {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-left: 0.5rem;
+}
+
+/* Drop-Up Dropdown Styling */
+.month-mark-combobox__dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px); /* Opens UP above the select control */
+  top: auto;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 -10px 15px -3px rgba(0, 0, 0, 0.1), 0 -4px 6px -4px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  overflow: hidden;
+}
+
+.month-mark-combobox__search-wrap {
+  padding: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  background-color: #f8fafc;
+}
+
+.month-mark-combobox__search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.month-mark-combobox__search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.month-mark-combobox__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+}
+
+.month-mark-combobox__item {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.month-mark-combobox__item:hover {
+  background-color: #f1f5f9;
+}
+
+.month-mark-combobox__item--selected {
+  background-color: #eff6ff;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.month-mark-combobox__item-code {
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.month-mark-combobox__item-name {
+  color: #334155;
+}
+
+.month-mark-combobox__no-results {
+  padding: 0.75rem;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+}
