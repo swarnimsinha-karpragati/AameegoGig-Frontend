@@ -9,6 +9,7 @@ function AttendanceCalendar({
   onDaySelect,
   onPrev,
   onNext,
+  showLeaveWfh = true,
 }) {
   return (
     <section className="attendance-panel attendance-glass attendance-calendar-card">
@@ -46,12 +47,18 @@ function AttendanceCalendar({
               onClick={() => onDaySelect(cell.day)}
               aria-label={`Day ${cell.day}${cell.holiday ? `, ${cell.holiday.name}` : ""}${
                 cell.weekOff ? `, ${cell.weekOff.dayName} week off` : ""
+              }${cell.status === "leave" ? ", Leave" : ""}${
+                cell.status === "wfh" ? ", Work From Home" : ""
               }`}
               title={
                 cell.holiday
                   ? cell.holiday.name
                   : cell.weekOff
                   ? `${cell.weekOff.dayName} — Weekly Off`
+                  : cell.status === "leave"
+                  ? "Leave"
+                  : cell.status === "wfh"
+                  ? "Work From Home"
                   : undefined
               }
             >
@@ -63,6 +70,10 @@ function AttendanceCalendar({
                   </small>
                 ) : cell.weekOff && !cell.hasSessions ? (
                   <small className="calendar-day-weekoff">Off</small>
+                ) : cell.status === "leave" ? (
+                  <small className="calendar-day-leave">Leave</small>
+                ) : cell.status === "wfh" ? (
+                  <small className="calendar-day-wfh">WFH</small>
                 ) : null}
                 {cell.hasSessions ? (
                   <small className="calendar-day-sessions">
@@ -80,6 +91,12 @@ function AttendanceCalendar({
         <span><i className="legend-dot absent" /> Absent</span>
         <span><i className="legend-dot half-day" /> Half Day</span>
         <span><i className="legend-dot late" /> Late</span>
+        {showLeaveWfh ? (
+          <>
+            <span><i className="legend-dot leave" /> Leave</span>
+            <span><i className="legend-dot wfh" /> WFH</span>
+          </>
+        ) : null}
         <span><i className="legend-dot holiday" /> Holiday</span>
         <span><i className="legend-dot week-off" /> Week Off</span>
         <span className="calendar-legend-hint">Click any day to view its records in the table below</span>

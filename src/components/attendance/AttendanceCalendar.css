@@ -173,6 +173,16 @@
   color: #1d4ed8;
 }
 
+.calendar-day.leave {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.calendar-day.wfh {
+  background: #fef3c7;
+  color: #b45309;
+}
+
 .calendar-day.holiday {
   background: #eef2ff;
   color: #3730a3;
@@ -211,6 +221,22 @@
   font-weight: 700;
   color: #64748b;
   line-height: 1;
+}
+
+.calendar-day-leave,
+.calendar-day-wfh {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.calendar-day-leave {
+  color: #be185d;
+}
+
+.calendar-day-wfh {
+  color: #b45309;
 }
 
 .calendar-day-weekoff--compact {
@@ -265,6 +291,14 @@
 
 .legend-dot.late {
   background: #3b82f6;
+}
+
+.legend-dot.leave {
+  background: #ec4899;
+}
+
+.legend-dot.wfh {
+  background: #f59e0b;
 }
 
 .legend-dot.holiday {

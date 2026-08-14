@@ -88,14 +88,14 @@
   box-shadow:0 20px 50px rgba(0,0,0,0.15);
 }
 
-.modal-header h2,
+.modal-headerr h2,
 .modal-box h2{
   font-size:20px;
   color:#0f172a;
   font-weight:600;
 }
 
-.modal-header p,
+.modal-headerr p,
 .modal-subtext{
   margin-top:8px;
   font-size:14px;
