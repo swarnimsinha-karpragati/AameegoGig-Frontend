@@ -72,6 +72,7 @@ const toInputDate = (value) => {
 
 const HolidayManager = ({ vendorId }) => {
   const formRef = useRef(null);
+  const fileInputRef = useRef(null);
   const currentYear = new Date().getFullYear();
 
   const initialFormState = {
@@ -322,10 +323,17 @@ const HolidayManager = ({ vendorId }) => {
   };
 
   // Bulk File Handlers
+  const clearBulkFileSelection = () => {
+    setBulkFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const closeBulkModal = () => {
     setIsBulkModalOpen(false);
     setIsErrorViewerOpen(false);
-    setBulkFile(null);
+    clearBulkFileSelection();
     setModalError("");
     setUploadSummary(null);
     setUploadSuccessMessage("");
@@ -425,7 +433,8 @@ const HolidayManager = ({ vendorId }) => {
       setModalError("");
       setUploadSuccessMessage("Upload completed successfully.");
       setStatusMessage({ type: "success", text: "Bulk holidays uploaded successfully." });
-      setBulkFile(null);
+      setUploadSummary(nextSummary);
+      setIsErrorViewerOpen(false);
     } catch (error) {
       const serverMessage = error?.response?.data?.message;
       const rowErrors = Array.isArray(error?.response?.data?.errors)
@@ -442,7 +451,9 @@ const HolidayManager = ({ vendorId }) => {
         : serverMessage || "Failed to upload bulk holidays.";
       setModalError(combinedMessage);
       setUploadSuccessMessage("");
+      setIsErrorViewerOpen(false);
     } finally {
+      clearBulkFileSelection();
       setIsActionLoading(false);
     }
   };
@@ -550,7 +561,14 @@ const HolidayManager = ({ vendorId }) => {
           <Button
             type="button"
             className="bulk-upload-trigger-btn"
-            onClick={() => setIsBulkModalOpen(true)}
+            onClick={() => {
+              clearBulkFileSelection();
+              setModalError("");
+              setUploadSummary(null);
+              setUploadSuccessMessage("");
+              setIsErrorViewerOpen(false);
+              setIsBulkModalOpen(true);
+            }}
           >
             📥 Bulk Upload
           </Button>
@@ -705,6 +723,7 @@ const HolidayManager = ({ vendorId }) => {
                 onDrop={handleDrop}
               >
                 <input
+                  ref={fileInputRef}
                   id="bulk-modal-file-input"
                   type="file"
                   accept=".csv, .xlsx, .xls"
