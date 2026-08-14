@@ -19,7 +19,7 @@ function AttendanceStats({ stats, labels }) {
         </Card>
       ))}
     </div>
-  );
+  ); 
 }
 
 export default AttendanceStats;
