@@ -7,7 +7,7 @@ import {
   suggestCtcSplit,
   previewEmployeeStructure,
 } from "../services/salaryComponentService";
-import { validateAnnualCtc, validateStructureDraft } from "../utils/salaryValidation";
+import { validateAnnualCtc, validateLetterSalaryStructure, resolveSalaryLineMonthly } from "../utils/salaryValidation";
 import "./AppointmentLetterSalary.css";
 import Button from "./Button";
 
@@ -85,13 +85,24 @@ export default function AppointmentLetterSalary({
   }, [employeeId]);
 
   const buildPreviewPayload = useCallback(() => {
+    const salaryLineMap = new Map(
+      (letterData.salaryComponents || []).map((c) => [c.code, c])
+    );
+
     const allComponents = library.map((comp) => {
-      const line = letterData.salaryComponents?.find((c) => c.code === comp.code);
+      const line = salaryLineMap.get(comp.code);
+      const inLetterTable = Boolean(line);
+
       return {
         code: comp.code,
         category: comp.category,
-        monthlyAmount: line ? Number(line.monthly) || 0 : 0,
-        enabled: line ? true : comp.isOptional ? false : true,
+        calculationType: comp.calculationType,
+        monthlyAmount: inLetterTable ? resolveSalaryLineMonthly(line) : 0,
+        enabled: inLetterTable
+          ? true
+          : comp.category === "Earning"
+            ? false
+            : !comp.isOptional,
       };
     });
     return {
@@ -176,12 +187,9 @@ export default function AppointmentLetterSalary({
     setError("");
 
     const payload = buildPreviewPayload();
-    const draftErrors = validateStructureDraft({
-      ctcAnnual: payload.ctcAnnual,
-      components: payload.components.map((c) => {
-        const lib = library.find((x) => x.code === c.code);
-        return { ...c, name: lib?.name, category: lib?.category };
-      }),
+    const draftErrors = validateLetterSalaryStructure({
+      annualCTC: payload.ctcAnnual,
+      salaryComponents: letterData.salaryComponents,
     });
     if (draftErrors.length) {
       setError(draftErrors.join("; "));
