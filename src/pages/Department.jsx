@@ -238,7 +238,7 @@ function Departments() {
   };
 
   const filteredDepartments = departments.filter((dep) =>
-    [dep.name, dep.description, dep.departmentHead?.name, dep.stateName, dep.sitePayoutRule, dep?.departmentUniqueId]
+    [dep.name, dep.description, dep.departmentHead?.name, dep.stateName, dep.sitePayoutRule, dep?.departmentUniqueId, dep.siteStateName]
       .join(" ")
       .toLowerCase()
       .includes(search.toLowerCase())
@@ -390,6 +390,8 @@ function Departments() {
                   <th>Description</th>
                   <th>Default Shift</th>
                   <th>Overtime Rule</th>
+                  <th>{name} Payout Rule</th>
+                  <th>{name} State Name</th>
                   <th>Leadership Head</th>
                   <th>Actions</th>
                 </tr>
@@ -414,6 +416,8 @@ function Departments() {
                       <td>{dep.description || <em style={{ opacity: 0.5 }}>No description</em>}</td>
                       <td>{dep.shift?.name || dep.shift?.shiftName || "-"}</td>
                       <td>{dep.otPolicy?.policyName || dep.otPolicy?.name || "-"}</td>
+                      <td>{dep.sitePayoutRule || <em style={{ opacity: 0.5 }}>-</em>}</td>
+                      <td>{dep.stateName || <em style={{ opacity: 0.5 }}>-</em>}</td>
                       <td>{dep.departmentHead ? dep.departmentHead.name : <span style={{ opacity: 0.5 }}>Unassigned</span>}</td>
                       <td>
                         <div className="manage-depts-row-buttons">
