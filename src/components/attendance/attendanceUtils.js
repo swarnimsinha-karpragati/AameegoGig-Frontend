@@ -12,6 +12,8 @@ export const statusTextClass = {
   Absent: "status-text-absent",
   "Half Day": "status-text-half-day",
   Late: "status-text-late",
+  Leave: "status-text-leave",
+  WFH: "status-text-wfh",
 };
 
 export const EMPTY_STATS = {
@@ -19,6 +21,8 @@ export const EMPTY_STATS = {
   Absent: 0,
   "Half Day": 0,
   Late: 0,
+  Leave: 0,
+  WFH: 0,
 };
 
 export const EMPTY_MY_ROW = {

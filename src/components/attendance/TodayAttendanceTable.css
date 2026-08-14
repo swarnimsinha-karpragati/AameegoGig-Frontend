@@ -259,6 +259,14 @@
   color: #2563eb;
 }
 
+.status-text-leave {
+  color: #db2777;
+}
+
+.status-text-wfh {
+  color: #d97706;
+}
+
 /* ==========================================================================
    NEW ADD-ON UI: Date Range Control & Table Action Buttons
    ========================================================================== */

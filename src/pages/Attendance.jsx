@@ -344,6 +344,8 @@ function Attendance() {
         (sum, entry) => sum + (entry.sessionCount || entry.sessions?.length || 0),
         0
       );
+      const leaveEntry = dayEntries.find((entry) => entry.status === "Leave");
+      const wfhEntry = dayEntries.find((entry) => entry.status === "WFH");
 
       cells.push({
         key: `day-${day}`,
@@ -352,8 +354,10 @@ function Attendance() {
         holiday: calendarData.holidays[day] || null,
         weekOff: !calendarData.holidays[day] ? calendarData.weekOffs[day] || null : null,
         isToday,
-        hasSessions: dayEntries.length > 0,
+        hasSessions: sessionCount > 0,
         sessionCount,
+        leave: leaveEntry ? leaveEntry.leaveType || "Leave" : null,
+        wfh: wfhEntry ? true : null,
       });
     }
 
@@ -620,7 +624,7 @@ function Attendance() {
     setShowSelfieModal(true);
   };
 
-  const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext }) => (
+  const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext, showLeaveWfh = true }) => (
     <AttendanceCalendar
       monthLabel={title}
       calendarDays={calendarDays}
@@ -628,6 +632,7 @@ function Attendance() {
       onDaySelect={onDaySelect}
       onPrev={onPrev}
       onNext={onNext}
+      showLeaveWfh={showLeaveWfh}
     />
   );
 
@@ -1016,6 +1021,7 @@ function Attendance() {
         onDaySelect: handleOrgDaySelect,
         onPrev: () => shiftOrgMonth(-1),
         onNext: () => shiftOrgMonth(1),
+        showLeaveWfh: false,
       })}
       <TodayAttendanceTable
         key={

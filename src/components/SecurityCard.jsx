@@ -8,6 +8,7 @@ import {
 import "./SecurityCard.css";
 import { enable2FA, sendOtp,remove2FA, updatePassword } from "../services/authService";
 import { getStoredUser } from "../utils/roles";
+import Button from "./Button";
 
 export default function SecurityCard() {
 
@@ -33,10 +34,12 @@ export default function SecurityCard() {
       setIsLoading(true)
       if(!password || !currPassword || !confirmPassword){
         alert('All fields are required!')
+        setIsLoading(false)
         return;
       }
       if(password !== confirmPassword){
         alert('Password and Confirm Password must be same!');
+        setIsLoading(false)
         return;
       }
       const payload = {
@@ -177,7 +180,7 @@ export default function SecurityCard() {
 
           <div className="modal-box">
 
-            <div className="modal-header">
+            <div className="modal-headerr">
 
               <h2>
                 Change Password
@@ -219,8 +222,8 @@ export default function SecurityCard() {
 
             <div className="modal-actions">
 
-              <button
-                className="cancel-btn"
+              <Button
+                className="secondary-btn"
                 onClick={() =>{
                   setShowPasswordModal(false)
                   setConfirmPassword('');
@@ -228,13 +231,14 @@ export default function SecurityCard() {
                   setCurrPassword('');
                 }
                 }
+                disabled={isLoading}
               >
                 Cancel
-              </button>
+              </Button>
 
-              <button className="primary-btn" onClick={handlePasswordChange} disabled={isLoading}>
+              <Button  onClick={handlePasswordChange} disabled={isLoading}>
                 Update
-              </button>
+              </Button>
 
             </div>
 

@@ -95,7 +95,7 @@ function TodayAttendanceTable({
                   <input
                     type="date"
                     className="attendance-date-input"
-                    value={filters.endDate?filters.endDate:filters.startDate || ""}
+                    value={!filters.endDate && filters.startDate?today:filters.endDate|| ""}
                     onChange={(e) => onFilterChange("endDate", e.target.value)}
                     title="End Date"
                     min={filters.startDate?filters.startDate:today}
@@ -322,7 +322,11 @@ function TodayAttendanceTable({
                           </span>
                         </td>
                         <td>
-                          {row?.notes
+                          {row.reason
+                            ? row.reason.length > 30
+                              ? `${row.reason.slice(0, 30)}...`
+                              : row.reason
+                            : row?.notes
                             ? row.notes.length > 30
                               ? `${row.notes.slice(0, 30)}...`
                               : row.notes
