@@ -283,12 +283,13 @@ function EmployeeFormFields({
     if (field.type === "select-gender") {
       return (
         <>
-          <select {...common} value={values.gender || ""}>
+          <select {...common} value={values.maritalStatus || ""}>
             <option value="">Select</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-
+            <option value="Single">Single</option>
+            <option value="Married">Married</option>
+            <option value="Divorced">Divorced</option>
+            <option value="Widowed">Widowed</option>
+            <option value="Separated">Separated</option>
           </select>
           {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
         </>
@@ -301,8 +302,20 @@ function EmployeeFormFields({
           <select {...common} value={values.relationWithMember || ""}>
             <option value="">Select</option>
             <option value="Father">Father</option>
+            <option value="Mother">Mother</option>
             <option value="Husband">Husband</option>
+            <option value="Wife">Wife</option>
             <option value="Spouse">Spouse</option>
+            <option value="Son">Son</option>
+            <option value="Daughter">Daughter</option>
+            <option value="Brother">Brother</option>
+            <option value="Sister">Sister</option>
+            <option value="Grandfather">Grandfather</option>
+            <option value="Grandmother">Grandmother</option>
+            <option value="Uncle">Uncle</option>
+            <option value="Aunt">Aunt</option>
+            <option value="Guardian">Guardian</option>
+            <option value="Other">Other</option>
           </select>
           {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
         </>
