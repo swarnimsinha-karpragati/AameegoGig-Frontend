@@ -283,15 +283,16 @@ function EmployeeFormFields({
     if (field.type === "select-gender") {
       return (
         <>
-          <select {...common} value={values.maritalStatus || ""}>
-            <option value="">Select</option>
-            <option value="Single">Single</option>
-            <option value="Married">Married</option>
-            <option value="Divorced">Divorced</option>
-            <option value="Widowed">Widowed</option>
-            <option value="Separated">Separated</option>
+          <select {...common} value={values.gender || ""}>
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
         </>
       );
     }
