@@ -7,7 +7,12 @@ import {
   suggestCtcSplit,
   previewEmployeeStructure,
 } from "../services/salaryComponentService";
-import { validateAnnualCtc, validateLetterSalaryStructure, resolveSalaryLineMonthly } from "../utils/salaryValidation";
+import {
+  validateAnnualCtc,
+  validateLetterSalaryStructure,
+  resolveSalaryLineMonthly,
+  sumLetterMonthlyGross,
+} from "../utils/salaryValidation";
 import "./AppointmentLetterSalary.css";
 import Button from "./Button";
 
@@ -53,7 +58,7 @@ export default function AppointmentLetterSalary({
             }));
           onChange({
             annualCTC: struct.ctcAnnual || letterData.annualCTC,
-            monthlySalary: earningLines.reduce((s, e) => s + (Number(e.monthly) || 0), 0),
+            monthlySalary: sumLetterMonthlyGross(earningLines),
             salaryComponents: earningLines,
           });
         }
@@ -106,8 +111,34 @@ export default function AppointmentLetterSalary({
       };
     });
     return {
-      ctcAnnual: Number(letterData.annualCTC) || 0,
+      ctcAnnual: Number(letterData.annualCTC) || sumLetterMonthlyGross(letterData.salaryComponents) * 12,
       components: allComponents,
+    };
+  }, [library, letterData.annualCTC, letterData.salaryComponents]);
+
+  /** Save only letter earnings + org deductions — avoids phantom library rows confusing validation. */
+  const buildSavePayload = useCallback(() => {
+    const earningComponents = (letterData.salaryComponents || []).map((line) => ({
+      code: line.code,
+      monthlyAmount: resolveSalaryLineMonthly(line),
+      enabled: true,
+    }));
+
+    const statutoryComponents = library
+      .filter((c) => c.category === "Deduction")
+      .map((c) => ({
+        code: c.code,
+        monthlyAmount: 0,
+        enabled: !c.isOptional,
+      }));
+
+    const monthlyGross = sumLetterMonthlyGross(letterData.salaryComponents);
+    const enteredAnnual = Number(letterData.annualCTC) || 0;
+    const ctcAnnual = enteredAnnual > 0 ? enteredAnnual : monthlyGross * 12;
+
+    return {
+      ctcAnnual,
+      components: [...earningComponents, ...statutoryComponents],
     };
   }, [library, letterData.annualCTC, letterData.salaryComponents]);
 
@@ -143,7 +174,7 @@ export default function AppointmentLetterSalary({
     if (field === "annual") {
       updated[index].monthly = Math.round((Number(value) || 0) / 12);
     }
-    const monthlySalary = updated.reduce((s, c) => s + (Number(c.monthly) || 0), 0);
+    const monthlySalary = sumLetterMonthlyGross(updated);
     onChange({ salaryComponents: updated, monthlySalary });
   };
 
@@ -186,7 +217,7 @@ export default function AppointmentLetterSalary({
     setSaving(true);
     setError("");
 
-    const payload = buildPreviewPayload();
+    const payload = buildSavePayload();
     const draftErrors = validateLetterSalaryStructure({
       annualCTC: payload.ctcAnnual,
       salaryComponents: letterData.salaryComponents,

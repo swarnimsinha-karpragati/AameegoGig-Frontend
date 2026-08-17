@@ -6,6 +6,8 @@ import {
   validateStructureDraft,
   validateLetterSalaryStructure,
   resolveSalaryLineMonthly,
+  sumLetterMonthlyGross,
+  isMonthlyGrossWithinCtc,
   contributesToGross,
   MAX_MONTHLY_AMOUNT,
 } from "./salaryValidation";
@@ -83,5 +85,15 @@ describe("salaryValidation (frontend)", () => {
       ],
     });
     expect(errors).toEqual([]);
+  });
+
+  test("sumLetterMonthlyGross resolves from annual when monthly is empty", () => {
+    const lines = [{ code: "BASIC", monthly: "", annual: 600000 }];
+    expect(sumLetterMonthlyGross(lines)).toBe(50000);
+  });
+
+  test("allows small rounding buffer per earning line", () => {
+    expect(isMonthlyGrossWithinCtc(41669, 500001, { lineCount: 4 })).toBe(true);
+    expect(isMonthlyGrossWithinCtc(50000, 480000, { lineCount: 4 })).toBe(false);
   });
 });

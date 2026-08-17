@@ -38,40 +38,85 @@ export const resolveSalaryLineMonthly = (line) => {
   return Math.round((Number(line.annual) || 0) / 12);
 };
 
+/** Sum gross from appointment-letter earning rows (single source of truth for the UI). */
+export const sumLetterMonthlyGross = (salaryComponents = []) =>
+  (salaryComponents || []).reduce((sum, line) => sum + resolveSalaryLineMonthly(line), 0);
+
+/**
+ * Allow small overages when each earning line rounds annual→monthly independently.
+ * Up to 2 ₹ per line (e.g. 6 components → 12 ₹ buffer).
+ */
+export const grossCtcTolerance = (lineCount = 1) =>
+  Math.max(12, Number(lineCount || 1) * 2);
+
+export const isMonthlyGrossWithinCtc = (monthlyGross, annualCTC, { lineCount = 1 } = {}) => {
+  const limit = monthlyCtcFromAnnual(annualCTC);
+  if (limit <= 0) return true;
+  return monthlyGross <= limit + grossCtcTolerance(lineCount);
+};
+
+export const computeContributingGross = (components = []) =>
+  components
+    .filter((comp) => contributesToGross(comp))
+    .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
+
 /** Validate only the earning lines shown in the appointment letter salary table. */
-export const validateLetterSalaryStructure = ({ annualCTC, salaryComponents = [] }) =>
-  validateStructureDraft({
-    ctcAnnual: annualCTC,
-    components: (salaryComponents || []).map((line) => ({
-      code: line.code,
-      name: line.name || line.componentName,
-      category: "Earning",
-      monthlyAmount: resolveSalaryLineMonthly(line),
-      enabled: true,
-      calculationType: "FixedMonthly",
-    })),
-  });
+export const validateLetterSalaryStructure = ({ annualCTC, salaryComponents = [] }) => {
+  const errors = [];
+  const ctcErr = validateAnnualCtc(annualCTC);
+  if (ctcErr) errors.push(ctcErr);
+
+  const lines = salaryComponents || [];
+  if (!lines.length) {
+    errors.push("At least one salary component is required");
+    return errors;
+  }
+
+  for (const line of lines) {
+    const amount = resolveSalaryLineMonthly(line);
+    const amountErr = validateField({
+      value: amount,
+      label: `${line.name || line.componentName || line.code || "Component"} amount`,
+      kind: "currency_monthly",
+    });
+    if (amountErr) errors.push(amountErr);
+  }
+
+  const monthlyGross = sumLetterMonthlyGross(lines);
+  const monthlyCtcLimit = monthlyCtcFromAnnual(annualCTC);
+
+  if (monthlyCtcLimit > 0 && !isMonthlyGrossWithinCtc(monthlyGross, annualCTC, { lineCount: lines.length })) {
+    errors.push(
+      `Monthly gross cannot exceed monthly CTC (₹${monthlyCtcLimit.toLocaleString("en-IN")})`
+    );
+  }
+
+  return errors;
+};
 
 export const validateStructureDraft = ({ ctcAnnual, components = [] }) => {
   const errors = [];
   const ctcErr = validateAnnualCtc(ctcAnnual);
   if (ctcErr) errors.push(ctcErr);
 
-  let monthlyGross = 0;
-  for (const comp of components) {
+  const contributing = (components || []).filter((comp) => contributesToGross(comp));
+
+  for (const comp of components || []) {
     const amountErr = validateField({
       value: comp.monthlyAmount,
       label: `${comp.name || comp.code || "Component"} amount`,
       kind: "currency_monthly",
     });
     if (amountErr) errors.push(amountErr);
-    if (contributesToGross(comp)) {
-      monthlyGross += Number(comp.monthlyAmount) || 0;
-    }
   }
 
+  const monthlyGross = computeContributingGross(components);
   const monthlyCtcLimit = monthlyCtcFromAnnual(ctcAnnual);
-  if (monthlyCtcLimit > 0 && monthlyGross > monthlyCtcLimit) {
+
+  if (
+    monthlyCtcLimit > 0 &&
+    !isMonthlyGrossWithinCtc(monthlyGross, ctcAnnual, { lineCount: contributing.length })
+  ) {
     errors.push(
       `Monthly gross cannot exceed monthly CTC (₹${monthlyCtcLimit.toLocaleString("en-IN")})`
     );
