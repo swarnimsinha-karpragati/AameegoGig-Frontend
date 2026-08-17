@@ -6,7 +6,7 @@ import {
   getSalaryComponents,
 } from "../services/salaryComponentService";
 import CtcSplitHelper from "./CtcSplitHelper";
-import { validateStructureDraft, validateAnnualCtc } from "../utils/salaryValidation";
+import { validateStructureDraft, validateAnnualCtc, contributesToGross } from "../utils/salaryValidation";
 import "./EmployeeSalaryStructureEditor.css";
 import Button from "./Button";
 
@@ -84,6 +84,7 @@ export default function EmployeeSalaryStructureEditor({
           category: c.category,
           monthlyAmount: c.monthlyAmount,
           enabled: c.enabled,
+          calculationType: c.calculationType,
         })),
       });
     }
@@ -146,7 +147,7 @@ export default function EmployeeSalaryStructureEditor({
 
   const monthlyGross = useMemo(() => {
     return components
-      .filter((c) => c.category === "Earning" && c.enabled)
+      .filter((c) => contributesToGross(c))
       .reduce((sum, c) => sum + (Number(c.monthlyAmount) || 0), 0);
   }, [components]);
 
