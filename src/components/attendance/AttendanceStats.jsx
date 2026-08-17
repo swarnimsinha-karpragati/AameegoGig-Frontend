@@ -1,4 +1,4 @@
-import { UserCheck, UserX, TriangleAlert, Clock } from "lucide-react";
+import { UserCheck, UserX, TriangleAlert, Clock} from "lucide-react";
 import Card from "../Card";
 import "./AttendanceStats.css";
 
@@ -19,7 +19,7 @@ function AttendanceStats({ stats, labels }) {
         </Card>
       ))}
     </div>
-  );
+  ); 
 }
 
 export default AttendanceStats;
