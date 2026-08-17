@@ -1027,7 +1027,7 @@ function Attendance() {
         key={
           selectedOrgDay
             ? `org-day-${selectedOrgDay}`
-            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}-${orgFilters.search}`
+            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}`
         }
         title={getTableTitle(
           `${getFilterDefaultTitle(orgFilters)} — All Employees`,
@@ -1068,7 +1068,7 @@ function Attendance() {
         key={
           selectedPersonalDay
             ? `self-day-${selectedPersonalDay}`
-            : `self-filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}-${selfFilters.search}`
+            : `self-filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}`
         }
         title={getTableTitle("My Attendance History", selectedPersonalDay, personalViewDate, selfFilters)}
         rows={displayedPersonalRows}
@@ -1088,7 +1088,7 @@ function Attendance() {
         key={
           selectedOrgDay
             ? `org-day-${selectedOrgDay}`
-            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}-${orgFilters.search}`
+            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}`
         }
         title={getTableTitle(
           `${getFilterDefaultTitle(orgFilters)} — All Employees`,
@@ -1127,7 +1127,7 @@ function Attendance() {
         key={
           selectedPersonalDay
             ? `day-${selectedPersonalDay}`
-            : `filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}-${selfFilters.search}`
+            : `filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}`
         }
         title={getTableTitle("My Attendance History", selectedPersonalDay, personalViewDate, selfFilters)}
         rows={displayedPersonalRows}
@@ -1143,7 +1143,7 @@ function Attendance() {
       {hasTeam && (
         <div>
           <TodayAttendanceTable
-            key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}-${teamFilters.search}`}
+            key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}`}
             title={`${getFilterDefaultTitle(teamFilters)} — My Team`}
             rows={displayedTeamRows}
             loading={loading}
