@@ -25,8 +25,18 @@ export const finalApproval = async (id,payload) => {
 
 export const viewLetter = (id,type) => {
 
+    let vendorCode = "";
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      vendorCode = user?.vendor_code || "";
+    } catch {
+      vendorCode = "";
+    }
+
+    const separator = vendorCode ? `&vendorCode=${encodeURIComponent(vendorCode)}` : "";
+
     window.open(
-      getApiUrl(`/resignation/getResignationLetter/?id=${id}&type=${type}`),
+      getApiUrl(`/resignation/getResignationLetter/?id=${id}&type=${type}${separator}`),
       "_blank"
     );
   };

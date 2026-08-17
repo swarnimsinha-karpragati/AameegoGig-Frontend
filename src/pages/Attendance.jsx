@@ -1,22 +1,15 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
   UserCheck,
-  UserX,
   Clock,
-  TriangleAlert,
-  Download,
-  Users,
   LogIn,
   LogOut,
-  ShieldCheck,
-  ChevronDown,
-  ChevronUp,
   MapPin,
   ClipboardCheck,
   Check,
+  AlertCircle,
 } from "lucide-react";
+import "./Attendance.css";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
@@ -25,627 +18,61 @@ import Button from "../components/Button";
 import { getEmployees } from "../services/employeeService";
 import {
   getMonthlyAttendance,
-  getTodayAttendance,
+  getAttendanceList,
   markAttendance,
   checkInAttendance,
   checkOutAttendance,
-  summarizeAttendanceSessions,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
-  // toLocalDateString,
+  markMonthAttendance,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
   getStoredUser,
-  canMarkAttendance as roleCanMarkAttendance,
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
-import "./Attendance.css";
-import Card from "../components/Card";
-import * as XLSX from "xlsx";
-
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-const ROLE_DESCRIPTIONS = {
-  Organization: "Organization-wide attendance overview and management",
-  HR: "HR oversight, corrections, and org-wide attendance operations",
-  Manager: "Manage and monitor your team's daily attendance",
-  Employee: "View your personal attendance and check in/out",
-};
-
-const statusTextClass = {
-  Present: "status-text-present",
-  Absent: "status-text-absent",
-  "Half Day": "status-text-half-day",
-  Late: "status-text-late",
-};
-
-const EMPTY_STATS = {
-  Present: 0,
-  Absent: 0,
-  "Half Day": 0,
-  Late: 0,
-};
-
-const EMPTY_MY_ROW = {
-  id: "—",
-  name: "You",
-  initials: "YO",
-  checkIn: "—",
-  checkOut: "—",
-  hours: "—",
-  status: "Not Marked",
-  sessions: [],
-  isCheckedIn: false,
-  sessionCount: 0,
-};
-
-function SessionLocationLink({ location, prefix }) {
-  const formatted = formatGeoLocation(location);
-  if (!formatted) return null;
-
-  return (
-    <a
-      className="attendance-session-location"
-      href={formatted.mapsUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      <MapPin size={14} />
-      <span>
-        {prefix}: {formatted.label}
-        {formatted.accuracy ? ` (${formatted.accuracy})` : ""}
-      </span>
-    </a>
-  );
-}
-
-function AttendanceStats({ stats, labels }) {
-  const items = [
-    { key: "Present", icon: UserCheck, className: "green", label: labels?.Present || "Present" },
-    { key: "Absent", icon: UserX, className: "orange", label: labels?.Absent || "Absent" },
-    { key: "Half Day", icon: TriangleAlert, className: "blue", label: labels?.["Half Day"] || "Half Day" },
-    { key: "Late", icon: Clock, className: "purple", label: labels?.Late || "Late" },
-  ];
-
-  return (
-    <div className="payroll-stats-grid">
-      {items.map(({ key, icon: Icon, className, label }) => (
-        <Card key={key} icon={<Icon size={22} strokeWidth={2} />} iconClassName={className} isInteractive>
-          <Card.Header>{label}</Card.Header>
-          <Card.Body>{stats[key] || 0}</Card.Body>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function TodayMetricsGrid({ metrics }) {
-  return (
-    <div className="attendance-metrics-grid">
-      {metrics.map(({ key, label, value, icon: Icon, accent }) => (
-        <div key={key} className={`attendance-metric-card ${accent}`}>
-          <div className="attendance-metric-icon" aria-hidden="true">
-            <Icon size={18} strokeWidth={2} />
-          </div>
-          <div className="attendance-metric-content">
-            <span className="attendance-metric-label">{label}</span>
-            <strong className="attendance-metric-value">{value}</strong>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SessionList({ sessions = [], totalHours, emptyMessage = "No sessions recorded." }) {
-  if (!sessions.length) {
-    return (
-      <div className="attendance-sessions-empty-wrap">
-        <Clock size={28} strokeWidth={1.5} />
-        <p className="attendance-sessions-empty">{emptyMessage}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="attendance-sessions-timeline">
-      {sessions.map((session, index) => (
-        <article
-          key={session.sessionNumber}
-          className={`attendance-timeline-item ${session.isOpen ? "open" : ""}`}
-        >
-          <div className="attendance-timeline-rail">
-            <span className="attendance-timeline-dot" />
-            {index < sessions.length - 1 ? <span className="attendance-timeline-line" /> : null}
-          </div>
-          <div className="attendance-timeline-card">
-            <div className="attendance-timeline-card-header">
-              <span className="attendance-session-badge">
-                Session {session.sessionNumber}
-              </span>
-              {session.isOpen ? (
-                <span className="attendance-live-pill">Live</span>
-              ) : (
-                <span className="attendance-session-hours">{session.hours}</span>
-              )}
-            </div>
-            <div className="attendance-timeline-times">
-              <div className="attendance-timeline-time in">
-                <LogIn size={15} />
-                <div>
-                  <span>Check in</span>
-                  <strong>{session.checkIn}</strong>
-                </div>
-              </div>
-              <div className="attendance-timeline-time out">
-                <LogOut size={15} />
-                <div>
-                  <span>Check out</span>
-                  <strong>{session.isOpen ? "—" : session.checkOut}</strong>
-                </div>
-              </div>
-            </div>
-            <div className="attendance-session-locations">
-              <SessionLocationLink location={session.checkInLocation} prefix="Check-in" />
-              {!session.isOpen ? (
-                <SessionLocationLink location={session.checkOutLocation} prefix="Check-out" />
-              ) : null}
-            </div>
-          </div>
-        </article>
-      ))}
-      {totalHours && totalHours !== "-" ? (
-        <div className="attendance-sessions-total">
-          <span>Total worked today</span>
-          <strong>{totalHours}</strong>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function DaySessionsPanel({ day, monthLabel, records = [], showEmployee = false, holiday = null, weekOff = null }) {
-  if (!day) return null;
-
-  return (
-    <section className="attendance-panel attendance-glass attendance-day-sessions-card">
-      <header className="attendance-panel__head">
-        <h2>
-          Sessions — {monthLabel} {day}
-        </h2>
-      </header>
-      {holiday ? (
-        <div className="attendance-holiday-banner">
-          <strong>{holiday.name}</strong>
-          <span>{holiday.type || "Holiday"}</span>
-        </div>
-      ) : null}
-      {weekOff && !holiday ? (
-        <div className="attendance-weekoff-banner">
-          <strong>{weekOff.dayName} — Weekly Off</strong>
-          <span>Non-working day</span>
-        </div>
-      ) : null}
-      {!records.length ? (
-        <p className="attendance-sessions-empty">
-          {holiday
-            ? "Paid holiday — no attendance sessions recorded."
-            : weekOff
-              ? "Weekly off — no attendance sessions recorded."
-              : "No attendance sessions for this day."}
-        </p>
-      ) : (
-        <div className="attendance-day-records">
-          {records.map((record) => (
-            <article
-              key={`${record.employeeId || record.name}-${day}`}
-              className="attendance-day-record"
-            >
-              {showEmployee ? (
-                <div className="attendance-day-record-header">
-                  <strong>{record.name}</strong>
-                  <span className="muted-cell">{record.employeeCode || record.id}</span>
-                  <span
-                    className={`status-text ${statusTextClass[record.status] || "status-text-late"
-                      }`}
-                  >
-                    {record.status}
-                  </span>
-                </div>
-              ) : null}
-              <SessionList
-                sessions={record.sessions}
-                totalHours={record.hours}
-                emptyMessage="No check-in/out sessions for this day."
-              />
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function AttendanceCalendar({
-  monthLabel,
-  calendarDays,
-  dayRecords,
-  selectedDay,
-  onDaySelect,
-  onPrev,
-  onNext,
-}) {
-  return (
-    <section className="attendance-panel attendance-glass attendance-calendar-card">
-      <header className="attendance-panel__head calendar-toolbar">
-        <h2>{monthLabel}</h2>
-        <div className="calendar-nav">
-          <button type="button" aria-label="Previous month" onClick={onPrev}>
-            <ChevronLeft size={18} />
-          </button>
-          <button type="button" aria-label="Next month" onClick={onNext}>
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </header>
-
-      <div className="calendar-weekdays">
-        {WEEKDAYS.map((day) => (
-          <span key={day}>{day}</span>
-        ))}
-      </div>
-
-      <div className="calendar-days">
-        {calendarDays.map((cell) =>
-          cell.empty ? (
-            <span key={cell.key} className="calendar-day empty" />
-          ) : (
-            <button
-              key={cell.key}
-              type="button"
-              className={`calendar-day ${cell.status} ${cell.isToday ? "today" : ""} ${cell.hasSessions ? "has-sessions" : ""
-                } ${cell.holiday ? "holiday" : ""} ${cell.weekOff ? "week-off" : ""} ${selectedDay === cell.day ? "selected" : ""
-                }`}
-              onClick={() =>
-                cell.hasSessions || cell.holiday || cell.weekOff
-                  ? onDaySelect(cell.day)
-                  : onDaySelect(null)
-              }
-              disabled={!cell.hasSessions && !cell.holiday && !cell.weekOff}
-              aria-label={`Day ${cell.day}${cell.holiday ? `, ${cell.holiday.name}` : ""}${cell.weekOff ? `, ${cell.weekOff.dayName} week off` : ""
-                }${cell.hasSessions ? ", view sessions" : ""}`}
-              title={
-                cell.holiday
-                  ? cell.holiday.name
-                  : cell.weekOff
-                    ? `${cell.weekOff.dayName} — Weekly Off`
-                    : undefined
-              }
-            >
-              <span className="calendar-day-num">{cell.day}</span>
-              <span className="calendar-day-meta">
-                {cell.holiday ? (
-                  <small className="calendar-day-holiday" title={cell.holiday.name}>
-                    {cell.holiday.name}
-                  </small>
-                ) : cell.weekOff && !cell.hasSessions ? (
-                  <small className="calendar-day-weekoff">Off</small>
-                ) : null}
-                {cell.hasSessions ? (
-                  <small className="calendar-day-sessions">
-                    {cell.sessionCount || 1}
-                  </small>
-                ) : cell.weekOff && cell.hasSessions ? (
-                  <small className="calendar-day-weekoff calendar-day-weekoff--compact">Off</small>
-                ) : null}
-              </span>
-            </button>
-          )
-        )}
-      </div>
-
-      <div className="calendar-legend">
-        <span>
-          <i className="legend-dot present" />
-          Present
-        </span>
-        <span>
-          <i className="legend-dot absent" />
-          Absent
-        </span>
-        <span>
-          <i className="legend-dot half-day" />
-          Half Day
-        </span>
-        <span>
-          <i className="legend-dot late" />
-          Late
-        </span>
-        <span>
-          <i className="legend-dot holiday" />
-          Holiday
-        </span>
-        <span>
-          <i className="legend-dot week-off" />
-          Week Off
-        </span>
-        <span className="calendar-legend-hint">Click a highlighted day to view sessions, holidays, or week-offs</span>
-      </div>
-    </section>
-  );
-}
-
-function TodayAttendanceTable({
-  title,
-  rows,
-  loading,
-  showActions = false,
-  filters,
-  setFilters,
-}) {
-  const [expandedRowId, setExpandedRowId] = useState(null);
-  const onChangeHandler = (key, value) => {
-    setFilters((pre) => ({
-      ...pre,
-      [key]: value
-    }))
-  }
-
-  const downloadAttandace = () => {
-    const data = rows.map((row) => ({
-      "Employee Name": row.name,
-      "Employee ID": row.id,
-      "Check In": row.checkIn,
-      "Check Out": row.checkOut,
-      "Working Hours": row.hours,
-
-      "Present Days": row.presentDays ?? "-",
-      "Absent Days": row.absentDays ?? "-",
-      "Half Days": row.halfDays ?? "-",
-      "Late Days": row.lateDays ?? "-",
-
-      "Paid Days": row.paidDays ?? "-",
-      "Working Days": row.workingDays ?? "-",
-      "Calendar Days": row.calendarDays ?? "-",
-
-      "Status": row.status,
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-
-    ws["!cols"] = [
-      { wch: 25 }, // Employee Name
-      { wch: 18 }, // Employee ID
-      { wch: 15 }, // Check In
-      { wch: 15 }, // Check Out
-      { wch: 18 }, // Working Hours
-      { wch: 15 }, // Present Days
-      { wch: 15 }, // Absent Days
-      { wch: 15 }, // Half Days
-      { wch: 15 }, // Late Days
-      { wch: 15 }, // Paid Days
-      { wch: 15 }, // Working Days
-      { wch: 15 }, // Calendar Days
-      { wch: 15 }, // Status
-    ];
-
-    const wb = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-      wb,
-      ws,
-      "Attendance Report"
-    );
-
-    XLSX.writeFile(
-      wb,
-      `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`
-    );
-  };
-
-  return (
-    <section className="attendance-panel attendance-glass attendance-table-card">
-      <header className="attendance-panel__head">
-        <h2>{title}</h2>
-        {setFilters && (
-          <div className="attendance-filter-container">
-            <div className="attendance-filter-buttons">
-              <input
-                type="text"
-                placeholder="Search Employee..."
-                value={filters.search}
-                onChange={(e) => onChangeHandler("search", e.target.value)}
-                className="attendance-search"
-              />
-              <button
-                type="button"
-                className={`attendance-filter-btn ${filters.filterType === "today" ? "active" : ""
-                  }`}
-                onClick={() => onChangeHandler("filterType", "today")}
-              >
-                Today
-              </button>
-
-              <button
-                type="button"
-                className={`attendance-filter-btn ${filters.filterType === "week" ? "active" : ""
-                  }`}
-                onClick={() => onChangeHandler("filterType", "week")}
-              >
-                This Week
-              </button>
-
-              <button
-                type="button"
-                className={`attendance-filter-btn ${filters.filterType === "month" ? "active" : ""
-                  }`}
-                onClick={() => onChangeHandler("filterType", "month")}
-              >
-                This Month
-              </button>
-
-              <button className="attendance-download-btn" onClick={downloadAttandace}>
-                <Download size={16} />
-                <span>Download</span>
-              </button>
-            </div>
-          </div>
-        )}
-      </header>
-
-      <div className="attendance-table-wrap">
-        <table className="attendance-table">
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>ID</th>
-              <th>Check In</th>
-              <th>Check Out</th>
-              <th>Sessions</th>
-              <th>Hours</th>
-              <th>Status</th>
-              {showActions && <th>Actions</th>}
-              <th>Notes</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={showActions ? 8 : 7}
-                  className="attendance-empty"
-                >
-                  No attendance records found.
-                </td>
-              </tr>
-            )}
-
-            {rows.map((row) => {
-              const rowKey = String(row.employeeId || row.id);
-              const isExpanded = expandedRowId === rowKey;
-              const hasSessions = (row.sessions || []).length > 0;
-
-              return (
-                <Fragment key={rowKey}>
-                  <tr>
-                    <td>
-                      <div className="employee-cell">
-                        <span className="employee-avatar">
-                          {row.initials}
-                        </span>
-
-                        <div className="employee-info">
-                          <span className="employee-name">
-                            {row.name}
-                          </span>
-
-                          <span className="muted-cell employee-code">
-                            {row.id}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="muted-cell">{row.id}</td>
-
-                    <td>{row.checkIn}</td>
-
-                    <td>
-                      {row.isCheckedIn ? "—" : row.checkOut}
-                    </td>
-
-                    <td>
-                      {hasSessions ? (
-                        <button
-                          type="button"
-                          className="attendance-session-toggle"
-                          onClick={() =>
-                            setExpandedRowId(
-                              isExpanded ? null : rowKey
-                            )
-                          }
-                        >
-                          {row.sessionCount || row.sessions.length}
-
-                          {isExpanded ? (
-                            <ChevronUp size={14} />
-                          ) : (
-                            <ChevronDown size={14} />
-                          )}
-                        </button>
-                      ) : (
-                        "0"
-                      )}
-                    </td>
-
-                    <td>{row.hours}</td>
-
-                    <td>
-                      <span
-                        className={`status-text ${statusTextClass[row.status] ||
-                          "status-text-late"
-                          }`}
-                      >
-                        {row.isCheckedIn
-                          ? "Checked In"
-                          : row.status}
-                      </span>
-                    </td>
-                    <td>
-                      {row?.notes
-                        ? row.notes.length > 30
-                          ? `${row.notes.slice(0, 30)}...`
-                          : row.notes
-                        : "-"}
-                    </td>
-
-                    {showActions && (
-                      <td>
-                        <Button
-                          type="button"
-                          className="action-btn-edit attendance-action-btn"
-                        >
-                          Review
-                        </Button>
-                      </td>
-                    )}
-                  </tr>
-
-                  {isExpanded && hasSessions && (
-                    <tr className="attendance-sessions-expand-row">
-                      <td colSpan={showActions ? 8 : 7}>
-                        <SessionList
-                          sessions={row.sessions}
-                          totalHours={row.hours}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
+import SearchableEmployeeSelect from "../components/attendance/SearchableEmployeeSelect";
+import AttendanceStats from "../components/attendance/AttendanceStats";
+import TodayMetricsGrid from "../components/attendance/TodayMetricsGrid";
+import SessionList from "../components/attendance/SessionList";
+import AttendanceCalendar from "../components/attendance/AttendanceCalendar";
+import TodayAttendanceTable from "../components/attendance/TodayAttendanceTable";
+import {
+  normalizeRecord,
+  ROLE_DESCRIPTIONS,
+  statusTextClass,
+  EMPTY_STATS,
+  EMPTY_MY_ROW,
+  FILTER_LABELS,
+} from "../components/attendance/attendanceUtils";
 
 function Attendance() {
   const user = getStoredUser();
   const viewRole = getAttendanceViewKey(user?.role);
-  const [viewDate, setViewDate] = useState(() => new Date());
-  const [summaryStats, setSummaryStats] = useState(EMPTY_STATS);
-  const [calendarMap, setCalendarMap] = useState({});
-  const [holidayMap, setHolidayMap] = useState({});
-  const [weekOffMap, setWeekOffMap] = useState({});
-  const [dayRecords, setDayRecords] = useState({});
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [todayRows, setTodayRows] = useState([]);
+  const [personalViewDate, setPersonalViewDate] = useState(() => new Date());
+  const [orgViewDate, setOrgViewDate] = useState(() => new Date());
+  const [selectedPersonalDay, setSelectedPersonalDay] = useState(null);
+  const [selectedOrgDay, setSelectedOrgDay] = useState(null);
+  const [selfCalendar, setSelfCalendar] = useState({
+    calendar: {},
+    holidays: {},
+    weekOffs: {},
+    dayRecords: {},
+  });
+  const [orgCalendar, setOrgCalendar] = useState({
+    calendar: {},
+    holidays: {},
+    weekOffs: {},
+    dayRecords: {},
+  });
+  const [selfRows, setSelfRows] = useState([]);
+  const [selfStats, setSelfStats] = useState(EMPTY_STATS);
+  const [orgRows, setOrgRows] = useState([]);
+  const [orgStats, setOrgStats] = useState(EMPTY_STATS);
+  const [teamRows, setTeamRows] = useState([]);
+  const [todaySelfRow, setTodaySelfRow] = useState(EMPTY_MY_ROW);
+  const [hasTeam, setHasTeam] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -654,12 +81,20 @@ function Attendance() {
   const [attendanceAction, setAttendanceAction] = useState("checkin");
   const [checkInMessage, setCheckInMessage] = useState("");
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
-  const [filters, setFilters] = useState({
+
+  const createInitialFilters = () => ({
     filterType: "today",
     search: "",
+    startDate: "",
+    endDate: "",
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
   });
+  
+
+  const [selfFilters, setSelfFilters] = useState(createInitialFilters);
+  const [orgFilters, setOrgFilters] = useState(createInitialFilters);
+  const [teamFilters, setTeamFilters] = useState(createInitialFilters);
 
   const [markForm, setMarkForm] = useState({
     employeeId: "",
@@ -667,10 +102,9 @@ function Attendance() {
     checkIn: "",
     checkOut: "",
     notes: "",
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split("T")[0],
   });
 
-  /* ── Confirm modal ── */
   const [modal, setModal] = useState({
     open: false,
     title: "",
@@ -682,82 +116,219 @@ function Attendance() {
 
   const toast = useToast();
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
-  // const openModal = (config) => setModal({ open: true, ...config }); // reserved for future use
 
-  const canMarkAttendance = roleCanMarkAttendance(user?.role);
-  const isEmployeeView = viewRole === "Employee";
+  const canMarkForOthers = user?.role === "Admin" || user?.role === "HR";
   const canSelfCheckIn = hasLinkedEmployeeProfile(user);
 
-  const monthLabel = viewDate.toLocaleString("en-US", {
+  const personalMonthLabel = personalViewDate.toLocaleString("en-US", {
     month: "long",
     year: "numeric",
   });
+  const orgMonthLabel = orgViewDate.toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const buildListParams = (target, viewDateObj, selectedDay, filterObj) => {
+    const params = {
+      target,
+      filterType: filterObj.filterType,
+      search: filterObj.search || "",
+    };
+    if (selectedDay !== null) {
+      params.filterType = "custom";
+      const dayStr = `${viewDateObj.getFullYear()}-${String(
+        viewDateObj.getMonth() + 1
+      ).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
+      params.startDate = dayStr;
+      params.endDate = dayStr;
+    } else if (filterObj.startDate && filterObj.endDate) {
+      params.startDate = filterObj.startDate;
+      params.endDate = filterObj.endDate;
+    } else {
+      params.startDate = "";
+      params.endDate = "";
+    }
+    return params;
+  };
 
   const applyTodayRowUpdate = (response) => {
     if (!user?.employeeId) return;
 
     const nextRow = buildTodayRowFromAttendanceResponse(response, user);
-    setTodayRows((prev) => [
-      ...prev.filter((row) => String(row.employeeId) !== String(user.employeeId)),
+    setTodaySelfRow(nextRow);
+    setSelfRows((prev) => [
+      ...prev.filter(
+        (row) =>
+          String(row.employeeId?._id || row.employeeId) !==
+          String(user.employeeId)
+      ),
       nextRow,
     ]);
   };
 
-  const loadMonthData = async () => {
-    setLoading(true);
-    setError("");
+  const loadSelfData = async () => {
+    if (viewRole === "Organization") return;
     try {
-      const year = viewDate.getFullYear();
-      const month = viewDate.getMonth() + 1;
-
-      const [monthData,] = await Promise.all([
-        getMonthlyAttendance(year, month),
+      const year = personalViewDate.getFullYear();
+      const month = personalViewDate.getMonth() + 1;
+      const params = buildListParams("self", personalViewDate, selectedPersonalDay, selfFilters);
+      const [monthData, listRes] = await Promise.all([
+        getMonthlyAttendance(year, month, "self"),
+        getAttendanceList(params),
       ]);
 
-      setCalendarMap(monthData.calendar || {});
-      setHolidayMap(monthData.holidays || {});
-      setWeekOffMap(monthData.weekOffs || {});
-      setSummaryStats(monthData.stats || EMPTY_STATS);
-      setDayRecords(monthData.dayRecords || {});
+      setSelfCalendar({
+        calendar: monthData.calendar || {},
+        holidays: monthData.holidays || {},
+        weekOffs: monthData.weekOffs || {},
+        dayRecords: monthData.dayRecords || {},
+      });
+      setSelfStats(monthData.stats || EMPTY_STATS);
+      setSelfRows(listRes.rows || []);
+      if (listRes.hasTeam !== undefined) setHasTeam(listRes.hasTeam);
     } catch (err) {
+      if (err.response?.status === 403) return;
       setError(err.response?.data?.message || "Failed to load attendance data");
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const loadOrgData = async () => {
+    if (!canMarkForOthers) return;
+    try {
+      const year = orgViewDate.getFullYear();
+      const month = orgViewDate.getMonth() + 1;
+      const params = buildListParams("org", orgViewDate, selectedOrgDay, orgFilters);
+      const [monthData, listRes] = await Promise.all([
+        getMonthlyAttendance(year, month, "org"),
+        getAttendanceList(params),
+      ]);
+
+      setOrgCalendar({
+        calendar: monthData.calendar || {},
+        holidays: monthData.holidays || {},
+        weekOffs: monthData.weekOffs || {},
+        dayRecords: monthData.dayRecords || {},
+      });
+      setOrgStats(monthData.stats || EMPTY_STATS);
+      setOrgRows(listRes.rows || []);
+    } catch (err) {
+      if (err.response?.status === 403) return;
+      setError(err.response?.data?.message || "Failed to load attendance data");
+    }
+  };
+
+  const loadTeamData = async () => {
+    if (!hasTeam) return;
+    try {
+      const params = buildListParams("team", personalViewDate, null, teamFilters);
+      const listRes = await getAttendanceList(params);
+      setTeamRows(listRes.rows || []);
+    } catch (err) {
+      if (err.response?.status === 403) return;
+      setError(err.response?.data?.message || "Failed to load team attendance");
+    }
+  };
+
+  const loadTodaySelf = async () => {
+    if (!canSelfCheckIn) return;
+    try {
+      const listRes = await getAttendanceList({
+        target: "self",
+        filterType: "today",
+      });
+      const mine = (listRes.rows || []).find(
+        (row) =>
+          (user?.employeeId &&
+            String(row.employeeId?._id || row.employeeId) ===
+              String(user.employeeId)) ||
+          row.name?.toLowerCase() === user?.name?.toLowerCase()
+      );
+      setTodaySelfRow(mine ? { ...EMPTY_MY_ROW, ...mine } : EMPTY_MY_ROW);
+    } catch (err) {
+      if (err.response?.status === 403) return;
     }
   };
 
   const loadEmployees = async () => {
-    if (!canMarkAttendance) return;
+    if (!canMarkForOthers) return;
     try {
       const res = await getEmployees();
       const list = res.data?.employees || [];
       setEmployees(list);
-      if (!markForm.employeeId && list.length > 0) {
+      if ((!markForm.employeeId || !markMonthForm.employeeId) && list.length > 0) {
         setMarkForm((prev) => ({ ...prev, employeeId: list[0]._id }));
+        setMarkMonthForm((prev) => ({ ...prev, employeeId: list[0]._id }));
       }
     } catch {
-      // non-blocking for page load
+      // non-blocking
     }
   };
 
   useEffect(() => {
-    loadMonthData();
-    setSelectedDay(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewDate]);
+    setLoading(true);
+    Promise.all([loadSelfData(), loadOrgData(), loadTeamData()])
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line
+  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, teamFilters, hasTeam]);
+
+  useEffect(() => {
+    loadTodaySelf();
+    // eslint-disable-next-line
+  }, [user?.role]);
 
   useEffect(() => {
     loadEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, [user?.role]);
 
-  const calendarDays = useMemo(() => {
-    const year = viewDate.getFullYear();
-    const month = viewDate.getMonth();
+  const applyFilterUpdate = (key, value) => {
+    if (key === "clearDates") {
+      return { startDate: "", endDate: "", filterType: "today" };
+    }
+
+    if (key === "startDate" || key === "endDate") {
+      return { [key]: value, filterType: "custom" };
+    }
+
+    if (key === "filterType") {
+      return { filterType: value, startDate: "", endDate: "" };
+    }
+
+    return { [key]: value };
+  };
+
+  const handleSelfFilterChange = (key, value) => {
+    setSelectedPersonalDay(null);
+    setSelfFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+  };
+
+  const handleOrgFilterChange = (key, value) => {
+    setSelectedOrgDay(null);
+    setOrgFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+  };
+
+  const handleTeamFilterChange = (key, value) => {
+    setTeamFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+  };
+
+  const handlePersonalDaySelect = (day) => {
+    setSelectedPersonalDay((prev) => (prev === day ? null : day));
+  };
+
+  const handleOrgDaySelect = (day) => {
+    setSelectedOrgDay((prev) => (prev === day ? null : day));
+  };
+
+  const buildCalendarCells = (viewDateObj, calendarData) => {
+    const year = viewDateObj.getFullYear();
+    const month = viewDateObj.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const today = new Date();
     const cells = [];
+    const dayRecords = calendarData.dayRecords || {};
 
     for (let i = 0; i < firstDay; i += 1) {
       cells.push({ key: `empty-${i}`, empty: true });
@@ -768,78 +339,73 @@ function Attendance() {
         year === today.getFullYear() &&
         month === today.getMonth() &&
         day === today.getDate();
-      const dayEntries = dayRecords[day] || [];
+      const dayEntries = dayRecords[day] || dayRecords[String(day)] || [];
       const sessionCount = dayEntries.reduce(
         (sum, entry) => sum + (entry.sessionCount || entry.sessions?.length || 0),
         0
       );
+      const leaveEntry = dayEntries.find((entry) => entry.status === "Leave");
+      const wfhEntry = dayEntries.find((entry) => entry.status === "WFH");
 
       cells.push({
         key: `day-${day}`,
         day,
-        status: calendarMap[day] || "neutral",
-        holiday: holidayMap[day] || null,
-        weekOff: !holidayMap[day] ? weekOffMap[day] || null : null,
+        status: calendarData.calendar[day] || "neutral",
+        holiday: calendarData.holidays[day] || null,
+        weekOff: !calendarData.holidays[day] ? calendarData.weekOffs[day] || null : null,
         isToday,
-        hasSessions: dayEntries.length > 0,
+        hasSessions: sessionCount > 0,
         sessionCount,
+        leave: leaveEntry ? leaveEntry.leaveType || "Leave" : null,
+        wfh: wfhEntry ? true : null,
       });
     }
 
     return cells;
-  }, [viewDate, calendarMap, dayRecords, holidayMap, weekOffMap]);
+  };
+
+  const personalCalendarDays = useMemo(
+    () => buildCalendarCells(personalViewDate, selfCalendar),
+    [personalViewDate, selfCalendar]
+  );
+
+  const orgCalendarDays = useMemo(
+    () => buildCalendarCells(orgViewDate, orgCalendar),
+    [orgViewDate, orgCalendar]
+  );
 
   const myTodayRow = useMemo(() => {
-    const byEmployee = todayRows.find(
-      (row) => user?.employeeId && String(row.employeeId) === String(user.employeeId)
-    );
-    const byName = todayRows.find(
-      (row) => row.name?.toLowerCase() === user?.name?.toLowerCase()
-    );
-    const found = byEmployee || byName;
-
-    if (found) {
-      const summary = summarizeAttendanceSessions(found.sessions || []);
-      return {
-        ...found,
-        checkIn: summary.checkIn,
-        checkOut: summary.checkOut,
-        hours: found.hours || summary.hours,
-        isCheckedIn: found.isCheckedIn ?? summary.isCheckedIn,
-        sessionCount: found.sessionCount ?? summary.sessionCount,
-        sessions: found.sessions || [],
-      };
-    }
-
+    if (!todaySelfRow || Object.keys(todaySelfRow).length === 0) return EMPTY_MY_ROW;
     return {
       ...EMPTY_MY_ROW,
-      id: user?.employeeId?.slice?.(-6)?.toUpperCase?.() || "—",
-      name: user?.name || "You",
-      initials: (user?.name || "YO")
-        .split(" ")
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase(),
+      ...todaySelfRow,
+      id: todaySelfRow.id || user?.employeeId?.slice?.(-6)?.toUpperCase?.() || "—",
+      name: todaySelfRow.name || user?.name || "You",
+      initials:
+        todaySelfRow.initials ||
+        (user?.name || "YO")
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
     };
-  }, [todayRows, user]);
+  }, [todaySelfRow, user]);
 
-  const selectedDayRecords = useMemo(() => {
-    if (!selectedDay) return [];
+  const displayedPersonalRows = useMemo(
+    () => selfRows.map((r) => normalizeRecord(r)),
+    [selfRows]
+  );
 
-    const records = dayRecords[selectedDay] || [];
-    if (!isEmployeeView) return records;
+  const displayedOrgRows = useMemo(
+    () => orgRows.map((r) => normalizeRecord(r)),
+    [orgRows]
+  );
 
-    const byEmployee = records.find(
-      (record) => user?.employeeId && String(record.employeeId) === String(user.employeeId)
-    );
-    const byName = records.find(
-      (record) => record.name?.toLowerCase() === user?.name?.toLowerCase()
-    );
-
-    const match = byEmployee || byName;
-    return match ? [match] : [];
-  }, [selectedDay, dayRecords, isEmployeeView, user]);
+  const displayedTeamRows = useMemo(
+    () => teamRows.map((r) => normalizeRecord(r)),
+    [teamRows]
+  );
 
   const myLatestCheckInSelfieUrl = useMemo(() => {
     const sessions = myTodayRow.sessions || [];
@@ -853,19 +419,11 @@ function Attendance() {
 
   const myLatestCheckOutSelfieUrl = useMemo(() => {
     const sessions = myTodayRow.sessions || [];
-
-    for (
-      let i = sessions.length - 1;
-      i >= 0;
-      i -= 1
-    ) {
+    for (let i = sessions.length - 1; i >= 0; i -= 1) {
       if (sessions[i]?.checkOutSelfieUrl) {
-        return getCheckInSelfieUrl(
-          sessions[i].checkOutSelfieUrl
-        );
+        return getCheckInSelfieUrl(sessions[i].checkOutSelfieUrl);
       }
     }
-
     return null;
   }, [myTodayRow]);
 
@@ -879,25 +437,24 @@ function Attendance() {
     return null;
   }, [myTodayRow]);
 
-  const shiftMonth = (delta) => {
-    const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1);
-    setViewDate(newDate);
-
-    const today = new Date();
-    const isCurrentMonth =
-      newDate.getMonth() === today.getMonth() &&
-      newDate.getFullYear() === today.getFullYear();
-
-    setFilters((pre) => ({
-      ...pre,
-      month: newDate.getMonth() + 1,
-      year: newDate.getFullYear(),
-      filterType: isCurrentMonth ? "month" : "",
-    }));
+  const shiftPersonalMonth = (delta) => {
+    const newDate = new Date(
+      personalViewDate.getFullYear(),
+      personalViewDate.getMonth() + delta,
+      1
+    );
+    setPersonalViewDate(newDate);
+    setSelectedPersonalDay(null);
   };
 
-  const handleDaySelect = (day) => {
-    setSelectedDay((prev) => (prev === day ? null : day));
+  const shiftOrgMonth = (delta) => {
+    const newDate = new Date(
+      orgViewDate.getFullYear(),
+      orgViewDate.getMonth() + delta,
+      1
+    );
+    setOrgViewDate(newDate);
+    setSelectedOrgDay(null);
   };
 
   const formatTimeForApi = (time24) => {
@@ -909,6 +466,74 @@ function Attendance() {
     return `${String(hours).padStart(2, "0")}:${minuteStr} ${meridiem}`;
   };
 
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const [markMonthForm, setMarkMonthForm] = useState({
+    employeeId: '',
+    month: MONTHS[new Date().getMonth()],
+    workingDays: '',
+  });
+
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleMonthMarkChange = (field, value) => {
+    setMarkMonthForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!markMonthForm.employeeId) {
+      newErrors.employeeId = 'Please select an employee.';
+    }
+
+    if (!markMonthForm.month) {
+      newErrors.month = 'Please select an attendance month.';
+    }
+
+    const workingDaysNum = Number(markMonthForm.workingDays);
+    if (!markMonthForm.workingDays || markMonthForm.workingDays.toString().trim() === '') {
+      newErrors.workingDays = 'Total working days is required.';
+    } else if (isNaN(workingDaysNum)) {
+      newErrors.workingDays = 'Working days must be a valid number.';
+    } else if (!Number.isInteger(workingDaysNum)) {
+      newErrors.workingDays = 'Working days must be a whole number.';
+    } else if (workingDaysNum < 0 || workingDaysNum > 31) {
+      newErrors.workingDays = 'Working days must be between 0 and 31.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleMarkMonthAttendance = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const res = await markMonthAttendance(markMonthForm);
+      alert(res.message);
+      setMarkMonthForm((prev) => ({ ...prev, workingDays: '' }));
+      setErrors({});
+    } catch (error) {
+      setErrors({ form: error.message || 'Failed to submit attendance. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
 
@@ -917,10 +542,9 @@ function Attendance() {
       return;
     }
 
-
     if (markForm.checkIn && markForm.checkOut) {
       const timeToMinutes = (timeStr) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
+        const [hours, minutes] = timeStr.split(":").map(Number);
         return hours * 60 + minutes;
       };
 
@@ -938,11 +562,11 @@ function Attendance() {
         ...markForm,
         checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
         checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
-        date: markForm.date || new Date().toISOString().split('T')[0],
+        date: markForm.date || new Date().toISOString().split("T")[0],
       });
       toast.success("Attendance saved successfully");
-      loadMonthData();
-      fetchAttendance();
+      loadOrgData();
+      loadSelfData();
     } catch (err) {
       toast.error(err.response?.data?.message || "Unable to save attendance");
     }
@@ -960,13 +584,11 @@ function Attendance() {
 
     try {
       setCheckInMessage("Detecting your location...");
-
       const location = await getAttendanceLocation(
         attendanceAction === "checkin" ? "check in" : "check out"
       );
 
       let res;
-
       if (attendanceAction === "checkin") {
         res = await checkInAttendance(selfieBlob, location);
       } else {
@@ -975,21 +597,20 @@ function Attendance() {
 
       setCheckInMessage(
         res.message ||
-        (attendanceAction === "checkin"
-          ? "Checked in successfully"
-          : "Checked out successfully")
+          (attendanceAction === "checkin"
+            ? "Checked in successfully"
+            : "Checked out successfully")
       );
 
       applyTodayRowUpdate(res);
       setShowSelfieModal(false);
-
-      await loadMonthData();
-
+      await loadTodaySelf();
+      await loadSelfData();
     } catch (err) {
       setCheckInMessage(
         err.message ||
-        err.response?.data?.message ||
-        "Unable to process attendance"
+          err.response?.data?.message ||
+          "Unable to process attendance"
       );
     } finally {
       setActionLoading(false);
@@ -1003,48 +624,16 @@ function Attendance() {
     setShowSelfieModal(true);
   };
 
-  useEffect(() => {
-    fetchAttendance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
-
-  const fetchAttendance = async () => {
-    try {
-      const params = new URLSearchParams();
-      params.append("filterType", filters.filterType);
-      if (filters.search) {
-        params.append("search", filters.search);
-      }
-      params.append("month", filters.month);
-      params.append("year", filters.year);
-      const data = await getTodayAttendance(params);
-      setTodayRows(data.rows || []);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-
-  const renderCalendarSection = (title) => (
-    <>
-      <AttendanceCalendar
-        monthLabel={title || monthLabel}
-        calendarDays={calendarDays}
-        dayRecords={dayRecords}
-        selectedDay={selectedDay}
-        onDaySelect={handleDaySelect}
-        onPrev={() => shiftMonth(-1)}
-        onNext={() => shiftMonth(1)}
-      />
-      <DaySessionsPanel
-        day={selectedDay}
-        monthLabel={monthLabel}
-        records={selectedDayRecords}
-        showEmployee={!isEmployeeView}
-        holiday={selectedDay ? holidayMap[selectedDay] || null : null}
-        weekOff={selectedDay ? weekOffMap[selectedDay] || null : null}
-      />
-    </>
+  const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext, showLeaveWfh = true }) => (
+    <AttendanceCalendar
+      monthLabel={title}
+      calendarDays={calendarDays}
+      selectedDay={selectedDay}
+      onDaySelect={onDaySelect}
+      onPrev={onPrev}
+      onNext={onNext}
+      showLeaveWfh={showLeaveWfh}
+    />
   );
 
   const renderSelfAttendanceSection = (title = "My Check In / Out") => {
@@ -1077,11 +666,11 @@ function Attendance() {
             </p>
           </div>
           <span
-            className={`attendance-status-pill ${myTodayRow.isCheckedIn
-              ? "live"
-              : statusTextClass[myTodayRow.status]?.replace("status-text-", "") ||
-              "absent"
-              }`}
+            className={`attendance-status-pill ${
+              myTodayRow.isCheckedIn
+                ? "live"
+                : statusTextClass[myTodayRow.status]?.replace("status-text-", "") || "absent"
+            }`}
           >
             {myTodayRow.isCheckedIn ? "● Checked In" : myTodayRow.status}
           </span>
@@ -1089,34 +678,10 @@ function Attendance() {
 
         <TodayMetricsGrid
           metrics={[
-            {
-              key: "in",
-              label: "First In",
-              value: myTodayRow.checkIn,
-              icon: LogIn,
-              accent: "accent-green",
-            },
-            {
-              key: "out",
-              label: "Last Out",
-              value: myTodayRow.isCheckedIn ? "—" : myTodayRow.checkOut,
-              icon: LogOut,
-              accent: "accent-slate",
-            },
-            {
-              key: "hours",
-              label: "Total Hours",
-              value: myTodayRow.hours,
-              icon: Clock,
-              accent: "accent-blue",
-            },
-            {
-              key: "sessions",
-              label: "Sessions",
-              value: myTodayRow.sessionCount || myTodayRow.sessions?.length || 0,
-              icon: UserCheck,
-              accent: "accent-violet",
-            },
+            { key: "in", label: "First In", value: myTodayRow.checkIn, icon: LogIn, accent: "accent-green" },
+            { key: "out", label: "Last Out", value: myTodayRow.isCheckedIn ? "—" : myTodayRow.checkOut, icon: LogOut, accent: "accent-slate" },
+            { key: "hours", label: "Total Hours", value: myTodayRow.hours, icon: Clock, accent: "accent-blue" },
+            { key: "sessions", label: "Sessions", value: myTodayRow.sessionCount || myTodayRow.sessions?.length || 0, icon: UserCheck, accent: "accent-violet" },
           ]}
         />
 
@@ -1141,8 +706,8 @@ function Attendance() {
         </div>
         {checkInMessage ? <p className="attendance-save-msg">{checkInMessage}</p> : null}
         {myLatestCheckInSelfieUrl ||
-          myLatestCheckOutSelfieUrl ||
-          myLatestCheckInLocation ? (
+        myLatestCheckOutSelfieUrl ||
+        myLatestCheckInLocation ? (
           <div className="attendance-checkin-proof">
             {myLatestCheckInSelfieUrl ? (
               <div className="attendance-checkin-selfie">
@@ -1190,7 +755,7 @@ function Attendance() {
           </div>
         ) : null}
 
-        <div className="attendance-today-sessions">
+        <div className="attendance-today-sessions" style={{ marginTop: "1.5rem" }}>
           <div className="attendance-today-sessions-header">
             <h3>Today&apos;s Sessions</h3>
             <span className="attendance-today-sessions-count">
@@ -1224,20 +789,12 @@ function Attendance() {
         <div className="attendance-mark-form__row">
           <div className="attendance-field attendance-field--employee">
             <label htmlFor="mark-employee">Employee</label>
-            <select
-              id="mark-employee"
-              className="attendance-control"
+            <SearchableEmployeeSelect
+              employeeList={employeeList}
               value={markForm.employeeId}
-              onChange={(e) =>
-                setMarkForm((prev) => ({ ...prev, employeeId: e.target.value }))
-              }
-            >
-              {employeeList.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.employeeCode} - {emp.name}
-                </option>
-              ))}
-            </select>
+              onChange={(empId) => setMarkForm((prev) => ({ ...prev, employeeId: empId }))}
+              controlClassName="attendance-control"
+            />
           </div>
 
           <div className="attendance-field attendance-field--status">
@@ -1260,7 +817,7 @@ function Attendance() {
 
         <div className="attendance-mark-form__row attendance-mark-form__row--details">
           <div className="attendance-field">
-            <label htmlFor="mark-check-in">Date</label>
+            <label htmlFor="mark-date">Date</label>
             <input
               id="mark-date"
               type="date"
@@ -1268,7 +825,7 @@ function Attendance() {
                 .toISOString()
                 .split("T")[0]}
               className="attendance-control"
-              max={new Date().toISOString().split('T')[0]}
+              max={new Date().toISOString().split("T")[0]}
               value={markForm.date}
               onChange={(e) =>
                 setMarkForm((prev) => ({ ...prev, date: e.target.value }))
@@ -1333,116 +890,274 @@ function Attendance() {
     </section>
   );
 
+  const renderMarkMonthForm = (employeeList, title) => (
+    <section className="month-mark-card">
+      <header className="month-mark-head">
+        <div className="month-mark-title-wrap">
+          <h2 className="month-mark-heading">
+            <ClipboardCheck size={20} strokeWidth={2} />
+            {title}
+          </h2>
+          <p className="month-mark-subtitle">
+            Record or update monthly attendance status and working days summary
+          </p>
+        </div>
+      </header>
+
+      {errors.form && (
+        <div className="month-mark-alert month-mark-alert--error" role="alert">
+          <AlertCircle size={18} />
+          <span>{errors.form}</span>
+        </div>
+      )}
+
+      <form className="month-mark-form" onSubmit={handleMarkMonthAttendance} noValidate>
+        <div className="month-mark-row">
+          <div className={`month-mark-field ${errors.employeeId ? 'month-mark-field--error' : ''}`}>
+            <label htmlFor="mark-employee" className="month-mark-label">
+              Employee
+            </label>
+            <SearchableEmployeeSelect
+              employeeList={employeeList}
+              value={markMonthForm.employeeId}
+              onChange={(empId) => handleMonthMarkChange('employeeId', empId)}
+              disabled={isSubmitting}
+              hasError={!!errors.employeeId}
+            />
+            {errors.employeeId && (
+              <span className="month-mark-error-msg">{errors.employeeId}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="month-mark-row month-mark-row--split">
+          <div className={`month-mark-field ${errors.month ? 'month-mark-field--error' : ''}`}>
+            <label htmlFor="attendance-month" className="month-mark-label">
+              Attendance Month
+            </label>
+            <select
+              id="attendance-month"
+              className="month-mark-control"
+              value={markMonthForm.month}
+              onChange={(e) => handleMonthMarkChange('month', e.target.value)}
+              disabled={isSubmitting}
+            >
+              {MONTHS.map((month) => (
+                <option key={month} value={month}>
+                  {month}
+                </option>
+              ))}
+            </select>
+            {errors.month && (
+              <span className="month-mark-error-msg">{errors.month}</span>
+            )}
+          </div>
+
+          <div className={`month-mark-field ${errors.workingDays ? 'month-mark-field--error' : ''}`}>
+            <label htmlFor="working-days" className="month-mark-label">
+              Total Working Days
+            </label>
+            <input
+              id="working-days"
+              type="number"
+              min="0"
+              max="31"
+              placeholder="e.g., 22"
+              className="month-mark-control"
+              value={markMonthForm.workingDays}
+              onChange={(e) => handleMonthMarkChange('workingDays', e.target.value)}
+              disabled={isSubmitting}
+            />
+            {errors.workingDays && (
+              <span className="month-mark-error-msg">{errors.workingDays}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="month-mark-actions">
+          <Button
+            type="submit"
+            className="month-mark-btn month-mark-btn--primary"
+            disabled={isSubmitting}
+            icon={<Check size={16} />}
+          >
+            {isSubmitting ? "Saving..." : "Save Attendance"}
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+
+  const getFilterDefaultTitle = (filterObj, base) =>
+    FILTER_LABELS[filterObj.filterType] || base || "Attendance";
+
+  const getTableTitle = (defaultTitle, selectedDay, viewDateObj, filterObj) => {
+    if (selectedDay !== null && viewDateObj) {
+      const targetDate = new Date(viewDateObj);
+      targetDate.setDate(selectedDay);
+
+      return `Attendance — ${targetDate.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })}`;
+    }
+    if (filterObj.startDate && filterObj.endDate) {
+      return `Attendance (${filterObj.startDate} to ${filterObj.endDate})`;
+    }
+    return defaultTitle;
+  };
+
   const renderOrganizationView = () => (
     <>
-      <AttendanceStats stats={summaryStats} />
-      {canMarkAttendance ? renderMarkForm(employees, "Mark Attendance") : null}
-      {renderCalendarSection(monthLabel)}
+      <AttendanceStats stats={orgStats} />
+      {canMarkForOthers ? renderMarkForm(employees, "Mark Attendance") : null}
+      {renderMarkMonthForm(employees, "Mark / Month Attendance")}
+      {renderCalendarSection({
+        title: `${orgMonthLabel} — Organization`,
+        viewDateObj: orgViewDate,
+        calendarDays: orgCalendarDays,
+        selectedDay: selectedOrgDay,
+        onDaySelect: handleOrgDaySelect,
+        onPrev: () => shiftOrgMonth(-1),
+        onNext: () => shiftOrgMonth(1),
+        showLeaveWfh: false,
+      })}
       <TodayAttendanceTable
-        title={filters.filterType === "month" ? monthLabel + " Attendance" : filters.filterType === "week" ? "Week Attendance" : "Today's Attendance"}
-        rows={todayRows}
+        key={
+          selectedOrgDay
+            ? `org-day-${selectedOrgDay}`
+            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}-${orgFilters.search}`
+        }
+        title={getTableTitle(
+          `${getFilterDefaultTitle(orgFilters)} — All Employees`,
+          selectedOrgDay,
+          orgViewDate,
+          orgFilters
+        )}
+        rows={displayedOrgRows}
         loading={loading}
-        filters={filters}
-        setFilters={setFilters}
+        showActions
+        filters={orgFilters}
+        onFilterChange={handleOrgFilterChange}
+        holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
+        weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
+        isCalendarSelection={selectedOrgDay !== null}
+        onClearSelectedDay={() => setSelectedOrgDay(null)}
       />
     </>
   );
 
   const renderHRView = () => (
     <>
-      <div className="attendance-hr-actions" >
-        <Button type="button" icon={<ShieldCheck size={16} />}>
-          Review Corrections
-        </Button>
-        <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
-          Export Report
-        </Button>
-      </div>
-      <AttendanceStats
-        stats={summaryStats}
-        labels={{
-          Present: "Present (Org)",
-          Absent: "Absent (Org)",
-          "Half Day": "Half Day (Org)",
-          Late: "Late (Org)",
-        }}
-      />
+      <AttendanceStats stats={selfStats} />
       {renderSelfAttendanceSection("My Check In / Out")}
-      {renderMarkForm(employees, "Mark / Correct Attendance")}
-      {renderCalendarSection(`${monthLabel} — Organization`)}
+      <div className="attendance-employee-secondary">
+        {renderCalendarSection({
+          title: `${personalMonthLabel} — My Calendar`,
+          viewDateObj: personalViewDate,
+          calendarDays: personalCalendarDays,
+          selectedDay: selectedPersonalDay,
+          onDaySelect: handlePersonalDaySelect,
+          onPrev: () => shiftPersonalMonth(-1),
+          onNext: () => shiftPersonalMonth(1),
+        })}
+          
+      </div>
       <TodayAttendanceTable
-        title={filters.filterType === "month" ? monthLabel + " Attendance All Employees" : filters.filterType === "week" ? "Week Attendance All Employees" : "Today's Attendance All Employees"}
-        rows={todayRows}
+        key={
+          selectedPersonalDay
+            ? `self-day-${selectedPersonalDay}`
+            : `self-filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}-${selfFilters.search}`
+        }
+        title={getTableTitle("My Attendance History", selectedPersonalDay, personalViewDate, selfFilters)}
+        rows={displayedPersonalRows}
+        loading={loading}
+        filters={selfFilters}
+        onFilterChange={handleSelfFilterChange}
+        holiday={selectedPersonalDay !== null ? selfCalendar.holidays[selectedPersonalDay] : null}
+        weekOff={selectedPersonalDay !== null ? selfCalendar.weekOffs[selectedPersonalDay] : null}
+        isCalendarSelection={selectedPersonalDay !== null}
+        onClearSelectedDay={() => setSelectedPersonalDay(null)}
+      />      
+      <h1 className="attendance-title">Organization Attendance</h1>
+      {renderMarkForm(employees, "Mark / Correct Attendance")}
+      {renderMarkMonthForm(employees, "Mark / Month Attendance")}
+     
+      <TodayAttendanceTable
+        key={
+          selectedOrgDay
+            ? `org-day-${selectedOrgDay}`
+            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}-${orgFilters.search}`
+        }
+        title={getTableTitle(
+          `${getFilterDefaultTitle(orgFilters)} — All Employees`,
+          selectedOrgDay,
+          orgViewDate,
+          orgFilters
+        )}
+        rows={displayedOrgRows}
         loading={loading}
         showActions
-        setFilters={setFilters}
-        filters={filters}
-      />
-    </>
-  );
-
-  const renderManagerView = () => (
-    <>
-      <div className="attendance-role-banner manager">
-        <Users size={18} />
-        <span>
-          Team view — {employees.length} team member
-          {employees.length === 1 ? "" : "s"} under your management
-        </span>
-      </div>
-      <AttendanceStats
-        stats={summaryStats}
-        labels={{
-          Present: "Team Present",
-          Absent: "Team Absent",
-          "Half Day": "Team Half Day",
-          Late: "Team Late",
-        }}
-      />
-      {renderSelfAttendanceSection("My Check In / Out")}
-      {employees.length > 0
-        ? renderMarkForm(employees, "Mark Team Attendance")
-        : null}
-      {renderCalendarSection(`${monthLabel} — Team Overview`)}
-      <TodayAttendanceTable
-        title="Today's Attendance — My Team"
-        rows={todayRows}
-        loading={loading}
-        filters={null}
-        setFilters={null}
+        filters={orgFilters}
+        onFilterChange={handleOrgFilterChange}
+        holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
+        weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
+        isCalendarSelection={selectedOrgDay !== null}
+        onClearSelectedDay={() => setSelectedOrgDay(null)}
       />
     </>
   );
 
   const renderEmployeeView = () => (
     <>
-      <AttendanceStats
-        stats={summaryStats}
-        labels={{
-          Present: "Days Present",
-          Absent: "Days Absent",
-          "Half Day": "Half Days",
-          Late: "Late Arrivals",
-        }}
+      <AttendanceStats stats={selfStats} />
+        {renderSelfAttendanceSection("Today's Check In / Out")}
+        {renderCalendarSection({
+          title: `${personalMonthLabel} — My Calendar`,
+          viewDateObj: personalViewDate,
+          calendarDays: personalCalendarDays,
+          selectedDay: selectedPersonalDay,
+          onDaySelect: handlePersonalDaySelect,
+          onPrev: () => shiftPersonalMonth(-1),
+          onNext: () => shiftPersonalMonth(1),
+        })}
+
+      <TodayAttendanceTable
+        key={
+          selectedPersonalDay
+            ? `day-${selectedPersonalDay}`
+            : `filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}-${selfFilters.search}`
+        }
+        title={getTableTitle("My Attendance History", selectedPersonalDay, personalViewDate, selfFilters)}
+        rows={displayedPersonalRows}
+        loading={loading}
+        filters={selfFilters}
+        onFilterChange={handleSelfFilterChange}
+        holiday={selectedPersonalDay !== null ? selfCalendar.holidays[selectedPersonalDay] : null}
+        weekOff={selectedPersonalDay !== null ? selfCalendar.weekOffs[selectedPersonalDay] : null}
+        isCalendarSelection={selectedPersonalDay !== null}
+        onClearSelectedDay={() => setSelectedPersonalDay(null)}
       />
 
-      <div className="attendance-employee-layout">
-        <div className="attendance-employee-primary">
-          {renderSelfAttendanceSection("Today's Check In / Out")}
+      {hasTeam && (
+        <div>
+          <TodayAttendanceTable
+            key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}-${teamFilters.search}`}
+            title={`${getFilterDefaultTitle(teamFilters)} — My Team`}
+            rows={displayedTeamRows}
+            loading={loading}
+            filters={teamFilters}
+            onFilterChange={handleTeamFilterChange}
+          />
         </div>
-        <div className="attendance-employee-secondary">
-          <div className="attendance-employee-calendar-wrap">
-            {renderCalendarSection(`${monthLabel} — My Calendar`)}
-          </div>
-        </div>
-      </div>
+      )}
     </>
   );
 
   const roleViews = {
     Organization: renderOrganizationView,
     HR: renderHRView,
-    Manager: renderManagerView,
     Employee: renderEmployeeView,
   };
 
@@ -1459,14 +1174,11 @@ function Attendance() {
         {error ? <p className="attendance-alert attendance-alert--error">{error}</p> : null}
         {roleViews[viewRole]?.()}
 
+        {/* Selfie Camera Capture Modal */}
         <SelfieCapture
           open={showSelfieModal}
           mode={attendanceAction}
-          onClose={() => {
-            if (!checkInSubmitting) {
-              setShowSelfieModal(false);
-            }
-          }}
+          onClose={() => !checkInSubmitting && setShowSelfieModal(false)}
           onCapture={handleSelfieCapture}
           submitting={checkInSubmitting}
         />
@@ -1487,15 +1199,10 @@ function Attendance() {
   );
 }
 
-/* ===========================
-   PAGE EXPORT — wrapped in ToastProvider
-=========================== */
-function AttendancePage() {
+export default function AttendancePage() {
   return (
     <ToastProvider>
       <Attendance />
     </ToastProvider>
   );
 }
-
-export default AttendancePage;

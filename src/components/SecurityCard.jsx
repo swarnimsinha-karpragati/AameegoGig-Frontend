@@ -6,8 +6,9 @@ import {
 } from "lucide-react";
 
 import "./SecurityCard.css";
-import { enable2FA, sendOtp,remove2FA } from "../services/authService";
+import { enable2FA, sendOtp,remove2FA, updatePassword } from "../services/authService";
 import { getStoredUser } from "../utils/roles";
+import Button from "./Button";
 
 export default function SecurityCard() {
 
@@ -21,7 +22,45 @@ export default function SecurityCard() {
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
 
-  const [message,setMessage] = useState('')
+  const [message,setMessage] = useState('');
+
+  const [currPassword,setCurrPassword] = useState('')
+  const [password,setPassword] = useState('')
+  const [confirmPassword,setConfirmPassword] = useState('');
+  const [isLoading,setIsLoading] = useState(false)
+
+  const handlePasswordChange = async () => {
+    try{
+      setIsLoading(true)
+      if(!password || !currPassword || !confirmPassword){
+        alert('All fields are required!')
+        setIsLoading(false)
+        return;
+      }
+      if(password !== confirmPassword){
+        alert('Password and Confirm Password must be same!');
+        setIsLoading(false)
+        return;
+      }
+      const payload = {
+        emailOrPhone:user?.email,
+        newPassword: password,
+        confirmPassword: confirmPassword,
+        vendorCode:user?.vendor_code,
+        currPassword:currPassword
+      }
+      const res = await updatePassword(payload);
+      alert(res?.message)
+      setConfirmPassword('');
+      setPassword('');
+      setCurrPassword('');
+      setIsLoading(false)
+
+    }catch(err){
+       alert(err?.response?.data?.message || "Failed to Update password. Please try again.");
+       setIsLoading(false)
+    }
+  }
 
   const reqOtp = async (e) => {
      try{
@@ -141,7 +180,7 @@ export default function SecurityCard() {
 
           <div className="modal-box">
 
-            <div className="modal-header">
+            <div className="modal-headerr">
 
               <h2>
                 Change Password
@@ -159,36 +198,47 @@ export default function SecurityCard() {
                 type="password"
                 placeholder="Current Password"
                 className="modal-input"
+                value={currPassword}
+                onChange={(e)=>setCurrPassword(e.target.value)}
               />
 
               <input
                 type="password"
                 placeholder="New Password"
                 className="modal-input"
+                value={password}
+                onChange={(e)=>setPassword(e.target.value)}
               />
 
               <input
                 type="password"
                 placeholder="Confirm Password"
                 className="modal-input"
+                value={confirmPassword}
+                onChange={(e)=>setConfirmPassword(e.target.value)}
               />
 
             </div>
 
             <div className="modal-actions">
 
-              <button
-                className="cancel-btn"
-                onClick={() =>
+              <Button
+                className="secondary-btn"
+                onClick={() =>{
                   setShowPasswordModal(false)
+                  setConfirmPassword('');
+                  setPassword('');
+                  setCurrPassword('');
                 }
+                }
+                disabled={isLoading}
               >
                 Cancel
-              </button>
+              </Button>
 
-              <button className="primary-btn">
+              <Button  onClick={handlePasswordChange} disabled={isLoading}>
                 Update
-              </button>
+              </Button>
 
             </div>
 

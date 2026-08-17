@@ -106,10 +106,11 @@ export default function Settings() {
               </div>
 
               <RolesCard />
-              <SecurityCard />
+             
             </div>
           ):null}
           </>
+           <SecurityCard />
       </main>
     </MainLayout>
   );

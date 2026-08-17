@@ -16,18 +16,22 @@ import {
   Pencil,
   Trash2,
   X,
-  Plus
+  Plus,
+  Copy
 } from "lucide-react";
 
 import "./Department.css";
 import Button from "../components/Button";
+import { isSiteVendor } from "../utils/vendorIdhelper";
 
+const isSite = isSiteVendor();
+const name = isSite ? "Site" : "Department";
 
 
 function DepModal({ title, onClose, size = "md", children, footer }) {
   return (
     <div
-    
+
       className="manage-depts-overlay"
       onClick={(e) => e.target === e.currentTarget && onClose?.()}
     >
@@ -70,7 +74,7 @@ function FormField({ label, htmlFor, required, fullWidth, children }) {
 }
 
 function Departments() {
-  const [vendorId, setVendorId] = useState(null); 
+  const [vendorId, setVendorId] = useState(null);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -86,12 +90,14 @@ function Departments() {
     shift: "",
     otPolicy: "",
     departmentHead: "",
-  };
+    sitePayoutRule: "",
+    stateName: "",
+  }
 
   const [form, setForm] = useState(initialForm);
   const [departments, setDepartments] = useState([]);
   const [search, setSearch] = useState("");
-  
+
   const [shifts, setShifts] = useState([]);
   const [otPolicies, setOtPolicies] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -112,13 +118,13 @@ function Departments() {
         getOtPolicies(vendorId),
         getEmployees(vendorId)
       ]);
-      
+
       setDepartments(depRes.data || []);
       setShifts(shiftRes.data || []);
       setOtPolicies(otRes.data || []);
       setEmployees(empRes.data || []);
     } catch (error) {
-      console.error("Error standardizing department view initialization:", error);
+      console.error("Error standardizing " + name + " view initialization:", error);
     } finally {
       setLoading(false);
     }
@@ -148,7 +154,7 @@ function Departments() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) {
-      alert("Department name is required");
+      alert(name + " is required");
       return;
     }
 
@@ -159,15 +165,17 @@ function Departments() {
       shift: form.shift || null,
       otPolicy: form.otPolicy || null,
       departmentHead: form.departmentHead || null,
+      sitePayoutRule: form.sitePayoutRule || null,
+      stateName: form.stateName || null,
     };
 
     try {
       if (isEditing && selectedDepartment) {
         await updateDepartment(selectedDepartment._id, payload);
-        alert("Department updated successfully");
+        alert(name + " updated successfully");
       } else {
         await createDepartment(payload);
-        alert("Department created successfully");
+        alert(name + " created successfully");
       }
       handleModalClose();
       const depRes = await getDepartments(vendorId);
@@ -185,6 +193,8 @@ function Departments() {
       shift: dep.shift?._id || "",
       otPolicy: dep.otPolicy?._id || "",
       departmentHead: dep.departmentHead?._id || "",
+      stateName: dep.stateName || "",
+      sitePayoutRule: dep.sitePayoutRule || "",
     });
     setIsViewing(true);
   };
@@ -197,6 +207,8 @@ function Departments() {
       shift: dep.shift?._id || "",
       otPolicy: dep.otPolicy?._id || "",
       departmentHead: dep.departmentHead?._id || "",
+      stateName: dep.stateName || "",
+      sitePayoutRule: dep.sitePayoutRule || "",
     });
     setIsEditing(true);
     setShowAddModal(true);
@@ -214,8 +226,19 @@ function Departments() {
     }
   };
 
+  const handleCopyDepartmentId = async (id) => {
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(id);
+      alert(name + " Id copied to clipboard");
+    } catch (error) {
+      console.error("Failed to copy " + name + " Id", error);
+      alert("Unable to copy " + name + " Id");
+    }
+  };
+
   const filteredDepartments = departments.filter((dep) =>
-    [dep.name, dep.description, dep.departmentHead?.name]
+    [dep.name, dep.description, dep.departmentHead?.name, dep.stateName, dep.sitePayoutRule, dep?.departmentUniqueId, dep.siteStateName]
       .join(" ")
       .toLowerCase()
       .includes(search.toLowerCase())
@@ -224,7 +247,7 @@ function Departments() {
   const renderFormFields = (isDisabled = false) => (
     <form id="department-core-form" onSubmit={handleSubmit}>
       <FormSection title="Primary Details" description="Identify core naming scope values">
-        <FormField label="Department Name" htmlFor="dep-name" required fullWidth>
+        <FormField label={`${name} Name`} htmlFor="dep-name" required fullWidth>
           <input
             id="dep-name"
             name="name"
@@ -248,6 +271,59 @@ function Departments() {
           />
         </FormField>
       </FormSection>
+
+      {isSiteVendor() && (
+        <div className="site-extra-fields">
+          <div className="site-payout-rule">
+            <FormField
+              label="Site Payout Rule"
+              htmlFor="site-payout-rule"
+            >
+              <select
+                id="site-payout-rule"
+                name="sitePayoutRule"
+                value={form.sitePayoutRule || ""}
+                onChange={handleChange}
+                disabled={isDisabled}
+              >
+                <option value="">Select Payout Rule</option>
+                <option value="Daily">Daily</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+            </FormField>
+          </div>
+
+          <div className="site-state-name">
+            <FormField
+              label="Site State Name"
+              htmlFor="site-state-name"
+            >
+              <select
+                id="site-state-name"
+                name="stateName"
+                value={form.stateName || ""}
+                onChange={handleChange}
+                disabled={isDisabled}
+              >
+                <option value="">Select State</option>
+                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                <option value="Delhi">Delhi</option>
+                <option value="Gujarat">Gujarat</option>
+                <option value="Haryana">Haryana</option>
+                <option value="Karnataka">Karnataka</option>
+                <option value="Madhya Pradesh">Madhya Pradesh</option>
+                <option value="Maharashtra">Maharashtra</option>
+                <option value="Punjab">Punjab</option>
+                <option value="Rajasthan">Rajasthan</option>
+                <option value="Tamil Nadu">Tamil Nadu</option>
+                <option value="Telangana">Telangana</option>
+                <option value="Uttar Pradesh">Uttar Pradesh</option>
+                <option value="West Bengal">West Bengal</option>
+              </select>
+            </FormField>
+          </div>
+        </div>
+      )}
 
       <FormSection title="Operational Rules & Leadership" description="Link shifts, rules, and heads">
         <FormField label="Assigned Operational Shift" htmlFor="dep-shift">
@@ -284,7 +360,7 @@ function Departments() {
     <MainLayout>
       <div className="manage-depts-container">
         <p className="manage-depts-stats">
-          Total Departments Monitored: <strong>{departments.length}</strong>
+          Total {isSiteVendor() ? "Sites" : "Departments"} Monitored: <strong>{departments.length}</strong>
         </p>
 
         <div className="manage-depts-toolbar">
@@ -292,15 +368,15 @@ function Departments() {
             <Search size={22} />
             <input
               type="text"
-              placeholder="Search by department name, lead..."
+              placeholder={"Search by " + name + " name, lead..."}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
           <div className="manage-depts-actions">
-            <Button  icon={<Plus size={20} />} onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
-              Add Department
+            <Button icon={<Plus size={20} />} onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
+              Add {name}
             </Button>
           </div>
         </div>
@@ -310,10 +386,12 @@ function Departments() {
             <table className="manage-depts-table">
               <thead>
                 <tr>
-                  <th>Department Name</th>
+                  <th>{name} Name</th>
                   <th>Description</th>
                   <th>Default Shift</th>
                   <th>Overtime Rule</th>
+                  <th>{name} Payout Rule</th>
+                  <th>{name} State Name</th>
                   <th>Leadership Head</th>
                   <th>Actions</th>
                 </tr>
@@ -322,10 +400,24 @@ function Departments() {
                 {filteredDepartments.length > 0 ? (
                   filteredDepartments.map((dep) => (
                     <tr key={dep._id}>
-                      <td style={{ fontWeight: "600" }}>{dep.name}</td>
+                      <td style={{ fontWeight: "600" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span>{dep.name}</span>
+                          <button
+                            type="button"
+                            className="manage-depts-copy-btn"
+                            onClick={() => handleCopyDepartmentId(dep?.departmentUniqueId || dep?._id)}
+                            title={`Copy ${name} ID`}
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </td>
                       <td>{dep.description || <em style={{ opacity: 0.5 }}>No description</em>}</td>
                       <td>{dep.shift?.name || dep.shift?.shiftName || "-"}</td>
                       <td>{dep.otPolicy?.policyName || dep.otPolicy?.name || "-"}</td>
+                      <td>{dep.sitePayoutRule || <em style={{ opacity: 0.5 }}>-</em>}</td>
+                      <td>{dep.stateName || <em style={{ opacity: 0.5 }}>-</em>}</td>
                       <td>{dep.departmentHead ? dep.departmentHead.name : <span style={{ opacity: 0.5 }}>Unassigned</span>}</td>
                       <td>
                         <div className="manage-depts-row-buttons">
@@ -356,7 +448,7 @@ function Departments() {
 
         {showAddModal ? (
           <DepModal
-            title={isEditing ? "Modify Department Record" : "Register New Department Branch"}
+            title={isEditing ? "Modify " + name + " Record" : "Register New " + name}
             onClose={handleModalClose}
             size="lg"
             footer={
@@ -375,7 +467,7 @@ function Departments() {
         ) : null}
 
         {isViewing ? (
-          <DepModal title="Department Analysis Review" onClose={handleModalClose} size="lg">
+          <DepModal title={name + "Analysis Review"} onClose={handleModalClose} size="lg">
             {renderFormFields(true)}
           </DepModal>
         ) : null}

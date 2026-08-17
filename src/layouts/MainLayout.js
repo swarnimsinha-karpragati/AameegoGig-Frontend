@@ -19,6 +19,7 @@ import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
+import { isSiteVendor } from "../utils/vendorIdhelper";
 
 
 
@@ -27,11 +28,15 @@ function MainLayout({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
   const [avatarBroken, setAvatarBroken] = useState(false);
+  const [vendorCode, setVendorCode] = useState("")
 
   useEffect(() => {
     const refreshUser = () => {
-      setUser(getStoredUser());
+      const storedUser = getStoredUser();
+      setUser(storedUser);
       setAvatarBroken(false);
+      const formatName = storedUser?.vendorName?.trim()?.replace(/\s+/g, "-").toLowerCase() || "";
+      setVendorCode(formatName);
     };
     window.addEventListener("storage", refreshUser);
     window.addEventListener("user-updated", refreshUser);
@@ -40,14 +45,30 @@ function MainLayout({ children }) {
       window.removeEventListener("storage", refreshUser);
       window.removeEventListener("user-updated", refreshUser);
     };
-  }, [location.pathname]);
+  }, []);
 
   const avatarSrc = resolveMediaUrl(user?.photoDisplayUrl, user?.photoUrl);
+
+  const isSite = isSiteVendor();
+
+  const normalizeRoutePath = (pathname) => {
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length > 1) {
+      return `/${segments.slice(1).join("/")}`;
+    }
+    return pathname || "/";
+  };
+
+  const currentPath = normalizeRoutePath(location.pathname);
 
   const pageMeta = {
     "/dashboard": {
       title: "Dashboard",
       subtitle: "Welcome back! Here's what's happening today",
+    },
+    "/sites": {
+      title: "Sites",
+      subtitle: "Manage your organization sites",
     },
     "/departments": {
       title: "Departments",
@@ -88,7 +109,7 @@ function MainLayout({ children }) {
   };
 
   const currentPage =
-    pageMeta[location.pathname] || pageMeta["/dashboard"];
+    pageMeta[currentPath] || pageMeta["/dashboard"];
 
   const menuItems = [
     {
@@ -97,8 +118,8 @@ function MainLayout({ children }) {
       icon: LayoutDashboard,
     },
     {
-      label: "Departments",
-      path: "/departments",
+      label: isSite ? "Sites" : "Departments",
+      path: isSite ? "/sites" : "/departments",
       icon: Building2,
     },
     {
@@ -143,7 +164,10 @@ function MainLayout({ children }) {
     },
   ].filter((item) => canAccessRoute(user?.role, item.path));
 
-  const [logo, setLogo] = useState(null);
+  const [logo, setLogo] = useState(() => {
+    const storedUser = getStoredUser();
+    return resolveMediaUrl(storedUser?.logoDisplayUrl, storedUser?.logoUrl) || null;
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -180,7 +204,8 @@ function MainLayout({ children }) {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+     // eslint-disable-next-line
+  }, []);
 
 
   return (
@@ -196,13 +221,14 @@ function MainLayout({ children }) {
               src={logo ? logo : defaultLogo}
               alt="Logo"
               onError={() => setLogo(null)}
-              width="100%"
+              width="60%"
               height="auto"
               style={{ padding: '1rem 0rem' }}
             />
 
-            <p style={{ fontSize: '12px', fontWeight: '700', marginBottom: '5px' }}>One Workforce.
-              One Platform.</p>
+            <p style={{ fontSize: '12px', fontWeight: '700', marginBottom: '5px' }}>
+              {isSite ? "We make your lives simpler." : "One Workforce. One Platform."}
+            </p>
           </div>
 
           {/* <div className="client-info">
@@ -211,14 +237,14 @@ function MainLayout({ children }) {
           <nav className="sidebar-menu">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+              const isActive = currentPath === item.path;
 
               return (
                 <button
                   key={item.path}
                   type="button"
                   className={`menu-item ${isActive ? "active" : ""}`}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => navigate(`/${vendorCode}${item.path}`)}
                 >
                   <Icon size={20} />
                   <span>{item.label}</span>

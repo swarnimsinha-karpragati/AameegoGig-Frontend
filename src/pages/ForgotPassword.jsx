@@ -16,6 +16,8 @@ function ForgotPassword() {
   const [otp, setOtp] = useState("");
   const [passwordData, setPasswordData] = useState({ newPassword: "", confirmPassword: "" });
 
+  const [vendorCode, setvendorCode] = useState("");
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -26,11 +28,11 @@ function ForgotPassword() {
     setIsLoading(true);
     setError("");
     try {
-      if (!emailOrPhone.length) {
-        setError("Email or Phone is required");
+      if (!emailOrPhone.length || !vendorCode) {
+        setError("Email/Phone or Vendor Code is required");
         return;
       }
-      await sendOtp({ emailOrPhone });
+      await sendOtp({ emailOrPhone,vendorCode });
       setMessage("An OTP has been sent to your registered contact details.");
       setStep("VERIFY_OTP");
     } catch (err) {
@@ -51,7 +53,7 @@ function ForgotPassword() {
         setError("OTP is required");
         return;
       }
-      await verifyOtp({ emailOrPhone, otp });
+      await verifyOtp({ emailOrPhone, otp,vendorCode });
       setStep("RESET");
       setMessage("");
     } catch (err) {
@@ -74,7 +76,8 @@ function ForgotPassword() {
       const payload = {
         emailOrPhone,
         newPassword: passwordData.newPassword,
-        confirmPassword: passwordData.confirmPassword
+        confirmPassword: passwordData.confirmPassword,
+        vendorCode
       };
       await updatePassword(payload);
       alert("Password updated successfully! Redirecting to login...");
@@ -119,6 +122,14 @@ function ForgotPassword() {
             {step === "IDENTIFY" && (
               <form onSubmit={handleRequestOtp}>
                 <div className="input-group">
+                  <label>Organization Code</label>
+                  <input
+                    type="text"
+                    placeholder="Enter your organization code"
+                    value={vendorCode}
+                    onChange={(e) => setvendorCode(e.target.value)}
+                    required
+                  />
                   <label>Work Email or Mobile Number</label>
                   <input
                     type="text"

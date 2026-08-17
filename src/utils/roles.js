@@ -25,7 +25,8 @@ export const getRoleLabel = (role) => {
 
 export const ROUTE_ACCESS = {
   "/dashboard": ["Admin", "HR", "Manager", "Employee"],
-  "/departments":["Admin", "HR"],
+  "/departments": ["Admin", "HR"],
+  "/sites": ["Admin", "HR"],
   "/employees": ["Admin", "HR"],
   "/attendance": ["Admin", "HR", "Manager", "Employee"],
   "/leave": ["Admin", "HR", "Manager", "Employee"],
@@ -50,7 +51,7 @@ export const getDefaultRouteForRole = (role) => {
 export const getAttendanceViewKey = (role) => {
   if (role === "Admin") return "Organization";
   if (role === "HR") return "HR";
-  if (role === "Manager") return "Manager";
+  if (role === "Manager") return "Employee";
   return "Employee";
 };
 

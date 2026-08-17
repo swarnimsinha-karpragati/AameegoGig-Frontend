@@ -1,3 +1,23 @@
+.site-payout-rule {
+  margin-bottom: 15px;
+}
+
+.site-extra-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.site-extra-fields>div {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .site-extra-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ==========================================================================
    Page Layout & Typography Variables
    ========================================================================== */
@@ -187,6 +207,29 @@
 
 .manage-depts-btn-delete:hover {
   background-color: #fee2e2;
+}
+
+.manage-depts-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+  padding: 0;
+  background-color: #f8fafc;
+  color: #475569;
+}
+
+.manage-depts-copy-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.manage-depts-copy-btn:active {
+  transform: scale(0.95);
 }
 
 /* ==========================================================================
@@ -392,9 +435,11 @@
   .manage-depts-grid {
     grid-template-columns: 1fr;
   }
+
   .manage-depts-field--full {
     grid-column: span 1;
   }
+
   .manage-depts-toolbar {
     flex-direction: column;
     align-items: stretch;

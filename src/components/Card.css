@@ -102,3 +102,13 @@
   background-color: #f3e8ff;
   color: #6b21a8;
 }
+
+.card-icon-sidebar.pink {
+  background-color: #fce7f3;
+  color: #be185d;
+}
+
+.card-icon-sidebar.amber {
+  background-color: #fef3c7;
+  color: #b45309;
+}

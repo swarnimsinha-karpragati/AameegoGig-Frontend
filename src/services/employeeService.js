@@ -2,17 +2,27 @@ import API from "./apiClient";
 
 const EMPLOYEE_PAYLOAD_FIELDS = [
   // employeeCode is generated server-side (PREFIX-0001), never sent from here.
+  "employeeCode",
   "name",
   "email",
   "phone",
   "designation",
+  "departmentId",
   "department",
   "location",
   "dob",
   "bloodGroup",
   "emergencyContact",
+  "gender",
+  "fatherHusbandName",
+  "relationWithMember",
+  "nationality",
+  "maritalStatus",
+  "permanentAddress",
   "aadhaarNumber",
+  "nameAsPerAadhaar",
   "panNumber",
+  "nameAsPerPan",
   "uan",
   "pfNumber",
   "esicNumber",
@@ -24,6 +34,10 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "dateOfJoining",
   "relievingDate",
   "managerId",
+  "client",
+  "state",
+  "ctc",
+  "ctcStructureName",
   "basicSalary",
   "hra",
   "conveyanceAllowance",
@@ -73,8 +87,8 @@ export const buildEmployeePayload = (data, extras = {}) => {
 /* =========================
    GET ALL EMPLOYEES
 ========================= */
-export const getEmployees = async () => {
-  return API.get("/employees");
+export const getEmployees = async (params = {}) => {
+  return API.get("/employees", { params });
 };
 
 /* =========================

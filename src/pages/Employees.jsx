@@ -26,7 +26,8 @@ import {
   X,
   FileText,
   FolderOpen,
-  Download
+  Download,
+  MoreVertical
 } from "lucide-react";
 
 
@@ -51,9 +52,13 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft } from "../utils/salaryValidation";
+import { validateStructureDraft, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
+import { isSiteVendor } from "../utils/vendorIdhelper";
+
+const isSite = isSiteVendor();
+const name = isSite ? "Site" : "Department";
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -61,15 +66,27 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Basic Information",
     description: "Primary contact and role details",
     fields: [
+      { key: "employeeCode", label: "Employee Code (leave blank to auto-generate)" },
       { key: "name", label: "Full Name", required: true },
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
       { key: "designation", label: "Designation", required: true },
-      { key: "department", label: "Department", required: true },
+      { key: "departmentId", label: name, required: true },
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
       { key: "dateOfJoining", label: "Date of Joining", type: "date" },
       { key: "dob", label: "Date of Birth", type: "date" },
+    ],
+  },
+  {
+    id: "family",
+    title: "Family & Personal",
+    fields: [
+      { key: "gender", label: "Gender", type: "select-gender" },
+      { key: "fatherHusbandName", label: "Father / Husband Name" },
+      { key: "relationWithMember", label: "Relationship with Member", type: "select-relation" },
+      { key: "nationality", label: "Nationality" },
+      { key: "maritalStatus", label: "Marital Status", type: "select-marital" },
     ],
   },
   {
@@ -81,11 +98,20 @@ const EMPLOYEE_FORM_SECTIONS = [
     ],
   },
   {
+    id: "address",
+    title: "Address",
+    fields: [
+      { key: "permanentAddress", label: "Permanent Address", fullWidth: true },
+    ],
+  },
+  {
     id: "identity",
     title: "Identity & Compliance",
     fields: [
       { key: "aadhaarNumber", label: "Aadhaar Number" },
+      { key: "nameAsPerAadhaar", label: "Name as on Aadhaar" },
       { key: "panNumber", label: "PAN Number" },
+      { key: "nameAsPerPan", label: "Name as on PAN" },
       { key: "uan", label: "UAN" },
       { key: "pfNumber", label: "PF Number" },
       { key: "esicNumber", label: "ESIC Number" },
@@ -112,6 +138,7 @@ const EMPLOYEE_FORM_SECTIONS = [
     id: "employment",
     title: "Employment",
     fields: [
+      { key: "client", label: "Client" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
     ],
   },
@@ -198,11 +225,11 @@ function EmployeeFormFields({
       onChange: onFieldChange,
       className: inputClassName(field.key),
     };
-    if (field.key === "department") {
+    if (field.key === "departmentId") {
       return (
         <>
           <select {...common}>
-            <option value="">Select department</option>
+            <option value="">Select {name}</option>
             {department &&
               department.map((dept) => (
                 <option key={dept?._id} value={dept?._id}>
@@ -249,6 +276,62 @@ function EmployeeFormFields({
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-gender") {
+      return (
+        <>
+          <select {...common} value={values.gender || ""}>
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-relation") {
+      return (
+        <>
+          <select {...common} value={values.relationWithMember || ""}>
+            <option value="">Select</option>
+            <option value="Father">Father</option>
+            <option value="Mother">Mother</option>
+            <option value="Husband">Husband</option>
+            <option value="Wife">Wife</option>
+            <option value="Spouse">Spouse</option>
+            <option value="Son">Son</option>
+            <option value="Daughter">Daughter</option>
+            <option value="Brother">Brother</option>
+            <option value="Sister">Sister</option>
+            <option value="Grandfather">Grandfather</option>
+            <option value="Grandmother">Grandmother</option>
+            <option value="Uncle">Uncle</option>
+            <option value="Aunt">Aunt</option>
+            <option value="Guardian">Guardian</option>
+            <option value="Other">Other</option>
+          </select>
+          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-marital") {
+      return (
+        <>
+          <select {...common} value={values.maritalStatus || ""}>
+            <option value="">Select</option>
+            <option value="Single">Single</option>
+            <option value="Married">Married</option>
+          </select>
+          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
         </>
       );
     }
@@ -368,44 +451,27 @@ function Employees() {
   ========================= */
 
   const initialForm = {
-    name: "",
-    email: "",
-    phone: "",
+    name: "", email: "", phone: "",
+    designation: "", departmentId: "", location: "",
+    dob: "", bloodGroup: "", emergencyContact: "",
 
-    designation: "",
-    department: "",
-    location: "",
+    gender: "",
+    fatherHusbandName: "",
+    relationWithMember: "",
+    nationality: "",
+    maritalStatus: "",
+    permanentAddress: "",
+    nameAsPerPan: "",
+    nameAsPerAadhaar: "",
+    client: "",
 
-    dob: "",
-    bloodGroup: "",
-    emergencyContact: "",
-
-    aadhaarNumber: "",
-    panNumber: "",
-
-    uan: "",
-    pfNumber: "",
-    esicNumber: "",
-
-    bankName: "",
-    accountHolderName: "",
-    accountNumber: "",
-    ifscCode: "",
-
+    aadhaarNumber: "", panNumber: "",
+    uan: "", pfNumber: "", esicNumber: "",
+    bankName: "", accountHolderName: "", accountNumber: "", ifscCode: "",
     highestQualification: "",
-
-    dateOfJoining: "",
-    relievingDate: "",
-    managerId: "",
-    basicSalary: "",
-    hra: "",
-    conveyanceAllowance: "",
-    incentive: "",
-    otherAllowance: "",
-    professionalTax: "",
-    createAppLogin: false,
-    userRole: "Employee",
-    userPassword: "",
+    dateOfJoining: "", relievingDate: "", managerId: "",
+    basicSalary: "", hra: "", conveyanceAllowance: "", incentive: "", otherAllowance: "", professionalTax: "",
+    createAppLogin: false, userRole: "Employee", userPassword: "",
   };
 
   const [form, setForm] = useState(initialForm);
@@ -418,6 +484,19 @@ function Employees() {
   const [loading, setLoading] = useState(false);
 
   const [department, setDepartment] = useState([]);
+  const [departmentFilter, setDepartmentFilter] = useState("");
+
+  const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest(".action-dropdown-wrapper")) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const [
     showDocumentsModal,
@@ -491,9 +570,9 @@ function Employees() {
      FETCH EMPLOYEES
   ========================= */
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (departmentId) => {
     try {
-      const res = await getEmployees();
+      const res = await getEmployees({ departmentId });
       setEmployees(
         res.data.employees || []
       );
@@ -508,9 +587,9 @@ function Employees() {
   useEffect(() => {
     const loggedUser = localStorage.getItem('user')
     const { vendorId } = JSON.parse(loggedUser)
-    fetchEmployees();
+    fetchEmployees(departmentFilter);
     fetchDepartment(vendorId);
-  }, []);
+  }, [departmentFilter]);
 
   const fetchDepartment = async (vendorId) => {
     try {
@@ -733,12 +812,85 @@ function Employees() {
   const handleDownloadTemplate = () => {
     const rows = [
       ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
-      ["EmployeeCode", "Name", "Email", "Phone", "Designation", "Location", "UAN", "ESIC No", "DOJ"],
-      ["EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Gurgaon", "100200300400", "1234567890", "2026-01-15"],
-      ["EMP002", "Priya Sharma", "priya.sharma@example.com", "9812345678", "Team Lead", "Bengaluru", "", "", "2026-02-01"],
+      [
+        // Basic & Organization Details
+        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id`, "Client", "workLocation",
+
+        // Personal & Contact Details
+        "DOB", "DOJ", "Date Of Exit", "Gender", "Father/Husband Name", "Relation", "Nationality", "Marital Status",
+        "Permanent Address", "Blood Group", "Emergency Contact", "Highest Qualification",
+
+        // Statutory & Govt IDs
+        "Aadhaar Number", "Name as on Aadhaar", "PAN Number", "Name as on PAN", "UAN", "ESIC No", "PF Number",
+
+        // Bank Details
+        "Bank Name", "Bank Account Number", "Bank IFSC", "Name as per Bank details",
+
+        // CTC Keys
+        "CTC", "CTC Structure / Template Name"
+      ],
+      [
+        // Sample Data Row
+        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID", "Client_Name", "Delhi",
+
+        "1995-08-20", "2026-01-15", "2027-01-15", "Male", "Suresh Kumar", "Father", "Indian", "Married",
+        "H.No 123, Sector 15, Gurgaon, Haryana", "O+", "9876543211", "Graduate",
+
+        "123456789012", "Ravi Kumar", "ABCDE1234F", "Ravi Kumar", "100200300400", "1234567890", "PF12345",
+
+        "State Bank of India", "98765432101234", "SBIN0001234", "Ravi Kumar",
+
+        "360000", "Standard_Sales_Structure"
+      ],
     ];
+
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [18, 26, 14, 18, 14, 16, 14, 12].map((wch) => ({ wch }));
+
+    // 32 Columns Width Configuration (har column header aur data length ke mutabiq)
+    ws["!cols"] = [
+      // 1-9: Basic & Org Details
+      { wch: 15 }, // EmployeeCode
+      { wch: 20 }, // Name
+      { wch: 25 }, // Email
+      { wch: 15 }, // Phone
+      { wch: 18 }, // Designation
+      { wch: 25 }, // departmentId
+      { wch: 15 }, // Client
+
+      // 10-21: Personal & Contact Details
+      { wch: 12 }, // DOB
+      { wch: 12 }, // DOJ
+      { wch: 14 }, // Date Of Exit
+      { wch: 10 }, // Gender
+      { wch: 22 }, // Father/Husband Name
+      { wch: 12 }, // Relation
+      { wch: 12 }, // Nationality
+      { wch: 14 }, // Marital Status
+      { wch: 35 }, // Permanent Address
+      { wch: 12 }, // Blood Group
+      { wch: 18 }, // Emergency Contact
+      { wch: 22 }, // Highest Qualification
+
+      // 22-28: Statutory & Govt IDs
+      { wch: 18 }, // Aadhaar Number
+      { wch: 20 }, // Name as on Aadhaar
+      { wch: 14 }, // PAN Number
+      { wch: 18 }, // Name as on PAN
+      { wch: 16 }, // UAN
+      { wch: 14 }, // ESIC No
+      { wch: 14 }, // PF Number
+
+      // 29-30: Bank Details
+      { wch: 22 }, // Bank Name
+      { wch: 20 }, // Bank Account Number
+      { wch: 14 }, // Bank IFSC
+      { wch: 22 }, // Name as per Bank details
+
+      // 31-32: CTC Keys
+      { wch: 12 }, // CTC
+      { wch: 30 }  // CTC Structure / Template Name
+    ];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Employees");
     XLSX.writeFile(wb, "employee-bulk-upload-template.xlsx");
@@ -804,32 +956,56 @@ function Employees() {
      EDIT EMPLOYEE
   ========================= */
 
+  const normalizeEmployeeForForm = (emp) => ({
+    ...emp,
+    departmentId: emp.departmentId || emp.department || "",
+    departmentName: emp.departmentName || "",
+    managerId: emp.managerId?._id || emp.managerId || "",
+    dob: emp.dob ? emp.dob.split("T")[0] : "",
+    dateOfJoining:
+      emp.dateOfJoining
+        ? emp.dateOfJoining.split("T")[0]
+        : "",
+    relievingDate:
+      emp.relievingDate
+        ? emp.relievingDate.split("T")[0]
+        : "",
+    basicSalary: emp.basicSalary ?? "",
+    hra: emp.hra ?? "",
+    conveyanceAllowance: emp.conveyanceAllowance ?? "",
+    incentive: emp.incentive ?? "",
+    otherAllowance: emp.otherAllowance ?? "",
+    professionalTax: emp.professionalTax ?? "",
+    location: emp.location || "",
+    client: emp.client || emp.clientName || "",
+    siteCode: emp.siteCode || "",
+    pfNumber: emp.pfNumber || "",
+    accountNumber: emp.accountNumber || "",
+    accountHolderName: emp.accountHolderName || "",
+    ifscCode: emp.ifscCode || "",
+    bankName: emp.bankName || "",
+    state: emp.state || "",
+    country: emp.country || "",
+    city: emp.city || "",
+    emergencyContact: emp.emergencyContact || "",
+    gender: emp.gender || "",
+    fatherHusbandName: emp.fatherHusbandName || emp.fatherName || "",
+    relationWithMember: emp.relationWithMember || emp.relation || "",
+    nationality: emp.nationality || "",
+    maritalStatus: emp.maritalStatus || "",
+    permanentAddress: emp.permanentAddress || emp.address || "",
+    aadhaarNumber: emp.aadhaarNumber || "",
+    nameAsPerAadhaar: emp.nameAsPerAadhaar || "",
+    panNumber: emp.panNumber || "",
+    nameAsPerPan: emp.nameAsPerPan || "",
+    highestQualification: emp.highestQualification || "",
+    uan: emp.uan || "",
+    esicNumber: emp.esicNumber || "",
+  });
+
   const handleEdit = (emp) => {
     setErrors({});
-    setSelectedEmployee({
-      ...emp,
-      department:
-        emp.department && typeof emp.department === "object"
-          ? emp.department._id || ""
-          : emp.department || "",
-      managerId: emp.managerId?._id || emp.managerId || "",
-      dob: emp.dob ? emp.dob.split("T")[0] : "",
-      dateOfJoining:
-        emp.dateOfJoining
-          ? emp.dateOfJoining
-            .split("T")[0]
-          : "",
-      relievingDate:
-        emp.relievingDate
-          ? emp.relievingDate.split("T")[0]
-          : "",
-      basicSalary: emp.basicSalary ?? "",
-      hra: emp.hra ?? "",
-      conveyanceAllowance: emp.conveyanceAllowance ?? "",
-      incentive: emp.incentive ?? "",
-      otherAllowance: emp.otherAllowance ?? "",
-      professionalTax: emp.professionalTax ?? "",
-    });
+    setSelectedEmployee(normalizeEmployeeForForm(emp));
 
     setEnableLoginOnUpdate(false);
     setIsEditing(true);
@@ -928,13 +1104,14 @@ function Employees() {
 
   const handleGenerateLetter =
     async () => {
+      const monthlyGross = sumLetterMonthlyGross(letterData.salaryComponents);
 
       if (
         !letterData.employeeName ||
         !letterData.designation ||
         !letterData.joiningDate ||
         !letterData.annualCTC ||
-        !letterData.monthlySalary ||
+        !monthlyGross ||
         !letterData.workLocation ||
         !letterData.salaryComponents?.length
       ) {
@@ -950,11 +1127,12 @@ function Employees() {
         setLoading(true);
         await generateAppointmentLetter({
           ...letterData,
+          monthlySalary: monthlyGross,
           salaryComponents: (letterData.salaryComponents || []).map((c) => ({
             code: c.code,
             componentName: c.componentName || c.name,
-            monthly: c.monthly,
-            annual: c.annual,
+            monthly: c.monthly !== "" && c.monthly != null ? c.monthly : Math.round((Number(c.annual) || 0) / 12),
+            annual: c.annual !== "" && c.annual != null ? c.annual : (Number(c.monthly) || 0) * 12,
           })),
         });
 
@@ -1082,6 +1260,23 @@ function Employees() {
           {/* ACTION BUTTONS */}
           <div className="toolbar-actions">
 
+            <div className="employee-filter">
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+              >
+                <option value="">
+                  {isSiteVendor() ? "All Sites" : "All Departments"}
+                </option>
+
+                {department.map((item) => (
+                  <option key={item._id} value={item._id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <Button
               variant="secondary"
               icon={<Upload size={18} />}
@@ -1117,6 +1312,8 @@ function Employees() {
                   <th>Name</th>
                   <th>Phone</th>
                   <th>Designation</th>
+                  <th>{name} name</th>
+                  <th>State name</th>
                   <th>App Login</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -1137,6 +1334,14 @@ function Employees() {
 
                       <td>
                         {emp.designation || "-"}
+                      </td>
+
+                      <td>
+                        {emp.department || "-"}
+                      </td>
+
+                      <td>
+                        {emp.stateName || "-"}
                       </td>
 
                       <td>
@@ -1162,68 +1367,88 @@ function Employees() {
                       </td>
 
                       <td>
-                        <div className="emp-action-buttons">
-
+                        <div className="action-dropdown-wrapper">
                           <button
-                            className="emp-grid-btn"
-                            onClick={() =>
-                              handleView(emp)
-                            }
-                          >
-                            <Eye />
-                          </button>
-
-                          <button
-                            className="emp-grid-btn"
-                            onClick={() =>
-                              handleEdit(emp)
-                            }
-                          >
-                            <Pencil />
-                          </button>
-
-                          <button
-                            className="emp-grid-btn"
-                            onClick={() => {
-                              setLetterEmployeeId(emp._id);
-                              setLetterData({
-                                employeeId: emp._id,
-                                employeeName: emp.name || "",
-                                designation: emp.designation || "",
-                                joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                                annualCTC: "",
-                                monthlySalary: "",
-                                workLocation: emp.location || "Gurgaon",
-                                salaryComponents: [],
-                              });
-                              setShowLetterModal(true);
+                            className="emp-grid-btn dropdown-toggle"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDropdownId(
+                                openDropdownId === emp._id ? null : emp._id
+                              );
                             }}
                           >
-                            <FileText />
+                            <MoreVertical size={18} />
                           </button>
 
-                          <button
-                            className="emp-grid-btn"
-                            onClick={async () => {
-                              setSelectedEmployeeForDocs(emp);
-                              await loadEmployeeDocuments(emp._id);
-                              setShowDocumentsModal(true);
-                            }}
-                          >
-                            <FolderOpen />
-                          </button>
+                          {openDropdownId === emp._id && (
+                            <div className="action-dropdown-menu">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleView(emp);
+                                }}
+                              >
+                                <Eye size={16} /> View Profile
+                              </button>
 
-                          <button
-                            className=" emp-grid-btn"
-                            onClick={() =>
-                              handleDelete(
-                                emp._id
-                              )
-                            }
-                          >
-                            <Trash2 />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleEdit(emp);
+                                }}
+                              >
+                                <Pencil size={16} /> Edit Details
+                              </button>
 
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  setLetterEmployeeId(emp._id);
+                                  setLetterData({
+                                    employeeId: emp._id,
+                                    employeeName: emp.name || "",
+                                    designation: emp.designation || "",
+                                    joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                                    annualCTC: "",
+                                    monthlySalary: "",
+                                    workLocation: emp.location || "Gurgaon",
+                                    salaryComponents: [],
+                                  });
+                                  setShowLetterModal(true);
+                                }}
+                              >
+                                <FileText size={16} /> Appointment Letter
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setOpenDropdownId(null);
+                                  setSelectedEmployeeForDocs(emp);
+                                  await loadEmployeeDocuments(emp._id);
+                                  setShowDocumentsModal(true);
+                                }}
+                              >
+                                <FolderOpen size={16} /> Documents
+                              </button>
+
+                              <div className="dropdown-divider"></div>
+
+                              <button
+                                type="button"
+                                className="dropdown-item-danger"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  handleDelete(emp._id);
+                                }}
+                              >
+                                <Trash2 size={16} /> Delete Employee
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1504,11 +1729,27 @@ function Employees() {
                     </div>
 
                     <div>
+                      <label>Client</label>
+                      <span>{selectedEmployee.client || "-"}</span>
+                    </div>
+
+                    <div>
                       <label>Date Of Joining</label>
                       <span>
                         {selectedEmployee.dateOfJoining
                           ? new Date(
                             selectedEmployee.dateOfJoining
+                          ).toLocaleDateString()
+                          : "-"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Relieving Date</label>
+                      <span>
+                        {selectedEmployee.relievingDate
+                          ? new Date(
+                            selectedEmployee.relievingDate
                           ).toLocaleDateString()
                           : "-"}
                       </span>
@@ -1523,6 +1764,11 @@ function Employees() {
                       <label>ESIC</label>
                       <span>{selectedEmployee.esicNumber || "-"}</span>
                     </div>
+
+                    <div>
+                      <label>PF Number</label>
+                      <span>{selectedEmployee.pfNumber || "-"}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1530,6 +1776,47 @@ function Employees() {
                   <h4>Personal Details</h4>
 
                   <div className="profile-grid">
+                    <div>
+                      <label>Date Of Birth</label>
+                      <span>
+                        {selectedEmployee.dob
+                          ? new Date(
+                            selectedEmployee.dob
+                          ).toLocaleDateString()
+                          : "-"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Gender</label>
+                      <span>{selectedEmployee.gender || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Father / Husband Name</label>
+                      <span>{selectedEmployee.fatherHusbandName || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Relation</label>
+                      <span>{selectedEmployee.relationWithMember || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Nationality</label>
+                      <span>{selectedEmployee.nationality || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Marital Status</label>
+                      <span>{selectedEmployee.maritalStatus || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Permanent Address</label>
+                      <span>{selectedEmployee.permanentAddress || "-"}</span>
+                    </div>
+
                     <div>
                       <label>Blood Group</label>
                       <span>{selectedEmployee.bloodGroup || "-"}</span>
@@ -1556,22 +1843,27 @@ function Employees() {
                     </div>
 
                     <div>
+                      <label>Name as on Aadhaar</label>
+                      <span>
+                        {selectedEmployee.nameAsPerAadhaar || "-"}
+                      </span>
+                    </div>
+
+                    <div>
                       <label>PAN Number</label>
                       <span>
                         {selectedEmployee.panNumber
                           ? `${selectedEmployee.panNumber.slice(
                             0,
                             2
-                          )}XXXXX${selectedEmployee.panNumber.slice(
-                            -3
-                          )}`
+                          )}XXXXX${selectedEmployee.panNumber.slice(-3)}`
                           : "-"}
                       </span>
                     </div>
 
                     <div>
-                      <label>PF Number</label>
-                      <span>{selectedEmployee.pfNumber || "-"}</span>
+                      <label>Name as on PAN</label>
+                      <span>{selectedEmployee.nameAsPerPan || "-"}</span>
                     </div>
                   </div>
                 </div>
@@ -1597,7 +1889,11 @@ function Employees() {
 
                     <div>
                       <label>IFSC Code</label>
-                      <span>{selectedEmployee.ifscCode ? selectedEmployee.ifscCode.toUpperCase() : "-"}</span>
+                      <span>
+                        {selectedEmployee.ifscCode
+                          ? selectedEmployee.ifscCode.toUpperCase()
+                          : "-"}
+                      </span>
                     </div>
                   </div>
                 </div>

@@ -6,10 +6,50 @@ import {
   deleteHoliday,
   getHolidays,
   updateHoliday,
+  bulkUploadHolidays, // Ensure this service method is imported
 } from "../services/holidayService";
 import Button from "./Button";
+import * as XLSX from "xlsx";
 
 const HOLIDAY_TYPES = ["National", "Festival", "Restricted", "Company"];
+const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Chandigarh",
+  "Delhi",
+];
+const ALLOWED_FILE_TYPES = [
+  "text/csv",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+];
+
 
 const formatDisplayDate = (value) => {
   const date = new Date(value);
@@ -32,12 +72,14 @@ const toInputDate = (value) => {
 
 const HolidayManager = ({ vendorId }) => {
   const formRef = useRef(null);
+  const fileInputRef = useRef(null);
   const currentYear = new Date().getFullYear();
 
   const initialFormState = {
     name: "",
     date: "",
     department: "",
+    state: "",
     type: "National",
     description: "",
   };
@@ -50,6 +92,15 @@ const HolidayManager = ({ vendorId }) => {
   const [editingHolidayId, setEditingHolidayId] = useState(null);
   const [formData, setFormData] = useState(initialFormState);
   const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
+
+  // Bulk Upload Modal & File States
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [modalError, setModalError] = useState("");
+  const [uploadSummary, setUploadSummary] = useState(null);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState("");
+  const [isErrorViewerOpen, setIsErrorViewerOpen] = useState(false);
 
   const fetchDepartments = async () => {
     if (!vendorId) return;
@@ -120,6 +171,7 @@ const HolidayManager = ({ vendorId }) => {
       name: holiday.name || "",
       date: toInputDate(holiday.date),
       department: holiday.department || "",
+      state: holiday.state || "",
       type: holiday.type || "National",
       description: holiday.description || "",
     });
@@ -166,7 +218,7 @@ const HolidayManager = ({ vendorId }) => {
       return;
     }
     if (!formData.name.trim() || !formData.date) {
-      alert("Holiday name and date are required.")
+      alert("Holiday name and date are required.");
       setStatusMessage({ type: "error", text: "Holiday name and date are required." });
       return;
     }
@@ -177,6 +229,7 @@ const HolidayManager = ({ vendorId }) => {
       name: formData.name.trim(),
       date: formData.date,
       department: formData.department || null,
+      state: formData.state || null,
       type: formData.type,
       description: formData.description.trim(),
     };
@@ -195,7 +248,7 @@ const HolidayManager = ({ vendorId }) => {
         } else {
           await fetchHolidays();
         }
-        alert('Holiday updated successfully.')
+        alert("Holiday updated successfully.");
         setStatusMessage({ type: "success", text: "Holiday updated successfully." });
         resetForm();
       } else {
@@ -210,17 +263,197 @@ const HolidayManager = ({ vendorId }) => {
         } else {
           await fetchHolidays();
         }
-        alert('Holiday created successfully.')
+        alert("Holiday created successfully.");
         setStatusMessage({ type: "success", text: "Holiday created successfully." });
         setFormData(initialFormState);
       }
     } catch (error) {
-      alert(error?.response?.data?.message)
+      alert(error?.response?.data?.message);
       setStatusMessage({
         type: "error",
         text: error?.response?.data?.message || "Failed to save holiday.",
       });
     } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+
+  const handleDownloadTemplate = () => {
+    const rows = [
+      ["INSTRUCTIONS FOR BULK UPLOAD:"],
+      ["1. Name (Required): Name of the holiday (e.g., Independence Day)."],
+      ["2. Date (Required): Format YYYY-MM-DD (e.g., 2026-08-15)."],
+      ["3. Type (Required): Allowed values -> National | Festival | Restricted | Company."],
+      ["4. State (Optional): Use exact state name like Delhi, Maharashtra, Karnataka. Leave blank for all states."],
+      ["5.  Site/Department (Required): Leave blank or write 'All' for all departments, or enter exact Site/Department ID copy from site/depatment"],
+      ["6. Description (Optional): Short details or notes for HR reference."],
+      [],
+      ["Name", "Date", "Type", "State", "Department", "Description"],
+      ["Republic Day", "2026-01-26", "National", "Delhi", "All", "National Holiday"],
+      ["Diwali", "2026-11-08", "Festival", "Maharashtra", "All", "Festival Celebration"],
+      ["Regional Festival", "2026-04-14", "Restricted", "Karnataka", "Operations", "Optional Holiday"]
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Column Width Configuration (wch = width in characters)
+    ws["!cols"] = [
+      { wch: 25 }, // Name
+      { wch: 15 }, // Date
+      { wch: 18 }, // Type
+      { wch: 20 }, // State
+      { wch: 22 }, // Department
+      { wch: 35 }  // Description
+    ];
+
+    // Instructions ko 6 columns tak merge karna taaki text neat dikhe
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // Row 1
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }, // Row 2
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } }, // Row 3
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } }, // Row 4
+      { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } }, // Row 5
+      { s: { r: 5, c: 0 }, e: { r: 5, c: 5 } }  // Row 6
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Holidays");
+    XLSX.writeFile(wb, "holiday-bulk-upload-template.xlsx");
+  };
+
+  // Bulk File Handlers
+  const clearBulkFileSelection = () => {
+    setBulkFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const closeBulkModal = () => {
+    setIsBulkModalOpen(false);
+    setIsErrorViewerOpen(false);
+    clearBulkFileSelection();
+    setModalError("");
+    setUploadSummary(null);
+    setUploadSuccessMessage("");
+  };
+
+  const validateAndSetFile = (file) => {
+    setModalError("");
+    setUploadSummary(null);
+    setUploadSuccessMessage("");
+    if (!file) return;
+    const isExtensionValid = file.name.match(/\.(csv|xlsx|xls)$/i);
+    if (!ALLOWED_FILE_TYPES.includes(file.type) && !isExtensionValid) {
+      setModalError("Invalid file type. Please upload .csv, .xlsx, or .xls");
+      setBulkFile(null);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setModalError("File size exceeds 5MB limit.");
+      setBulkFile(null);
+      return;
+    }
+    setBulkFile(file);
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      validateAndSetFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      validateAndSetFile(e.target.files[0]);
+    }
+  };
+
+  const handleBulkSubmit = async (e) => {
+    e.preventDefault();
+    if (!vendorId) {
+      alert("Vendor configuration not found.");
+      return;
+    }
+    if (!bulkFile) {
+      setModalError("Please select a file to upload.");
+      return;
+    }
+    if (isActionLoading) return;
+
+    const uploadData = new FormData();
+    uploadData.append("file", bulkFile);
+
+    try {
+      setIsActionLoading(true);
+      setModalError("");
+      setUploadSuccessMessage("");
+      const response = await bulkUploadHolidays(uploadData);
+      const responseData = response?.data?.data || {};
+      const responseErrors = Array.isArray(responseData.errors)
+        ? responseData.errors
+        : [];
+      const nextSummary = {
+        totalRows: Number(responseData.totalRows || 0),
+        inserted: Number(responseData.inserted || 0),
+        skipped: Number(responseData.skipped || 0),
+      };
+      setUploadSummary(nextSummary);
+      await fetchHolidays();
+
+      if (responseErrors.length > 0) {
+        const formattedErrors = responseErrors.join("\n");
+        setModalError(formattedErrors || response?.data?.message || "Bulk upload completed with some issues.");
+        setStatusMessage({
+          type: "error",
+          text: response?.data?.message || "Bulk upload completed with validation issues.",
+        });
+        return;
+      }
+
+      setUploadSummary({
+        totalRows: Number(nextSummary.totalRows || 0),
+        inserted: Number(nextSummary.inserted || 0),
+        skipped: Number(nextSummary.skipped || 0),
+      });
+      setModalError("");
+      setUploadSuccessMessage("Upload completed successfully.");
+      setStatusMessage({ type: "success", text: "Bulk holidays uploaded successfully." });
+      setUploadSummary(nextSummary);
+      setIsErrorViewerOpen(false);
+    } catch (error) {
+      const serverMessage = error?.response?.data?.message;
+      const rowErrors = Array.isArray(error?.response?.data?.errors)
+        ? error.response.data.errors
+        : [];
+      const backendData = error?.response?.data?.data || {};
+      setUploadSummary({
+        totalRows: Number(backendData.totalRows || 0),
+        inserted: Number(backendData.inserted || 0),
+        skipped: Number(backendData.skipped || 0),
+      });
+      const combinedMessage = rowErrors.length
+        ? [serverMessage, ...rowErrors].filter(Boolean).join("\n")
+        : serverMessage || "Failed to upload bulk holidays.";
+      setModalError(combinedMessage);
+      setUploadSuccessMessage("");
+      setIsErrorViewerOpen(false);
+    } finally {
+      clearBulkFileSelection();
       setIsActionLoading(false);
     }
   };
@@ -231,12 +464,14 @@ const HolidayManager = ({ vendorId }) => {
 
   return (
     <div className="holiday-manager-container">
+      {/* HOLIDAY LIST SECTION */}
       <section className="holiday-list-section">
         <div className="holiday-list-header">
           <div>
             <h2>Holiday Calendar</h2>
             <p>Manage organization-wide and department-specific paid holidays.</p>
           </div>
+          {/* Filter Year mapped back to holiday list section */}
           <div className="holiday-year-filter">
             <label htmlFor="holiday-year">Year</label>
             <select
@@ -271,6 +506,7 @@ const HolidayManager = ({ vendorId }) => {
                   <th>Date</th>
                   <th>Holiday</th>
                   <th>Department</th>
+                  <th>State</th>
                   <th>Type</th>
                   <th>Actions</th>
                 </tr>
@@ -286,6 +522,7 @@ const HolidayManager = ({ vendorId }) => {
                       ) : null}
                     </td>
                     <td>{holiday.department || "All Departments"}</td>
+                    <td>{holiday.state || "All States"}</td>
                     <td>
                       <span className={`holiday-type-badge holiday-type-badge--${holiday.type?.toLowerCase()}`}>
                         {holiday.type || "National"}
@@ -317,8 +554,26 @@ const HolidayManager = ({ vendorId }) => {
         )}
       </section>
 
+      {/* SINGLE UPLOAD FORM SECTION */}
       <section ref={formRef} className="holiday-form-section">
-        <h2>{editingHolidayId ? "Edit Holiday" : "Add Holiday"}</h2>
+        <div className="holiday-form-header">
+          <h2>{editingHolidayId ? "Edit Holiday" : "Add Holiday"}</h2>
+          <Button
+            type="button"
+            className="bulk-upload-trigger-btn"
+            onClick={() => {
+              clearBulkFileSelection();
+              setModalError("");
+              setUploadSummary(null);
+              setUploadSuccessMessage("");
+              setIsErrorViewerOpen(false);
+              setIsBulkModalOpen(true);
+            }}
+          >
+            📥 Bulk Upload
+          </Button>
+        </div>
+
         <form className="holiday-form" onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="holiday-name">Holiday Name</label>
@@ -362,21 +617,39 @@ const HolidayManager = ({ vendorId }) => {
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="holiday-department">Department</label>
-            <select
-              id="holiday-department"
-              name="department"
-              value={formData.department}
-              onChange={handleChange}
-            >
-              <option value="">All Departments</option>
-              {departments.map((dept) => (
-                <option key={dept._id || dept.name} value={dept.name}>
-                  {dept.name}
-                </option>
-              ))}
-            </select>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="holiday-department">Department</label>
+              <select
+                id="holiday-department"
+                name="department"
+                value={formData.department}
+                onChange={handleChange}
+              >
+                <option value="">All Departments</option>
+                {departments.map((dept) => (
+                  <option key={dept._id || dept.name} value={dept.name}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="holiday-state">State</label>
+              <select
+                id="holiday-state"
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+              >
+                <option value="">All States</option>
+                {INDIAN_STATES.map((state) => (
+                  <option key={state} value={state}>
+                    {state}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="form-group">
@@ -402,10 +675,7 @@ const HolidayManager = ({ vendorId }) => {
                 Cancel
               </Button>
             ) : null}
-            <Button
-              type="submit"
-              disabled={isActionLoading}
-            >
+            <Button type="submit" disabled={isActionLoading}>
               {isActionLoading
                 ? "Saving..."
                 : editingHolidayId
@@ -415,6 +685,166 @@ const HolidayManager = ({ vendorId }) => {
           </div>
         </form>
       </section>
+
+      {/* BULK UPLOAD MODAL POPUP */}
+      {isBulkModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsBulkModalOpen(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Bulk Upload Holidays</h3>
+              <button
+                type="button"
+                className="close-modal-btn"
+                onClick={closeBulkModal}
+                disabled={isActionLoading}
+                aria-label="Close bulk upload modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkSubmit}>
+              <div className="modal-template-download">
+                <span>Need reference format?</span>
+                <button
+                  type="button"
+                  className="template-link-btn"
+                  onClick={handleDownloadTemplate}
+                >
+                  📄 Download Sample CSV Template
+                </button>
+              </div>
+
+              <div
+                className={`modal-drop-zone ${dragActive ? "drag-active" : ""}`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <input
+                  ref={fileInputRef}
+                  id="bulk-modal-file-input"
+                  type="file"
+                  accept=".csv, .xlsx, .xls"
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                />
+                <label htmlFor="bulk-modal-file-input" className="drop-zone-label">
+                  {bulkFile ? (
+                    <div className="selected-file">
+                      <span>📄 {bulkFile.name}</span>
+                      <small>({(bulkFile.size / 1024).toFixed(1)} KB)</small>
+                    </div>
+                  ) : (
+                    <div>
+                      <p>Drag & drop CSV/Excel file here, or <span>browse</span></p>
+                      <small>Supports .csv, .xlsx, .xls (Max 5MB)</small>
+                    </div>
+                  )}
+                </label>
+              </div>
+
+              {uploadSummary && (
+                <div className="modal-upload-summary" role="status">
+                  <div className="summary-item">
+                    <span>Total</span>
+                    <strong>{uploadSummary.totalRows}</strong>
+                  </div>
+                  <div className="summary-item success">
+                    <span>Uploaded</span>
+                    <strong>{uploadSummary.inserted}</strong>
+                  </div>
+                  <div className="summary-item warning">
+                    <span>Failed</span>
+                    <strong>{Math.max(uploadSummary.skipped, 0)}</strong>
+                  </div>
+                </div>
+              )}
+
+              {uploadSuccessMessage && (
+                <div className="modal-success-message" role="status">
+                  {uploadSuccessMessage}
+                </div>
+              )}
+
+              {modalError && !uploadSuccessMessage && (
+                <div className="modal-error-inline" role="alert">
+                  <strong>Issues found:</strong>
+                  <span>{modalError.split(/\n+/).filter(Boolean).length} row(s) need attention.</span>
+                </div>
+              )}
+
+              <div className="modal-actions">
+                {uploadSuccessMessage ? (
+                  <Button type="button" onClick={closeBulkModal}>
+                    Done
+                  </Button>
+                ) : (
+                  <>
+                    {modalError ? (
+                      <Button
+                        type="button"
+                        className="secondary-btn"
+                        onClick={() => setIsErrorViewerOpen(true)}
+                        disabled={isActionLoading}
+                      >
+                        View Errors
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      className="secondary-btn"
+                      onClick={closeBulkModal}
+                      disabled={isActionLoading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isActionLoading || !bulkFile}>
+                      {isActionLoading ? "Uploading..." : "Upload File"}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isErrorViewerOpen && (
+        <div className="modal-backdrop" onClick={() => setIsErrorViewerOpen(false)}>
+          <div className="modal-container error-view-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Upload Errors</h3>
+              <button
+                type="button"
+                className="close-modal-btn"
+                onClick={() => setIsErrorViewerOpen(false)}
+                aria-label="Close error viewer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="error-view-body" role="alert">
+              {modalError
+                .split(/\n+/)
+                .filter(Boolean)
+                .map((line, index) => (
+                  <div key={`${line}-${index}`} className="error-line">
+                    {line}
+                  </div>
+                ))}
+            </div>
+
+            <div className="modal-actions">
+              <Button type="button" onClick={() => setIsErrorViewerOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

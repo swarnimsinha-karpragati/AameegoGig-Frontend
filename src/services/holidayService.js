@@ -22,3 +22,16 @@ export const updateHoliday = async (holidayId, data) => {
 export const deleteHoliday = async (holidayId) => {
   return API.delete(`/holidays/${holidayId}`);
 };
+
+export const bulkUploadHolidays = async (file) => {
+  return API.post(
+    "/holidays/bulk-upload",
+    file,
+    {
+      headers: {
+        "Content-Type":
+          "multipart/form-data",
+      },
+    }
+  );
+};

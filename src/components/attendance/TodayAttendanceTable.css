@@ -1,0 +1,342 @@
+/* ─── Today Attendance Table + Filters + Banners ─── */
+
+.attendance-download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 33px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 8px;
+}
+
+.attendance-download-btn:hover {
+  background: #1d4ed8;
+}
+
+.attendance-download-btn:active {
+  transform: scale(0.98);
+}
+
+.attendance-download-btn:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.attendance-filter-container {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 1;
+  width: 100%;
+}
+
+.attendance-filter-buttons {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.attendance-filter-btn {
+  padding: 8px 18px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.attendance-filter-btn:hover {
+  background: #f3f4f6;
+}
+
+.attendance-filter-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  font-weight: 600;
+}
+
+.attendance-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.attendance-date-filter input {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.attendance-search {
+  width: 170px;
+  height: 33px;
+  padding: 0 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.attendance-search::placeholder {
+  color: #9ca3af;
+}
+
+.attendance-search:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.attendance-search:hover {
+  border-color: #bdbdbd;
+}
+
+.attendance-holiday-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #312e81;
+}
+
+.attendance-holiday-banner span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.attendance-weekoff-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #334155;
+}
+
+.attendance-weekoff-banner span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+/* Table */
+.attendance-table-wrap {
+  overflow-x: auto;
+}
+
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.attendance-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 10px 10px 0;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.attendance-table th:last-child {
+  padding-right: 0;
+}
+
+.attendance-table td {
+  padding: 11px 10px 11px 0;
+  border-bottom: 1px solid #f8fafc;
+  font-size: 14px;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.attendance-table td:last-child {
+  padding-right: 0;
+}
+
+.attendance-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.attendance-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 20px 12px;
+}
+
+.employee-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.employee-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.employee-code {
+  font-size: 12px;
+}
+
+.employee-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #ede9fe;
+  color: #7c3aed;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.employee-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.muted-cell {
+  color: #64748b;
+}
+
+.status-text {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-text-present {
+  color: #16a34a;
+}
+
+.status-text-absent {
+  color: #dc2626;
+}
+
+.status-text-half-day {
+  color: #ea580c;
+}
+
+.status-text-late {
+  color: #2563eb;
+}
+
+.status-text-leave {
+  color: #db2777;
+}
+
+.status-text-wfh {
+  color: #d97706;
+}
+
+/* ==========================================================================
+   NEW ADD-ON UI: Date Range Control & Table Action Buttons
+   ========================================================================== */
+
+/* Custom Date Range Picker Container */
+.attendance-date-range-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  height: 33px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #64748b;
+  box-sizing: border-box;
+}
+
+.attendance-date-input {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0f172a;
+  outline: none;
+  font-family: inherit;
+  padding: 0;
+}
+
+.attendance-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+
+.attendance-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* Table Inline Expandable Session Row Shell */
+.attendance-inline-session-wrapper {
+  background: #ffffff;
+  margin: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.attendance-session-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: #ffffff;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.attendance-sessions-expand-row td {
+  background: #f8fafc;
+  padding-top: 0;
+}
+
+.attendance-action-btn {
+  border: 1px solid #dbe4ef;
+  color: #2563eb;
+  background: #ffffff;
+}

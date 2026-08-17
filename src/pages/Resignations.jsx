@@ -82,7 +82,9 @@ function Resignations() {
   const [approvingRecordId, setApprovingRecordId] = useState(null);
   const [isHrFinalizing, setIsHrFinalizing] = useState(false);
 
-  const [isLoading,setIsLoading] = useState(false)
+  const [isLoading,setIsLoading] = useState(false);
+
+  const today = new Date().toISOString().split("T")[0];
   
   const [checklistForm, setChecklistForm] = useState({
     isExitChecklistCleared: false,
@@ -118,10 +120,10 @@ function Resignations() {
   }, []);
 
   const fetchAllData = useCallback(async () => {
-    if (!vendorId || !currentUser?.employeeId) return;
+    if (!vendorId) return;
     try {
       setLoading(true);
-      const res = await getResignation(vendorId, currentUser.employeeId);
+      const res = await getResignation(vendorId, currentUser.employeeId?currentUser.employeeId:currentUser.id);
       setMyRecords(res.data.myrecords || []);
       setUnderMeRecords(res.data.underMe || []);
       setFinalApprovalRecords(res.data.finalApproval || []);
@@ -130,10 +132,11 @@ function Resignations() {
     } finally {
       setLoading(false);
     }
-  }, [vendorId, currentUser?.employeeId]);
+    // eslint-disable-next-line 
+  }, [vendorId]);
 
   useEffect(() => {
-    if (vendorId && currentUser) {
+    if (vendorId) {
       fetchAllData();
     }
   }, [vendorId, currentUser, fetchAllData]);
@@ -182,7 +185,7 @@ function Resignations() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.reasonForLeaving.trim() || !form.requestedLastWorkingDay || !form.hrMail) {
-      alert("Please fill in all required fields.");
+      alert("Please fill all required fields.");
       return;
     }
     setIsLoading(true)
@@ -228,12 +231,20 @@ function Resignations() {
     try {
       setIsLoading(true)
         if (isHrFinalizing) {
+            if(!checklistForm.finalSettlementDate || !checklistForm.rolesAndResponsibilities || !checklistForm.conductEvaluation){
+              alert('Please fill all required details!');
+              setIsLoading(false);
+              return;
+            }
             const payload = {
-                status: "Approved",
-                isExitApproved: true,
-                approvedBy: currentUser?.employeeId,
-                ...checklistForm,
-                fnfAmount: Number(checklistForm.fnfAmount)
+              status: "Approved",
+              isExitApproved: true,
+              approvedBy: {
+                id: currentUser?.employeeId || currentUser?.id,
+                refModel: currentUser?.employeeId ? "Employee" : "User" 
+              },
+              ...checklistForm,
+              fnfAmount: Number(checklistForm.fnfAmount)
             };
             console.log(payload)
             await finalApproval(approvingRecordId, payload);
@@ -244,7 +255,10 @@ function Resignations() {
             const payload = {
                 status: "Verified",
                 isExitApproved: false,
-                verifiedBy: currentUser?.employeeId,
+                verifiedBy: {
+                  id: currentUser?.employeeId || currentUser?.id,
+                  refModel: currentUser?.employeeId ? "Employee" : "User" 
+                },
                 ...checklistForm,
                 fnfAmount: Number(checklistForm.fnfAmount)
             };
@@ -298,6 +312,8 @@ function Resignations() {
   return (
     <MainLayout>
       <div className="exit-mgmt-container">
+        {currentUser?.role !== 'Admin' && (
+        <>
         <div className="exit-mgmt-header-row">
           <h2 className="exit-mgmt-title">My Resignation Status</h2>
           <Button icon={ <Plus size={22} />} iconPosition="left" onClick={() => setShowAddModal(true)}>
@@ -347,6 +363,7 @@ function Resignations() {
             </table>
           </div>
         </div>
+
 
         <div className="exit-mgmt-header-block">
           <h2 className="exit-mgmt-title">Team Resignation Approvals</h2>
@@ -442,6 +459,8 @@ function Resignations() {
           <div className="exit-mgmt-card exit-mgmt-card--mb-large exit-mgmt-card--empty-state">
             You are not currently assigned as a reporting manager to any active processing records.
           </div>
+        )}
+        </>
         )}
 
         {isHrOrAdmin && (
@@ -550,6 +569,7 @@ function Resignations() {
                     id="req-lwd"
                     name="requestedLastWorkingDay"
                     type="date"
+                    min={today}
                     value={form.requestedLastWorkingDay}
                     onChange={handleChange}
                     required
@@ -720,6 +740,7 @@ function Resignations() {
                       id="finalSettlementDate"
                       name="finalSettlementDate"
                       type="date"
+                      min={today}
                       value={checklistForm.finalSettlementDate}
                       onChange={handleChecklistChange}
                       required
