@@ -408,7 +408,7 @@ export default function ProfileCard() {
             }}
             placeholder="Enter department"
             error={errors.department}
-            isFormDisabled={isFormDisabled}
+            isFormDisabled={true}
           />
           
 
