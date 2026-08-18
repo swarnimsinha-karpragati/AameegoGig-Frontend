@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { Calendar as CalendarIcon, RotateCcw, Download, Camera, ChevronUp, ChevronDown } from "lucide-react";
 import SessionList from "./SessionList";
@@ -22,6 +22,20 @@ function TodayAttendanceTable({
 }) {
   const [expandedRowId, setExpandedRowId] = useState(null);
   const [selfieModal, setSelfieModal] = useState({ open: false, imageUrl: "", title: "" });
+  const [localSearch, setLocalSearch] = useState(filters.search);
+
+  useEffect(() => {
+    setLocalSearch(filters.search);
+  }, [filters.search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== filters.search) {
+        onFilterChange("search", localSearch);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [localSearch, filters.search, onFilterChange]);
 
   const handleOpenSelfie = (imageUrl, title) => {
     setSelfieModal({ open: true, imageUrl, title });
@@ -75,8 +89,8 @@ function TodayAttendanceTable({
                 <input
                   type="text"
                   placeholder="Search Employee..."
-                  value={filters.search}
-                  onChange={(e) => onFilterChange("search", e.target.value)}
+                  value={localSearch}
+                  onChange={(e) => setLocalSearch(e.target.value)}
                   className="attendance-search"
                 />
 
@@ -182,13 +196,22 @@ function TodayAttendanceTable({
             </thead>
 
             <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={showActions ? 13 : 12} className="attendance-empty">
-                    Loading attendance records...
-                  </td>
+              {loading && Array.from({ length: 5 }).map((_, i) => (
+                <tr key={`skeleton-${i}`} className="attendance-skeleton-row">
+                  <td><div className="skeleton skeleton-avatar" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
                 </tr>
-              )}
+              ))}
 
               {!loading && rows.length === 0 && (
                 <tr>

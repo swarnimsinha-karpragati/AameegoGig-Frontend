@@ -300,12 +300,16 @@ function Attendance() {
   };
 
   const handleSelfFilterChange = (key, value) => {
-    setSelectedPersonalDay(null);
+    if (key !== "search") {
+      setSelectedPersonalDay(null);
+    }
     setSelfFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
   };
 
   const handleOrgFilterChange = (key, value) => {
-    setSelectedOrgDay(null);
+    if (key !== "search") {
+      setSelectedOrgDay(null);
+    }
     setOrgFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
   };
 
