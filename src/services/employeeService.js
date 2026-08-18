@@ -77,6 +77,11 @@ export const buildEmployeePayload = (data, extras = {}) => {
     }
   }
 
+  const modules = extras.allowedModules ?? data.allowedModules;
+  if (Array.isArray(modules)) {
+    payload.allowedModules = modules;
+  }
+
   if (data.email) {
     payload.email = String(data.email).trim().toLowerCase();
   }

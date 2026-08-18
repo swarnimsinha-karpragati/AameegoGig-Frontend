@@ -40,6 +40,7 @@ function App() {
     }
     if (isSuccess && data?.user) {
       localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("user-updated"));
     }
      // eslint-disable-next-line 
   }, [isError, isSuccess, data]);

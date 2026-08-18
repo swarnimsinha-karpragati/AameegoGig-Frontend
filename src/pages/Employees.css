@@ -275,6 +275,49 @@
   border-top: 1px solid #e8edf4;
 }
 
+.emp-module-access {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e8edf4;
+}
+
+.emp-module-access__label {
+  margin: 0 0 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.emp-module-access__hint {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.emp-module-access__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.emp-module-access__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+}
+
+.emp-module-access__item input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
 /* ─── Buttons ─── */
 
 .emp-btn {
@@ -673,7 +716,8 @@
   }
 
   .emp-form-grid,
-  .emp-login-card__fields {
+  .emp-login-card__fields,
+  .emp-module-access__grid {
     grid-template-columns: 1fr;
   }
 

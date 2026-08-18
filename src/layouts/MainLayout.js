@@ -162,7 +162,9 @@ function MainLayout({ children }) {
       path: "/settings",
       icon: Settings,
     },
-  ].filter((item) => canAccessRoute(user?.role, item.path));
+  ].filter((item) =>
+    canAccessRoute(user?.role, item.path, user?.allowedModules)
+  );
 
   const [logo, setLogo] = useState(() => {
     const storedUser = getStoredUser();
