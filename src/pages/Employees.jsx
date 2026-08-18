@@ -56,6 +56,7 @@ import { validateStructureDraft, sumLetterMonthlyGross } from "../utils/salaryVa
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
+import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles";
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
@@ -375,6 +376,39 @@ function EmployeeFormFields({
   ));
 }
 
+function ModuleAccessFields({ role, selected = [], onChange, idPrefix = "emp-mod" }) {
+  const options = grantableModulesForRole(role);
+
+  const toggle = (key) => {
+    const next = selected.includes(key)
+      ? selected.filter((item) => item !== key)
+      : [...selected, key];
+    onChange(next);
+  };
+
+  return (
+    <div className="emp-module-access">
+      <p className="emp-module-access__label">Module access</p>
+      <p className="emp-module-access__hint">
+        Uncheck a module to hide it for this login. Dashboard and Settings stay available.
+      </p>
+      <div className="emp-module-access__grid">
+        {options.map((item) => (
+          <label key={item.key} className="emp-module-access__item" htmlFor={`${idPrefix}-${item.key}`}>
+            <input
+              id={`${idPrefix}-${item.key}`}
+              type="checkbox"
+              checked={selected.includes(item.key)}
+              onChange={() => toggle(item.key)}
+            />
+            {item.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AppLoginSection({
   enabled,
   onToggle,
@@ -384,6 +418,9 @@ function AppLoginSection({
   onPasswordChange,
   alreadyEnabled,
   linkedEmail,
+  allowedModules,
+  onModulesChange,
+  modulesIdPrefix,
 }) {
   if (alreadyEnabled) {
     return (
@@ -392,11 +429,15 @@ function AppLoginSection({
           App login is enabled
           {linkedEmail ? ` for ${linkedEmail}` : ""}.
         </p>
+        <ModuleAccessFields
+          role={userRole}
+          selected={allowedModules}
+          onChange={onModulesChange}
+          idPrefix={modulesIdPrefix}
+        />
       </div>
     );
   }
-
-
 
   return (
     <div className="emp-login-card">
@@ -413,9 +454,9 @@ function AppLoginSection({
             Password is shown once after saving. Email must be filled above.
           </p>
           <div className="emp-login-card__fields">
-            <FormField label="Login role" htmlFor="emp-user-role">
+            <FormField label="Login role" htmlFor={`${modulesIdPrefix}-user-role`}>
               <select
-                id="emp-user-role"
+                id={`${modulesIdPrefix}-user-role`}
                 value={userRole}
                 onChange={onRoleChange}
               >
@@ -426,11 +467,11 @@ function AppLoginSection({
             </FormField>
             <FormField
               label="Password"
-              htmlFor="emp-user-password"
+              htmlFor={`${modulesIdPrefix}-user-password`}
               hint="Leave blank to auto-generate"
             >
               <input
-                id="emp-user-password"
+                id={`${modulesIdPrefix}-user-password`}
                 type="text"
                 value={userPassword}
                 onChange={onPasswordChange}
@@ -438,6 +479,12 @@ function AppLoginSection({
               />
             </FormField>
           </div>
+          <ModuleAccessFields
+            role={userRole}
+            selected={allowedModules}
+            onChange={onModulesChange}
+            idPrefix={modulesIdPrefix}
+          />
         </>
       ) : null}
     </div>
@@ -471,6 +518,7 @@ function Employees() {
     dateOfJoining: "", relievingDate: "", managerId: "",
     basicSalary: "", hra: "", conveyanceAllowance: "", incentive: "", otherAllowance: "", professionalTax: "",
     createAppLogin: false, userRole: "Employee", userPassword: "",
+    allowedModules: defaultSelectedModules("Employee"),
   };
 
   const [form, setForm] = useState(initialForm);
@@ -1000,6 +1048,11 @@ function Employees() {
     highestQualification: emp.highestQualification || "",
     uan: emp.uan || "",
     esicNumber: emp.esicNumber || "",
+    userRole: emp.linkedUser?.role || emp.userRole || "Employee",
+    allowedModules: defaultSelectedModules(
+      emp.linkedUser?.role || emp.userRole || "Employee",
+      emp.linkedUser?.allowedModules
+    ),
   });
 
   const handleEdit = (emp) => {
@@ -1520,13 +1573,26 @@ function Employees() {
                     })
                   }
                   userRole={form.userRole}
-                  onRoleChange={(e) =>
-                    setForm({ ...form, userRole: e.target.value })
-                  }
+                  onRoleChange={(e) => {
+                    const userRole = e.target.value;
+                    setForm({
+                      ...form,
+                      userRole,
+                      allowedModules: defaultSelectedModules(
+                        userRole,
+                        form.allowedModules
+                      ),
+                    });
+                  }}
                   userPassword={form.userPassword}
                   onPasswordChange={(e) =>
                     setForm({ ...form, userPassword: e.target.value })
                   }
+                  allowedModules={form.allowedModules}
+                  onModulesChange={(allowedModules) =>
+                    setForm({ ...form, allowedModules })
+                  }
+                  modulesIdPrefix="add-emp-mod"
                 />
               </FormSection>
               <FormSection
@@ -1655,12 +1721,17 @@ function Employees() {
                       setEnableLoginOnUpdate(e.target.checked)
                     }
                     userRole={selectedEmployee.userRole || "Employee"}
-                    onRoleChange={(e) =>
+                    onRoleChange={(e) => {
+                      const userRole = e.target.value;
                       setSelectedEmployee({
                         ...selectedEmployee,
-                        userRole: e.target.value,
-                      })
-                    }
+                        userRole,
+                        allowedModules: defaultSelectedModules(
+                          userRole,
+                          selectedEmployee.allowedModules
+                        ),
+                      });
+                    }}
                     userPassword={selectedEmployee.userPassword || ""}
                     onPasswordChange={(e) =>
                       setSelectedEmployee({
@@ -1670,6 +1741,14 @@ function Employees() {
                     }
                     alreadyEnabled={selectedEmployee.hasAppLogin}
                     linkedEmail={selectedEmployee.linkedUser?.email}
+                    allowedModules={selectedEmployee.allowedModules}
+                    onModulesChange={(allowedModules) =>
+                      setSelectedEmployee({
+                        ...selectedEmployee,
+                        allowedModules,
+                      })
+                    }
+                    modulesIdPrefix="edit-emp-mod"
                   />
                 </FormSection>
                 <FormSection

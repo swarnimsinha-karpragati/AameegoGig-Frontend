@@ -25,7 +25,7 @@ import {
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getDashboard } from "../services/dashboardService";
-import { getStoredUser } from "../utils/roles";
+import { getStoredUser, userHasModule, visibleDashboardStats } from "../utils/roles";
 import "./Dashboard.css";
 import Card from "../components/Card";
 
@@ -81,10 +81,21 @@ function StatCard({ stat }) {
 
 function Dashboard() {
   const navigate = useNavigate();
-  const user = getStoredUser();
+  const [user, setUser] = useState(() => getStoredUser());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const refreshUser = () => setUser(getStoredUser());
+    window.addEventListener("user-updated", refreshUser);
+    window.addEventListener("storage", refreshUser);
+    refreshUser();
+    return () => {
+      window.removeEventListener("user-updated", refreshUser);
+      window.removeEventListener("storage", refreshUser);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +122,33 @@ function Dashboard() {
   const isOrgView = data?.scope === "org";
   const isManager = data?.scope === "team";
   const showApprovals = data?.role !== "Employee";
+  const modules = data?.allowedModules || user?.allowedModules;
+  const hasModule = (key) => userHasModule(user, key, modules);
+  const showAttendance = hasModule("attendance") && data?.attendanceToday;
+  const showLeave = hasModule("leave");
+  const showExpenses = hasModule("expenses");
+  const showPayroll = hasModule("payroll");
+  const showEmployees = hasModule("employees");
+  const stats = visibleDashboardStats(
+    data?.stats,
+    user,
+    modules,
+    {
+      leave: data?.pendingLeaveCount,
+      expense: data?.pendingExpenseCount,
+    }
+  );
+  const personalSummary = [
+    showAttendance && "attendance",
+    showLeave && "leave",
+    showExpenses && "expenses",
+  ].filter(Boolean);
+  const personalSummaryText =
+    personalSummary.length === 0
+      ? "Your personal summary"
+      : personalSummary.length === 1
+        ? `Your personal summary — ${personalSummary[0]}`
+        : `Your personal summary — ${personalSummary.slice(0, -1).join(", ")} and ${personalSummary.at(-1)}`;
 
   return (
     <MainLayout>
@@ -123,7 +161,7 @@ function Dashboard() {
                 ? "Organization overview — workforce, attendance, and pending actions"
                 : isManager
                   ? "Team overview — track attendance and pending approvals"
-                  : "Your personal summary — attendance, leave, and expenses"}
+                  : personalSummaryText}
               {" "}
               {/* <span className="role-badge">{getRoleLabel(data?.role || user?.role)}</span> */}
             </p>
@@ -146,21 +184,23 @@ function Dashboard() {
 
         {data && !loading && (
           <>
+            {stats.length > 0 && (
             <div className="stats-grid">
-              {data.stats.map((stat) => (
+              {stats.map((stat) => (
                 <StatCard key={stat.key} stat={stat} />
               ))}
             </div>
+            )}
 
-            {isOrgView && (data.newJoinersThisMonth > 0 || data.payrollPending > 0) && (
+            {isOrgView && ((showEmployees && data.newJoinersThisMonth > 0) || (showPayroll && data.payrollPending > 0)) && (
               <div className="insights-row">
-                {data.newJoinersThisMonth > 0 && (
+                {showEmployees && data.newJoinersThisMonth > 0 && (
                   <div className="insight-chip">
                     <UserPlus size={16} />
                     <span>{data.newJoinersThisMonth} new joiner{data.newJoinersThisMonth !== 1 ? "s" : ""} this month</span>
                   </div>
                 )}
-                {data.payrollPending > 0 && (
+                {showPayroll && data.payrollPending > 0 && (
                   <Link to="/payroll?tab=review" className="insight-chip warning">
                     <Wallet size={16} />
                     <span>{data.payrollPending} payroll record{data.payrollPending !== 1 ? "s" : ""} pending processing</span>
@@ -169,7 +209,7 @@ function Dashboard() {
               </div>
             )}
 
-           { isOrgView && <div className="dashboard-mid-grid">
+           { isOrgView && showAttendance && <div className="dashboard-mid-grid">
               <div className="chart-card">
                 <div className="chart-card-head">
                   <div>
@@ -224,10 +264,10 @@ function Dashboard() {
               <div className="activity-card">
                 <div className="section-head">
                   <h3>Recent Activity</h3>
-                  <span className="section-count">{data.recentActivity.length} events</span>
+                  <span className="section-count">{(data.recentActivity || []).length} events</span>
                 </div>
 
-                {data.recentActivity.length === 0 ? (
+                {(data.recentActivity || []).length === 0 ? (
                   <p className="empty-hint">No recent activity to show.</p>
                 ) : (
                   data.recentActivity.map((item, idx) => (
@@ -245,6 +285,7 @@ function Dashboard() {
                 )}
               </div>
 
+              {showLeave ? (
               <div className="leave-card">
                 <div className="section-head">
                   <h3>Upcoming Leaves</h3>
@@ -253,7 +294,7 @@ function Dashboard() {
                   </button>
                 </div>
 
-                {data.upcomingLeaves.length === 0 ? (
+                {data.upcomingLeaves?.length === 0 ? (
                   <p className="empty-hint">No upcoming leaves in the next 2 weeks.</p>
                 ) : (
                   data.upcomingLeaves.map((leave) => (
@@ -270,36 +311,39 @@ function Dashboard() {
                   ))
                 )}
               </div>
+              ) : null}
               
             </div>
+            {showExpenses && data.expenseSummary ? (
             <div className="summary-card">
               <h3>Expense Summary</h3>
               <p className="summary-period">This month</p>
               <div className="summary-rows">
                 <div className="summary-row">
                   <span>Total Claimed</span>
-                  <strong>₹{(data.expenseSummary.totalClaimed || 0).toLocaleString("en-IN")}</strong>
+                  <strong>₹{(data.expenseSummary?.totalClaimed || 0).toLocaleString("en-IN")}</strong>
                 </div>
                 <div className="summary-row">
                   <span>Approved</span>
-                  <strong className="text-green">₹{(data.expenseSummary.totalApproved || 0).toLocaleString("en-IN")}</strong>
+                  <strong className="text-green">₹{(data.expenseSummary?.totalApproved || 0).toLocaleString("en-IN")}</strong>
                 </div>
                 <div className="summary-row">
                   <span>Pending</span>
-                  <strong className="text-amber">₹{(data.expenseSummary.totalPending || 0).toLocaleString("en-IN")}</strong>
+                  <strong className="text-amber">₹{(data.expenseSummary?.totalPending || 0).toLocaleString("en-IN")}</strong>
                 </div>
               </div>
               <button type="button" className="link-btn" onClick={() => navigate("/expenses")}>
                 View expenses <ArrowRight size={14} />
               </button>
             </div>
+            ) : null}
 
             {showApprovals &&
-              (data.pendingApprovals.leave.length > 0 ||
-                data.pendingApprovals.expense.length > 0) && (
+              ((showLeave && data.pendingApprovals?.leave?.length > 0) ||
+                (showExpenses && data.pendingApprovals?.expense?.length > 0)) && (
                 <div className="approvals-section">
                   <div className="approvals-grid">
-                    {data.pendingApprovals.leave.length > 0 && (
+                    {showLeave && data.pendingApprovals?.leave?.length > 0 && (
                       <div className="approval-card">
                         <div className="approval-card-head">
                           <CalendarDays size={18} />
@@ -318,7 +362,7 @@ function Dashboard() {
                       </div>
                     )}
 
-                    {data.pendingApprovals.expense.length > 0 && (
+                    {showExpenses && data.pendingApprovals?.expense?.length > 0 && (
                       <div className="approval-card">
                         <div className="approval-card-head">
                           <Receipt size={18} />
