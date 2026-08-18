@@ -138,6 +138,15 @@ export const bulkMarkToday = async (records) => {
   return res.data;
 };
 
+export const bulkUploadMonthAttendance = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await API.post("/attendance/markMonth/bulk-upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
+
 export const getCheckInSelfieUrl = (selfiePath) => {
   if (!selfiePath) return null;
 
