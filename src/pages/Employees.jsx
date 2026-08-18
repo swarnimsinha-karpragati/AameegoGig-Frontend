@@ -52,7 +52,7 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft } from "../utils/salaryValidation";
+import { validateStructureDraft, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
@@ -1104,13 +1104,14 @@ function Employees() {
 
   const handleGenerateLetter =
     async () => {
+      const monthlyGross = sumLetterMonthlyGross(letterData.salaryComponents);
 
       if (
         !letterData.employeeName ||
         !letterData.designation ||
         !letterData.joiningDate ||
         !letterData.annualCTC ||
-        !letterData.monthlySalary ||
+        !monthlyGross ||
         !letterData.workLocation ||
         !letterData.salaryComponents?.length
       ) {
@@ -1126,11 +1127,12 @@ function Employees() {
         setLoading(true);
         await generateAppointmentLetter({
           ...letterData,
+          monthlySalary: monthlyGross,
           salaryComponents: (letterData.salaryComponents || []).map((c) => ({
             code: c.code,
             componentName: c.componentName || c.name,
-            monthly: c.monthly,
-            annual: c.annual,
+            monthly: c.monthly !== "" && c.monthly != null ? c.monthly : Math.round((Number(c.annual) || 0) / 12),
+            annual: c.annual !== "" && c.annual != null ? c.annual : (Number(c.monthly) || 0) * 12,
           })),
         });
 
