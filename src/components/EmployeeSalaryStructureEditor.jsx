@@ -1,401 +1,505 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useRef, forwardRef, useImperativeHandle } from "react";
+import { AlertCircle, Layers, RefreshCw, Edit3, ListChecks, Sliders } from "lucide-react";
 import {
   getEmployeeStructure,
   saveEmployeeStructure,
-  migrateEmployeeStructure,
+  getStructure,
+  calculateStructureSplit,
   getSalaryComponents,
 } from "../services/salaryComponentService";
-import CtcSplitHelper from "./CtcSplitHelper";
-import { validateStructureDraft, validateAnnualCtc, contributesToGross } from "../utils/salaryValidation";
+import { getStoredUser } from "../utils/roles";
+import { validateAnnualCtc } from "../utils/salaryValidation";
 import "./EmployeeSalaryStructureEditor.css";
 import Button from "./Button";
 
-const calcHint = (comp) => {
-  if (comp.calculationType === "AttendanceBased") return "Computed from attendance";
-  if (comp.calculationType === "PercentOfComponent") return `${(comp.rate * 100).toFixed(2)}% of ${comp.baseComponent}`;
-  if (comp.calculationType === "PercentOfGross") return `${(comp.rate * 100).toFixed(2)}% of gross`;
-  if (comp.calculationType === "PercentOfCTC") return `${(comp.rate * 100).toFixed(2)}% of CTC`;
-  return null;
-};
-
-const buildDraftFromLibrary = (library) => ({
-  ctcAnnual: 0,
-  components: library.map((comp) => ({
-    code: comp.code,
-    name: comp.name,
-    category: comp.category,
-    monthlyAmount: comp.defaultValue ?? 0,
-    enabled: true,
-    calculationType: comp.calculationType,
-    rate: comp.rate,
-    baseComponent: comp.baseComponent,
-    isOptional: comp.isOptional,
-    isSystem: comp.isSystem,
-  })),
-});
-
-const hasSalaryData = (draft) => {
+export const hasSalaryData = (draft) => {
   if (!draft) return false;
   if (Number(draft.ctcAnnual) > 0) return true;
-  return (draft.components || []).some(
-    (c) =>
-      c.enabled !== false &&
-      Number(c.monthlyAmount) > 0 &&
-      (c.category === "Earning" || !c.category)
+  return (Array.isArray(draft.components) ? draft.components : []).some(
+    (c) => c.enabled !== false && Number(c.monthlyAmount) > 0 && (c.category === "Earning" || !c.category)
   );
 };
 
-const isAutoCalculatedComponent = (comp) =>
-  comp.calculationType === "AttendanceBased" ||
-  comp.isSystem ||
-  ["PercentOfComponent", "PercentOfGross", "PercentOfCTC"].includes(comp.calculationType);
-
-const resetComponentAmounts = (components) =>
-  components.map((c) =>
-    isAutoCalculatedComponent(c) ? c : { ...c, monthlyAmount: 0 }
-  );
-
-export { hasSalaryData, buildDraftFromLibrary };
-
-export default function EmployeeSalaryStructureEditor({
+export default forwardRef(function EmployeeSalaryStructureEditor({
   employeeId,
   onClose,
   draftValue,
   onDraftChange,
   hideActions = false,
-}) {
+}, ref) {
+  const user = getStoredUser();
   const isDraftMode = !employeeId;
+  const isMounted = useRef(true);
 
-  const [template, setTemplate] = useState(null);
-  const [components, setComponents] = useState([]);
-  const [ctcAnnual, setCtcAnnual] = useState(0);
+  // Core Data
+  const [availableStructures, setAvailableStructures] = useState([]);
+  const [libraryComponents, setLibraryComponents] = useState([]);
+  
+  const [selectedStructureId, setSelectedStructureId] = useState("");
+  const [components, setComponents] = useState([]); // ALWAYS keep this an array
+  const [ctcAnnual, setCtcAnnual] = useState("");
+  
+  // Modes & Revision State
+  const [hasExistingSalary, setHasExistingSalary] = useState(false);
+  const [isRevising, setIsRevising] = useState(isDraftMode); 
+  const [inputMode, setInputMode] = useState(null); // 'template' | 'manual'
+  const [selectedManualCodes, setSelectedManualCodes] = useState([]);
+
+  const [revisionType, setRevisionType] = useState("Annual Increment");
+  const [revisionReason, setRevisionReason] = useState("");
+
+  // UI States
   const [loading, setLoading] = useState(true);
+  const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
-  const syncDraft = (nextCtc, nextComponents) => {
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  // Safely grab components as an array to prevent crash
+  // eslint-disable-next-line
+  const safeComponents = Array.isArray(components) ? components : [];
+
+  const syncDraft = (nextCtc, nextStructId, nextComponents) => {
     if (isDraftMode && onDraftChange) {
       onDraftChange({
         ctcAnnual: Number(nextCtc) || 0,
-        components: nextComponents.map((c) => ({
-          code: c.code,
-          name: c.name,
-          category: c.category,
-          monthlyAmount: c.monthlyAmount,
-          enabled: c.enabled,
-          calculationType: c.calculationType,
-        })),
+        structureId: nextStructId,
+        components: Array.isArray(nextComponents) ? nextComponents : [],
       });
     }
   };
 
-  const load = async () => {
+  const loadData = async () => {
     setLoading(true);
     setError("");
     try {
-      if (isDraftMode) {
-        const res = await getSalaryComponents();
-        const library = res.data?.data || [];
-        const draft = draftValue?.components?.length
-          ? {
-            ctcAnnual: draftValue.ctcAnnual || 0,
-            components: library.map((comp) => {
-              const existing = draftValue.components.find((c) => c.code === comp.code);
-              return {
-                code: comp.code,
-                name: comp.name,
-                category: comp.category,
-                monthlyAmount: existing?.monthlyAmount ?? comp.defaultValue ?? 0,
-                enabled: existing?.enabled ?? true,
-                calculationType: comp.calculationType,
-                rate: comp.rate,
-                baseComponent: comp.baseComponent,
-                isOptional: comp.isOptional,
-                isSystem: comp.isSystem,
-              };
-            }),
-          }
-          : buildDraftFromLibrary(library);
+      const [structRes, libRes] = await Promise.all([
+        getStructure(user?.vendorId),
+        getSalaryComponents(true)
+      ]);
+      
+      const structs = structRes.data?.data || structRes.data || [];
+      if (isMounted.current) setAvailableStructures(structs);
 
-        setTemplate({ hasStructure: false });
-        setComponents(draft.components);
-        setCtcAnnual(draft.ctcAnnual);
-        if (!draftValue?.components?.length) {
-          syncDraft(draft.ctcAnnual, draft.components);
+      const libData = libRes.data?.data || libRes.data || [];
+      if (isMounted.current) setLibraryComponents(libData);
+
+      if (isDraftMode) {
+        if (draftValue?.ctcAnnual) {
+            setCtcAnnual(draftValue.ctcAnnual);
+            setHasExistingSalary(true);
+            setIsRevising(false);
+        }
+        if (draftValue?.structureId) {
+          setSelectedStructureId(draftValue.structureId);
+          setInputMode("template");
+        }
+        if (draftValue?.components && Array.isArray(draftValue.components)) {
+          setComponents(draftValue.components);
+          if (!draftValue?.structureId && draftValue.components.length > 0) {
+            setInputMode("manual");
+            setSelectedManualCodes(draftValue.components.map(c => c.code));
+          }
         }
       } else {
-        const res = await getEmployeeStructure(employeeId);
-        const data = res.data?.data || {};
-        setTemplate(data);
-        setComponents(
-          (data.components || []).map((c) => ({ ...c, monthlyAmount: c.monthlyAmount ?? 0 }))
-        );
-        setCtcAnnual(data.ctcAnnual || 0);
+        const empRes = await getEmployeeStructure(employeeId);
+        const empData = empRes.data?.data || {};
+        
+        if (empData.ctcAnnual) {
+            setCtcAnnual(empData.ctcAnnual);
+            setHasExistingSalary(true);
+            setIsRevising(false); 
+        } else {
+            setIsRevising(true); 
+        }
+
+        if (empData.salaryStructure) {
+          const structId = empData.salaryStructure._id || empData.salaryStructure;
+          setSelectedStructureId(structId);
+          if (structId) setInputMode("template");
+        }
+        
+        if (empData.components && Array.isArray(empData.components)) {
+          setComponents(empData.components);
+          if (empData.components.length > 0 && !empData.salaryStructure) {
+            setInputMode("manual");
+            setSelectedManualCodes(empData.components.map(c => c.code));
+          }
+        }
       }
     } catch (e) {
-      setError(e.response?.data?.message || "Failed to load salary structure");
+      if (isMounted.current) setError("Failed to load salary configurations.");
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId]);
+    if (user?.vendorId) loadData();
+    // eslint-disable-next-line
+  }, [employeeId, user?.vendorId]);
 
-  const monthlyGross = useMemo(() => {
-    return components
-      .filter((c) => contributesToGross(c))
-      .reduce((sum, c) => sum + (Number(c.monthlyAmount) || 0), 0);
-  }, [components]);
+  // Safe Calculations using safeComponents
 
-  const updateComponent = (code, field, value) => {
-    setComponents((prev) => {
-      const next = prev.map((c) =>
-        c.code === code
-          ? {
-            ...c,
-            [field]: field === "monthlyAmount" ? Number(value) || 0 : value,
-          }
-          : c
-      );
-      syncDraft(ctcAnnual, next);
-      return next;
-    });
-  };
+  const [monthlyGross,setMonthlyGross] = useState(0)
 
-  const updateCtc = (value) => {
-    const numeric = Number(value);
-    if (value === "" || value == null || !Number.isFinite(numeric) || numeric <= 0) {
-      setCtcAnnual(0);
-      setComponents((prev) => {
-        const next = resetComponentAmounts(prev);
-        syncDraft(0, next);
-        return next;
-      });
-      setMsg("");
-      return;
+
+  // Actions
+  const handleSwitchMode = (mode) => {
+    if (inputMode === mode) return;
+    if (safeComponents.length > 0) {
+      if (!window.confirm("Switching mode will clear current component data. Continue?")) return;
     }
-
-    setCtcAnnual(value);
-    syncDraft(value, components);
+    setInputMode(mode);
+    setComponents([]);
+    setSelectedManualCodes([]);
+    if (mode === "template") setSelectedStructureId("");
+    setError("");
+    setMsg("");
+    syncDraft(ctcAnnual, "", []);
   };
 
-  const applyCtcSplit = ({ ctcAnnual: nextCtc, components: suggested }) => {
-    setCtcAnnual(nextCtc);
-    setComponents((prev) => {
-      const map = new Map(suggested.map((c) => [c.code, c.monthlyAmount]));
-      const next = prev.map((c) => ({
-        ...c,
-        monthlyAmount: map.has(c.code) ? map.get(c.code) : c.monthlyAmount,
+  const handleCalculateSplit = async () => {
+    if (!selectedStructureId) return setError("Please select a Salary Structure template.");
+    const ctcErr = validateAnnualCtc(ctcAnnual);
+    if (ctcErr) return setError(ctcErr);
+
+    try {
+      setCalculating(true);
+      setError("");
+      const res = await calculateStructureSplit(user.vendorId, {
+        ctcAnnual: Number(ctcAnnual),
+        structureId: selectedStructureId
+      });
+      
+      // FIX: Robustly target the new nested "components" array from the backend JSON response
+      let parsedComponents = [];
+      if (res.data?.data?.components && Array.isArray(res.data.data.components)) {
+        parsedComponents = res.data.data.components;
+      } else if (res.data?.data && Array.isArray(res.data.data)) {
+        parsedComponents = res.data.data;
+      } else if (Array.isArray(res.data)) {
+        parsedComponents = res.data;
+      }
+
+      if (parsedComponents.length === 0) {
+        setError("Calculation returned no components. Please check your template structure.");
+        setCalculating(false);
+        return;
+      }
+      
+      setComponents(parsedComponents);
+
+      setMonthlyGross(res.data.data?.summary?.totalEarnings)
+      syncDraft(ctcAnnual, selectedStructureId, parsedComponents);
+      
+      setMsg("Salary structure calculated successfully.");
+      setTimeout(() => setMsg(""), 3000);
+    } catch (e) {
+      setError(e.response?.data?.message || "Failed to calculate structure.");
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  const handleToggleManualComponent = (comp) => {
+    setSelectedManualCodes((prev) => {
+      const exists = prev.includes(comp.code);
+      return exists ? prev.filter((c) => c !== comp.code) : [...prev, comp.code];
+    });
+  };
+
+  const handleApplyManualComponents = () => {
+    if (selectedManualCodes.length === 0) return setError("Please select at least one component.");
+    
+    const newComponents = libraryComponents
+      .filter((c) => selectedManualCodes.includes(c.code))
+      .map((c) => ({
+        code: c.code,
+        name: c.name,
+        category: c.category,
+        monthlyAmount: 0,
+        calculationType: c.calculationType || "Custom",
+        enabled: true,
+        isEmployerContribution: c.isEmployerContribution || false,
       }));
-      syncDraft(nextCtc, next);
+      
+    setComponents(newComponents);
+    syncDraft(ctcAnnual, "", newComponents);
+    setMsg(`${newComponents.length} components added. Enter amounts below.`);
+    setTimeout(() => setMsg(""), 3000);
+  };
+
+  const updateComponentAmount = (code, value) => {
+    const numericVal = Number(value) || 0;
+    setComponents((prev) => {
+      const safeArray = Array.isArray(prev) ? prev : [];
+      let next = [...safeArray];
+      const targetIdx = next.findIndex(c => c.code === code);
+      if (targetIdx === -1) return prev;
+
+      const diff = numericVal - Number(next[targetIdx].monthlyAmount || 0);
+      next[targetIdx] = { ...next[targetIdx], monthlyAmount: numericVal };
+
+      // Balance via SPECIAL (only in template mode where math relies on it)
+      if (inputMode === "template") {
+        const specialIdx = next.findIndex(c => c.code === "SPECIAL");
+        if (specialIdx !== -1 && code !== "SPECIAL") {
+          const newSpecialAmt = Number(next[specialIdx].monthlyAmount || 0) - diff;
+          next[specialIdx] = { ...next[specialIdx], monthlyAmount: Math.max(0, newSpecialAmt) };
+        }
+      }
+
+      syncDraft(ctcAnnual, selectedStructureId, next);
       return next;
     });
-    setMsg("CTC split applied — review amounts and save");
-    setTimeout(() => setMsg(""), 2500);
   };
 
   const handleSave = async () => {
-    if (isDraftMode) return;
+    if (isDraftMode) {
+      setIsRevising(false);
+      setHasExistingSalary(true);
+      setMsg("Draft saved successfully.");
+      setTimeout(() => setMsg(""), 2500);
+      return;
+    }
+    
     setSaving(true);
     setError("");
-    setMsg("");
 
+    if (inputMode === "template" && !selectedStructureId) { setError("Salary structure is missing."); setSaving(false); return; }
+    if (safeComponents.length === 0) { setError("Please configure components before saving."); setSaving(false); return; }
     const ctcErr = validateAnnualCtc(ctcAnnual);
-    if (ctcErr) {
-      setError(ctcErr);
-      setSaving(false);
-      return;
-    }
-
-    const draftErrors = validateStructureDraft({
-      ctcAnnual,
-      components: components.map((c) => ({
-        ...c,
-        monthlyAmount: c.monthlyAmount,
-        enabled: c.enabled,
-      })),
-    });
-    if (draftErrors.length) {
-      setError(draftErrors.join("; "));
-      setSaving(false);
-      return;
-    }
+    if (ctcErr) { setError(ctcErr); setSaving(false); return; }
 
     try {
+      console.log(safeComponents)
       await saveEmployeeStructure(employeeId, {
-        ctcAnnual: Number(ctcAnnual) || 0,
-        components: components.map((c) => ({
-          code: c.code,
-          monthlyAmount: c.monthlyAmount,
-          enabled: c.enabled,
-        })),
+        ctcAnnual: Number(ctcAnnual),
+        structureId: inputMode === "template" ? selectedStructureId : undefined,
+        monthlyGross,
+        components: safeComponents,
+        revisionType: hasExistingSalary ? revisionType : "Initial",
+        revisionReason: hasExistingSalary ? revisionReason : "Initial setup",
       });
-      setMsg("Salary structure saved");
-      load();
+      setMsg("Employee salary saved successfully.");
+      setHasExistingSalary(true);
+      setIsRevising(false); 
       setTimeout(() => setMsg(""), 2500);
     } catch (e) {
-      setError(e.response?.data?.message || "Save failed");
+      setError(e.response?.data?.message || "Failed to save salary.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleMigrate = async () => {
-    if (isDraftMode || !employeeId) return;
-    if (!window.confirm("Convert legacy salary fields into a dynamic structure?")) return;
-    try {
-      await migrateEmployeeStructure(employeeId);
-      load();
-      setMsg("Migrated from legacy salary fields");
-      setTimeout(() => setMsg(""), 2500);
-    } catch (e) {
-      setError(e.response?.data?.message || "Migration failed");
-    }
-  };
+  useImperativeHandle(ref, () => ({
+    saveStructure: handleSave,
+    hasUnsavedChanges: isRevising,
+  }));
 
-  if (loading) {
-    return <div className="emp-salary-structure emp-salary-structure--loading">Loading salary structure…</div>;
-  }
+  if (loading) return <div className="emp-struct-editor__loading">Loading salary data...</div>;
 
-  const earnings = components.filter((c) => c.category === "Earning");
-  const deductions = components.filter((c) => c.category === "Deduction");
+  const earnings = safeComponents.filter((c) => c.category === "Earning");
+  const deductions = safeComponents.filter((c) => c.category === "Deduction");
+  
+  const libEarnings = libraryComponents.filter(c => c.category === "Earning");
+  const libDeductions = libraryComponents.filter(c => c.category === "Deduction" && !c.isEmployerContribution);
+  const libEmployer = libraryComponents.filter(c => c.isEmployerContribution);
 
-  const renderRow = (c) => {
-    const isSystem = c.calculationType === "AttendanceBased" || c.isSystem;
-    const isPercentBased = ["PercentOfComponent", "PercentOfGross", "PercentOfCTC"].includes(c.calculationType);
-    const hint = calcHint(c);
-    const canToggle = c.isOptional && !isSystem;
-
-    return (
-      <div
-        className={`emp-salary-row${!c.enabled ? " emp-salary-row--disabled" : ""}${isSystem ? " emp-salary-row--system" : ""}`}
-        key={c.code}
-      >
-        <div className="emp-salary-row__check">
-          <input
-            type="checkbox"
-            checked={c.enabled}
-            onChange={(e) => updateComponent(c.code, "enabled", e.target.checked)}
-            disabled={!canToggle}
-            title={canToggle ? "Enable or disable this component" : "Required component"}
-            aria-label={`Toggle ${c.name}`}
-          />
-        </div>
-        <div className="emp-salary-row__label">
-          <span className="emp-salary-row__name">{c.name}</span>
-          <span className={`emp-field-hint${hint ? "" : " emp-field-hint--placeholder"}`}>
-            {hint || "\u00a0"}
-          </span>
-        </div>
-        <div className="emp-salary-row__amount">
-          {isSystem || isPercentBased ? (
-            <input type="text" value="Auto" disabled readOnly className="emp-salary-row__auto" title="Calculated at payroll run" />
-          ) : (
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={c.monthlyAmount}
-              onChange={(e) => updateComponent(c.code, "monthlyAmount", e.target.value)}
-              placeholder="0"
-              disabled={!c.enabled}
-            />
-          )}
-        </div>
+  const renderRow = (c) => (
+    <div className="emp-struct-row" key={c.code}>
+      <div className="emp-struct-row__label">
+        <span className="emp-struct-row__name">{c.name}</span>
+        <span className="emp-struct-row__hint">{c.calculationType || "Custom"}</span>
       </div>
-    );
-  };
+      <div className="emp-struct-row__amount">
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={c.monthlyAmount === 0 ? '' : c.monthlyAmount}
+          onChange={(e) => updateComponentAmount(c.code, e.target.value)}
+          placeholder="0"
+          disabled={!isRevising || calculating || saving}
+        />
+      </div>
+    </div>
+  );
 
   const renderPanel = (title, items, variant) => (
-    <div className={`emp-salary-panel emp-salary-panel--${variant}`}>
-      <div className="emp-salary-panel__head">
+    <div className={`emp-struct-panel emp-struct-panel--${variant}`}>
+      <div className="emp-struct-panel__head">
         <span>{title}</span>
-        <span className="emp-salary-panel__count">{items.length}</span>
+        <span className="emp-struct-panel__count">{items.length}</span>
       </div>
-      <div className="emp-salary-panel__body">
+      <div className="emp-struct-panel__body">
         {items.length ? items.map(renderRow) : (
-          <div className="emp-salary-panel__empty">No {title.toLowerCase()} configured</div>
+          <div className="emp-struct-panel__empty">No {title.toLowerCase()} configured.</div>
         )}
       </div>
     </div>
   );
 
   return (
-    <div className="emp-salary-structure">
-      <div className="emp-salary-structure__toolbar">
-        <div className="emp-field emp-salary-structure__ctc">
-          <label htmlFor={isDraftMode ? "emp-salary-ctc-draft" : "emp-salary-ctc"}>Annual CTC (₹)</label>
-          <input
-            id={isDraftMode ? "emp-salary-ctc-draft" : "emp-salary-ctc"}
-            type="number"
-            min="0"
-            max="999999999" // Max 9 digits (₹9,99,99,999)
-            value={ctcAnnual || ""}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (value === "" || Number(value) <= 999999999) {
-                updateCtc(value);
-              }
-            }}
-            placeholder="e.g. 600000"
-          />
-        </div>
-        <div className="emp-salary-structure__gross">
-          <span className="emp-salary-structure__gross-label">Monthly Gross</span>
-          <strong>₹{monthlyGross.toLocaleString("en-IN")}</strong>
-        </div>
-      </div>
-
-      <CtcSplitHelper
-        annualCTC={ctcAnnual}
-        onCtcChange={updateCtc}
-        onApply={applyCtcSplit}
-        compact
-      />
-
-      {isDraftMode ? (
-        <div className="emp-salary-structure__banner">
-          <span>Set monthly amounts for this employee. Saved together when you create the employee.</span>
-        </div>
-      ) : template && !template.hasStructure ? (
-        <div className="emp-salary-structure__banner">
-          <span>No salary structure saved yet.</span>
-          <button type="button" className="emp-salary-structure__link" onClick={handleMigrate}>
-            Migrate from legacy fields
-          </button>
-        </div>
-      ) : null}
-
-      <div className="emp-salary-structure__panels">
-        {renderPanel("Earnings", earnings, "earning")}
-        {renderPanel("Deductions", deductions, "deduction")}
-      </div>
-
-      {error ? <div className="emp-salary-structure__msg emp-salary-structure__msg--error">{error}</div> : null}
-      {msg ? <div className="emp-salary-structure__msg emp-salary-structure__msg--success">{msg}</div> : null}
-
-      {!hideActions ? (
-        <div className="emp-salary-structure__actions">
-          {onClose ? (
-            <button type="button" className="emp-btn emp-btn--secondary" onClick={onClose}>
-              Close
-            </button>
-          ) : null}
-          {!isDraftMode ? (
-            <Button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? "Saving…" : "Save Salary Structure"}
+    <div className="emp-struct-editor">
+      
+      {/* 1. VIEW MODE HEADER */}
+      {hasExistingSalary && !isRevising && (
+        <div className="emp-struct-view-header">
+          <div className="emp-struct-view-header__ctc">
+            <span className="emp-struct-view-header__label">Current Annual CTC</span>
+            <span className="emp-struct-view-header__value">₹{(Number(ctcAnnual) || 0).toLocaleString("en-IN")}</span>
+          </div>
+          {!hideActions && (
+            <Button onClick={() => setIsRevising(true)} icon={<Edit3 size={16}/>}>
+              Revise Salary
             </Button>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
+
+      {error && <div className="emp-struct-editor__msg emp-struct-editor__msg--error"><AlertCircle size={18} /> {error}</div>}
+      {msg && <div className="emp-struct-editor__msg emp-struct-editor__msg--success">{msg}</div>}
+
+      {/* 2. REVISION SETTINGS */}
+      {isRevising && hasExistingSalary && (
+        <div className="emp-struct-revision">
+          <div className="emp-struct-editor__field">
+            <label>Revision Type</label>
+            <select value={revisionType} onChange={(e) => setRevisionType(e.target.value)} disabled={saving}>
+              <option value="Annual Increment">Annual Increment</option>
+              <option value="Promotion">Promotion</option>
+              <option value="Mid-Year Adjustment">Mid-Year Adjustment</option>
+              <option value="Correction">Correction</option>
+            </select>
+          </div>
+          <div className="emp-struct-editor__field">
+            <label>Reason / Note (Optional)</label>
+            <input type="text" value={revisionReason} onChange={(e) => setRevisionReason(e.target.value)} placeholder="e.g. FY 2026 Appraisal" disabled={saving} />
+          </div>
+        </div>
+      )}
+
+      {/* 3. INPUT MODE SELECTOR */}
+      {isRevising && !inputMode && (
+        <div className="emp-struct-mode-selector">
+          <p className="emp-struct-mode-selector__title">How would you like to set the salary?</p>
+          <div className="emp-struct-mode-selector__options">
+            <button type="button" className="emp-struct-mode-card" onClick={() => handleSwitchMode("template")} disabled={calculating || saving}>
+              <Layers size={28} color="#3b82f6" />
+              <span className="emp-struct-mode-card__title">Use Structure Template</span>
+              <span className="emp-struct-mode-card__desc">Pick a predefined template and auto-split CTC across components</span>
+            </button>
+            <button type="button" className="emp-struct-mode-card" onClick={() => handleSwitchMode("manual")} disabled={calculating || saving}>
+              <ListChecks size={28} color="#8b5cf6" />
+              <span className="emp-struct-mode-card__title">Select Components Manually</span>
+              <span className="emp-struct-mode-card__desc">Choose individual components and enter amounts yourself</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODE SWITCHER PILLS */}
+      {isRevising && inputMode && (
+        <div className="emp-struct-mode-switcher">
+          <span className={`emp-struct-mode-pill ${inputMode === "template" ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchMode("template")}>
+            <Layers size={14} /> Template
+          </span>
+          <span className={`emp-struct-mode-pill ${inputMode === "manual" ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchMode("manual")}>
+            <Sliders size={14} /> Manual
+          </span>
+        </div>
+      )}
+
+      {/* 4. TEMPLATE MODE TOOLBAR */}
+      {isRevising && inputMode === "template" && (
+        <div className="emp-struct-editor__toolbar">
+          <div className="emp-struct-editor__field">
+            <label>1. Select Salary Structure</label>
+            <select value={selectedStructureId} onChange={(e) => setSelectedStructureId(e.target.value)} disabled={calculating || saving}>
+              <option value="" disabled>Choose a template...</option>
+              {availableStructures.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div className="emp-struct-editor__field">
+            <label>2. Annual CTC (₹)</label>
+            <input type="number" min="0" value={ctcAnnual} onChange={(e) => setCtcAnnual(e.target.value)} placeholder="e.g. 600000" disabled={calculating || saving} />
+          </div>
+          <div>
+            <Button onClick={handleCalculateSplit} disabled={calculating || saving || !selectedStructureId || !ctcAnnual}>
+              {calculating ? <RefreshCw size={16} className="spin" /> : "Calculate Breakdown"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. MANUAL MODE PICKER */}
+      {isRevising && inputMode === "manual" && (
+        <div className="emp-struct-manual">
+          <div className="emp-struct-manual__header">
+            <div className="emp-struct-editor__field">
+              <label>Annual CTC (₹)</label>
+              <input type="number" min="0" value={ctcAnnual} onChange={(e) => setCtcAnnual(e.target.value)} placeholder="e.g. 600000" disabled={calculating || saving} />
+            </div>
+            <Button onClick={handleApplyManualComponents} disabled={calculating || saving || selectedManualCodes.length === 0}>
+              Apply Selected ({selectedManualCodes.length})
+            </Button>
+          </div>
+
+          <div className="emp-struct-manual__picker">
+            {libEarnings.length > 0 && (
+              <div className="emp-struct-manual__group">
+                <div className="emp-struct-manual__group-title emp-struct-manual__group-title--earning">Earnings</div>
+                {libEarnings.map((comp) => (
+                  <label key={comp.code} className={`emp-struct-manual__item ${selectedManualCodes.includes(comp.code) ? "emp-struct-manual__item--selected" : ""}`}>
+                    <input type="checkbox" checked={selectedManualCodes.includes(comp.code)} onChange={() => handleToggleManualComponent(comp)} disabled={calculating || saving} />
+                    <span className="emp-struct-manual__item-name">{comp.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {libDeductions.length > 0 && (
+              <div className="emp-struct-manual__group">
+                <div className="emp-struct-manual__group-title emp-struct-manual__group-title--deduction">Deductions</div>
+                {libDeductions.map((comp) => (
+                  <label key={comp.code} className={`emp-struct-manual__item ${selectedManualCodes.includes(comp.code) ? "emp-struct-manual__item--selected" : ""}`}>
+                    <input type="checkbox" checked={selectedManualCodes.includes(comp.code)} onChange={() => handleToggleManualComponent(comp)} disabled={calculating || saving} />
+                    <span className="emp-struct-manual__item-name">{comp.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {libEmployer.length > 0 && (
+              <div className="emp-struct-manual__group">
+                <div className="emp-struct-manual__group-title emp-struct-manual__group-title--employer">Employer Cont.</div>
+                {libEmployer.map((comp) => (
+                  <label key={comp.code} className={`emp-struct-manual__item ${selectedManualCodes.includes(comp.code) ? "emp-struct-manual__item--selected" : ""}`}>
+                    <input type="checkbox" checked={selectedManualCodes.includes(comp.code)} onChange={() => handleToggleManualComponent(comp)} disabled={calculating || saving} />
+                    <span className="emp-struct-manual__item-name">{comp.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 6. INLINE SUMMARY & PANELS */}
+      {safeComponents.length > 0  && (
+        <>
+          <div className="emp-struct-editor__panels">
+            {renderPanel("Earnings", earnings, "earning")}
+            {renderPanel("Deductions", deductions, "deduction")}
+          </div>
+        </>
+      )}
+
     </div>
   );
-}
+});

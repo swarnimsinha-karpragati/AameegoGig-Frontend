@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import MainLayout from "../layouts/MainLayout";
 import {
@@ -614,6 +614,8 @@ function Employees() {
 
   const [letterEmployeeId, setLetterEmployeeId] = useState(null);
 
+  const salaryEditorRef = useRef(null);
+
   /* =========================
      FETCH EMPLOYEES
   ========================= */
@@ -1091,6 +1093,17 @@ function Employees() {
         selectedEmployee._id,
         payload
       );
+
+      if (salaryEditorRef.current?.hasUnsavedChanges) {
+        try {
+          await salaryEditorRef.current.saveStructure();
+        } catch (salaryErr) {
+          alert(
+            salaryErr.response?.data?.message ||
+            "Employee updated but salary structure could not be saved."
+          );
+        }
+      }
 
       if (res.data?.loginInfo) {
         showLoginCredentials(selectedEmployee.name, res.data.loginInfo);
@@ -1757,7 +1770,7 @@ function Employees() {
                   description="Dynamic earnings and deductions from your organization library"
                   fullWidth
                 >
-                  <EmployeeSalaryStructureEditor employeeId={selectedEmployee._id} />
+                  <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} />
                 </FormSection>
               </>
             ) : (

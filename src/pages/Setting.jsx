@@ -11,9 +11,10 @@ import { OverTimePolicy } from "../components/OverTimePolicy";
 import { OverTimePolicyList } from "../components/OverTimePolicyList";
 import HolidayManager from "../components/HolidayManager";
 import WeekOffManager from "../components/WeekOffManager";
-import PayrollConfigCard from "../components/PayrollConfigCard";
+// import PayrollConfigCard from "../components/PayrollConfigCard";
 import OrgProfileCard from "../components/OrgProfileCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
+import SalaryStructure from "../components/SalaryStructure";
 
 export default function Settings() {
   
@@ -84,7 +85,8 @@ export default function Settings() {
 
               <OrgProfileCard />
 
-              <PayrollConfigCard />
+              {/* <PayrollConfigCard /> */}
+              <SalaryStructure/>
 
               <SalaryComponentManager />
               
