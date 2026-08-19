@@ -170,7 +170,7 @@ export default function LeavePolicyManager() {
 
   const yearStartMonth = policy?.yearStartMonth ?? 1;
   const yearStartDay = policy?.yearStartDay ?? 1;
-  const types = policy?.types ?? [];
+  const types = useMemo(() => policy?.types ?? [], [policy?.types]);
   const isCustomMode = selectedTemplate === "custom";
 
   const balanceTypes = useMemo(
