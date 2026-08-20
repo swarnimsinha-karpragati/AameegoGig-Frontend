@@ -24,12 +24,14 @@ import NotFound from './pages/NotFound';
 
 function App() {
   const navigate = useNavigate();
+  const token = localStorage.getItem("token");
 
   const { data, isError, isSuccess } = useQuery({
     queryKey: ['auth'],
     queryFn: getCurrentUser,
     staleTime: 1000 * 60 * 5,
     retry: false,
+    enabled: !!token,
   });
 
   // Handle side-effects safely inside useEffect
@@ -43,8 +45,19 @@ function App() {
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("user-updated"));
     }
-    // eslint-disable-next-line 
-  }, [isError, isSuccess, data]);
+
+    const path = window.location.pathname;
+    const lastPath = path.split("/").filter(Boolean).pop() || "Home";
+    const pageName = lastPath
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
+    document.title = `Workza - ${pageName}`;
+
+    // eslint-disable-next-line
+  }, [isError, isSuccess, data, navigate]);
 
   return (
     <div className="app-shell">

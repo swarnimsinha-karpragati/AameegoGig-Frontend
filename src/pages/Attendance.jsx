@@ -690,15 +690,20 @@ function Attendance() {
     setShowSelfieModal(true);
   };
 
-  const handleSelfieCapture = async (selfieBlob) => {
+  const handleSelfieCapture = async (payload) => {
     setCheckInSubmitting(true);
     setActionLoading(true);
 
     try {
+      const selfieBlob = payload?.blob || payload;
+      const directLocation = payload?.location;
       setCheckInMessage("Detecting your location...");
-      const location = await getAttendanceLocation(
-        attendanceAction === "checkin" ? "check in" : "check out"
-      );
+      let location = directLocation;
+      if (!location) {
+        location = await getAttendanceLocation(
+          attendanceAction === "checkin" ? "check in" : "check out"
+        );
+      }
 
       let res;
       if (attendanceAction === "checkin") {
@@ -707,23 +712,27 @@ function Attendance() {
         res = await checkOutAttendance(selfieBlob, location);
       }
 
-      setCheckInMessage(
-        res.message ||
+      const successMsg =
+        res?.message ||
         (attendanceAction === "checkin"
-          ? "Checked in successfully"
-          : "Checked out successfully")
-      );
+          ? "Checked in successfully!"
+          : "Checked out successfully!");
+
+      setCheckInMessage(successMsg);
+      alert(successMsg);
 
       applyTodayRowUpdate(res);
       setShowSelfieModal(false);
       await loadTodaySelf();
       await loadSelfData();
     } catch (err) {
-      setCheckInMessage(
-        err.message ||
-        err.response?.data?.message ||
-        "Unable to process attendance"
-      );
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Unable to process attendance. Please try again.";
+
+      setCheckInMessage(errorMsg);
+      alert(`Error: ${errorMsg}`);
     } finally {
       setActionLoading(false);
       setCheckInSubmitting(false);

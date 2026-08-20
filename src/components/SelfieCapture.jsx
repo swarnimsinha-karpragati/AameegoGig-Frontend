@@ -8,6 +8,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
   const [capturedBlob, setCapturedBlob] = useState(null);
   const [error, setError] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -65,7 +66,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
           : "Unable to access camera. Please try again."
       );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopCamera]);
 
   useEffect(() => {
@@ -90,6 +91,44 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
     },
     [previewUrl]
   );
+
+  const getCurrentLocation = () => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation is not supported by your browser."));
+        return;
+      }
+
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      };
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: position.timestamp,
+          });
+        },
+        (err) => {
+          let msg = "Unable to fetch current location.";
+          if (err.code === err.PERMISSION_DENIED) {
+            msg = "Location access denied. Please enable location permissions.";
+          } else if (err.code === err.POSITION_UNAVAILABLE) {
+            msg = "Location information is unavailable.";
+          } else if (err.code === err.TIMEOUT) {
+            msg = "Location request timed out. Please try again.";
+          }
+          reject(new Error(msg));
+        },
+        options
+      );
+    });
+  };
 
   const handleCapture = () => {
     const video = videoRef.current;
@@ -122,9 +161,24 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
     );
   };
 
-  const handleConfirm = () => {
-    if (!capturedBlob || submitting) return;
-    onCapture(capturedBlob);
+  const handleConfirm = async () => {
+    if (!capturedBlob || submitting || fetchingLocation) return;
+
+    try {
+      setError("");
+      setFetchingLocation(true);
+
+      const location = await getCurrentLocation();
+
+      setFetchingLocation(false);
+      onCapture({
+        blob: capturedBlob,
+        location: location,
+      });
+    } catch (locErr) {
+      setFetchingLocation(false);
+      setError(locErr.message || "Failed to get current location.");
+    }
   };
 
   if (!open) return null;
@@ -132,12 +186,17 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
   const isCheckout = mode === "checkout";
   const modalTitle = isCheckout ? "Check out with selfie" : "Check in with selfie";
   const modalDescription = isCheckout
-    ? "Take a clear photo of your face. Your location will be captured when you confirm check-out."
-    : "Take a clear photo of your face. Your location will be captured when you confirm check-in.";
-  const confirmLabel = submitting
-    ? isCheckout
-      ? "Checking out…"
-      : "Checking in…"
+    ? "Take a clear photo of your face. Your current location will be captured live when you confirm."
+    : "Take a clear photo of your face. Your current location will be captured live when you confirm.";
+
+  const isProcessing = submitting || fetchingLocation;
+
+  const confirmLabel = isProcessing
+    ? fetchingLocation
+      ? "Fetching location…"
+      : isCheckout
+        ? "Checking out…"
+        : "Checking in…"
     : isCheckout
       ? "Confirm & Check Out"
       : "Confirm & Check In";
@@ -160,10 +219,10 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
             type="button"
             className="selfie-modal-close"
             onClick={onClose}
-            disabled={submitting}
+            disabled={isProcessing}
             aria-label="Close"
           >
-            <X/>
+            <X />
           </button>
         </div>
 
@@ -192,7 +251,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
                   resetCapture();
                   startCamera();
                 }}
-                disabled={submitting}
+                disabled={isProcessing}
               >
                 <RotateCcw size={16} />
                 Retake
@@ -201,7 +260,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
                 type="button"
                 className="selfie-btn primary"
                 onClick={handleConfirm}
-                disabled={submitting}
+                disabled={isProcessing}
               >
                 {confirmLabel}
               </button>
@@ -212,7 +271,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
                 type="button"
                 className="selfie-btn secondary"
                 onClick={onClose}
-                disabled={submitting}
+                disabled={isProcessing}
               >
                 Cancel
               </button>
@@ -220,7 +279,7 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
                 type="button"
                 className="selfie-btn primary"
                 onClick={handleCapture}
-                disabled={!cameraReady || submitting}
+                disabled={!cameraReady || isProcessing}
               >
                 <Camera size={16} />
                 Capture Selfie

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Users,
   CheckCircle2,
@@ -70,12 +70,12 @@ function StatCard({ stat }) {
     clock: "orange",
   }[stat.icon] || "blue";
 
-  return(
-      <Card icon={ <Icon size={26} />} iconClassName={`${iconClass}`} isInteractive={true}>
-        <Card.Header>{stat.label}</Card.Header>
-        <Card.Body>{stat.value}</Card.Body>
-        <Card.Footer className={stat.trend === "negative" ? "negative" : stat.trend === "positive" ? "positive" : "neutral"}>{stat.subtitle}</Card.Footer>
-      </Card>
+  return (
+    <Card icon={<Icon size={26} />} iconClassName={`${iconClass}`} isInteractive={true}>
+      <Card.Header>{stat.label}</Card.Header>
+      <Card.Body>{stat.value}</Card.Body>
+      <Card.Footer className={stat.trend === "negative" ? "negative" : stat.trend === "positive" ? "positive" : "neutral"}>{stat.subtitle}</Card.Footer>
+    </Card>
   )
 }
 
@@ -85,9 +85,11 @@ function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const vendorName = useParams().vendor;
 
   useEffect(() => {
     const refreshUser = () => setUser(getStoredUser());
+
     window.addEventListener("user-updated", refreshUser);
     window.addEventListener("storage", refreshUser);
     refreshUser();
@@ -185,11 +187,11 @@ function Dashboard() {
         {data && !loading && (
           <>
             {stats.length > 0 && (
-            <div className="stats-grid">
-              {stats.map((stat) => (
-                <StatCard key={stat.key} stat={stat} />
-              ))}
-            </div>
+              <div className="stats-grid">
+                {stats.map((stat) => (
+                  <StatCard key={stat.key} stat={stat} />
+                ))}
+              </div>
             )}
 
             {isOrgView && ((showEmployees && data.newJoinersThisMonth > 0) || (showPayroll && data.payrollPending > 0)) && (
@@ -209,7 +211,7 @@ function Dashboard() {
               </div>
             )}
 
-           { isOrgView && showAttendance && <div className="dashboard-mid-grid">
+            {isOrgView && showAttendance && <div className="dashboard-mid-grid">
               <div className="chart-card">
                 <div className="chart-card-head">
                   <div>
@@ -286,56 +288,56 @@ function Dashboard() {
               </div>
 
               {showLeave ? (
-              <div className="leave-card">
-                <div className="section-head">
-                  <h3>Upcoming Leaves</h3>
-                  <button type="button" className="link-btn small" onClick={() => navigate("/leave")}>
-                    View all
-                  </button>
-                </div>
+                <div className="leave-card">
+                  <div className="section-head">
+                    <h3>Upcoming Leaves</h3>
+                    <button type="button" className="link-btn small" onClick={() => navigate("/" + vendorName + "/leave")}>
+                      View all
+                    </button>
+                  </div>
 
-                {data.upcomingLeaves?.length === 0 ? (
-                  <p className="empty-hint">No upcoming leaves in the next 2 weeks.</p>
-                ) : (
-                  data.upcomingLeaves.map((leave) => (
-                    <div className="leave-item" key={leave.id}>
-                      <div className="leave-item-top">
-                        <div className="leave-avatar">{leave.initials}</div>
-                        <div>
-                          <h4>{leave.name}</h4>
-                          <p>{leave.leaveType} · {leave.days} day{leave.days !== 1 ? "s" : ""}</p>
+                  {data.upcomingLeaves?.length === 0 ? (
+                    <p className="empty-hint">No upcoming leaves in the next 2 weeks.</p>
+                  ) : (
+                    data.upcomingLeaves.map((leave) => (
+                      <div className="leave-item" key={leave.id}>
+                        <div className="leave-item-top">
+                          <div className="leave-avatar">{leave.initials}</div>
+                          <div>
+                            <h4>{leave.name}</h4>
+                            <p>{leave.leaveType} · {leave.days} day{leave.days !== 1 ? "s" : ""}</p>
+                          </div>
                         </div>
+                        <span>{leave.dateLabel}</span>
                       </div>
-                      <span>{leave.dateLabel}</span>
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
               ) : null}
-              
+
             </div>
             {showExpenses && data.expenseSummary ? (
-            <div className="summary-card">
-              <h3>Expense Summary</h3>
-              <p className="summary-period">This month</p>
-              <div className="summary-rows">
-                <div className="summary-row">
-                  <span>Total Claimed</span>
-                  <strong>₹{(data.expenseSummary?.totalClaimed || 0).toLocaleString("en-IN")}</strong>
+              <div className="summary-card">
+                <h3>Expense Summary</h3>
+                <p className="summary-period">This month</p>
+                <div className="summary-rows">
+                  <div className="summary-row">
+                    <span>Total Claimed</span>
+                    <strong>₹{(data.expenseSummary?.totalClaimed || 0).toLocaleString("en-IN")}</strong>
+                  </div>
+                  <div className="summary-row">
+                    <span>Approved</span>
+                    <strong className="text-green">₹{(data.expenseSummary?.totalApproved || 0).toLocaleString("en-IN")}</strong>
+                  </div>
+                  <div className="summary-row">
+                    <span>Pending</span>
+                    <strong className="text-amber">₹{(data.expenseSummary?.totalPending || 0).toLocaleString("en-IN")}</strong>
+                  </div>
                 </div>
-                <div className="summary-row">
-                  <span>Approved</span>
-                  <strong className="text-green">₹{(data.expenseSummary?.totalApproved || 0).toLocaleString("en-IN")}</strong>
-                </div>
-                <div className="summary-row">
-                  <span>Pending</span>
-                  <strong className="text-amber">₹{(data.expenseSummary?.totalPending || 0).toLocaleString("en-IN")}</strong>
-                </div>
+                <button type="button" className="link-btn" onClick={() => navigate("/" + vendorName + "/expenses")}>
+                  View expenses <ArrowRight size={14} />
+                </button>
               </div>
-              <button type="button" className="link-btn" onClick={() => navigate("/expenses")}>
-                View expenses <ArrowRight size={14} />
-              </button>
-            </div>
             ) : null}
 
             {showApprovals &&
@@ -356,7 +358,7 @@ function Dashboard() {
                             <span>{req.leaveType} · {req.days} day{req.days !== 1 ? "s" : ""}</span>
                           </div>
                         ))}
-                        <button type="button" className="link-btn" onClick={() => navigate("/leave")}>
+                        <button type="button" className="link-btn" onClick={() => navigate("/" + vendorName + "/leave")}>
                           Review leaves <ArrowRight size={14} />
                         </button>
                       </div>
@@ -375,7 +377,7 @@ function Dashboard() {
                             <span>{exp.title} — ₹{exp.amount?.toLocaleString("en-IN")}</span>
                           </div>
                         ))}
-                        <button type="button" className="link-btn" onClick={() => navigate("/expenses")}>
+                        <button type="button" className="link-btn" onClick={() => navigate("/" + vendorName + "/expenses")}>
                           Review expenses <ArrowRight size={14} />
                         </button>
                       </div>
