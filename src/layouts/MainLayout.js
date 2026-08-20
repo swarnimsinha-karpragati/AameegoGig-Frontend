@@ -20,6 +20,7 @@ import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
 import { isSiteVendor } from "../utils/vendorIdhelper";
+import { clearAuthData } from "../utils/authStorage";
 
 
 
@@ -35,7 +36,7 @@ function MainLayout({ children }) {
       const storedUser = getStoredUser();
       setUser(storedUser);
       setAvatarBroken(false);
-      const formatName = storedUser?.vendorName?.trim()?.replace(/\s+/g, "-").toLowerCase() || "";
+      const formatName = storedUser?.vendorName?.trim()?.replace(/\//g, "")?.replace(/\s+/g, "-").toLowerCase() || "";
       setVendorCode(formatName);
     };
     window.addEventListener("storage", refreshUser);
@@ -206,7 +207,7 @@ function MainLayout({ children }) {
     return () => {
       isMounted = false;
     };
-     // eslint-disable-next-line
+    // eslint-disable-next-line
   }, []);
 
 
@@ -288,8 +289,7 @@ function MainLayout({ children }) {
             type="button"
             className="logout-btn"
             onClick={() => {
-              localStorage.removeItem("token");
-              localStorage.removeItem("user");
+              clearAuthData();
               navigate("/login");
             }}
           >
