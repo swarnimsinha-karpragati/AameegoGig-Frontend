@@ -284,15 +284,16 @@ function EmployeeFormFields({
     if (field.type === "select-gender") {
       return (
         <>
-          <select {...common} value={values.maritalStatus || ""}>
-            <option value="">Select</option>
-            <option value="Single">Single</option>
-            <option value="Married">Married</option>
-            <option value="Divorced">Divorced</option>
-            <option value="Widowed">Widowed</option>
-            <option value="Separated">Separated</option>
+          <select {...common} value={values.gender || ""}>
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
         </>
       );
     }
@@ -861,7 +862,7 @@ function Employees() {
       ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
       [
         // Basic & Organization Details
-        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id`, "Client", "workLocation",
+        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id / Name`, "Client", "workLocation",
 
         // Personal & Contact Details
         "DOB", "DOJ", "Date Of Exit", "Gender", "Father/Husband Name", "Relation", "Nationality", "Marital Status",
@@ -878,7 +879,7 @@ function Employees() {
       ],
       [
         // Sample Data Row
-        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID", "Client_Name", "Delhi",
+        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID_OR_Name", "Client_Name", "Delhi",
 
         "1995-08-20", "2026-01-15", "2027-01-15", "Male", "Suresh Kumar", "Father", "Indian", "Married",
         "H.No 123, Sector 15, Gurgaon, Haryana", "O+", "9876543211", "Graduate",

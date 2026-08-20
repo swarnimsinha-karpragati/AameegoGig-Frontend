@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   UserCheck,
   Clock,
@@ -8,6 +9,8 @@ import {
   ClipboardCheck,
   Check,
   AlertCircle,
+  Upload,
+  X,
 } from "lucide-react";
 import "./Attendance.css";
 import MainLayout from "../layouts/MainLayout";
@@ -25,6 +28,7 @@ import {
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
   markMonthAttendance,
+  bulkUploadMonthAttendance,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -81,6 +85,12 @@ function Attendance() {
   const [attendanceAction, setAttendanceAction] = useState("checkin");
   const [checkInMessage, setCheckInMessage] = useState("");
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
+  const [showMonthlyUploadModal, setShowMonthlyUploadModal] = useState(false);
+  const [monthlyUploadFile, setMonthlyUploadFile] = useState(null);
+  const [monthlyUploadLoading, setMonthlyUploadLoading] = useState(false);
+  const [monthlyUploadResult, setMonthlyUploadResult] = useState(null);
+  const [monthlyUploadDragActive, setMonthlyUploadDragActive] = useState(false);
+  const monthlyUploadInputRef = useRef(null);
 
   const createInitialFilters = () => ({
     filterType: "today",
@@ -90,7 +100,7 @@ function Attendance() {
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
   });
-  
+
 
   const [selfFilters, setSelfFilters] = useState(createInitialFilters);
   const [orgFilters, setOrgFilters] = useState(createInitialFilters);
@@ -241,7 +251,7 @@ function Attendance() {
         (row) =>
           (user?.employeeId &&
             String(row.employeeId?._id || row.employeeId) ===
-              String(user.employeeId)) ||
+            String(user.employeeId)) ||
           row.name?.toLowerCase() === user?.name?.toLowerCase()
       );
       setTodaySelfRow(mine ? { ...EMPTY_MY_ROW, ...mine } : EMPTY_MY_ROW);
@@ -268,7 +278,7 @@ function Attendance() {
   useEffect(() => {
     setLoading(true);
     Promise.all([loadSelfData(), loadOrgData(), loadTeamData()])
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
     // eslint-disable-next-line
   }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, teamFilters, hasTeam]);
@@ -300,12 +310,16 @@ function Attendance() {
   };
 
   const handleSelfFilterChange = (key, value) => {
-    setSelectedPersonalDay(null);
+    if (key !== "search") {
+      setSelectedPersonalDay(null);
+    }
     setSelfFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
   };
 
   const handleOrgFilterChange = (key, value) => {
-    setSelectedOrgDay(null);
+    if (key !== "search") {
+      setSelectedOrgDay(null);
+    }
     setOrgFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
   };
 
@@ -474,7 +488,9 @@ function Attendance() {
   const [markMonthForm, setMarkMonthForm] = useState({
     employeeId: '',
     month: MONTHS[new Date().getMonth()],
-    workingDays: '',
+    totalWorkingDays: '',
+    paidDays: '',
+    incentiveDays: '0',
   });
 
   const [errors, setErrors] = useState({});
@@ -498,16 +514,21 @@ function Attendance() {
       newErrors.month = 'Please select an attendance month.';
     }
 
-    const workingDaysNum = Number(markMonthForm.workingDays);
-    if (!markMonthForm.workingDays || markMonthForm.workingDays.toString().trim() === '') {
-      newErrors.workingDays = 'Total working days is required.';
-    } else if (isNaN(workingDaysNum)) {
-      newErrors.workingDays = 'Working days must be a valid number.';
-    } else if (!Number.isInteger(workingDaysNum)) {
-      newErrors.workingDays = 'Working days must be a whole number.';
-    } else if (workingDaysNum < 0 || workingDaysNum > 31) {
-      newErrors.workingDays = 'Working days must be between 0 and 31.';
-    }
+    const validateDays = (field, label, { integer = false, required = false } = {}) => {
+      const value = markMonthForm[field];
+      const days = Number(value);
+      if (required && (value === '' || value === null || value === undefined)) {
+        newErrors[field] = `${label} is required.`;
+      } else if (value !== '' && (!Number.isFinite(days) || days < 0 || days > 31)) {
+        newErrors[field] = `${label} must be between 0 and 31.`;
+      } else if (value !== '' && integer && !Number.isInteger(days)) {
+        newErrors[field] = `${label} must be a whole number.`;
+      }
+    };
+
+    validateDays('totalWorkingDays', 'Total working days', { integer: true, required: true });
+    validateDays('paidDays', 'Paid days', { required: true });
+    validateDays('incentiveDays', 'Incentive days');
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -525,13 +546,104 @@ function Attendance() {
     try {
       const res = await markMonthAttendance(markMonthForm);
       alert(res.message);
-      setMarkMonthForm((prev) => ({ ...prev, workingDays: '' }));
+      setMarkMonthForm((prev) => ({
+        ...prev,
+        totalWorkingDays: '',
+        paidDays: '',
+        incentiveDays: '0',
+      }));
       setErrors({});
     } catch (error) {
-      setErrors({ form: error.message || 'Failed to submit attendance. Please try again.' });
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to submit attendance. Please try again.';
+
+      setErrors({ form: message });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleMonthlyBulkUpload = async () => {
+    if (!monthlyUploadFile) {
+      setMonthlyUploadResult({ errors: [{ message: "Please select an Excel (.xlsx or .xls) file." }] });
+      return;
+    }
+
+    setMonthlyUploadLoading(true);
+    setMonthlyUploadResult(null);
+    try {
+      const result = await bulkUploadMonthAttendance(monthlyUploadFile);
+      setMonthlyUploadResult(result);
+      if (result.uploaded > 0) {
+        loadSelfData();
+        loadOrgData();
+      }
+    } catch (uploadError) {
+      setMonthlyUploadResult({
+        errors: [{ message: uploadError.response?.data?.message || "Monthly attendance upload failed." }],
+      });
+    } finally {
+      clearMonthlyUploadFile();
+      setMonthlyUploadLoading(false);
+    }
+  };
+
+  const clearMonthlyUploadFile = () => {
+    setMonthlyUploadFile(null);
+    if (monthlyUploadInputRef.current) monthlyUploadInputRef.current.value = "";
+  };
+
+  const setMonthlyUploadFileSafely = (file) => {
+    setMonthlyUploadResult(null);
+    if (!file) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) {
+      setMonthlyUploadFile(null);
+      setMonthlyUploadResult({ errors: [{ message: "Invalid file type. Please upload an .xlsx or .xls file." }] });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMonthlyUploadFile(null);
+      setMonthlyUploadResult({ errors: [{ message: "File size exceeds the 5 MB limit." }] });
+      return;
+    }
+    setMonthlyUploadFile(file);
+  };
+
+  const handleMonthlyUploadDrag = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMonthlyUploadDragActive(event.type === "dragenter" || event.type === "dragover");
+  };
+
+  const handleMonthlyUploadDrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMonthlyUploadDragActive(false);
+    setMonthlyUploadFileSafely(event.dataTransfer.files?.[0]);
+  };
+
+  const downloadMonthlyUploadTemplate = () => {
+    const rows = [
+      ["INSTRUCTIONS FOR MONTHLY ATTENDANCE BULK UPLOAD"],
+      ["1. Employee Code (Required): Use the exact employee code, e.g. GRV-0026."],
+      ["2. Month and Year (Required): Use full month name, e.g. August, and a four-digit year."],
+      ["3. Total Working Days and Paid Days (Required): Total Working Days must be a whole number. Paid Days can include 0.5."],
+      ["4. Incentive Days and Notes (Optional): Incentive Days can include 0.5. Leave it blank to use 0."],
+      [],
+      ["Employee Code", "Month", "Year", "Total Working Days", "Paid Days", "Incentive Days", "Notes"],
+      ["GRV-0026", "August", 2026, 22, 21.5, 0.5, "Monthly attendance upload"],
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    worksheet["!cols"] = [
+      { wch: 18 }, { wch: 15 }, { wch: 10 }, { wch: 22 },
+      { wch: 14 }, { wch: 18 }, { wch: 32 },
+    ];
+    worksheet["!merges"] = [0, 1, 2, 3, 4].map((row) => ({ s: { r: row, c: 0 }, e: { r: row, c: 6 } }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Monthly Attendance");
+    XLSX.writeFile(workbook, "monthly-attendance-bulk-upload-template.xlsx");
   };
 
   const handleMarkAttendance = async (e) => {
@@ -597,9 +709,9 @@ function Attendance() {
 
       setCheckInMessage(
         res.message ||
-          (attendanceAction === "checkin"
-            ? "Checked in successfully"
-            : "Checked out successfully")
+        (attendanceAction === "checkin"
+          ? "Checked in successfully"
+          : "Checked out successfully")
       );
 
       applyTodayRowUpdate(res);
@@ -609,8 +721,8 @@ function Attendance() {
     } catch (err) {
       setCheckInMessage(
         err.message ||
-          err.response?.data?.message ||
-          "Unable to process attendance"
+        err.response?.data?.message ||
+        "Unable to process attendance"
       );
     } finally {
       setActionLoading(false);
@@ -666,11 +778,10 @@ function Attendance() {
             </p>
           </div>
           <span
-            className={`attendance-status-pill ${
-              myTodayRow.isCheckedIn
-                ? "live"
-                : statusTextClass[myTodayRow.status]?.replace("status-text-", "") || "absent"
-            }`}
+            className={`attendance-status-pill ${myTodayRow.isCheckedIn
+              ? "live"
+              : statusTextClass[myTodayRow.status]?.replace("status-text-", "") || "absent"
+              }`}
           >
             {myTodayRow.isCheckedIn ? "● Checked In" : myTodayRow.status}
           </span>
@@ -706,8 +817,8 @@ function Attendance() {
         </div>
         {checkInMessage ? <p className="attendance-save-msg">{checkInMessage}</p> : null}
         {myLatestCheckInSelfieUrl ||
-        myLatestCheckOutSelfieUrl ||
-        myLatestCheckInLocation ? (
+          myLatestCheckOutSelfieUrl ||
+          myLatestCheckInLocation ? (
           <div className="attendance-checkin-proof">
             {myLatestCheckInSelfieUrl ? (
               <div className="attendance-checkin-selfie">
@@ -902,6 +1013,19 @@ function Attendance() {
             Record or update monthly attendance status and working days summary
           </p>
         </div>
+        <Button
+          type="button"
+          variant="secondary"
+          className="month-mark-upload-trigger"
+          icon={<Upload size={16} />}
+          onClick={() => {
+            setMonthlyUploadResult(null);
+            clearMonthlyUploadFile();
+            setShowMonthlyUploadModal(true);
+          }}
+        >
+          Bulk Upload
+        </Button>
       </header>
 
       {errors.form && (
@@ -942,18 +1066,20 @@ function Attendance() {
               onChange={(e) => handleMonthMarkChange('month', e.target.value)}
               disabled={isSubmitting}
             >
-              {MONTHS.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
+              {MONTHS
+                .filter((_, index) => index <= new Date().getMonth())
+                .map((month) => (
+                  <option key={month} value={month}>
+                    {month}
+                  </option>
+                ))}
             </select>
             {errors.month && (
               <span className="month-mark-error-msg">{errors.month}</span>
             )}
           </div>
 
-          <div className={`month-mark-field ${errors.workingDays ? 'month-mark-field--error' : ''}`}>
+          <div className={`month-mark-field ${errors.totalWorkingDays ? 'month-mark-field--error' : ''}`}>
             <label htmlFor="working-days" className="month-mark-label">
               Total Working Days
             </label>
@@ -964,13 +1090,46 @@ function Attendance() {
               max="31"
               placeholder="e.g., 22"
               className="month-mark-control"
-              value={markMonthForm.workingDays}
-              onChange={(e) => handleMonthMarkChange('workingDays', e.target.value)}
+              value={markMonthForm.totalWorkingDays}
+              onChange={(e) => handleMonthMarkChange('totalWorkingDays', e.target.value)}
               disabled={isSubmitting}
             />
-            {errors.workingDays && (
-              <span className="month-mark-error-msg">{errors.workingDays}</span>
+            {errors.totalWorkingDays && (
+              <span className="month-mark-error-msg">{errors.totalWorkingDays}</span>
             )}
+          </div>
+
+          <div className={`month-mark-field ${errors.paidDays ? 'month-mark-field--error' : ''}`}>
+            <label htmlFor="paid-days" className="month-mark-label">Paid Days</label>
+            <input
+              id="paid-days"
+              type="number"
+              min="0"
+              max="31"
+              step="0.5"
+              placeholder="e.g., 22"
+              className="month-mark-control"
+              value={markMonthForm.paidDays}
+              onChange={(e) => handleMonthMarkChange('paidDays', e.target.value)}
+              disabled={isSubmitting}
+            />
+            {errors.paidDays && <span className="month-mark-error-msg">{errors.paidDays}</span>}
+          </div>
+
+          <div className={`month-mark-field ${errors.incentiveDays ? 'month-mark-field--error' : ''}`}>
+            <label htmlFor="incentive-days" className="month-mark-label">Incentive Days</label>
+            <input
+              id="incentive-days"
+              type="number"
+              min="0"
+              max="31"
+              step="0.5"
+              className="month-mark-control"
+              value={markMonthForm.incentiveDays}
+              onChange={(e) => handleMonthMarkChange('incentiveDays', e.target.value)}
+              disabled={isSubmitting}
+            />
+            {errors.incentiveDays && <span className="month-mark-error-msg">{errors.incentiveDays}</span>}
           </div>
         </div>
 
@@ -1027,7 +1186,7 @@ function Attendance() {
         key={
           selectedOrgDay
             ? `org-day-${selectedOrgDay}`
-            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}-${orgFilters.search}`
+            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}`
         }
         title={getTableTitle(
           `${getFilterDefaultTitle(orgFilters)} — All Employees`,
@@ -1062,13 +1221,13 @@ function Attendance() {
           onPrev: () => shiftPersonalMonth(-1),
           onNext: () => shiftPersonalMonth(1),
         })}
-          
+
       </div>
       <TodayAttendanceTable
         key={
           selectedPersonalDay
             ? `self-day-${selectedPersonalDay}`
-            : `self-filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}-${selfFilters.search}`
+            : `self-filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}`
         }
         title={getTableTitle("My Attendance History", selectedPersonalDay, personalViewDate, selfFilters)}
         rows={displayedPersonalRows}
@@ -1079,16 +1238,16 @@ function Attendance() {
         weekOff={selectedPersonalDay !== null ? selfCalendar.weekOffs[selectedPersonalDay] : null}
         isCalendarSelection={selectedPersonalDay !== null}
         onClearSelectedDay={() => setSelectedPersonalDay(null)}
-      />      
+      />
       <h1 className="attendance-title">Organization Attendance</h1>
       {renderMarkForm(employees, "Mark / Correct Attendance")}
       {renderMarkMonthForm(employees, "Mark / Month Attendance")}
-     
+
       <TodayAttendanceTable
         key={
           selectedOrgDay
             ? `org-day-${selectedOrgDay}`
-            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}-${orgFilters.search}`
+            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}`
         }
         title={getTableTitle(
           `${getFilterDefaultTitle(orgFilters)} — All Employees`,
@@ -1112,22 +1271,22 @@ function Attendance() {
   const renderEmployeeView = () => (
     <>
       <AttendanceStats stats={selfStats} />
-        {renderSelfAttendanceSection("Today's Check In / Out")}
-        {renderCalendarSection({
-          title: `${personalMonthLabel} — My Calendar`,
-          viewDateObj: personalViewDate,
-          calendarDays: personalCalendarDays,
-          selectedDay: selectedPersonalDay,
-          onDaySelect: handlePersonalDaySelect,
-          onPrev: () => shiftPersonalMonth(-1),
-          onNext: () => shiftPersonalMonth(1),
-        })}
+      {renderSelfAttendanceSection("Today's Check In / Out")}
+      {renderCalendarSection({
+        title: `${personalMonthLabel} — My Calendar`,
+        viewDateObj: personalViewDate,
+        calendarDays: personalCalendarDays,
+        selectedDay: selectedPersonalDay,
+        onDaySelect: handlePersonalDaySelect,
+        onPrev: () => shiftPersonalMonth(-1),
+        onNext: () => shiftPersonalMonth(1),
+      })}
 
       <TodayAttendanceTable
         key={
           selectedPersonalDay
             ? `day-${selectedPersonalDay}`
-            : `filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}-${selfFilters.search}`
+            : `filter-${selfFilters.filterType}-${selfFilters.startDate}-${selfFilters.endDate}`
         }
         title={getTableTitle("My Attendance History", selectedPersonalDay, personalViewDate, selfFilters)}
         rows={displayedPersonalRows}
@@ -1143,7 +1302,7 @@ function Attendance() {
       {hasTeam && (
         <div>
           <TodayAttendanceTable
-            key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}-${teamFilters.search}`}
+            key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}`}
             title={`${getFilterDefaultTitle(teamFilters)} — My Team`}
             rows={displayedTeamRows}
             loading={loading}
@@ -1194,6 +1353,87 @@ function Attendance() {
           onConfirm={modal.onConfirm}
           onCancel={closeModal}
         />
+
+        {showMonthlyUploadModal ? (
+          <div className="month-upload-backdrop" role="presentation">
+            <section className="month-upload-modal" role="dialog" aria-modal="true" aria-labelledby="month-upload-title">
+              <header className="month-upload-modal__header">
+                <div>
+                  <h2 id="month-upload-title">Bulk Upload Monthly Attendance</h2>
+                  <p>Upload an Excel file using Employee Code to identify each employee.</p>
+                </div>
+                <button
+                  type="button"
+                  className="month-upload-close"
+                  onClick={() => !monthlyUploadLoading && setShowMonthlyUploadModal(false)}
+                  aria-label="Close bulk upload"
+                >
+                  <X size={20} />
+                </button>
+              </header>
+
+              <div className="month-upload-modal__body">
+                <div className="month-upload-template-download">
+                  <span>Need the required format?</span>
+                  <button type="button" onClick={downloadMonthlyUploadTemplate}>Download Sample Excel Template</button>
+                </div>
+                <div
+                  className={`month-upload-drop-zone ${monthlyUploadDragActive ? "drag-active" : ""}`}
+                  onDragEnter={handleMonthlyUploadDrag}
+                  onDragLeave={handleMonthlyUploadDrag}
+                  onDragOver={handleMonthlyUploadDrag}
+                  onDrop={handleMonthlyUploadDrop}
+                >
+                  <input
+                    ref={monthlyUploadInputRef}
+                    id="monthly-upload-file"
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={(event) => setMonthlyUploadFileSafely(event.target.files?.[0])}
+                    disabled={monthlyUploadLoading}
+                    hidden
+                  />
+                  <label htmlFor="monthly-upload-file">
+                    {monthlyUploadFile ? (
+                      <><strong>{monthlyUploadFile.name}</strong><small>{(monthlyUploadFile.size / 1024).toFixed(1)} KB · Click to replace</small></>
+                    ) : (
+                      <><strong>Drop your Excel file here</strong><small>or click to browse (.xlsx, .xls · max 5 MB)</small></>
+                    )}
+                  </label>
+                </div>
+
+                {monthlyUploadResult ? (
+                  <div className={`month-upload-result ${monthlyUploadResult.errors?.length ? "month-upload-result--errors" : ""}`}>
+                    {monthlyUploadResult.totalRows !== undefined ? (
+                      <p className="month-upload-summary">
+                        Total: {monthlyUploadResult.totalRows} · Uploaded: {monthlyUploadResult.uploaded} · Failed: {monthlyUploadResult.failed}
+                      </p>
+                    ) : null}
+                    {monthlyUploadResult.errors?.length ? (
+                      <ul className="month-upload-errors">
+                        {monthlyUploadResult.errors.map((item, index) => (
+                          <li key={`${item.row || "error"}-${index}`}>
+                            {item}
+                            {/* {item.row ? `Row ${item.row} (${item.employeeCode}): ` : ""}{item.message} */}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : monthlyUploadResult.uploaded ? <p className="month-upload-success">All rows were uploaded successfully.</p> : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <footer className="month-upload-modal__actions">
+                <Button type="button" variant="secondary" onClick={() => setShowMonthlyUploadModal(false)} disabled={monthlyUploadLoading}>
+                  Close
+                </Button>
+                <Button type="button" icon={<Upload size={16} />} onClick={handleMonthlyBulkUpload} disabled={monthlyUploadLoading}>
+                  {monthlyUploadLoading ? "Uploading..." : "Upload File"}
+                </Button>
+              </footer>
+            </section>
+          </div>
+        ) : null}
       </div>
     </MainLayout>
   );

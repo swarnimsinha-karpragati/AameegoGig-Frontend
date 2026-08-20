@@ -86,8 +86,13 @@ export const markAttendance = async (payload) => {
 };
 
 export const markMonthAttendance = async (payload) => {
-  const res = await API.post("/attendance/markMonth", payload);
-  return res.data;
+  try {
+    const res = await API.post("/attendance/markMonth", payload);
+    return res.data;
+  } catch (error) {
+    console.log(error, "cfvgbhjnkm")
+    throw error
+  }
 };
 
 export const checkInAttendance = async (selfieFile, options = {}) => {
@@ -135,6 +140,15 @@ export const checkOutAttendance = async (selfieFile, location) => {
 
 export const bulkMarkToday = async (records) => {
   const res = await API.post("/attendance/bulk-mark-today", { records });
+  return res.data;
+};
+
+export const bulkUploadMonthAttendance = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await API.post("/attendance/markMonth/bulk-upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return res.data;
 };
 

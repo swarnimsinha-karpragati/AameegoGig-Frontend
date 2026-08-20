@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { Calendar as CalendarIcon, RotateCcw, Download, Camera, ChevronUp, ChevronDown } from "lucide-react";
 import SessionList from "./SessionList";
@@ -22,6 +22,29 @@ function TodayAttendanceTable({
 }) {
   const [expandedRowId, setExpandedRowId] = useState(null);
   const [selfieModal, setSelfieModal] = useState({ open: false, imageUrl: "", title: "" });
+  const [localSearch, setLocalSearch] = useState(filters.search);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    setLocalSearch(filters.search);
+  }, [filters.search]);
+
+  useEffect(() => {
+    if (localSearch !== filters.search) {
+      setIsSearching(true);
+    }
+
+    const timer = setTimeout(() => {
+      if (localSearch !== filters.search) {
+        onFilterChange("search", localSearch);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [localSearch, filters.search, onFilterChange]);
+
+  useEffect(() => {
+    setIsSearching(false);
+  }, [rows, loading]);
 
   const handleOpenSelfie = (imageUrl, title) => {
     setSelfieModal({ open: true, imageUrl, title });
@@ -59,6 +82,7 @@ function TodayAttendanceTable({
     XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
     XLSX.writeFile(wb, `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
+  const isTableLoading = loading || isSearching;
 
   return (
     <>
@@ -75,8 +99,8 @@ function TodayAttendanceTable({
                 <input
                   type="text"
                   placeholder="Search Employee..."
-                  value={filters.search}
-                  onChange={(e) => onFilterChange("search", e.target.value)}
+                  value={localSearch || ""}
+                  onChange={(e) => setLocalSearch(e.target.value)}
                   className="attendance-search"
                 />
 
@@ -95,10 +119,10 @@ function TodayAttendanceTable({
                   <input
                     type="date"
                     className="attendance-date-input"
-                    value={!filters.endDate && filters.startDate?today:filters.endDate|| ""}
+                    value={!filters.endDate && filters.startDate ? today : filters.endDate || ""}
                     onChange={(e) => onFilterChange("endDate", e.target.value)}
                     title="End Date"
-                    min={filters.startDate?filters.startDate:today}
+                    min={filters.startDate ? filters.startDate : today}
                     max={today}
                   />
                   {(filters.startDate || filters.endDate) && (
@@ -117,27 +141,24 @@ function TodayAttendanceTable({
                 {/* Preset Filter Buttons */}
                 <button
                   type="button"
-                  className={`attendance-filter-btn ${
-                    filters.filterType === "today" && !isCalendarSelection && !filters.startDate ? "active" : ""
-                  }`}
+                  className={`attendance-filter-btn ${filters.filterType === "today" && !isCalendarSelection && !filters.startDate ? "active" : ""
+                    }`}
                   onClick={() => onFilterChange("filterType", "today")}
                 >
                   Today
                 </button>
                 <button
                   type="button"
-                  className={`attendance-filter-btn ${
-                    filters.filterType === "7days" && !isCalendarSelection && !filters.startDate ? "active" : ""
-                  }`}
+                  className={`attendance-filter-btn ${filters.filterType === "7days" && !isCalendarSelection && !filters.startDate ? "active" : ""
+                    }`}
                   onClick={() => onFilterChange("filterType", "7days")}
                 >
                   7 Days
                 </button>
                 <button
                   type="button"
-                  className={`attendance-filter-btn ${
-                    filters.filterType === "30days" && !isCalendarSelection && !filters.startDate ? "active" : ""
-                  }`}
+                  className={`attendance-filter-btn ${filters.filterType === "30days" && !isCalendarSelection && !filters.startDate ? "active" : ""
+                    }`}
                   onClick={() => onFilterChange("filterType", "30days")}
                 >
                   30 Days
@@ -182,27 +203,37 @@ function TodayAttendanceTable({
             </thead>
 
             <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={showActions ? 13 : 12} className="attendance-empty">
-                    Loading attendance records...
-                  </td>
+              {/* 2. Loading state check includes search progress */}
+              {isTableLoading && Array.from({ length: 5 }).map((_, i) => (
+                <tr key={`skeleton-${i}`} className="attendance-skeleton-row">
+                  <td><div className="skeleton skeleton-avatar" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
+                  <td><div className="skeleton skeleton-text" /></td>
                 </tr>
-              )}
+              ))}
 
-              {!loading && rows.length === 0 && (
+              {!isTableLoading && rows.length === 0 && (
                 <tr>
                   <td colSpan={showActions ? 13 : 12} className="attendance-empty">
                     {isCalendarSelection && holiday
                       ? "Paid holiday — no attendance recorded for this day."
                       : isCalendarSelection && weekOff
-                      ? "Weekly off — no attendance recorded for this day."
-                      : "No attendance records found."}
+                        ? "Weekly off — no attendance recorded for this day."
+                        : "No attendance records found."}
                   </td>
                 </tr>
               )}
 
-              {!loading &&
+              {!isTableLoading &&
                 rows.map((unnormalizedRow) => {
                   const row = normalizeRecord(unnormalizedRow);
                   const rowKey = String(row.employeeId?._id || row.employeeId || row.id);
@@ -314,9 +345,8 @@ function TodayAttendanceTable({
                         <td>{row.hours}</td>
                         <td>
                           <span
-                            className={`status-text ${
-                              statusTextClass[row.status] || "status-text-late"
-                            }`}
+                            className={`status-text ${statusTextClass[row.status] || "status-text-late"
+                              }`}
                           >
                             {row.isCheckedIn ? "Checked In" : row.status}
                           </span>
@@ -327,10 +357,10 @@ function TodayAttendanceTable({
                               ? `${row.reason.slice(0, 30)}...`
                               : row.reason
                             : row?.notes
-                            ? row.notes.length > 30
-                              ? `${row.notes.slice(0, 30)}...`
-                              : row.notes
-                            : "-"}
+                              ? row.notes.length > 30
+                                ? `${row.notes.slice(0, 30)}...`
+                                : row.notes
+                              : "-"}
                         </td>
                       </tr>
 
