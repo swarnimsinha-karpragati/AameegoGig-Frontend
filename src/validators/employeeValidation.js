@@ -175,4 +175,8 @@ export const employeeValidationSchema = Yup.object().shape({
     .nullable()
     .transform((value, originalValue) => (originalValue === "" ? null : value))
     .default(null),
+
+  payType: Yup.string()
+    .oneOf(["MONTHLY", "DAILY"], "Invalid pay type")
+    .default("MONTHLY"),
 });

@@ -17,6 +17,12 @@ export const createLeaveRequest = async (payload) => {
   return res.data;
 };
 
+export const createLeaveRequestMultipart = async (formData) => {
+  // Do not set Content-Type manually; axios will add correct multipart boundary.
+  const res = await API.post("/leave/requests", formData);
+  return res.data;
+};
+
 export const approveLeaveRequest = async (id, comment = "") => {
   const res = await API.patch(`/leave/requests/${id}/approve`, { comment });
   return res.data;
@@ -41,5 +47,20 @@ export const getLeaveBalances = async (employeeId) => {
 
 export const updateLeaveBalances = async (employeeId, payload) => {
   const res = await API.put(`/leave/balances/${employeeId}`, payload);
+  return res.data;
+};
+
+export const getLeavePolicy = async () => {
+  const res = await API.get("/leave/policy");
+  return res.data;
+};
+
+export const updateLeavePolicy = async (payload) => {
+  const res = await API.put("/leave/policy", payload);
+  return res.data;
+};
+
+export const applyLeavePolicyTemplate = async (templateKey) => {
+  const res = await API.post("/leave/policy/apply-template", { templateKey });
   return res.data;
 };

@@ -12,6 +12,8 @@ import { OverTimePolicyList } from "../components/OverTimePolicyList";
 import HolidayManager from "../components/HolidayManager";
 import WeekOffManager from "../components/WeekOffManager";
 // import PayrollConfigCard from "../components/PayrollConfigCard";
+import LeavePolicyManager from "../components/LeavePolicyManager";
+// import PayrollConfigCard from "../components/PayrollConfigCard";
 import OrgProfileCard from "../components/OrgProfileCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
 import SalaryStructure from "../components/SalaryStructure";
@@ -82,6 +84,8 @@ export default function Settings() {
               <WeekOffManager vendorId={user?.vendorId} />
 
               <HolidayManager vendorId={user?.vendorId} />
+
+              <LeavePolicyManager />
 
               <OrgProfileCard />
 

@@ -44,6 +44,7 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "incentive",
   "otherAllowance",
   "professionalTax",
+  "payType",
 ];
 
 export const buildEmployeePayload = (data, extras = {}) => {

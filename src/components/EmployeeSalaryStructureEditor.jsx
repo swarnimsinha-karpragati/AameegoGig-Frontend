@@ -278,7 +278,6 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     if (ctcErr) { setError(ctcErr); setSaving(false); return; }
 
     try {
-      console.log(safeComponents)
       await saveEmployeeStructure(employeeId, {
         ctcAnnual: Number(ctcAnnual),
         structureId: inputMode === "template" ? selectedStructureId : undefined,
@@ -357,7 +356,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             <span className="emp-struct-view-header__value">₹{(Number(ctcAnnual) || 0).toLocaleString("en-IN")}</span>
           </div>
           {!hideActions && (
-            <Button onClick={() => setIsRevising(true)} icon={<Edit3 size={16}/>}>
+            <Button type="button" onClick={() => setIsRevising(true)} icon={<Edit3 size={16}/>}>
               Revise Salary
             </Button>
           )}
@@ -432,7 +431,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             <input type="number" min="0" value={ctcAnnual} onChange={(e) => setCtcAnnual(e.target.value)} placeholder="e.g. 600000" disabled={calculating || saving} />
           </div>
           <div>
-            <Button onClick={handleCalculateSplit} disabled={calculating || saving || !selectedStructureId || !ctcAnnual}>
+            <Button type="button" onClick={handleCalculateSplit} disabled={calculating || saving || !selectedStructureId || !ctcAnnual}>
               {calculating ? <RefreshCw size={16} className="spin" /> : "Calculate Breakdown"}
             </Button>
           </div>
@@ -447,7 +446,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
               <label>Annual CTC (₹)</label>
               <input type="number" min="0" value={ctcAnnual} onChange={(e) => setCtcAnnual(e.target.value)} placeholder="e.g. 600000" disabled={calculating || saving} />
             </div>
-            <Button onClick={handleApplyManualComponents} disabled={calculating || saving || selectedManualCodes.length === 0}>
+            <Button type="button" onClick={handleApplyManualComponents} disabled={calculating || saving || selectedManualCodes.length === 0}>
               Apply Selected ({selectedManualCodes.length})
             </Button>
           </div>

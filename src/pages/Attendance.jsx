@@ -554,7 +554,12 @@ function Attendance() {
       }));
       setErrors({});
     } catch (error) {
-      setErrors({ form: error.message || 'Failed to submit attendance. Please try again.' });
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to submit attendance. Please try again.';
+
+      setErrors({ form: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -1061,11 +1066,13 @@ function Attendance() {
               onChange={(e) => handleMonthMarkChange('month', e.target.value)}
               disabled={isSubmitting}
             >
-              {MONTHS.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
+              {MONTHS
+                .filter((_, index) => index <= new Date().getMonth())
+                .map((month) => (
+                  <option key={month} value={month}>
+                    {month}
+                  </option>
+                ))}
             </select>
             {errors.month && (
               <span className="month-mark-error-msg">{errors.month}</span>
@@ -1406,7 +1413,8 @@ function Attendance() {
                       <ul className="month-upload-errors">
                         {monthlyUploadResult.errors.map((item, index) => (
                           <li key={`${item.row || "error"}-${index}`}>
-                            {item.row ? `Row ${item.row} (${item.employeeCode}): ` : ""}{item.message}
+                            {item}
+                            {/* {item.row ? `Row ${item.row} (${item.employeeCode}): ` : ""}{item.message} */}
                           </li>
                         ))}
                       </ul>

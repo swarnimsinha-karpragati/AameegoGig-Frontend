@@ -141,6 +141,7 @@ const EMPLOYEE_FORM_SECTIONS = [
     fields: [
       { key: "client", label: "Client" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
+      { key: "payType", label: "Pay Type", type: "select-paytype" },
     ],
   },
 ];
@@ -274,6 +275,21 @@ function EmployeeFormFields({
       return (
         <>
           <input {...common} {...dateInputProps} type="date" />
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-paytype") {
+      return (
+        <>
+          <select {...common} value={values.payType || ""}>
+            <option value="MONTHLY">Monthly</option>
+            <option value="DAILY">Daily</option>
+          </select>
+
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}
@@ -511,6 +527,7 @@ function Employees() {
     nameAsPerPan: "",
     nameAsPerAadhaar: "",
     client: "",
+    payType:"MONTHLY",
 
     aadhaarNumber: "", panNumber: "",
     uan: "", pfNumber: "", esicNumber: "",
@@ -864,7 +881,7 @@ function Employees() {
       ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
       [
         // Basic & Organization Details
-        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id`, "Client", "workLocation",
+        "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id / Name`, "Client", "workLocation",
 
         // Personal & Contact Details
         "DOB", "DOJ", "Date Of Exit", "Gender", "Father/Husband Name", "Relation", "Nationality", "Marital Status",
@@ -881,7 +898,7 @@ function Employees() {
       ],
       [
         // Sample Data Row
-        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID", "Client_Name", "Delhi",
+        "EMP001", "Ravi Kumar", "ravi.kumar@example.com", "9876543210", "Field Executive", "Copy_the_" + name + "_ID_OR_Name", "Client_Name", "Delhi",
 
         "1995-08-20", "2026-01-15", "2027-01-15", "Male", "Suresh Kumar", "Father", "Indian", "Married",
         "H.No 123, Sector 15, Gurgaon, Haryana", "O+", "9876543211", "Graduate",
@@ -1052,6 +1069,7 @@ function Employees() {
     uan: emp.uan || "",
     esicNumber: emp.esicNumber || "",
     userRole: emp.linkedUser?.role || emp.userRole || "Employee",
+    payType:emp.payType || "MONTHLY",
     allowedModules: defaultSelectedModules(
       emp.linkedUser?.role || emp.userRole || "Employee",
       emp.linkedUser?.allowedModules

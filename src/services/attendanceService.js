@@ -86,8 +86,13 @@ export const markAttendance = async (payload) => {
 };
 
 export const markMonthAttendance = async (payload) => {
-  const res = await API.post("/attendance/markMonth", payload);
-  return res.data;
+  try {
+    const res = await API.post("/attendance/markMonth", payload);
+    return res.data;
+  } catch (error) {
+    console.log(error, "cfvgbhjnkm")
+    throw error
+  }
 };
 
 export const checkInAttendance = async (selfieFile, options = {}) => {
