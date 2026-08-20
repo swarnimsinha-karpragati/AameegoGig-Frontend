@@ -61,7 +61,7 @@ export default function LoginScreen() {
 
             localStorage.setItem('token', res.token);
             localStorage.setItem('user', JSON.stringify(res.user));
-            const formatName = res.user.vendorName.trim().replace(/\s+/g, "-").toLowerCase();
+            const formatName = res.user?.vendorName?.trim()?.replace(/\//g, "")?.replace(/\s+/g, "-").toLowerCase() || "";
             navigate(`/${formatName}/dashboard`);
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
@@ -193,10 +193,10 @@ export default function LoginScreen() {
                             </button>
                         </form>
 
-                        <div className="form-divider"></div>
+                        {/* <div className="form-divider"></div> */}
 
                         {/* Action Buttons */}
-                        <div className="action-buttons-group">
+                        {/* <div className="action-buttons-group">
                             <button
                                 type="button"
                                 className="btn-secondary"
@@ -211,7 +211,7 @@ export default function LoginScreen() {
                             >
                                 Join Organization
                             </button>
-                        </div>
+                        </div> */}
                     </div>
                 </div>
 
