@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import MainLayout from "../layouts/MainLayout";
 import {
@@ -141,6 +141,7 @@ const EMPLOYEE_FORM_SECTIONS = [
     fields: [
       { key: "client", label: "Client" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
+      { key: "payType", label: "Pay Type", type: "select-paytype" },
     ],
   },
 ];
@@ -274,6 +275,21 @@ function EmployeeFormFields({
       return (
         <>
           <input {...common} {...dateInputProps} type="date" />
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-paytype") {
+      return (
+        <>
+          <select {...common} value={values.payType || ""}>
+            <option value="MONTHLY">Monthly</option>
+            <option value="DAILY">Daily</option>
+          </select>
+
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}
@@ -511,6 +527,7 @@ function Employees() {
     nameAsPerPan: "",
     nameAsPerAadhaar: "",
     client: "",
+    payType:"MONTHLY",
 
     aadhaarNumber: "", panNumber: "",
     uan: "", pfNumber: "", esicNumber: "",
@@ -613,6 +630,8 @@ function Employees() {
     });
 
   const [letterEmployeeId, setLetterEmployeeId] = useState(null);
+
+  const salaryEditorRef = useRef(null);
 
   /* =========================
      FETCH EMPLOYEES
@@ -1050,6 +1069,7 @@ function Employees() {
     uan: emp.uan || "",
     esicNumber: emp.esicNumber || "",
     userRole: emp.linkedUser?.role || emp.userRole || "Employee",
+    payType:emp.payType || "MONTHLY",
     allowedModules: defaultSelectedModules(
       emp.linkedUser?.role || emp.userRole || "Employee",
       emp.linkedUser?.allowedModules
@@ -1091,6 +1111,17 @@ function Employees() {
         selectedEmployee._id,
         payload
       );
+
+      if (salaryEditorRef.current?.hasUnsavedChanges) {
+        try {
+          await salaryEditorRef.current.saveStructure();
+        } catch (salaryErr) {
+          alert(
+            salaryErr.response?.data?.message ||
+            "Employee updated but salary structure could not be saved."
+          );
+        }
+      }
 
       if (res.data?.loginInfo) {
         showLoginCredentials(selectedEmployee.name, res.data.loginInfo);
@@ -1757,7 +1788,7 @@ function Employees() {
                   description="Dynamic earnings and deductions from your organization library"
                   fullWidth
                 >
-                  <EmployeeSalaryStructureEditor employeeId={selectedEmployee._id} />
+                  <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} />
                 </FormSection>
               </>
             ) : (

@@ -1,5 +1,5 @@
 import React from "react";
-import { MONTHS, PAYROLL_YEARS } from "../../utils/payrollConstants";
+import { getAvailableMonths, PAYROLL_YEARS } from "../../utils/payrollConstants";
 
 export default function MonthYearFilter({
   month,
@@ -8,6 +8,8 @@ export default function MonthYearFilter({
   onYearChange,
   compact = false,
 }) {
+  const availableMonths = getAvailableMonths(year);
+
   return (
     <div
       className={`processor-controls${compact ? " compact" : ""}`}
@@ -32,7 +34,7 @@ export default function MonthYearFilter({
           onChange={(e) => onMonthChange(parseInt(e.target.value, 10))}
           className="control-select"
         >
-          {MONTHS.map((m) => (
+          {availableMonths.map((m) => (
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>

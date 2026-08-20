@@ -1,5 +1,5 @@
-import React from "react";
-import { AlertTriangle, Info } from "lucide-react";
+// import React from "react";
+// import { AlertTriangle, Info } from "lucide-react";
 import { resolvePayrollLines, getFormulaForCode } from "../utils/payrollLines";
 import PayrollAdjustments from "./PayrollAdjustments";
 import "./PayrollBreakdown.css";
@@ -20,12 +20,12 @@ function LineItem({ item, variant, record }) {
   );
 }
 
-const ENGINE_ROWS = [
-  { key: "grossSalary", label: "Gross" },
-  { key: "totalEarnings", label: "Total earnings" },
-  { key: "totalDeduction", label: "Deductions" },
-  { key: "netSalary", label: "Net pay", highlight: true },
-];
+// const ENGINE_ROWS = [
+//   { key: "grossSalary", label: "Gross" },
+//   { key: "totalEarnings", label: "Total earnings" },
+//   { key: "totalDeduction", label: "Deductions" },
+//   { key: "netSalary", label: "Net pay", highlight: true },
+// ];
 
 export default function PayrollBreakdown({
   record,
@@ -37,9 +37,9 @@ export default function PayrollBreakdown({
   if (!record) return null;
 
   const { earnings, deductions, employerContributions } = resolvePayrollLines(record);
-  const breakdown = record.calculationBreakdown;
-  const issues = breakdown?.validationIssues || [];
-  const formula = breakdown?.formula || {};
+  // const breakdown = record.calculationBreakdown;
+  // const issues = breakdown?.validationIssues || [];
+  // const formula = breakdown?.formula || {};
 
   return (
     <div className="payroll-breakdown">
@@ -116,7 +116,7 @@ export default function PayrollBreakdown({
 
       {adjustmentProps ? <PayrollAdjustments record={record} {...adjustmentProps} /> : null}
 
-      {showValidation && issues.length > 0 ? (
+      {/* {showValidation && issues.length > 0 ? (
         <div className="payroll-breakdown__validation">
           <div className="payroll-breakdown__validation-head">
             <AlertTriangle size={15} />
@@ -137,9 +137,9 @@ export default function PayrollBreakdown({
             ))}
           </div>
         </div>
-      ) : null}
+      ) : null} */}
 
-      {showEngineAudit && (formula.grossSalary || formula.netSalary) ? (
+      {/* {showEngineAudit && (formula.grossSalary || formula.netSalary) ? (
         <div className="payroll-breakdown__engine">
           <div className="payroll-breakdown__engine-head">
             <Info size={15} />
@@ -166,7 +166,7 @@ export default function PayrollBreakdown({
             ) : null}
           </div>
         </div>
-      ) : null}
+      ) : null} */}
     </div>
   );
 }
