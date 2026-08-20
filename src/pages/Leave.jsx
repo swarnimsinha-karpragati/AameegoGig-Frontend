@@ -11,6 +11,7 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
@@ -106,6 +107,8 @@ function LeaveSummaryCards({ summary, labels }) {
 =========================== */
 function LeaveInner() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const { vendor } = useParams();
   const user = getStoredUser();
   const viewRole = getLeaveViewKey(user?.role);
 
@@ -184,6 +187,7 @@ function LeaveInner() {
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
+  const canConfigurePolicy = user?.role === "Admin" || user?.role === "HR";
 
   const summary = dashboard?.summary || {};
   const upcoming = useMemo(
@@ -981,15 +985,6 @@ function LeaveInner() {
     <>
       {renderMyLeaveSection()}
       <div className="leave-hr-actions">
-        <Button
-          type="button"
-          icon={<ShieldCheck size={16} />}
-          onClick={() =>
-            (window.location.href = "/settings#leave-policy-settings")
-          }
-        >
-          Leave Policy Settings
-        </Button>
         <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
           Export Leave Report
         </Button>
@@ -1086,6 +1081,16 @@ function LeaveInner() {
             <h1 className="leave-title">Leave</h1>
             <p className="leave-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
           </div>
+          {canConfigurePolicy ? (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<ShieldCheck size={16} />}
+              onClick={() => navigate(`/${vendor}/leave/policy`)}
+            >
+              Leave policy
+            </Button>
+          ) : null}
         </div>
 
         {error ? <p className="leave-alert leave-alert--error">{error}</p> : null}
@@ -1103,6 +1108,7 @@ function LeaveInner() {
           onConfirm={modal.onConfirm}
           onCancel={closeModal}
         />
+
       </div>
     </MainLayout>
   );

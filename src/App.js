@@ -19,6 +19,7 @@ import Expense from "./pages/Expense";
 import ForgotPassword from './pages/ForgotPassword';
 // import ForgotOrgCode from './pages/ForgotOrgCode';
 import Resignations from './pages/Resignations';
+import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
 
 function App() {
@@ -65,6 +66,7 @@ function App() {
         <Route path=":vendor/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
         <Route path=":vendor/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
         <Route path=":vendor/leave" element={<ProtectedRoute><Leave /></ProtectedRoute>} />
+        <Route path=":vendor/leave/policy" element={<ProtectedRoute><LeavePolicy /></ProtectedRoute>} />
         <Route path=":vendor/expenses" element={<ProtectedRoute><Expense /></ProtectedRoute>} />
         <Route path=":vendor/resignation" element={<ProtectedRoute><Resignations /></ProtectedRoute>} />
       </Routes>
