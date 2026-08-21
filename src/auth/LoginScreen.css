@@ -12,11 +12,16 @@
 
 .login-container {
     min-height: 100vh;
+    min-height: 100dvh;
     width: 100%;
+    display: flex;
+    flex-direction: column;
     background-repeat: no-repeat;
     background-position: center center;
     background-size: cover;
-    overflow: hidden;
+    overflow-x: clip;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .login-content {
@@ -25,9 +30,12 @@
     width: 100%;
     max-width: 1400px;
     margin: 0 auto;
-    padding: 0px 20px;
+    padding: 40px 24px 24px;
     align-items: center;
-    flex-grow: 1;
+    flex: 1;
+    gap: 32px;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 /* ================= LEFT HERO SIDE ================= */
@@ -37,50 +45,7 @@
     display: flex;
     flex-direction: column;
     gap: 30px;
-}
-
-.brand-header {
-    height: 47px;
-    width: 203px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    overflow: visible;
-}
-
-.workza-logo {
-    width: 170px;
-    height: auto;
-    transform: scale(1.75);
-    transform-origin: left center;
-    margin: 0;
-    position: relative;
-    margin-top: 70px;
-    left: -68px;
-}
-
-.brand-icon {
-    background-color: #ffffff;
-    color: #0d82d4;
-    font-weight: 900;
-    font-size: 24px;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-}
-
-.brand-text h2 {
-    font-size: 20px;
-    letter-spacing: 1px;
-}
-
-.brand-text p {
-    font-size: 10px;
-    opacity: 0.8;
-    text-transform: uppercase;
+    min-width: 0;
 }
 
 .hero-text-block h1 {
@@ -88,7 +53,7 @@
     font-weight: 700;
     line-height: 1.2;
     margin-bottom: 15px;
-    margin-top: 45px;
+    margin-top: 0;
 }
 
 .hero-subtitle {
@@ -164,11 +129,12 @@
 
 /* ================= RIGHT FORM CARD SIDE ================= */
 .form-section {
-    top: 4%;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     position: relative;
+    width: 100%;
+    min-width: 0;
 }
 
 .help-link {
@@ -179,6 +145,7 @@
     font-weight: 600;
     font-size: 14px;
     cursor: pointer;
+    text-decoration: none;
 }
 
 .form-card {
@@ -188,18 +155,34 @@
     border-radius: 24px;
     padding: 40px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    box-sizing: border-box;
+}
+
+.form-brand {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 24px;
+    text-decoration: none;
+}
+
+.form-brand img {
+    height: 40px;
+    width: auto;
+    max-width: 220px;
+    display: block;
+    object-fit: contain;
 }
 
 .form-header h2 {
     font-size: 24px;
     color: #1e293b;
-    margin-bottom: 6px;
+    margin: 0 0 6px;
 }
 
 .form-header p {
     font-size: 14px;
     color: #64748b;
-    margin-bottom: 24px;
+    margin: 0 0 24px;
 }
 
 /* Inputs */
@@ -217,6 +200,10 @@
 }
 
 .input-group input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 12px 16px;
     font-size: 14px;
     border: 1px solid #cbd5e1;
@@ -242,6 +229,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
     margin-bottom: 24px;
     font-size: 12px;
 }
@@ -300,6 +289,21 @@
     gap: 15px;
 }
 
+.login-home-link {
+    text-align: center;
+}
+
+.login-home-link a {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0284c7;
+    text-decoration: none;
+}
+
+.login-home-link a:hover {
+    text-decoration: underline;
+}
+
 .btn-secondary {
     flex: 1;
     background: none;
@@ -322,44 +326,133 @@
     text-align: center;
     font-size: 12px;
     width: 100%;
-    font-weight: 600px;
+    font-weight: 600;
     color: #000000;
     line-height: 24px;
-    letter-spacing: 1%;
+    letter-spacing: 0.01em;
+    padding: 12px 16px 20px;
+    box-sizing: border-box;
 }
 
-/* ================= MOBILE RESPONSIVENESS ================= */
-@media (max-width: 900px) {
-    .login-content {
-        grid-template-columns: 1fr;
-        gap: 40px;
-        padding: 20px;
+/* ================= RESPONSIVE ================= */
+@media (max-width: 1100px) {
+    .hero-text-block h1 {
+        font-size: 34px;
     }
 
     .hero-section {
-        padding-right: 0;
+        padding-right: 24px;
+        gap: 22px;
+    }
+}
+
+@media (max-width: 900px) {
+    .login-content {
+        display: flex;
+        flex-direction: column;
         align-items: center;
-        text-align: center;
+        justify-content: flex-start;
+        gap: 0;
+        padding: max(20px, env(safe-area-inset-top, 0px)) 24px 28px;
+        width: 100%;
     }
 
-    .hero-subtitle {
-        margin: 0 auto;
-    }
-
-    .features-list {
-        align-items: flex-start;
-    }
-
-    .security-badge {
-        margin: 0 auto;
+    .hero-section {
+        display: none;
     }
 
     .form-section {
-        align-items: center;
+        align-items: stretch;
+        width: 100%;
+        max-width: 440px;
+    }
+
+    .form-card {
+        max-width: none;
+        width: 100%;
+        padding: 28px 24px 24px;
     }
 
     .help-link {
         position: static;
-        margin-bottom: 15px;
+        align-self: flex-end;
+        margin: 0 4px 14px;
+        width: auto;
+        text-align: right;
+        color: #0f172a;
+    }
+}
+
+@media (max-width: 640px) {
+    .login-content {
+        padding: max(16px, env(safe-area-inset-top, 0px)) 18px 24px;
+    }
+
+    .form-card {
+        padding: 22px 18px 20px;
+        border-radius: 18px;
+    }
+
+    .form-brand {
+        margin-bottom: 16px;
+    }
+
+    .form-brand img {
+        height: 32px;
+        max-width: 168px;
+    }
+
+    .form-header h2 {
+        font-size: 20px;
+    }
+
+    .form-header p {
+        font-size: 13px;
+        margin-bottom: 16px;
+        line-height: 1.4;
+    }
+
+    .input-group {
+        margin-bottom: 14px;
+    }
+
+    .input-group input {
+        font-size: 16px;
+        padding: 11px 12px;
+    }
+
+    .form-utilities {
+        margin-bottom: 16px;
+        font-size: 12px;
+        gap: 8px;
+    }
+
+    .btn-login {
+        padding: 13px;
+        font-size: 15px;
+    }
+
+    .form-divider {
+        margin: 16px 0;
+    }
+
+    .help-link {
+        font-size: 13px;
+        margin: 0 2px 12px;
+    }
+}
+
+@media (max-width: 400px) {
+    .login-content {
+        padding: max(14px, env(safe-area-inset-top, 0px)) 14px 20px;
+    }
+
+    .form-utilities {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .forgot-links {
+        align-items: flex-start;
     }
 }

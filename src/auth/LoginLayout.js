@@ -1,5 +1,6 @@
 import React from 'react';
-import logo from '../assets/worklogo.png';
+import { Link } from 'react-router-dom';
+import logo from '../assets/landing/workza-logo.png';
 
 import usersIcon from '../assets/users.svg';
 import attendanceIcon from '../assets/calender.svg';
@@ -9,13 +10,17 @@ import reportsIcon from '../assets/fluent_arrow-growth-20-filled.svg';
 import SecureIcon from '../assets/secured.svg';
 
 
+export function LoginFormLogo() {
+    return (
+        <Link to="/" className="form-brand" aria-label="Workza home">
+            <img src={logo} alt="Workza" />
+        </Link>
+    );
+}
+
 function LoginLayout() {
     return (
         <div className="hero-section">
-            <div className="brand-header">
-                <img src={logo} alt="Logo" className="workza-logo"  />
-            </div>
-
             <div className="hero-text-block">
                 <h1>
                     One Workforce.<br />One Platform.
