@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import './App.css';
 
@@ -20,23 +20,23 @@ import ForgotPassword from './pages/ForgotPassword';
 // import ForgotOrgCode from './pages/ForgotOrgCode';
 import Resignations from './pages/Resignations';
 import { getCurrentUser } from './services/authService';
+import Landing from './pages/Landing';
 
 function App() {
-  const navigate = useNavigate();
+  const token = localStorage.getItem('token');
 
   const { data, isError, isSuccess } = useQuery({
     queryKey: ['auth'],
     queryFn: getCurrentUser,
     staleTime: 1000 * 60 * 5,
     retry: false,
+    enabled: !!token,
   });
 
-  // Handle side-effects safely inside useEffect
   useEffect(() => {
     if (isError) {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
-      navigate('/login');
     }
     if (isSuccess && data?.user) {
       localStorage.setItem("user", JSON.stringify(data.user));
@@ -47,7 +47,7 @@ function App() {
   return (
     <div className="app-shell">
       <Routes>
-        <Route path="/" element={<UnProtectedRoute><Navigate to="/login" replace /></UnProtectedRoute>} />
+        <Route path="/" element={<UnProtectedRoute><Landing /></UnProtectedRoute>} />
         <Route path="/login" element={<UnProtectedRoute><Login /></UnProtectedRoute>} />
         <Route path="/create-org" element={<UnProtectedRoute><CreateOrg /></UnProtectedRoute>} />
         <Route path="/join" element={<UnProtectedRoute><JoinOrg /></UnProtectedRoute>} />

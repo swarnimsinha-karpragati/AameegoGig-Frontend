@@ -39,24 +39,12 @@
     gap: 30px;
 }
 
-.brand-header {
-    height: 47px;
-    width: 203px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    overflow: visible;
-}
-
-.workza-logo {
-    width: 170px;
-    height: auto;
-    transform: scale(1.75);
-    transform-origin: left center;
-    margin: 0;
-    position: relative;
-    margin-top: 70px;
-    left: -68px;
+.hero-text-block h1 {
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 15px;
+    margin-top: 0;
 }
 
 .brand-icon {
@@ -298,6 +286,21 @@
 .action-buttons-group {
     display: flex;
     gap: 15px;
+}
+
+.login-home-link {
+    text-align: center;
+}
+
+.login-home-link a {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0284c7;
+    text-decoration: none;
+}
+
+.login-home-link a:hover {
+    text-decoration: underline;
 }
 
 .btn-secondary {

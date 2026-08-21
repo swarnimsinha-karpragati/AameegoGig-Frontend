@@ -1,0 +1,20 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="1600" height="865.195" viewBox="0 0 1600 865.195" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="BG">
+<rect id="BG_2" width="1600" height="865.195" fill="url(#paint0_linear_0_156)"/>
+<mask id="mask0_0_156" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="866">
+<rect id="BG_3" width="1600" height="865.195" fill="white"/>
+</mask>
+<g mask="url(#mask0_0_156)">
+<ellipse id="Oval" opacity="0.0361096" cx="-304.498" cy="-142.989" rx="575.5" ry="522.476" fill="white"/>
+<ellipse id="Oval Copy" opacity="0.0458287" cx="-314.502" cy="-161.146" rx="822.5" ry="746.264" fill="white"/>
+<ellipse id="Oval Copy 2" opacity="0.050665" cx="-345.498" cy="-178.849" rx="1121.5" ry="1017.72" fill="white"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_156" x1="804.757" y1="-427.452" x2="78.3858" y2="907.835" gradientUnits="userSpaceOnUse">
+<stop stop-color="#1755A6"/>
+<stop offset="0.394106" stop-color="#1755A6"/>
+<stop offset="1" stop-color="#1755A6"/>
+</linearGradient>
+</defs>
+</svg>

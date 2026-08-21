@@ -22,7 +22,7 @@ function UnProtectedRoute({ children }) {
   const vendorname =  user?.vendorName?.trim()?.replace(/\s+/g, "-").toLowerCase() || "";
 
   if(token && user){
-     return <Navigate to={`${vendorname}/dashboard`} replace />;
+     return <Navigate to={`/${vendorname}/dashboard`} replace />;
   }
 
   return children;

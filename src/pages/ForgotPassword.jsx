@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import LoginLayout from "../auth/LoginLayout";
+import LoginLayout, { LoginFormLogo } from "../auth/LoginLayout";
 import { sendOtp, updatePassword, verifyOtp } from "../services/authService";
 import "../auth/LoginScreen.css";
 import bgImage from "../assets/background.png";
@@ -107,6 +107,7 @@ function ForgotPassword() {
             </span>
           </div>
           <div className="form-card">
+            <LoginFormLogo />
             <div className="form-header">
               <h2>Reset Password</h2>
               <p>Recover access to your account by verifying your identity.</p>

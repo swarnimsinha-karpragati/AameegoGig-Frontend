@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import './LoginScreen.css';
 
 import bgImage from '../assets/background.png';
-import LoginLayout from './LoginLayout';
+import LoginLayout, { LoginFormLogo } from './LoginLayout';
 import helpBtn from '../assets/help.svg';
 import { loginUser } from '../services/authService';
 
@@ -89,6 +89,7 @@ export default function LoginScreen() {
                     </div>
 
                     <div className="form-card">
+                        <LoginFormLogo />
                         <div className="form-header">
                             <h2>Welcome to HRMS!</h2>
                             <p>Sign in to access your organization's HRMS workspace.</p>
@@ -195,22 +196,8 @@ export default function LoginScreen() {
 
                         <div className="form-divider"></div>
 
-                        {/* Action Buttons */}
-                        <div className="action-buttons-group">
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={() => navigate('/create-org')}
-                            >
-                                Create Organization
-                            </button>
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={() => navigate('/join')}
-                            >
-                                Join Organization
-                            </button>
+                        <div className="login-home-link">
+                            <Link to="/">← Back to home</Link>
                         </div>
                     </div>
                 </div>
