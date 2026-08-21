@@ -1118,7 +1118,7 @@ function LandingPage() {
           </button>
         </nav>
         <p className="landing-footer-copy">
-          © 2026 Karpragati Technologies Pvt. Ltd.
+          © 2026 Kar Pragati Technologies Pvt. Ltd.
         </p>
       </footer>
     </div>

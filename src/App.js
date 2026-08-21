@@ -47,7 +47,7 @@ function App() {
   return (
     <div className="app-shell">
       <Routes>
-        <Route path="/" element={<UnProtectedRoute><Landing /></UnProtectedRoute>} />
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<UnProtectedRoute><Login /></UnProtectedRoute>} />
         <Route path="/create-org" element={<UnProtectedRoute><CreateOrg /></UnProtectedRoute>} />
         <Route path="/join" element={<UnProtectedRoute><JoinOrg /></UnProtectedRoute>} />
