@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import './App.css';
 
-import {ProtectedRoute,UnProtectedRoute} from './components/ProtectedRoute';
+import { ProtectedRoute, UnProtectedRoute } from './components/ProtectedRoute';
 import Login from './auth/Login';
 import CreateOrg from './pages/CreateOrg';
 import JoinOrg from './pages/JoinOrg';
@@ -19,11 +19,14 @@ import Expense from "./pages/Expense";
 import ForgotPassword from './pages/ForgotPassword';
 // import ForgotOrgCode from './pages/ForgotOrgCode';
 import Resignations from './pages/Resignations';
+import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
+import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
 
 function App() {
-  const token = localStorage.getItem('token');
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token");
 
   const { data, isError, isSuccess } = useQuery({
     queryKey: ['auth'],
@@ -40,9 +43,21 @@ function App() {
     }
     if (isSuccess && data?.user) {
       localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("user-updated"));
     }
-     // eslint-disable-next-line 
-  }, [isError, isSuccess, data]);
+
+    const path = window.location.pathname;
+    const lastPath = path.split("/").filter(Boolean).pop() || "Home";
+    const pageName = lastPath
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
+    document.title = `Workza - ${pageName}`;
+
+    // eslint-disable-next-line
+  }, [isError, isSuccess, data, navigate]);
 
   return (
     <div className="app-shell">
@@ -64,8 +79,10 @@ function App() {
         <Route path=":vendor/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
         <Route path=":vendor/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
         <Route path=":vendor/leave" element={<ProtectedRoute><Leave /></ProtectedRoute>} />
+        <Route path=":vendor/leave/policy" element={<ProtectedRoute><LeavePolicy /></ProtectedRoute>} />
         <Route path=":vendor/expenses" element={<ProtectedRoute><Expense /></ProtectedRoute>} />
         <Route path=":vendor/resignation" element={<ProtectedRoute><Resignations /></ProtectedRoute>} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   );

@@ -44,6 +44,7 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "incentive",
   "otherAllowance",
   "professionalTax",
+  "payType",
 ];
 
 export const buildEmployeePayload = (data, extras = {}) => {
@@ -75,6 +76,11 @@ export const buildEmployeePayload = (data, extras = {}) => {
     if (password) {
       payload.userPassword = password;
     }
+  }
+
+  const modules = extras.allowedModules ?? data.allowedModules;
+  if (Array.isArray(modules)) {
+    payload.allowedModules = modules;
   }
 
   if (data.email) {

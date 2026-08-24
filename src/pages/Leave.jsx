@@ -11,6 +11,7 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
@@ -19,8 +20,10 @@ import {
   approveLeaveRequest,
   cancelLeaveRequest,
   createLeaveRequest,
+  createLeaveRequestMultipart,
   getLeaveBalances,
   getLeaveDashboard,
+  getLeavePolicy,
   getLeaveRequests,
   rejectLeaveRequest,
   updateLeaveBalances,
@@ -104,12 +107,15 @@ function LeaveSummaryCards({ summary, labels }) {
 =========================== */
 function LeaveInner() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const { vendor } = useParams();
   const user = getStoredUser();
   const viewRole = getLeaveViewKey(user?.role);
 
   const [dashboard, setDashboard] = useState(null);
   const [requests, setRequests] = useState([]);
   const [balances, setBalances] = useState([]);
+  const [leavePolicy, setLeavePolicy] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -131,6 +137,39 @@ function LeaveInner() {
     reason: "",
   });
 
+  const [medicalDocFile, setMedicalDocFile] = useState(null);
+
+  const countWeekdaysInclusiveClient = (startStr, endStr) => {
+    if (!startStr || !endStr) return null;
+    const start = new Date(`${startStr}T00:00:00`);
+    const end = new Date(`${endStr}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    if (end < start) return null;
+
+    let count = 0;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const day = d.getDay(); // 0=Sun, 6=Sat
+      if (day !== 0 && day !== 6) count += 1;
+    }
+    return count;
+  };
+
+  const slRequiredWhenDaysGt = useMemo(() => {
+    const sl = leavePolicy?.types?.find((t) => t?.code === "SL");
+    return sl?.documents?.requiredWhenDaysGt ?? null;
+  }, [leavePolicy]);
+
+  const computedLeaveDays = useMemo(
+    () => countWeekdaysInclusiveClient(leaveForm.startDate, leaveForm.endDate),
+    [leaveForm.startDate, leaveForm.endDate]
+  );
+
+  const isMedicalDocRequired =
+    leaveForm.leaveType === "SL" &&
+    slRequiredWhenDaysGt != null &&
+    computedLeaveDays != null &&
+    computedLeaveDays > slRequiredWhenDaysGt;
+
   /* ── Confirm modal ── */
   const [modal, setModal] = useState({
     open: false,
@@ -148,6 +187,7 @@ function LeaveInner() {
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
+  const canConfigurePolicy = user?.role === "Admin" || user?.role === "HR";
 
   const summary = dashboard?.summary || {};
   const upcoming = useMemo(
@@ -191,14 +231,50 @@ function LeaveInner() {
     return filtered.length > 0 ? filtered : upcoming.slice(0, 2);
   }, [upcoming, matchesUser]);
 
+  const leaveTypeOptions = useMemo(() => {
+    const fallback = [
+      { code: "CL", label: "Casual Leave (CL)" },
+      { code: "SL", label: "Sick Leave (SL)" },
+      { code: "EL", label: "Earned Leave (EL)" },
+      { code: "CO", label: "Comp Off (CO)" },
+      { code: "LOP", label: "Loss of Pay (LOP)" },
+      { code: "LWP", label: "Leave Without Pay (LWP)" },
+      { code: "WFH", label: "WFH" },
+    ];
+
+    if (!leavePolicy?.types?.length) return fallback;
+    const enabled = leavePolicy.types.filter((t) => t?.enabled);
+    if (!enabled.length) return fallback;
+    return enabled.map((t) => ({
+      code: t.code,
+      label: t.name || t.code,
+    }));
+  }, [leavePolicy]);
+
+  const leaveBalanceTypes = useMemo(() => {
+    const enabled = leavePolicy?.types
+      ?.filter((t) => t?.enabled && t?.hasBalance)
+      ?.map((t) => t.code);
+    if (!enabled || enabled.length === 0) return ["CL", "SL", "EL", "CO"];
+    return enabled;
+  }, [leavePolicy]);
+
+  const dateValidationError = useMemo(() => {
+    if (!leaveForm.startDate || !leaveForm.endDate) return null;
+    if (computedLeaveDays == null) return "End date must be on or after start date";
+    return null;
+  }, [leaveForm.startDate, leaveForm.endDate, computedLeaveDays]);
+
   const loadData = async () => {
     setLoading(true);
     setError("");
     try {
-      const [dashResult, reqResult, balResult] = await Promise.allSettled([
+      const [dashResult, reqResult, balResult, policyResult] =
+        await Promise.allSettled([
         getLeaveDashboard(),
         getLeaveRequests(),
         getLeaveBalances(),
+        getLeavePolicy(),
       ]);
 
       if (dashResult.status === "rejected") {
@@ -210,6 +286,25 @@ function LeaveInner() {
 
       setDashboard(dashResult.value);
       setRequests(reqResult.value.requests || []);
+
+      if (policyResult.status === "fulfilled") {
+        const pol = policyResult.value.policy || policyResult.value;
+        setLeavePolicy(pol || null);
+
+        const enabledCodes = (pol?.types || [])
+          .filter((t) => t?.enabled)
+          .map((t) => t.code);
+
+        const desiredLeaveType = enabledCodes.includes("CL")
+          ? "CL"
+          : enabledCodes[0] || "CL";
+
+        setLeaveForm((prev) => ({
+          ...prev,
+          leaveType: desiredLeaveType,
+          requestType: desiredLeaveType === "WFH" ? "WFH" : "Leave",
+        }));
+      }
 
       if (balResult.status === "fulfilled") {
         const balRes = balResult.value;
@@ -273,20 +368,43 @@ function LeaveInner() {
   const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
     try {
+      if (isMedicalDocRequired && !medicalDocFile) {
+        toast.error(
+          `Medical document is required for SL when days exceed ${slRequiredWhenDaysGt}`
+        );
+        return;
+      }
+
       const payload = { ...leaveForm };
       if (forSelf || !canManageLeave || user?.role === "Employee") {
         delete payload.employeeId;
       }
-      await createLeaveRequest(payload);
+
+      if (payload.leaveType === "SL" && medicalDocFile) {
+        const formData = new FormData();
+        Object.entries(payload).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) formData.append(k, v);
+        });
+        formData.append("file", medicalDocFile);
+        await createLeaveRequestMultipart(formData);
+      } else {
+        await createLeaveRequest(payload);
+      }
+
       toast.success("Leave request submitted successfully");
       setLeaveForm((prev) => ({
         ...prev,
-        leaveType: "CL",
-        requestType: "Leave",
+        leaveType:
+          leavePolicy?.types?.some((t) => t?.enabled && t?.code === "CL") ? "CL" : (leavePolicy?.types || []).find((t) => t?.enabled)?.code || "CL",
+        requestType:
+          (leavePolicy?.types || []).find((t) => t?.enabled)?.code === "WFH"
+            ? "WFH"
+            : "Leave",
         startDate: "",
         endDate: "",
         reason: "",
       }));
+      setMedicalDocFile(null);
       loadData();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to submit request");
@@ -350,24 +468,19 @@ function LeaveInner() {
     e.preventDefault();
     if (!selectedBalanceEmployee) return;
     try {
-      await updateLeaveBalances(selectedBalanceEmployee, {
-        CL: {
-          total: Number(balanceForm.CL.total),
-          used: Number(balanceForm.CL.used),
-        },
-        SL: {
-          total: Number(balanceForm.SL.total),
-          used: Number(balanceForm.SL.used),
-        },
-        EL: {
-          total: Number(balanceForm.EL.total),
-          used: Number(balanceForm.EL.used),
-        },
-        CO: {
-          total: Number(balanceForm.CO.total),
-          used: Number(balanceForm.CO.used),
-        },
+      const payload = {};
+      // Backend currently understands legacy keys (CL/SL/EL/CO), but this
+      // UI now renders based on enabled policy balance types.
+      leaveBalanceTypes.forEach((code) => {
+        if (!["CL", "SL", "EL", "CO"].includes(code)) return;
+        if (!balanceForm?.[code]) return;
+        payload[code] = {
+          total: Number(balanceForm[code].total),
+          used: Number(balanceForm[code].used),
+        };
       });
+
+      await updateLeaveBalances(selectedBalanceEmployee, payload);
       toast.success("Leave balances updated");
       loadData();
     } catch (err) {
@@ -431,19 +544,52 @@ function LeaveInner() {
             id="leave-type"
             className="leave-control"
             value={leaveForm.leaveType}
-            onChange={(e) =>
-              setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))
-            }
+            onChange={(e) => {
+              const next = e.target.value;
+              setLeaveForm((p) => ({
+                ...p,
+                leaveType: next,
+                requestType: next === "WFH" ? "WFH" : "Leave",
+              }));
+              if (next !== "SL") setMedicalDocFile(null);
+            }}
           >
-            <option value="CL">Casual Leave (CL)</option>
-            <option value="SL">Sick Leave (SL)</option>
-            <option value="EL">Earned Leave (EL)</option>
-            <option value="CO">Comp Off (CO)</option>
-            <option value="LOP">Loss of Pay (LOP)</option>
-            <option value="LWP">Leave Without Pay (LWP)</option>
-            <option value="WFH">WFH</option>
+            {leaveTypeOptions.map((opt) => (
+              <option value={opt.code} key={opt.code}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
+
+        {leaveForm.leaveType === "SL" ? (
+          <div className="leave-field">
+            <label htmlFor="leave-medical-doc">
+              Medical Doc (required for SL &gt; 1 day)
+            </label>
+            <input
+              id="leave-medical-doc"
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+              className="leave-control"
+              onChange={(e) => setMedicalDocFile(e.target.files?.[0] || null)}
+            />
+            {slRequiredWhenDaysGt != null ? (
+              <p className="leave-upload-hint">
+                Required only when your SL days &gt; {slRequiredWhenDaysGt}.{" "}
+                {computedLeaveDays != null ? (
+                  <>You selected: <strong>{computedLeaveDays} day(s)</strong>.</>
+                ) : null}
+              </p>
+            ) : null}
+            {medicalDocFile ? (
+              <p className="leave-upload-hint">
+                Selected: <strong>{medicalDocFile.name}</strong>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="leave-field">
           <label htmlFor="leave-start">Start Date</label>
           <input
@@ -483,8 +629,18 @@ function LeaveInner() {
             }
           />
         </div>
+        {dateValidationError ? (
+          <p className="leave-upload-hint" style={{ color: "#b42318" }}>
+            {dateValidationError}
+          </p>
+        ) : null}
         <div className="leave-form-actions">
-          <Button type="submit">Submit Request</Button>
+          <Button
+            type="submit"
+            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile)}
+          >
+            Submit Request
+          </Button>
         </div>
       </form>
     </section>
@@ -659,7 +815,7 @@ function LeaveInner() {
             </select>
           </div>
           <div className="leave-balance-grid">
-          {["CL", "SL", "EL", "CO"].map((type) => (
+          {leaveBalanceTypes.map((type) => (
             <div key={type} className="balance-row">
               <span className="balance-row__type">{type}</span>
               <div className="leave-field balance-row__field">
@@ -829,9 +985,6 @@ function LeaveInner() {
     <>
       {renderMyLeaveSection()}
       <div className="leave-hr-actions">
-        <Button type="button" icon={ <ShieldCheck size={16} />}>
-          Leave Policy Settings
-        </Button>
         <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
           Export Leave Report
         </Button>
@@ -928,6 +1081,16 @@ function LeaveInner() {
             <h1 className="leave-title">Leave</h1>
             <p className="leave-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
           </div>
+          {canConfigurePolicy ? (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<ShieldCheck size={16} />}
+              onClick={() => navigate(`/${vendor}/leave/policy`)}
+            >
+              Leave policy
+            </Button>
+          ) : null}
         </div>
 
         {error ? <p className="leave-alert leave-alert--error">{error}</p> : null}
@@ -945,6 +1108,7 @@ function LeaveInner() {
           onConfirm={modal.onConfirm}
           onCancel={closeModal}
         />
+
       </div>
     </MainLayout>
   );

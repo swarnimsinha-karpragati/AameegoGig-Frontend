@@ -139,7 +139,7 @@ export default function PayrollBreakdownDrawer({
                 </h2>
               </div>
 
-              {isAdminOrHR && record.status === "Pending" && onConfirmSave && (
+              {isAdminOrHR && record.status !== "Processed" && record.approvalStatus !== "Approved" && onConfirmSave && (
                 <div className="pb-drawer__actions">
                   <button className="btn-cancel" onClick={onClose} type="button">
                     Close preview

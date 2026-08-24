@@ -272,62 +272,60 @@ function Departments() {
         </FormField>
       </FormSection>
 
-      {isSiteVendor() && (
-        <div className="site-extra-fields">
-          <div className="site-payout-rule">
-            <FormField
-              label="Site Payout Rule"
-              htmlFor="site-payout-rule"
+      <div className="site-extra-fields">
+        <div className="site-payout-rule">
+          <FormField
+            label={`${name} Payout Rule`}
+            htmlFor="site-payout-rule"
+          >
+            <select
+              id="site-payout-rule"
+              name="sitePayoutRule"
+              value={form.sitePayoutRule || ""}
+              onChange={handleChange}
+              disabled={isDisabled}
             >
-              <select
-                id="site-payout-rule"
-                name="sitePayoutRule"
-                value={form.sitePayoutRule || ""}
-                onChange={handleChange}
-                disabled={isDisabled}
-              >
-                <option value="">Select Payout Rule</option>
-                <option value="Daily">Daily</option>
-                <option value="Monthly">Monthly</option>
-              </select>
-            </FormField>
-          </div>
-
-          <div className="site-state-name">
-            <FormField
-              label="Site State Name"
-              htmlFor="site-state-name"
-            >
-              <select
-                id="site-state-name"
-                name="stateName"
-                value={form.stateName || ""}
-                onChange={handleChange}
-                disabled={isDisabled}
-              >
-                <option value="">Select State</option>
-                <option value="Andhra Pradesh">Andhra Pradesh</option>
-                <option value="Delhi">Delhi</option>
-                <option value="Gujarat">Gujarat</option>
-                <option value="Haryana">Haryana</option>
-                <option value="Karnataka">Karnataka</option>
-                <option value="Madhya Pradesh">Madhya Pradesh</option>
-                <option value="Maharashtra">Maharashtra</option>
-                <option value="Punjab">Punjab</option>
-                <option value="Rajasthan">Rajasthan</option>
-                <option value="Tamil Nadu">Tamil Nadu</option>
-                <option value="Telangana">Telangana</option>
-                <option value="Uttar Pradesh">Uttar Pradesh</option>
-                <option value="West Bengal">West Bengal</option>
-              </select>
-            </FormField>
-          </div>
+              <option value="">Select Payout Rule</option>
+              <option value="Daily">Daily</option>
+              <option value="Monthly">Monthly</option>
+            </select>
+          </FormField>
         </div>
-      )}
+
+        <div className="site-state-name">
+          <FormField
+            label={`${name} State Name`}
+            htmlFor="site-state-name"
+          >
+            <select
+              id="site-state-name"
+              name="stateName"
+              value={form.stateName || ""}
+              onChange={handleChange}
+              disabled={isDisabled}
+            >
+              <option value="">Select State</option>
+              <option value="Andhra Pradesh">Andhra Pradesh</option>
+              <option value="Delhi">Delhi</option>
+              <option value="Gujarat">Gujarat</option>
+              <option value="Haryana">Haryana</option>
+              <option value="Karnataka">Karnataka</option>
+              <option value="Madhya Pradesh">Madhya Pradesh</option>
+              <option value="Maharashtra">Maharashtra</option>
+              <option value="Punjab">Punjab</option>
+              <option value="Rajasthan">Rajasthan</option>
+              <option value="Tamil Nadu">Tamil Nadu</option>
+              <option value="Telangana">Telangana</option>
+              <option value="Uttar Pradesh">Uttar Pradesh</option>
+              <option value="West Bengal">West Bengal</option>
+            </select>
+          </FormField>
+        </div>
+      </div>
 
       <FormSection title="Operational Rules & Leadership" description="Link shifts, rules, and heads">
-        <FormField label="Assigned Operational Shift" htmlFor="dep-shift">
-          <select id="dep-shift" name="shift" value={form.shift} onChange={handleChange} disabled={isDisabled}>
+        <FormField required label="Assigned Operational Shift" htmlFor="dep-shift">
+          <select id="dep-shift" name="shift" value={form.shift} onChange={handleChange} required disabled={isDisabled}>
             <option value="">No Active Shift Default</option>
             {shifts.map((s) => (
               <option key={s._id} value={s._id}>{s.name || s.shiftName}</option>

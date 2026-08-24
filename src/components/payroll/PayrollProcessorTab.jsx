@@ -1,7 +1,7 @@
 import React from "react";
 import { Eye, RefreshCw } from "lucide-react";
 import Button from "../Button";
-import { MONTHS, PAYROLL_YEARS } from "../../utils/payrollConstants";
+import { getAvailableMonths, PAYROLL_YEARS } from "../../utils/payrollConstants";
 
 export default function PayrollProcessorTab({
   selectedYear,
@@ -49,7 +49,7 @@ export default function PayrollProcessorTab({
         <div className="control-group">
           <label>Billing Month</label>
           <select value={selectedMonth} onChange={(e) => onMonthChange(parseInt(e.target.value, 10))} className="control-select">
-            {MONTHS.map((m) => (
+            {getAvailableMonths(selectedYear).map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>
