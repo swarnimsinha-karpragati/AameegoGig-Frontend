@@ -11,6 +11,7 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
@@ -37,7 +38,6 @@ import {
 import "./Leave.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
-import { useNavigate, useParams } from "react-router-dom";
 
 const ROLE_DESCRIPTIONS = {
   Organization: "Organization-wide leave overview and management",
@@ -107,6 +107,8 @@ function LeaveSummaryCards({ summary, labels }) {
 =========================== */
 function LeaveInner() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const { vendor } = useParams();
   const user = getStoredUser();
   const viewRole = getLeaveViewKey(user?.role);
 
@@ -125,8 +127,6 @@ function LeaveInner() {
     EL: { total: "", used: "" },
     CO: { total: "", used: "" },
   });
-  const { vendor: vendorName } = useParams();
-  const navigate = useNavigate();
 
   const [leaveForm, setLeaveForm] = useState({
     employeeId: "",
@@ -187,6 +187,7 @@ function LeaveInner() {
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
+  const canConfigurePolicy = user?.role === "Admin" || user?.role === "HR";
 
   const summary = dashboard?.summary || {};
   const upcoming = useMemo(
@@ -270,11 +271,11 @@ function LeaveInner() {
     try {
       const [dashResult, reqResult, balResult, policyResult] =
         await Promise.allSettled([
-        getLeaveDashboard(),
-        getLeaveRequests(),
-        getLeaveBalances(),
-        getLeavePolicy(),
-      ]);
+          getLeaveDashboard(),
+          getLeaveRequests(),
+          getLeaveBalances(),
+          getLeavePolicy(),
+        ]);
 
       if (dashResult.status === "rejected") {
         throw dashResult.reason;
@@ -679,85 +680,85 @@ function LeaveInner() {
         <h3>{title}</h3>
       </header>
       <div className="leave-table-wrap">
-      <table className="leave-table">
-        <thead>
-          <tr>
-            {mode === "all" ? <th>Employee</th> : null}
-            <th>Type</th>
-            <th>Date / Duration</th>
-            <th>Reason</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 ? (
+        <table className="leave-table">
+          <thead>
             <tr>
-              <td colSpan={mode === "all" ? 6 : 5} className="leave-empty">
-                No requests found
-              </td>
+              {mode === "all" ? <th>Employee</th> : null}
+              <th>Type</th>
+              <th>Date / Duration</th>
+              <th>Reason</th>
+              <th>Status</th>
+              <th>Action</th>
             </tr>
-          ) : null}
-          {items.map((item) => {
-            const empName = item.employeeId?.name || null;
-            return (
-              <tr key={item._id}>
-                {mode === "all" ? <td>{empName || "-"}</td> : null}
-                <td>{item.leaveType}</td>
-                <td>
-                  {new Date(item.startDate).toLocaleDateString()} -{" "}
-                  {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
-                </td>
-                <td>{item.reason || "-"}</td>
-                <td>
-                  <span
-                    className={leaveStatusClass[item.status] || "leave-status"}
-                  >
-                    {item.status}
-                  </span>
-                </td>
-                <td>
-                  {mode === "approve" &&
-                  canApprove &&
-                  item.status === "Pending" ? (
-                    <div className="leave-actions">
-                      <Button
-                        type="button"
-                        className="approve-btn"
-                        icon={<Check size={14} />}
-                        aria-label="Approve"
-                        onClick={() =>
-                          handleDecision(item._id, "approve", empName)
-                        }
-                      />
-                      <Button
-                        type="button"
-                        className="reject-btn"
-                        icon={<X size={14} />}
-                        aria-label="Reject"
-                        onClick={() =>
-                          handleDecision(item._id, "reject", empName)
-                        }
-                      />
-                    </div>
-                  ) : mode === "employee" && item.status === "Pending" ? (
-                    <Button
-                      type="button"
-                      id="leave-cancel-btn"
-                      className="action-btn-delete"
-                      onClick={() => handleCancel(item._id)}
-                    >
-                      Cancel
-                    </Button>
-                  ) : (
-                    "-"
-                  )}
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={mode === "all" ? 6 : 5} className="leave-empty">
+                  No requests found
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ) : null}
+            {items.map((item) => {
+              const empName = item.employeeId?.name || null;
+              return (
+                <tr key={item._id}>
+                  {mode === "all" ? <td>{empName || "-"}</td> : null}
+                  <td>{item.leaveType}</td>
+                  <td>
+                    {new Date(item.startDate).toLocaleDateString()} -{" "}
+                    {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
+                  </td>
+                  <td>{item.reason || "-"}</td>
+                  <td>
+                    <span
+                      className={leaveStatusClass[item.status] || "leave-status"}
+                    >
+                      {item.status}
+                    </span>
+                  </td>
+                  <td>
+                    {mode === "approve" &&
+                      canApprove &&
+                      item.status === "Pending" ? (
+                      <div className="leave-actions">
+                        <Button
+                          type="button"
+                          className="approve-btn"
+                          icon={<Check size={14} />}
+                          aria-label="Approve"
+                          onClick={() =>
+                            handleDecision(item._id, "approve", empName)
+                          }
+                        />
+                        <Button
+                          type="button"
+                          className="reject-btn"
+                          icon={<X size={14} />}
+                          aria-label="Reject"
+                          onClick={() =>
+                            handleDecision(item._id, "reject", empName)
+                          }
+                        />
+                      </div>
+                    ) : mode === "employee" && item.status === "Pending" ? (
+                      <Button
+                        type="button"
+                        id="leave-cancel-btn"
+                        className="action-btn-delete"
+                        onClick={() => handleCancel(item._id)}
+                      >
+                        Cancel
+                      </Button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -814,43 +815,43 @@ function LeaveInner() {
             </select>
           </div>
           <div className="leave-balance-grid">
-          {leaveBalanceTypes.map((type) => (
-            <div key={type} className="balance-row">
-              <span className="balance-row__type">{type}</span>
-              <div className="leave-field balance-row__field">
-                <label htmlFor={`balance-${type}-total`}>Total</label>
-                <input
-                  id={`balance-${type}-total`}
-                  type="number"
-                  className="leave-control"
-                  placeholder="0"
-                  value={balanceForm[type]?.total ?? ""}
-                  onChange={(e) =>
-                    setBalanceForm((prev) => ({
-                      ...prev,
-                      [type]: { ...prev[type], total: e.target.value },
-                    }))
-                  }
-                />
+            {leaveBalanceTypes.map((type) => (
+              <div key={type} className="balance-row">
+                <span className="balance-row__type">{type}</span>
+                <div className="leave-field balance-row__field">
+                  <label htmlFor={`balance-${type}-total`}>Total</label>
+                  <input
+                    id={`balance-${type}-total`}
+                    type="number"
+                    className="leave-control"
+                    placeholder="0"
+                    value={balanceForm[type]?.total ?? ""}
+                    onChange={(e) =>
+                      setBalanceForm((prev) => ({
+                        ...prev,
+                        [type]: { ...prev[type], total: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+                <div className="leave-field balance-row__field">
+                  <label htmlFor={`balance-${type}-used`}>Used</label>
+                  <input
+                    id={`balance-${type}-used`}
+                    type="number"
+                    className="leave-control"
+                    placeholder="0"
+                    value={balanceForm[type]?.used ?? ""}
+                    onChange={(e) =>
+                      setBalanceForm((prev) => ({
+                        ...prev,
+                        [type]: { ...prev[type], used: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
               </div>
-              <div className="leave-field balance-row__field">
-                <label htmlFor={`balance-${type}-used`}>Used</label>
-                <input
-                  id={`balance-${type}-used`}
-                  type="number"
-                  className="leave-control"
-                  placeholder="0"
-                  value={balanceForm[type]?.used ?? ""}
-                  onChange={(e) =>
-                    setBalanceForm((prev) => ({
-                      ...prev,
-                      [type]: { ...prev[type], used: e.target.value },
-                    }))
-                  }
-                />
-              </div>
-            </div>
-          ))}
+            ))}
           </div>
           <div className="leave-form-actions">
             <Button type="submit">Save Balances</Button>
@@ -920,44 +921,44 @@ function LeaveInner() {
         <h3>{title}</h3>
       </header>
       <div className="leave-table-wrap">
-      <table className="leave-table">
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th>Type</th>
-            <th>Dates</th>
-            <th>Days</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {!loading && items.length === 0 ? (
+        <table className="leave-table">
+          <thead>
             <tr>
-              <td colSpan={5} className="leave-empty">
-                No requests found
-              </td>
+              <th>Employee</th>
+              <th>Type</th>
+              <th>Dates</th>
+              <th>Days</th>
+              <th>Status</th>
             </tr>
-          ) : null}
-          {items.map((item) => (
-            <tr key={item._id}>
-              <td>{item.employeeId?.name || "-"}</td>
-              <td>{item.leaveType}</td>
-              <td>
-                {new Date(item.startDate).toLocaleDateString()} -{" "}
-                {new Date(item.endDate).toLocaleDateString()}
-              </td>
-              <td>{item.days}</td>
-              <td>
-                <span
-                  className={leaveStatusClass[item.status] || "leave-status"}
-                >
-                  {item.status}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {!loading && items.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="leave-empty">
+                  No requests found
+                </td>
+              </tr>
+            ) : null}
+            {items.map((item) => (
+              <tr key={item._id}>
+                <td>{item.employeeId?.name || "-"}</td>
+                <td>{item.leaveType}</td>
+                <td>
+                  {new Date(item.startDate).toLocaleDateString()} -{" "}
+                  {new Date(item.endDate).toLocaleDateString()}
+                </td>
+                <td>{item.days}</td>
+                <td>
+                  <span
+                    className={leaveStatusClass[item.status] || "leave-status"}
+                  >
+                    {item.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -984,15 +985,6 @@ function LeaveInner() {
     <>
       {renderMyLeaveSection()}
       <div className="leave-hr-actions">
-        <Button
-          type="button"
-          icon={<ShieldCheck size={16} />}
-          onClick={() =>
-            navigate(`/${vendorName}/settings#leave-policy-settings`)
-          }
-        >
-          Leave Policy Settings
-        </Button>
         <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
           Export Leave Report
         </Button>
@@ -1089,6 +1081,16 @@ function LeaveInner() {
             <h1 className="leave-title">Leave</h1>
             <p className="leave-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
           </div>
+          {canConfigurePolicy ? (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<ShieldCheck size={16} />}
+              onClick={() => navigate(`/${vendor}/leave/policy`)}
+            >
+              Leave policy
+            </Button>
+          ) : null}
         </div>
 
         {error ? <p className="leave-alert leave-alert--error">{error}</p> : null}
@@ -1106,6 +1108,7 @@ function LeaveInner() {
           onConfirm={modal.onConfirm}
           onCancel={closeModal}
         />
+
       </div>
     </MainLayout>
   );
