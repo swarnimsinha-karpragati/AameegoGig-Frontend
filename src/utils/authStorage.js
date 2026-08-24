@@ -38,6 +38,7 @@ export const clearAuthData = () => {
 
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(USER_KEY);
+    getStoredUser();
 };
 
 export const isAuthenticated = () => {
