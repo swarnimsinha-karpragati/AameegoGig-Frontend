@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Route, Routes, useNavigate } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import './App.css';
 
@@ -25,7 +25,6 @@ import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
 
 function App() {
-  const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
   const { data, isError, isSuccess } = useQuery({
@@ -57,7 +56,7 @@ function App() {
     document.title = `Workza - ${pageName}`;
 
     // eslint-disable-next-line
-  }, [isError, isSuccess, data, navigate]);
+  }, [isError, isSuccess, data]);
 
   return (
     <div className="app-shell">
