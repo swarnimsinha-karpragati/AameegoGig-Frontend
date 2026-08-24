@@ -84,10 +84,15 @@ const validateAmount = (raw) => {
   return null;
 };
 
-function ExpenseFormField({ label, htmlFor, hint, fullWidth, children }) {
+function ExpenseFormField({ label, htmlFor, hint, fullWidth, required, children }) {
   return (
     <div className={`expense-field${fullWidth ? " expense-field--full" : ""}`}>
-      {label ? <label htmlFor={htmlFor}>{label}</label> : null}
+      {label ? (
+        <label htmlFor={htmlFor}>
+          {label}
+          {required && <span className="expense-required-star"> *</span>}
+        </label>
+      ) : null}
       {children}
       {hint ? <span className="expense-field-hint">{hint}</span> : null}
     </div>
@@ -444,7 +449,7 @@ function ExpenseInner() {
           </ExpenseFormField>
         ) : null}
 
-        <ExpenseFormField label="Expense Title" htmlFor="expense-title">
+        <ExpenseFormField label="Expense Title" htmlFor="expense-title" required>
           <input
             id="expense-title"
             className="expense-control"
@@ -457,7 +462,7 @@ function ExpenseInner() {
         </ExpenseFormField>
 
         <div className="expense-form-row">
-          <ExpenseFormField label="Category" htmlFor="expense-category">
+          <ExpenseFormField label="Category" htmlFor="expense-category" required>
             <select
               id="expense-category"
               className="expense-control"
@@ -474,7 +479,7 @@ function ExpenseInner() {
             </select>
           </ExpenseFormField>
 
-          <ExpenseFormField label="Amount (₹)" htmlFor="expense-amount">
+          <ExpenseFormField label="Amount (₹)" htmlFor="expense-amount" required>
             <input
               id="expense-amount"
               className="expense-control"
@@ -493,10 +498,12 @@ function ExpenseInner() {
         </div>
 
         <div className="expense-form-row">
-          <ExpenseFormField label="Expense Date" htmlFor="expense-date">
+          <ExpenseFormField label="Expense Date" htmlFor="expense-date" required>
             <input
               id="expense-date"
               className="expense-control"
+              min={new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().split("T")[0]}
+              max={new Date().toISOString().split("T")[0]}
               type="date"
               value={form.expenseDate}
               onChange={(e) =>
@@ -510,6 +517,7 @@ function ExpenseInner() {
             label="Receipt"
             htmlFor="expense-receipt"
             hint="PDF, PNG, or JPG — max 10 MB"
+            required
           >
             <div className="expense-file-zone">
               <input
@@ -523,6 +531,7 @@ function ExpenseInner() {
                     receipt: e.target.files?.[0] || null,
                   }))
                 }
+                required
               />
               <span className="expense-file-zone__label">
                 {form.receipt ? form.receipt.name : "Choose file"}
@@ -679,7 +688,7 @@ function ExpenseInner() {
                               title="Submit for approval"
                               onClick={() => handleSubmitDraft(exp._id)}
                             >
-                               Submit
+                              Submit
                             </Button>
                             <Button
                               className="action-btn-delete"
@@ -703,13 +712,13 @@ function ExpenseInner() {
                           <>
                             <Button
                               className="action-btn-edit approve-expense-btn"
-                              icon={<Check size={14} /> }
+                              icon={<Check size={14} />}
                               onClick={() => handleApprove(exp._id, empName)}
                             >
                               Approve
                             </Button>
                             <Button
-                              icon={<X size={14} /> }
+                              icon={<X size={14} />}
                               className=" action-btn-edit reject-expense-btn"
                               onClick={() => handleReject(exp._id, empName)}
                             >
@@ -725,7 +734,7 @@ function ExpenseInner() {
                             icon={<Banknote size={14} />}
                             onClick={() => handleReimburse(exp._id, empName)}
                           >
-                             Reimburse
+                            Reimburse
                           </Button>
                         ) : null}
 
@@ -737,14 +746,14 @@ function ExpenseInner() {
                               icon={<Check size={14} />}
                               onClick={() => handleApprove(exp._id, empName)}
                             >
-                               Approve
+                              Approve
                             </Button>
                             <Button
                               className="reject-expense-btn action-btn-edit"
                               icon={<X size={14} />}
                               onClick={() => handleReject(exp._id, empName)}
                             >
-                               Reject
+                              Reject
                             </Button>
                           </>
                         ) : null}
@@ -754,7 +763,7 @@ function ExpenseInner() {
                             icon={<Banknote size={14} />}
                             onClick={() => handleReimburse(exp._id, empName)}
                           >
-                             Reimburse
+                            Reimburse
                           </Button>
                         ) : null}
                       </div>
@@ -824,13 +833,13 @@ function ExpenseInner() {
       {renderMySection()}
 
       {teamMembers.length > 0 ? (
-      <div className="expense-role-banner manager">
-        <Users size={18} />
-        <span>
-          Team view — managing {teamMembers.length} team member
-          {teamMembers.length === 1 ? "" : "s"}
-        </span>
-      </div>
+        <div className="expense-role-banner manager">
+          <Users size={18} />
+          <span>
+            Team view — managing {teamMembers.length} team member
+            {teamMembers.length === 1 ? "" : "s"}
+          </span>
+        </div>
       ) : null}
 
       <ExpenseSummaryCards
