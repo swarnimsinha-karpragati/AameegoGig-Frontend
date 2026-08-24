@@ -183,13 +183,17 @@ function LeaveInner() {
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
   const openModal = (config) => setModal({ open: true, ...config });
 
-  const canManageLeave = roleCanManageLeaveRequests(user?.role);
+  const canManageLeave =
+    roleCanManageLeaveRequests(user?.role) || dashboard?.scope === "team";
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
   const canConfigurePolicy = user?.role === "Admin" || user?.role === "HR";
 
   const summary = dashboard?.summary || {};
+  const selfSummary = dashboard?.selfSummary || summary;
+  const teamSummary = dashboard?.teamSummary || summary;
+  const orgSummary = dashboard?.orgSummary || summary;
   const upcoming = useMemo(
     () => dashboard?.upcoming || [],
     [dashboard?.upcoming]
@@ -198,37 +202,50 @@ function LeaveInner() {
 
   const teamMembers = useMemo(() => {
     if (!user?.employeeId) return employees;
+    const userEmpId =
+      typeof user?.employeeId === "object"
+        ? user?.employeeId?._id
+        : user?.employeeId;
     return employees.filter(
-      (emp) => String(emp._id) !== String(user.employeeId)
+      (emp) => String(emp._id) !== String(userEmpId)
     );
   }, [employees, user?.employeeId]);
 
   const matchesUser = useCallback(
     (item) => {
       const itemEmpId = item.employeeId?._id || item.employeeId;
+      const userEmpId =
+        typeof user?.employeeId === "object"
+          ? user?.employeeId?._id
+          : user?.employeeId;
+
       if (
-        user?.employeeId &&
+        userEmpId &&
         itemEmpId &&
-        String(itemEmpId) === String(user.employeeId)
+        String(itemEmpId) === String(userEmpId)
       ) {
         return true;
       }
       const empName = item.employeeId?.name?.toLowerCase?.();
-      return empName && empName === user?.name?.toLowerCase?.();
+      return Boolean(
+        empName && user?.name && empName === user?.name?.toLowerCase?.()
+      );
     },
     [user?.employeeId, user?.name]
   );
 
   const myRequests = useMemo(() => {
-    const filtered = requests.filter(matchesUser);
-    return filtered.length > 0 ? filtered : requests.slice(0, 3);
+    return requests.filter(matchesUser);
+  }, [requests, matchesUser]);
+
+  const teamRequests = useMemo(() => {
+    return requests.filter((item) => !matchesUser(item));
   }, [requests, matchesUser]);
 
   const myRecentRequests = useMemo(() => myRequests.slice(0, 6), [myRequests]);
 
   const myUpcoming = useMemo(() => {
-    const filtered = upcoming.filter(matchesUser);
-    return filtered.length > 0 ? filtered : upcoming.slice(0, 2);
+    return upcoming.filter(matchesUser);
   }, [upcoming, matchesUser]);
 
   const leaveTypeOptions = useMemo(() => {
@@ -683,7 +700,7 @@ function LeaveInner() {
         <table className="leave-table">
           <thead>
             <tr>
-              {mode === "all" ? <th>Employee</th> : null}
+              {mode === "all" || mode === "approve" ? <th>Employee</th> : null}
               <th>Type</th>
               <th>Date / Duration</th>
               <th>Reason</th>
@@ -694,7 +711,7 @@ function LeaveInner() {
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={mode === "all" ? 6 : 5} className="leave-empty">
+                <td colSpan={mode === "all" || mode === "approve" ? 6 : 5} className="leave-empty">
                   No requests found
                 </td>
               </tr>
@@ -703,7 +720,7 @@ function LeaveInner() {
               const empName = item.employeeId?.name || null;
               return (
                 <tr key={item._id}>
-                  {mode === "all" ? <td>{empName || "-"}</td> : null}
+                  {mode === "all" || mode === "approve" ? <td>{empName || "-"}</td> : null}
                   <td>{item.leaveType}</td>
                   <td>
                     {new Date(item.startDate).toLocaleDateString()} -{" "}
@@ -964,7 +981,7 @@ function LeaveInner() {
   );
   const renderOrganizationView = () => (
     <>
-      <LeaveSummaryCards summary={summary} />
+      <LeaveSummaryCards summary={orgSummary} />
       <div className="leave-layout-grid">
         {renderCreateRequestForm(employees, true)}
         {renderUpcomingList(upcoming)}
@@ -990,7 +1007,7 @@ function LeaveInner() {
         </Button>
       </div>
       <LeaveSummaryCards
-        summary={summary}
+        summary={orgSummary}
         labels={{
           wfh: "WFH Days (Org)",
           leave: "Leave Days (Org)",
@@ -1027,7 +1044,7 @@ function LeaveInner() {
         </div>
       ) : null}
       <LeaveSummaryCards
-        summary={summary}
+        summary={teamSummary}
         labels={{
           wfh: "Team WFH Days",
           leave: "Team Leave Days",
@@ -1047,14 +1064,14 @@ function LeaveInner() {
         })}
         {renderBalanceEditor(balances, true)}
       </div>
-      {renderAllRequestsTable(requests, "Team Requests")}
+      {renderAllRequestsTable(teamRequests, "Team Requests")}
     </>
   );
 
   const renderEmployeeView = () => (
     <>
       <LeaveSummaryCards
-        summary={summary}
+        summary={selfSummary}
         labels={{
           wfh: "My WFH Days",
           leave: "My Leave Days",
@@ -1063,6 +1080,42 @@ function LeaveInner() {
         }}
       />
       {renderMyLeaveSection()}
+      {dashboard?.scope === "team" ? (
+        <section className="leave-self-section" style={{ marginTop: "2.5rem" }}>
+          <h2 className="leave-section-heading">My Team's Leaves</h2>
+          {teamMembers.length > 0 ? (
+            <div className="leave-role-banner manager">
+              <Users size={18} />
+              <span>
+                Team view — managing {teamMembers.length} team member
+                {teamMembers.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          ) : null}
+          <LeaveSummaryCards
+            summary={teamSummary}
+            labels={{
+              wfh: "Team WFH Days",
+              leave: "Team Leave Days",
+              pending: "Team Pending",
+              balance: "Team Balance",
+            }}
+          />
+          <div className="leave-layout-grid">
+            {renderCreateRequestForm(employees, true)}
+            {renderUpcomingList(upcoming, "No upcoming team leave")}
+          </div>
+          <div className="leave-layout-grid">
+            {renderRequestsTable({
+              title: "Pending Approvals — My Team",
+              items: pendingApprovals,
+              mode: "approve",
+            })}
+            {renderBalanceEditor(balances, true)}
+          </div>
+          {renderAllRequestsTable(teamRequests, "Team Requests")}
+        </section>
+      ) : null}
     </>
   );
 
