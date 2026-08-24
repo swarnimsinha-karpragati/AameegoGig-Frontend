@@ -28,8 +28,8 @@ function UnProtectedRoute({ children }) {
   const user = getStoredUser();
   const vendorname = user?.vendorName?.trim()?.replace(/\s+/g, "-").toLowerCase() || "";
 
-  if (token && user) {
-    return <Navigate to={`${vendorname}/dashboard`} replace />;
+  if(token && user){
+     return <Navigate to={`/${vendorname}/dashboard`} replace />;
   }
 
   return children;
