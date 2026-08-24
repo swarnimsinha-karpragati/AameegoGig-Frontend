@@ -931,6 +931,7 @@ function Attendance() {
               <option>Absent</option>
               <option>Half Day</option>
               <option>Late</option>
+              <option>WFH</option>
             </select>
           </div>
         </div>
