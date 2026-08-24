@@ -37,6 +37,7 @@ import {
 import "./Leave.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
+import { useNavigate, useParams } from "react-router-dom";
 
 const ROLE_DESCRIPTIONS = {
   Organization: "Organization-wide leave overview and management",
@@ -124,6 +125,8 @@ function LeaveInner() {
     EL: { total: "", used: "" },
     CO: { total: "", used: "" },
   });
+  const { vendor: vendorName } = useParams();
+  const navigate = useNavigate();
 
   const [leaveForm, setLeaveForm] = useState({
     employeeId: "",
@@ -985,7 +988,7 @@ function LeaveInner() {
           type="button"
           icon={<ShieldCheck size={16} />}
           onClick={() =>
-            (window.location.href = "/settings#leave-policy-settings")
+            navigate(`/${vendorName}/settings#leave-policy-settings`)
           }
         >
           Leave Policy Settings

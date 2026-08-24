@@ -327,6 +327,23 @@ export default function LeavePolicyManager() {
     }
   };
 
+  useEffect(() => {
+    if (window.location.hash === "#leave-policy-settings") {
+      const timer = setTimeout(() => {
+        const element = document.getElementById("leave-policy-settings");
+
+        if (element) {
+          element.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   const openConfirm = (cfg) => setConfirm((c) => ({ ...c, ...cfg, open: true }));
   const closeConfirm = () => setConfirm((c) => ({ ...c, open: false, onConfirm: null }));
 
