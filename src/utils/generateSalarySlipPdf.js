@@ -51,6 +51,7 @@ export function generateSalarySlipPdf(data) {
     body: [
       ["Total Days", data.totalDays, "Days Worked", data.daysWorked],
       ["Paid Leave", data.paidLeave, "Loss of Pay", data.lop],
+      ["Week Offs", data.weekOffs || 0, "Holidays", data.holidays || 0],
     ],
     columnStyles: {
       0: { cellWidth: 55, fillColor: [241, 245, 249], fontStyle: "bold" },
@@ -82,6 +83,12 @@ export function generateSalarySlipPdf(data) {
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(9);
   doc.text(`Amount in Words: ${data.salaryInWords}`, 16, netY + 18);
+
+  if (data.monthlyCtc) {
+    doc.setFontSize(10);
+    doc.setTextColor(30, 107, 214);
+    doc.text(`Monthly CTC: Rs. ${data.monthlyCtc.toLocaleString()}`, 16, netY + 28);
+  }
 
   const signY = netY + 40;
   doc.line(15, signY, 80, signY);
@@ -144,6 +151,8 @@ export async function downloadPayrollPdf(record, { isAdminOrHR = false } = {}) {
     daysWorked: details.presentDays + details.halfDays * 0.5,
     paidLeave: details.paidLeaveDays,
     lop: details.lopDays,
+    weekOffs: details.weekOffDays,
+    holidays: details.holidays,
     earnings,
     deductions,
     grossSalary: details.grossSalary + (details.overtimePay || 0),
