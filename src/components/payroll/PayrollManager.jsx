@@ -6,6 +6,12 @@ import {
 import { getAvailableMonths, PAYROLL_YEARS, formatInr } from "../../utils/payrollConstants";
 import Button from "../Button";
 
+/** Local (browser-timezone) today as YYYY-MM-DD — avoids the UTC shift of toISOString(). */
+const todayLocalISO = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
 export default function PayrollManager({
   employees,
   payrolls,
@@ -100,8 +106,10 @@ export default function PayrollManager({
 
   const getPeriod = () => {
     if (payrollType === "daily" && payrollDate) {
-      const d = new Date(payrollDate);
-      return { month: d.getMonth() + 1, year: d.getFullYear() };
+      // Parse the YYYY-MM-DD string directly — new Date("2026-08-14") is UTC
+      // midnight and shifts the month on some timezones.
+      const [year, month] = payrollDate.split("-").map(Number);
+      return { month, year };
     }
     return { month: selectedMonth, year: selectedYear };
   };
@@ -226,7 +234,7 @@ export default function PayrollManager({
               type="button"
             >
               <Zap size={14} />
-              Daily
+              Daily Basis Salary
             </button>
           </div>
         </div>
@@ -260,14 +268,17 @@ export default function PayrollManager({
               </div>
             ) : (
               <div className="pm-calc-field">
-                <label className="pm-calc-label">Date</label>
+                <label className="pm-calc-label">Payroll Date</label>
                 <input
                   type="date"
                   value={payrollDate}
                   onChange={(e) => setPayrollDate(e.target.value)}
                   className="pm-calc-select"
-                  max={new Date().toISOString().split("T")[0]}
+                  max={todayLocalISO()}
                 />
+                <span className="pm-calc-hint">
+                  Attendance must already be marked for the selected date
+                </span>
               </div>
             )}
           </div>
@@ -508,9 +519,30 @@ function PayrollRow({
   const canAct = item.status !== "Processed" && item.approvalStatus !== "Approved";
   const isDaily = item.payrollType === "daily";
 
+  // Whole header toggles expand/collapse in BOTH sections; only native
+  // interactive elements (checkbox/buttons/links) are excluded.
+  const handleRowHeaderClick = (e) => {
+    if (e.target.closest("input, button, a, label")) return;
+    onToggleExpand();
+  };
+
+  const handleRowKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onToggleExpand();
+    }
+  };
+
   return (
     <div className={`pm-row ${isExpanded ? "pm-row--open" : ""}`}>
-      <div className="pm-row-top" onClick={onToggleExpand} role="button" tabIndex={0}>
+      <div
+        className="pm-row-top"
+        onClick={handleRowHeaderClick}
+        onKeyDown={handleRowKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+      >
         {showSelect && canAct && (
           <input
             type="checkbox"

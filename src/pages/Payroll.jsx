@@ -78,9 +78,9 @@ export default function Payroll() {
         setEmployees(empRes.data?.employees || []);
       }
 
-      const params = isAdminOrHR
-        ? { month: MONTH_NUMBER_TO_NAME[selectedMonth], year: selectedYear }
-        : undefined;
+      // Employees get the same period filter as admins; the backend scopes the
+      // result to the logged-in employee's own released records.
+      const params = { month: MONTH_NUMBER_TO_NAME[selectedMonth], year: selectedYear };
       const payrollRes = await getAllPayrollRecords(params);
       setPayrolls(payrollRes.data?.data || []);
       setNotLinkedToEmployee(Boolean(payrollRes.data?.notLinked));
@@ -495,11 +495,17 @@ export default function Payroll() {
           actionLoading={actionLoading}
           onConfirmSave={() => {
             if (!selectedRecord) return;
+            // Recalculate the record's own period, not the page-level filter.
+            const recordMonth =
+              MONTH_NAME_TO_NUMBER[selectedRecord.month] || selectedMonth;
+            const isDailyRecord =
+              (selectedRecord.payrollType || "monthly") === "daily";
             handleCalculateSingle({
               employeeId: selectedRecord.employeeId || selectedRecord.employeeCode,
-              month: selectedMonth,
-              year: selectedYear,
+              month: recordMonth,
+              year: selectedRecord.year || selectedYear,
               payrollType: selectedRecord.payrollType || "monthly",
+              payrollDate: isDailyRecord ? selectedRecord.payrollDate : undefined,
             });
           }}
           onAddAdjustment={handleAddAdjustment}

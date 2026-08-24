@@ -42,15 +42,13 @@ export default function PayslipsTab({
         </div>
         <div className="filter-actions-row">
           <div className="filter-actions-row-left">
-            {isAdminOrHR && (
-              <MonthYearFilter
-                compact
-                month={selectedMonth}
-                year={selectedYear}
-                onMonthChange={onMonthChange}
-                onYearChange={onYearChange}
-              />
-            )}
+            <MonthYearFilter
+              compact
+              month={selectedMonth}
+              year={selectedYear}
+              onMonthChange={onMonthChange}
+              onYearChange={onYearChange}
+            />
             <div className="pm-type-switch ">
               {["all", "monthly", "daily"].map((t) => (
                 <Button
@@ -102,7 +100,23 @@ export default function PayslipsTab({
           </thead>
           <tbody>
             {displayRecords.length > 0 ? (
-              displayRecords.map((item) => (
+              displayRecords.map((item) => {
+                const isProcessed = item.status === "Processed";
+                const isApproved = item.approvalStatus === "Approved";
+                const isRejected = item.approvalStatus === "Rejected";
+                const badgeClass = isProcessed || isApproved
+                  ? "processed"
+                  : isRejected
+                  ? "rejected"
+                  : "pending";
+                const statusLabel = isProcessed
+                  ? "Processed"
+                  : isApproved
+                  ? formatStatusLabel(item.approvalStatus)
+                  : isRejected
+                  ? formatStatusLabel(item.approvalStatus)
+                  : formatStatusLabel(item.status);
+                return (
                 <tr key={item._id}>
                   <td className="emp-code-cell">{item.employeeCode}</td>
                   <td className="emp-name-cell">{item.employeeName}</td>
@@ -117,9 +131,7 @@ export default function PayslipsTab({
                   <td className="amount-cell deduction-val">{formatInr(item.totalDeduction)}</td>
                   <td className="amount-cell net-salary-val">{formatInr(item.netSalary)}</td>
                   <td className="col-center">
-                    <span className={`badge-status ${item.status === "Processed" ? "processed" : "pending"}`}>
-                      {formatStatusLabel(item.status)}
-                    </span>
+                    <span className={`badge-status ${badgeClass}`}>{statusLabel}</span>
                   </td>
                   <td className="col-center">
                     <div className="row-action-buttons">
@@ -171,7 +183,8 @@ export default function PayslipsTab({
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             ) : (
               <tr>
                 <td colSpan="10" className="empty-table-cell">
