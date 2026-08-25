@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import LoginLayout, { LoginFormLogo } from "../auth/LoginLayout";
+import LoginLayout from "../auth/LoginLayout";
 import { sendOtp, updatePassword, verifyOtp } from "../services/authService";
 import "../auth/LoginScreen.css";
 import bgImage from "../assets/background.png";
@@ -101,13 +101,12 @@ function ForgotPassword() {
 
         {/* ================= RIGHT FORM CARD SIDE ================= */}
         <div className="form-section">
-          <a className="help-link" href="mailto:sales@karpragati.com">
+          <div className="help-link">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <img src={helpBtn} alt="" width="16" height="16" /> Help
+              <img src={helpBtn} alt="Help" width="16" height="16" /> Help
             </span>
-          </a>
+          </div>
           <div className="form-card">
-            <LoginFormLogo />
             <div className="form-header">
               <h2>Reset Password</h2>
               <p>Recover access to your account by verifying your identity.</p>

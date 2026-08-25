@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import './LoginScreen.css';
 
 import bgImage from '../assets/background.png';
-import LoginLayout, { LoginFormLogo } from './LoginLayout';
+import LoginLayout from './LoginLayout';
 import helpBtn from '../assets/help.svg';
 import { loginUser } from '../services/authService';
 
@@ -61,7 +61,7 @@ export default function LoginScreen() {
 
             localStorage.setItem('token', res.token);
             localStorage.setItem('user', JSON.stringify(res.user));
-            const formatName = res.user?.vendorName?.trim()?.replace(/\//g, "")?.replace(/\s+/g, "-").toLowerCase() || "";
+            const formatName = res.user.vendorName.trim().replace(/\s+/g, "-").toLowerCase();
             navigate(`/${formatName}/dashboard`);
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
@@ -82,20 +82,16 @@ export default function LoginScreen() {
 
                 {/* ================= RIGHT FORM CARD SIDE ================= */}
                 <div className="form-section">
-                    <a
-                        className="help-link"
-                        href="mailto:sales@karpragati.com"
-                    >
+                    <div className="help-link">
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <img src={helpBtn} alt="" width="16" height="16" /> Help
+                            <img src={helpBtn} alt="Help" width="16" height="16" /> Help
                         </span>
-                    </a>
+                    </div>
 
                     <div className="form-card">
-                        <LoginFormLogo />
                         <div className="form-header">
-                            <h2>Welcome to Workza</h2>
-                            <p>Sign in to access your organization's workspace.</p>
+                            <h2>Welcome to HRMS!</h2>
+                            <p>Sign in to access your organization's HRMS workspace.</p>
                         </div>
 
                         <form onSubmit={handleSubmit}>
@@ -197,10 +193,24 @@ export default function LoginScreen() {
                             </button>
                         </form>
 
-                        {/* <div className="form-divider"></div> */}
+                        <div className="form-divider"></div>
 
-                        <div className="login-home-link">
-                            <Link to="/">← Back to home</Link>
+                        {/* Action Buttons */}
+                        <div className="action-buttons-group">
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => navigate('/create-org')}
+                            >
+                                Create Organization
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => navigate('/join')}
+                            >
+                                Join Organization
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -208,9 +218,9 @@ export default function LoginScreen() {
             </div>
 
             {/* Footer Powered By text */}
-            {/* <footer className="footer-copyright">
+            <footer className="footer-copyright">
                 Powered by Kar Pragati Technologies Pvt. Ltd.
-            </footer> */}
+            </footer>
         </div>
     );
 }
