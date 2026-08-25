@@ -31,7 +31,7 @@ export const resolvePayrollLines = (record) => {
       { code: "PF_EE", name: "Provident Fund", amount: record.pfDeduction },
       { code: "ESIC_EE", name: "ESIC", amount: record.esicDeduction },
       { code: "PT", name: "Professional Tax", amount: record.professionalTax },
-      { code: "LOP", name: "Loss of Pay", amount: record.lopDeduction },
+      // { code: "LOP", name: "Loss of Pay", amount: record.lopDeduction },
       { code: "OTHER", name: "Other Deduction", amount: record.otherDeduction },
     ].filter((r) => r.amount > 0);
   }
