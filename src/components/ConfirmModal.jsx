@@ -22,6 +22,7 @@ import Button from "./Button";
  *  inputValue  – string
  *  onInputChange – (value: string) => void
  *  inputPlaceholder – string
+ *  confirmDisabled – boolean: disables confirm button
  */
 function ConfirmModal({
   open,
@@ -37,6 +38,7 @@ function ConfirmModal({
   inputValue,
   onInputChange,
   inputPlaceholder = "",
+  confirmDisabled = false,
 }) {
   const cancelRef = useRef(null);
 
@@ -129,9 +131,8 @@ function ConfirmModal({
           </Button>
           <Button
             type="button"
-            
             onClick={onConfirm}
-            disabled={loading}
+            disabled={loading || confirmDisabled}
           >
             {loading ? "Processing..." : confirmLabel}
           </Button>
