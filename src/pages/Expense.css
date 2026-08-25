@@ -2,6 +2,10 @@
    EXPENSE PAGE
 ========================= */
 
+.expense-required-star {
+  color: red;
+}
+
 .expense-page {
   flex: 1;
   padding: 20px 24px 28px;
@@ -166,7 +170,7 @@
   line-height: 1.45;
 }
 
-.expense-card > h3 {
+.expense-card>h3 {
   margin-bottom: 16px;
 }
 

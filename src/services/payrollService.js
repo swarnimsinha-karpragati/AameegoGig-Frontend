@@ -127,6 +127,22 @@ export const removePayrollAdjustment = async (payrollId, adjustmentId) => {
   return API.delete(`/payroll/${payrollId}/adjustments/${adjustmentId}`);
 };
 
+export const approvePayrollEntry = async (id, comment) => {
+  return API.post(`/payroll/${id}/approve`, { comment });
+};
+
+export const rejectPayrollEntry = async (id, comment) => {
+  return API.post(`/payroll/${id}/reject`, { comment });
+};
+
+export const deletePayrollEntry = async (id) => {
+  return API.delete(`/payroll/${id}`);
+};
+
+export const bulkApprovePayrolls = async (payrollIds, comment) => {
+  return API.post("/payroll/bulk-approve", { payrollIds, comment });
+};
+
 export const getPayrollSummary = async (params) => {
   return API.get("/payroll/reports/summary", { params });
 };

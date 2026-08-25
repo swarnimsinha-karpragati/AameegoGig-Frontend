@@ -11,6 +11,7 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
@@ -19,8 +20,10 @@ import {
   approveLeaveRequest,
   cancelLeaveRequest,
   createLeaveRequest,
+  createLeaveRequestMultipart,
   getLeaveBalances,
   getLeaveDashboard,
+  getLeavePolicy,
   getLeaveRequests,
   rejectLeaveRequest,
   updateLeaveBalances,
@@ -104,12 +107,15 @@ function LeaveSummaryCards({ summary, labels }) {
 =========================== */
 function LeaveInner() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const { vendor } = useParams();
   const user = getStoredUser();
   const viewRole = getLeaveViewKey(user?.role);
 
   const [dashboard, setDashboard] = useState(null);
   const [requests, setRequests] = useState([]);
   const [balances, setBalances] = useState([]);
+  const [leavePolicy, setLeavePolicy] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -131,6 +137,39 @@ function LeaveInner() {
     reason: "",
   });
 
+  const [medicalDocFile, setMedicalDocFile] = useState(null);
+
+  const countWeekdaysInclusiveClient = (startStr, endStr) => {
+    if (!startStr || !endStr) return null;
+    const start = new Date(`${startStr}T00:00:00`);
+    const end = new Date(`${endStr}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    if (end < start) return null;
+
+    let count = 0;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const day = d.getDay(); // 0=Sun, 6=Sat
+      if (day !== 0 && day !== 6) count += 1;
+    }
+    return count;
+  };
+
+  const slRequiredWhenDaysGt = useMemo(() => {
+    const sl = leavePolicy?.types?.find((t) => t?.code === "SL");
+    return sl?.documents?.requiredWhenDaysGt ?? null;
+  }, [leavePolicy]);
+
+  const computedLeaveDays = useMemo(
+    () => countWeekdaysInclusiveClient(leaveForm.startDate, leaveForm.endDate),
+    [leaveForm.startDate, leaveForm.endDate]
+  );
+
+  const isMedicalDocRequired =
+    leaveForm.leaveType === "SL" &&
+    slRequiredWhenDaysGt != null &&
+    computedLeaveDays != null &&
+    computedLeaveDays > slRequiredWhenDaysGt;
+
   /* ── Confirm modal ── */
   const [modal, setModal] = useState({
     open: false,
@@ -144,12 +183,17 @@ function LeaveInner() {
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
   const openModal = (config) => setModal({ open: true, ...config });
 
-  const canManageLeave = roleCanManageLeaveRequests(user?.role);
+  const canManageLeave =
+    roleCanManageLeaveRequests(user?.role) || dashboard?.scope === "team";
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
+  const canConfigurePolicy = user?.role === "Admin" || user?.role === "HR";
 
   const summary = dashboard?.summary || {};
+  const selfSummary = dashboard?.selfSummary || summary;
+  const teamSummary = dashboard?.teamSummary || summary;
+  const orgSummary = dashboard?.orgSummary || summary;
   const upcoming = useMemo(
     () => dashboard?.upcoming || [],
     [dashboard?.upcoming]
@@ -158,48 +202,97 @@ function LeaveInner() {
 
   const teamMembers = useMemo(() => {
     if (!user?.employeeId) return employees;
+    const userEmpId =
+      typeof user?.employeeId === "object"
+        ? user?.employeeId?._id
+        : user?.employeeId;
     return employees.filter(
-      (emp) => String(emp._id) !== String(user.employeeId)
+      (emp) => String(emp._id) !== String(userEmpId)
     );
   }, [employees, user?.employeeId]);
 
   const matchesUser = useCallback(
     (item) => {
       const itemEmpId = item.employeeId?._id || item.employeeId;
+      const userEmpId =
+        typeof user?.employeeId === "object"
+          ? user?.employeeId?._id
+          : user?.employeeId;
+
       if (
-        user?.employeeId &&
+        userEmpId &&
         itemEmpId &&
-        String(itemEmpId) === String(user.employeeId)
+        String(itemEmpId) === String(userEmpId)
       ) {
         return true;
       }
       const empName = item.employeeId?.name?.toLowerCase?.();
-      return empName && empName === user?.name?.toLowerCase?.();
+      return Boolean(
+        empName && user?.name && empName === user?.name?.toLowerCase?.()
+      );
     },
     [user?.employeeId, user?.name]
   );
 
   const myRequests = useMemo(() => {
-    const filtered = requests.filter(matchesUser);
-    return filtered.length > 0 ? filtered : requests.slice(0, 3);
+    return requests.filter(matchesUser);
+  }, [requests, matchesUser]);
+
+  const teamRequests = useMemo(() => {
+    return requests.filter((item) => !matchesUser(item));
   }, [requests, matchesUser]);
 
   const myRecentRequests = useMemo(() => myRequests.slice(0, 6), [myRequests]);
 
   const myUpcoming = useMemo(() => {
-    const filtered = upcoming.filter(matchesUser);
-    return filtered.length > 0 ? filtered : upcoming.slice(0, 2);
+    return upcoming.filter(matchesUser);
   }, [upcoming, matchesUser]);
+
+  const leaveTypeOptions = useMemo(() => {
+    const fallback = [
+      { code: "CL", label: "Casual Leave (CL)" },
+      { code: "SL", label: "Sick Leave (SL)" },
+      { code: "EL", label: "Earned Leave (EL)" },
+      { code: "CO", label: "Comp Off (CO)" },
+      { code: "LOP", label: "Loss of Pay (LOP)" },
+      { code: "LWP", label: "Leave Without Pay (LWP)" },
+      { code: "WFH", label: "WFH" },
+    ];
+
+    if (!leavePolicy?.types?.length) return fallback;
+    const enabled = leavePolicy.types.filter((t) => t?.enabled);
+    if (!enabled.length) return fallback;
+    return enabled.map((t) => ({
+      code: t.code,
+      label: t.name || t.code,
+    }));
+  }, [leavePolicy]);
+
+  const leaveBalanceTypes = useMemo(() => {
+    const enabled = leavePolicy?.types
+      ?.filter((t) => t?.enabled && t?.hasBalance)
+      ?.map((t) => t.code);
+    if (!enabled || enabled.length === 0) return ["CL", "SL", "EL", "CO"];
+    return enabled;
+  }, [leavePolicy]);
+
+  const dateValidationError = useMemo(() => {
+    if (!leaveForm.startDate || !leaveForm.endDate) return null;
+    if (computedLeaveDays == null) return "End date must be on or after start date";
+    return null;
+  }, [leaveForm.startDate, leaveForm.endDate, computedLeaveDays]);
 
   const loadData = async () => {
     setLoading(true);
     setError("");
     try {
-      const [dashResult, reqResult, balResult] = await Promise.allSettled([
-        getLeaveDashboard(),
-        getLeaveRequests(),
-        getLeaveBalances(),
-      ]);
+      const [dashResult, reqResult, balResult, policyResult] =
+        await Promise.allSettled([
+          getLeaveDashboard(),
+          getLeaveRequests(),
+          getLeaveBalances(),
+          getLeavePolicy(),
+        ]);
 
       if (dashResult.status === "rejected") {
         throw dashResult.reason;
@@ -210,6 +303,25 @@ function LeaveInner() {
 
       setDashboard(dashResult.value);
       setRequests(reqResult.value.requests || []);
+
+      if (policyResult.status === "fulfilled") {
+        const pol = policyResult.value.policy || policyResult.value;
+        setLeavePolicy(pol || null);
+
+        const enabledCodes = (pol?.types || [])
+          .filter((t) => t?.enabled)
+          .map((t) => t.code);
+
+        const desiredLeaveType = enabledCodes.includes("CL")
+          ? "CL"
+          : enabledCodes[0] || "CL";
+
+        setLeaveForm((prev) => ({
+          ...prev,
+          leaveType: desiredLeaveType,
+          requestType: desiredLeaveType === "WFH" ? "WFH" : "Leave",
+        }));
+      }
 
       if (balResult.status === "fulfilled") {
         const balRes = balResult.value;
@@ -273,20 +385,43 @@ function LeaveInner() {
   const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
     try {
+      if (isMedicalDocRequired && !medicalDocFile) {
+        toast.error(
+          `Medical document is required for SL when days exceed ${slRequiredWhenDaysGt}`
+        );
+        return;
+      }
+
       const payload = { ...leaveForm };
       if (forSelf || !canManageLeave || user?.role === "Employee") {
         delete payload.employeeId;
       }
-      await createLeaveRequest(payload);
+
+      if (payload.leaveType === "SL" && medicalDocFile) {
+        const formData = new FormData();
+        Object.entries(payload).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) formData.append(k, v);
+        });
+        formData.append("file", medicalDocFile);
+        await createLeaveRequestMultipart(formData);
+      } else {
+        await createLeaveRequest(payload);
+      }
+
       toast.success("Leave request submitted successfully");
       setLeaveForm((prev) => ({
         ...prev,
-        leaveType: "CL",
-        requestType: "Leave",
+        leaveType:
+          leavePolicy?.types?.some((t) => t?.enabled && t?.code === "CL") ? "CL" : (leavePolicy?.types || []).find((t) => t?.enabled)?.code || "CL",
+        requestType:
+          (leavePolicy?.types || []).find((t) => t?.enabled)?.code === "WFH"
+            ? "WFH"
+            : "Leave",
         startDate: "",
         endDate: "",
         reason: "",
       }));
+      setMedicalDocFile(null);
       loadData();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to submit request");
@@ -350,24 +485,19 @@ function LeaveInner() {
     e.preventDefault();
     if (!selectedBalanceEmployee) return;
     try {
-      await updateLeaveBalances(selectedBalanceEmployee, {
-        CL: {
-          total: Number(balanceForm.CL.total),
-          used: Number(balanceForm.CL.used),
-        },
-        SL: {
-          total: Number(balanceForm.SL.total),
-          used: Number(balanceForm.SL.used),
-        },
-        EL: {
-          total: Number(balanceForm.EL.total),
-          used: Number(balanceForm.EL.used),
-        },
-        CO: {
-          total: Number(balanceForm.CO.total),
-          used: Number(balanceForm.CO.used),
-        },
+      const payload = {};
+      // Backend currently understands legacy keys (CL/SL/EL/CO), but this
+      // UI now renders based on enabled policy balance types.
+      leaveBalanceTypes.forEach((code) => {
+        if (!["CL", "SL", "EL", "CO"].includes(code)) return;
+        if (!balanceForm?.[code]) return;
+        payload[code] = {
+          total: Number(balanceForm[code].total),
+          used: Number(balanceForm[code].used),
+        };
       });
+
+      await updateLeaveBalances(selectedBalanceEmployee, payload);
       toast.success("Leave balances updated");
       loadData();
     } catch (err) {
@@ -431,19 +561,52 @@ function LeaveInner() {
             id="leave-type"
             className="leave-control"
             value={leaveForm.leaveType}
-            onChange={(e) =>
-              setLeaveForm((p) => ({ ...p, leaveType: e.target.value }))
-            }
+            onChange={(e) => {
+              const next = e.target.value;
+              setLeaveForm((p) => ({
+                ...p,
+                leaveType: next,
+                requestType: next === "WFH" ? "WFH" : "Leave",
+              }));
+              if (next !== "SL") setMedicalDocFile(null);
+            }}
           >
-            <option value="CL">Casual Leave (CL)</option>
-            <option value="SL">Sick Leave (SL)</option>
-            <option value="EL">Earned Leave (EL)</option>
-            <option value="CO">Comp Off (CO)</option>
-            <option value="LOP">Loss of Pay (LOP)</option>
-            <option value="LWP">Leave Without Pay (LWP)</option>
-            <option value="WFH">WFH</option>
+            {leaveTypeOptions.map((opt) => (
+              <option value={opt.code} key={opt.code}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
+
+        {leaveForm.leaveType === "SL" ? (
+          <div className="leave-field">
+            <label htmlFor="leave-medical-doc">
+              Medical Doc (required for SL &gt; 1 day)
+            </label>
+            <input
+              id="leave-medical-doc"
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+              className="leave-control"
+              onChange={(e) => setMedicalDocFile(e.target.files?.[0] || null)}
+            />
+            {slRequiredWhenDaysGt != null ? (
+              <p className="leave-upload-hint">
+                Required only when your SL days &gt; {slRequiredWhenDaysGt}.{" "}
+                {computedLeaveDays != null ? (
+                  <>You selected: <strong>{computedLeaveDays} day(s)</strong>.</>
+                ) : null}
+              </p>
+            ) : null}
+            {medicalDocFile ? (
+              <p className="leave-upload-hint">
+                Selected: <strong>{medicalDocFile.name}</strong>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="leave-field">
           <label htmlFor="leave-start">Start Date</label>
           <input
@@ -483,8 +646,18 @@ function LeaveInner() {
             }
           />
         </div>
+        {dateValidationError ? (
+          <p className="leave-upload-hint" style={{ color: "#b42318" }}>
+            {dateValidationError}
+          </p>
+        ) : null}
         <div className="leave-form-actions">
-          <Button type="submit">Submit Request</Button>
+          <Button
+            type="submit"
+            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile)}
+          >
+            Submit Request
+          </Button>
         </div>
       </form>
     </section>
@@ -524,85 +697,85 @@ function LeaveInner() {
         <h3>{title}</h3>
       </header>
       <div className="leave-table-wrap">
-      <table className="leave-table">
-        <thead>
-          <tr>
-            {mode === "all" ? <th>Employee</th> : null}
-            <th>Type</th>
-            <th>Date / Duration</th>
-            <th>Reason</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 ? (
+        <table className="leave-table">
+          <thead>
             <tr>
-              <td colSpan={mode === "all" ? 6 : 5} className="leave-empty">
-                No requests found
-              </td>
+              {mode === "all" || mode === "approve" ? <th>Employee</th> : null}
+              <th>Type</th>
+              <th>Date / Duration</th>
+              <th>Reason</th>
+              <th>Status</th>
+              <th>Action</th>
             </tr>
-          ) : null}
-          {items.map((item) => {
-            const empName = item.employeeId?.name || null;
-            return (
-              <tr key={item._id}>
-                {mode === "all" ? <td>{empName || "-"}</td> : null}
-                <td>{item.leaveType}</td>
-                <td>
-                  {new Date(item.startDate).toLocaleDateString()} -{" "}
-                  {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
-                </td>
-                <td>{item.reason || "-"}</td>
-                <td>
-                  <span
-                    className={leaveStatusClass[item.status] || "leave-status"}
-                  >
-                    {item.status}
-                  </span>
-                </td>
-                <td>
-                  {mode === "approve" &&
-                  canApprove &&
-                  item.status === "Pending" ? (
-                    <div className="leave-actions">
-                      <Button
-                        type="button"
-                        className="approve-btn"
-                        icon={<Check size={14} />}
-                        aria-label="Approve"
-                        onClick={() =>
-                          handleDecision(item._id, "approve", empName)
-                        }
-                      />
-                      <Button
-                        type="button"
-                        className="reject-btn"
-                        icon={<X size={14} />}
-                        aria-label="Reject"
-                        onClick={() =>
-                          handleDecision(item._id, "reject", empName)
-                        }
-                      />
-                    </div>
-                  ) : mode === "employee" && item.status === "Pending" ? (
-                    <Button
-                      type="button"
-                      id="leave-cancel-btn"
-                      className="action-btn-delete"
-                      onClick={() => handleCancel(item._id)}
-                    >
-                      Cancel
-                    </Button>
-                  ) : (
-                    "-"
-                  )}
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={mode === "all" || mode === "approve" ? 6 : 5} className="leave-empty">
+                  No requests found
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ) : null}
+            {items.map((item) => {
+              const empName = item.employeeId?.name || null;
+              return (
+                <tr key={item._id}>
+                  {mode === "all" || mode === "approve" ? <td>{empName || "-"}</td> : null}
+                  <td>{item.leaveType}</td>
+                  <td>
+                    {new Date(item.startDate).toLocaleDateString()} -{" "}
+                    {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
+                  </td>
+                  <td>{item.reason || "-"}</td>
+                  <td>
+                    <span
+                      className={leaveStatusClass[item.status] || "leave-status"}
+                    >
+                      {item.status}
+                    </span>
+                  </td>
+                  <td>
+                    {mode === "approve" &&
+                      canApprove &&
+                      item.status === "Pending" ? (
+                      <div className="leave-actions">
+                        <Button
+                          type="button"
+                          className="approve-btn"
+                          icon={<Check size={14} />}
+                          aria-label="Approve"
+                          onClick={() =>
+                            handleDecision(item._id, "approve", empName)
+                          }
+                        />
+                        <Button
+                          type="button"
+                          className="reject-btn"
+                          icon={<X size={14} />}
+                          aria-label="Reject"
+                          onClick={() =>
+                            handleDecision(item._id, "reject", empName)
+                          }
+                        />
+                      </div>
+                    ) : mode === "employee" && item.status === "Pending" ? (
+                      <Button
+                        type="button"
+                        id="leave-cancel-btn"
+                        className="action-btn-delete"
+                        onClick={() => handleCancel(item._id)}
+                      >
+                        Cancel
+                      </Button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -659,43 +832,43 @@ function LeaveInner() {
             </select>
           </div>
           <div className="leave-balance-grid">
-          {["CL", "SL", "EL", "CO"].map((type) => (
-            <div key={type} className="balance-row">
-              <span className="balance-row__type">{type}</span>
-              <div className="leave-field balance-row__field">
-                <label htmlFor={`balance-${type}-total`}>Total</label>
-                <input
-                  id={`balance-${type}-total`}
-                  type="number"
-                  className="leave-control"
-                  placeholder="0"
-                  value={balanceForm[type]?.total ?? ""}
-                  onChange={(e) =>
-                    setBalanceForm((prev) => ({
-                      ...prev,
-                      [type]: { ...prev[type], total: e.target.value },
-                    }))
-                  }
-                />
+            {leaveBalanceTypes.map((type) => (
+              <div key={type} className="balance-row">
+                <span className="balance-row__type">{type}</span>
+                <div className="leave-field balance-row__field">
+                  <label htmlFor={`balance-${type}-total`}>Total</label>
+                  <input
+                    id={`balance-${type}-total`}
+                    type="number"
+                    className="leave-control"
+                    placeholder="0"
+                    value={balanceForm[type]?.total ?? ""}
+                    onChange={(e) =>
+                      setBalanceForm((prev) => ({
+                        ...prev,
+                        [type]: { ...prev[type], total: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+                <div className="leave-field balance-row__field">
+                  <label htmlFor={`balance-${type}-used`}>Used</label>
+                  <input
+                    id={`balance-${type}-used`}
+                    type="number"
+                    className="leave-control"
+                    placeholder="0"
+                    value={balanceForm[type]?.used ?? ""}
+                    onChange={(e) =>
+                      setBalanceForm((prev) => ({
+                        ...prev,
+                        [type]: { ...prev[type], used: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
               </div>
-              <div className="leave-field balance-row__field">
-                <label htmlFor={`balance-${type}-used`}>Used</label>
-                <input
-                  id={`balance-${type}-used`}
-                  type="number"
-                  className="leave-control"
-                  placeholder="0"
-                  value={balanceForm[type]?.used ?? ""}
-                  onChange={(e) =>
-                    setBalanceForm((prev) => ({
-                      ...prev,
-                      [type]: { ...prev[type], used: e.target.value },
-                    }))
-                  }
-                />
-              </div>
-            </div>
-          ))}
+            ))}
           </div>
           <div className="leave-form-actions">
             <Button type="submit">Save Balances</Button>
@@ -765,50 +938,50 @@ function LeaveInner() {
         <h3>{title}</h3>
       </header>
       <div className="leave-table-wrap">
-      <table className="leave-table">
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th>Type</th>
-            <th>Dates</th>
-            <th>Days</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {!loading && items.length === 0 ? (
+        <table className="leave-table">
+          <thead>
             <tr>
-              <td colSpan={5} className="leave-empty">
-                No requests found
-              </td>
+              <th>Employee</th>
+              <th>Type</th>
+              <th>Dates</th>
+              <th>Days</th>
+              <th>Status</th>
             </tr>
-          ) : null}
-          {items.map((item) => (
-            <tr key={item._id}>
-              <td>{item.employeeId?.name || "-"}</td>
-              <td>{item.leaveType}</td>
-              <td>
-                {new Date(item.startDate).toLocaleDateString()} -{" "}
-                {new Date(item.endDate).toLocaleDateString()}
-              </td>
-              <td>{item.days}</td>
-              <td>
-                <span
-                  className={leaveStatusClass[item.status] || "leave-status"}
-                >
-                  {item.status}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {!loading && items.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="leave-empty">
+                  No requests found
+                </td>
+              </tr>
+            ) : null}
+            {items.map((item) => (
+              <tr key={item._id}>
+                <td>{item.employeeId?.name || "-"}</td>
+                <td>{item.leaveType}</td>
+                <td>
+                  {new Date(item.startDate).toLocaleDateString()} -{" "}
+                  {new Date(item.endDate).toLocaleDateString()}
+                </td>
+                <td>{item.days}</td>
+                <td>
+                  <span
+                    className={leaveStatusClass[item.status] || "leave-status"}
+                  >
+                    {item.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
   const renderOrganizationView = () => (
     <>
-      <LeaveSummaryCards summary={summary} />
+      <LeaveSummaryCards summary={orgSummary} />
       <div className="leave-layout-grid">
         {renderCreateRequestForm(employees, true)}
         {renderUpcomingList(upcoming)}
@@ -829,15 +1002,12 @@ function LeaveInner() {
     <>
       {renderMyLeaveSection()}
       <div className="leave-hr-actions">
-        <Button type="button" icon={ <ShieldCheck size={16} />}>
-          Leave Policy Settings
-        </Button>
         <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
           Export Leave Report
         </Button>
       </div>
       <LeaveSummaryCards
-        summary={summary}
+        summary={orgSummary}
         labels={{
           wfh: "WFH Days (Org)",
           leave: "Leave Days (Org)",
@@ -874,7 +1044,7 @@ function LeaveInner() {
         </div>
       ) : null}
       <LeaveSummaryCards
-        summary={summary}
+        summary={teamSummary}
         labels={{
           wfh: "Team WFH Days",
           leave: "Team Leave Days",
@@ -894,14 +1064,14 @@ function LeaveInner() {
         })}
         {renderBalanceEditor(balances, true)}
       </div>
-      {renderAllRequestsTable(requests, "Team Requests")}
+      {renderAllRequestsTable(teamRequests, "Team Requests")}
     </>
   );
 
   const renderEmployeeView = () => (
     <>
       <LeaveSummaryCards
-        summary={summary}
+        summary={selfSummary}
         labels={{
           wfh: "My WFH Days",
           leave: "My Leave Days",
@@ -910,6 +1080,42 @@ function LeaveInner() {
         }}
       />
       {renderMyLeaveSection()}
+      {dashboard?.scope === "team" ? (
+        <section className="leave-self-section" style={{ marginTop: "2.5rem" }}>
+          <h2 className="leave-section-heading">My Team's Leaves</h2>
+          {teamMembers.length > 0 ? (
+            <div className="leave-role-banner manager">
+              <Users size={18} />
+              <span>
+                Team view — managing {teamMembers.length} team member
+                {teamMembers.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          ) : null}
+          <LeaveSummaryCards
+            summary={teamSummary}
+            labels={{
+              wfh: "Team WFH Days",
+              leave: "Team Leave Days",
+              pending: "Team Pending",
+              balance: "Team Balance",
+            }}
+          />
+          <div className="leave-layout-grid">
+            {renderCreateRequestForm(employees, true)}
+            {renderUpcomingList(upcoming, "No upcoming team leave")}
+          </div>
+          <div className="leave-layout-grid">
+            {renderRequestsTable({
+              title: "Pending Approvals — My Team",
+              items: pendingApprovals,
+              mode: "approve",
+            })}
+            {renderBalanceEditor(balances, true)}
+          </div>
+          {renderAllRequestsTable(teamRequests, "Team Requests")}
+        </section>
+      ) : null}
     </>
   );
 
@@ -928,6 +1134,16 @@ function LeaveInner() {
             <h1 className="leave-title">Leave</h1>
             <p className="leave-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
           </div>
+          {canConfigurePolicy ? (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<ShieldCheck size={16} />}
+              onClick={() => navigate(`/${vendor}/leave/policy`)}
+            >
+              Leave policy
+            </Button>
+          ) : null}
         </div>
 
         {error ? <p className="leave-alert leave-alert--error">{error}</p> : null}
@@ -945,6 +1161,7 @@ function LeaveInner() {
           onConfirm={modal.onConfirm}
           onCancel={closeModal}
         />
+
       </div>
     </MainLayout>
   );

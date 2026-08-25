@@ -3,10 +3,10 @@ import API from "./apiClient";
 /* =========================
    ORG COMPONENT LIBRARY
 ========================= */
-export const getSalaryComponents = async (includeInactive = false) => {
-  return API.get("/salary-components/components", {
-    params: { includeInactive },
-  });
+export const getSalaryComponents = async (includeInactive = false, componentType = null) => {
+  const params = { includeInactive };
+  if (componentType) params.componentType = componentType;
+  return API.get("/salary-components/components", { params });
 };
 
 export const createSalaryComponent = async (data) => {
@@ -65,4 +65,27 @@ export const getCtcPresets = async () => {
 
 export const suggestCtcSplit = async (annualCTC, preset = "india_standard") => {
   return API.post("/salary-components/ctc-split", { annualCTC, preset });
+};
+
+/* =========================
+   SALARY STRUCTURE TEMPLATES
+========================= */
+export const getStructure = async (vendorId) => {
+  return API.get(`/salary-components/structure/${vendorId}/salary-structure`);
+};
+
+export const createSalaryStructure = async (payload) => {
+  return API.post(`/salary-components/structure/${payload.vendorId}/salary-structure`, payload);
+};
+
+export const updateSalaryStructure = async (vendorId, structureId, payload) => {
+  return API.put(`/salary-components/structure/${vendorId}/salary-structure/${structureId}`, payload);
+};
+
+export const deleteSalaryStructure = async (vendorId, structureId) => {
+  return API.delete(`/salary-components/structure/${vendorId}/salary-structure/${structureId}`);
+};
+
+export const calculateStructureSplit = async (vendorId, payload) => {
+  return API.post(`/salary-components/structure/${vendorId}/calculate-split`, payload);
 };

@@ -1,50 +1,30 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  // bulkUploadPayrollEntries,
   previewPayroll,
   calculateSinglePayroll,
-  createPayrollRun,
-  calculatePayrollRun,
-  processPayrollRun,
+  calculateBulkPayroll,
   getAllPayrollRecords,
-  listPayrollRuns,
-  getPayrollRun,
-  approvePayrollRun,
-  rejectPayrollRun,
-  sendRunPayslips,
+  approvePayrollEntry,
+  deletePayrollEntry,
+  bulkApprovePayrolls,
   sendPayslipEmail,
   reopenPayroll,
   releasePayroll,
-  releaseAllPendingPayrolls,
-  getPayments,
-  updatePayment,
   addPayrollAdjustment,
   removePayrollAdjustment,
-  getPayrollSummary,
-  exportPayrollSummary,
 } from "../services/payrollService";
 import { getEmployees } from "../services/employeeService";
 import { getCurrentUser } from "../services/authService";
 import { getStoredUser } from "../utils/roles";
-import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER } from "../utils/payrollConstants";
+import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER, getAvailableMonths } from "../utils/payrollConstants";
 import { payrollHasBreakdown, enrichPayrollRecord } from "../utils/payrollRecord";
 import { downloadPayrollPdf } from "../utils/generateSalarySlipPdf";
-import UpdatePayrollModal from "../components/UpdatePayrollModal";
-import PayrollBreakdownDrawer from "../components/PayrollBreakdownDrawer";
-import PayrollHeader from "../components/payroll/PayrollHeader";
-import PayrollStatusBanner from "../components/payroll/PayrollStatusBanner";
+import PayrollManager from "../components/payroll/PayrollManager";
+import PayslipsTab from "../components/payroll/PayslipsTab";
 import PayrollTabs from "../components/payroll/PayrollTabs";
-import PayrollStatsGrid from "../components/payroll/PayrollStatsGrid";
-import PayrollProcessorTab from "../components/payroll/PayrollProcessorTab";
-import PayrollReviewTab from "../components/payroll/PayrollReviewTab";
-import PayrollSlipsTab from "../components/payroll/PayrollSlipsTab";
-import PayrollSummaryTab from "../components/payroll/PayrollSummaryTab";
-import PayrollAnalyticsTab from "../components/payroll/PayrollAnalyticsTab";
-import PayrollApprovalModal from "../components/payroll/PayrollApprovalModal";
-// import PayrollUploadModal from "../components/payroll/PayrollUploadModal";
-import PayrollRunStatusBanner from "../components/payroll/PayrollRunStatusBanner";
-import { getPayrollRunSummary } from "../utils/payrollRunMessages";
+import PayrollBreakdownDrawer from "../components/PayrollBreakdownDrawer";
+import PayrollStatusBanner from "../components/payroll/PayrollStatusBanner";
 import "./Payroll.css";
 import MainLayout from "../layouts/MainLayout";
 
@@ -54,90 +34,64 @@ export default function Payroll() {
   const [searchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
 
-  const [activeTab, setActiveTab] = useState(tabFromUrl || (isAdminOrHR ? "ops" : "my_slips"));
+  const [activeTab, setActiveTab] = useState(tabFromUrl || (isAdminOrHR ? "payroll" : "payslips"));
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedEmp, setSelectedEmp] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const [employees, setEmployees] = useState([]);
-  const [payrollHistory, setPayrollHistory] = useState([]);
+  const [payrolls, setPayrolls] = useState([]);
+  const [reviewPayrolls, setReviewPayrolls] = useState([]);
   const [notLinkedToEmployee, setNotLinkedToEmployee] = useState(false);
-  const [paymentHistory, setPaymentHistory] = useState([]);
-  const [activeRun, setActiveRun] = useState(null);
-  const [runPayrolls, setRunPayrolls] = useState([]);
-
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [approvalAction, setApprovalAction] = useState("approve");
-  const [approvalComment, setApprovalComment] = useState("");
-  const [payrollSummary, setPayrollSummary] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-
-  const [editingPayment, setEditingPayment] = useState(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
 
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showDetailsPopup, setShowDetailsPopup] = useState(false);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
+  const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
 
-  // Upload payments sheet — temporarily disabled
-  // const [showUploadPopup, setShowUploadPopup] = useState(false);
-  // const [uploadFile, setUploadFile] = useState(null);
-  // const [uploadMessage, setUploadMessage] = useState("");
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: "", message: "", onConfirm: null });
+  const [deleteModal, setDeleteModal] = useState({ open: false, payrollId: null });
+
+  const handleYearChange = (newYear) => {
+    setSelectedYear(newYear);
+    const available = getAvailableMonths(newYear);
+    setSelectedMonth((prev) => {
+      const maxMonth = available[available.length - 1]?.value || 12;
+      return prev > maxMonth ? maxMonth : prev;
+    });
+  };
 
   const closeDetailsPopup = () => {
     setShowDetailsPopup(false);
     setBreakdownLoading(false);
   };
 
-  const loadInitialData = async () => {
+  const loadData = async (clearMessage = true) => {
     if (!user) return;
-    setStatusMessage({ type: "", text: "" });
+    if (clearMessage) setStatusMessage({ type: "", text: "" });
 
     try {
       if (isAdminOrHR) {
         const empRes = await getEmployees();
         setEmployees(empRes.data?.employees || []);
+      }
 
-        const params = { month: MONTH_NUMBER_TO_NAME[selectedMonth], year: selectedYear };
-        const payrollRes = await getAllPayrollRecords(params);
-        setPayrollHistory(payrollRes.data?.data || []);
+      // Employees get the same period filter as admins; the backend scopes the
+      // result to the logged-in employee's own released records.
+      const params = { month: MONTH_NUMBER_TO_NAME[selectedMonth], year: selectedYear };
+      const payrollRes = await getAllPayrollRecords(params);
+      setPayrolls(payrollRes.data?.data || []);
+      setNotLinkedToEmployee(Boolean(payrollRes.data?.notLinked));
 
-        const paymentsRes = await getPayments(params);
-        setPaymentHistory(paymentsRes.data?.data || []);
-
-        const runsRes = await listPayrollRuns({ year: selectedYear });
-        const matchingRun = (runsRes.data?.data || []).find(
-          (r) => r.month === MONTH_NUMBER_TO_NAME[selectedMonth] && r.year === selectedYear
-        );
-        if (matchingRun) {
-          const runDetail = await getPayrollRun(matchingRun._id);
-          setActiveRun(runDetail.data?.data?.run || matchingRun);
-          setRunPayrolls(runDetail.data?.data?.payrolls || []);
-        } else {
-          setActiveRun(null);
-          setRunPayrolls([]);
-        }
-
-        try {
-          setSummaryLoading(true);
-          const summaryRes = await getPayrollSummary({ month: selectedMonth, year: selectedYear });
-          setPayrollSummary(summaryRes.data?.data || null);
-        } catch {
-          setPayrollSummary(null);
-        } finally {
-          setSummaryLoading(false);
-        }
-      } else {
-        const payrollRes = await getAllPayrollRecords();
-        setPayrollHistory(payrollRes.data?.data || []);
-        setNotLinkedToEmployee(Boolean(payrollRes.data?.notLinked));
+      if (isAdminOrHR) {
+        const reviewRes = await getAllPayrollRecords();
+        setReviewPayrolls(reviewRes.data?.data || []);
       }
     } catch (error) {
-      console.error("Error loading payroll dashboard data:", error);
-      setStatusMessage({ type: "error", text: "Failed to initialize payroll data dashboard. Please refresh." });
+      console.error("Error loading payroll data:", error);
+      setStatusMessage({ type: "error", text: "Failed to load payroll data. Please refresh." });
     }
   };
 
@@ -151,7 +105,7 @@ export default function Payroll() {
           // keep stored user
         }
       }
-      loadInitialData();
+      loadData();
     };
     bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,41 +115,42 @@ export default function Payroll() {
     if (tabFromUrl && isAdminOrHR) setActiveTab(tabFromUrl);
   }, [tabFromUrl, isAdminOrHR]);
 
-  const handlePreview = async () => {
-    if (!selectedEmp) {
-      setStatusMessage({ type: "error", text: "Please select an employee to preview." });
-      return;
-    }
-    const { code } = JSON.parse(selectedEmp);
-    const emp = employees.find((e) => e.employeeCode === code);
-    setSelectedRecord(
-      enrichPayrollRecord(
-        {
-          employeeCode: code,
-          employeeName: emp?.name || code,
-          month: MONTH_NUMBER_TO_NAME[selectedMonth],
-          year: selectedYear,
-        },
-        employees
-      )
-    );
-    setShowDetailsPopup(true);
-    setBreakdownLoading(true);
+  const handlePreview = async (params) => {
     setActionLoading(true);
     setStatusMessage({ type: "", text: "" });
-
     try {
-      const monthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
-      const res = await previewPayroll({ employeeId: code, month: monthStr });
+      const emp = employees.find((e) => e.employeeCode === params.employeeId);
+      setSelectedRecord(
+        enrichPayrollRecord(
+          {
+            employeeCode: params.employeeId,
+            employeeName: emp?.name || params.employeeId,
+            month: MONTH_NUMBER_TO_NAME[selectedMonth],
+            year: selectedYear,
+          },
+          employees
+        )
+      );
+      setShowDetailsPopup(true);
+      setBreakdownLoading(true);
+
+      const monthStr = `${params.year}-${String(params.month).padStart(2, "0")}`;
+      const res = await previewPayroll({
+        employeeId: params.employeeId,
+        month: monthStr,
+        payrollType: params.payrollType,
+        payrollDate: params.payrollDate,
+      });
       if (res.data?.success) {
         setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
+      } else {
+        throw new Error(res.data?.message || "Failed to generate preview");
       }
-      else throw new Error(res.data?.message || "Failed to generate preview");
     } catch (error) {
       closeDetailsPopup();
       setStatusMessage({
         type: "error",
-        text: error.response?.data?.message || error.message || "Failed to preview payroll calculation.",
+        text: error.response?.data?.message || error.message || "Failed to preview payroll.",
       });
     } finally {
       setBreakdownLoading(false);
@@ -203,99 +158,123 @@ export default function Payroll() {
     }
   };
 
-  const handleCalculateSingle = async () => {
-    if (!selectedRecord) return;
+  const handleCalculateSingle = async (params) => {
     setActionLoading(true);
     setStatusMessage({ type: "", text: "" });
     try {
-      const res = await calculateSinglePayroll({
-        employeeId: selectedRecord.employeeId,
-        month: selectedMonth,
-        year: selectedYear,
-      });
+      const res = await calculateSinglePayroll(params);
       if (res.data?.success) {
-        const releasedNote = runIsFinalized
-          ? " Payslip released to the employee."
-          : " Review and process the monthly run to release payslips.";
         setStatusMessage({
           type: "success",
-          text: `Payroll recalculated for ${selectedRecord.employeeName}.${releasedNote}`,
+          text: `Payroll calculated for ${params.employeeId}. Review and approve.`,
         });
-        if (res.data?.data) {
-          setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
+        loadData();
+      } else {
+        throw new Error(res.data?.message || "Calculation failed");
+      }
+    } catch (error) {
+      setStatusMessage({
+        type: "error",
+        text: error.response?.data?.message || error.message || "Failed to calculate payroll.",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBulkCalculate = async (params) => {
+    const empCount = params.employeeIds ? params.employeeIds.length : "all";
+    setConfirmModal({
+      open: true,
+      title: "Bulk Calculate",
+      message: `Calculate payroll for ${empCount} employees? This will overwrite any existing calculations for this period.`,
+      onConfirm: async () => {
+        setConfirmModal({ open: false, title: "", message: "", onConfirm: null });
+        setActionLoading(true);
+        setStatusMessage({ type: "", text: "" });
+        try {
+          const res = await calculateBulkPayroll({
+            month: params.month,
+            year: params.year,
+            employeeIds: params.employeeIds,
+            payrollType: params.payrollType,
+            payrollDate: params.payrollDate,
+          });
+          const data = res.data?.data;
+          const skippedCount = data?.skipped?.length || 0;
+          const skipNote = skippedCount > 0 ? `, ${skippedCount} skipped` : "";
+          setStatusMessage({
+            type: "success",
+            text: res.data?.message || `Payroll calculated: ${data?.success?.length || 0} succeeded, ${data?.failed?.length || 0} failed${skipNote}.`,
+          });
+          loadData(false);
+        } catch (error) {
+          setStatusMessage({
+            type: "error",
+            text: error.response?.data?.message || error.message || "Failed to run bulk calculation.",
+          });
+        } finally {
+          setActionLoading(false);
         }
-        loadInitialData();
-      } else throw new Error(res.data?.message || "Calculation failed");
-    } catch (error) {
-      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message || "Failed to compute single payroll." });
-    } finally {
-      setActionLoading(false);
-    }
+      },
+    });
   };
 
-  const runBulkCalculation = async (switchToReview = true) => {
-    if (runIsFinalized) {
-      setStatusMessage({
-        type: "info",
-        text: `${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear} is already finalized. Select one employee in Payroll Processor → Preview → Calculate, or release pending payslips from Payslips Database.`,
-      });
-      return;
-    }
-    if (!window.confirm(`Create payroll run and calculate for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear}?`)) return;
+  const handleApproveSingle = async (payrollId) => {
     setActionLoading(true);
-    setStatusMessage({ type: "", text: "" });
     try {
-      const createRes = await createPayrollRun({ month: selectedMonth, year: selectedYear });
-      const calcRes = await calculatePayrollRun(createRes.data?.data?._id);
-      setActiveRun(calcRes.data?.data?.run);
-      setRunPayrolls(calcRes.data?.data?.results?.success || []);
-      setStatusMessage({
-        type: "success",
-        text: switchToReview ? "Bulk payroll calculated. Review and approve in the Payroll Review tab." : "Payroll run calculated. Review exceptions before approving.",
-      });
-      if (switchToReview) setActiveTab("review");
-      loadInitialData();
+      await approvePayrollEntry(payrollId);
+      setStatusMessage({ type: "success", text: "Payroll approved." });
+      loadData();
     } catch (error) {
-      const errText = error.response?.data?.message || error.message || "Failed to run bulk payroll calculation.";
-      const isFinalizedError = /already finalized|already processed/i.test(errText);
-      setStatusMessage({
-        type: isFinalizedError ? "info" : "error",
-        text: errText,
-      });
+      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Upload payments sheet — temporarily disabled
-  // const handleBulkUpload = async () => {
-  //   if (!uploadFile) {
-  //     alert("Please select an Excel file");
-  //     return;
-  //   }
-  //   setUploadMessage("");
-  //   try {
-  //     setLoading(true);
-  //     const res = await bulkUploadPayrollEntries(uploadFile, MONTH_NUMBER_TO_NAME[selectedMonth], selectedYear);
-  //     setPaymentHistory(res.data.data || []);
-  //     const errorList = res.data.errors || [];
-  //     let message = `Upload Complete: ${res.data.inserted} inserted, ${res.data.skipped} skipped`;
-  //     if (errorList.length > 0) message += "\n\nErrors:\n" + errorList.join("\n");
-  //     setUploadMessage(message);
-  //     setUploadFile(null);
-  //   } catch (error) {
-  //     setUploadMessage(error.response?.data?.message || "Bulk upload failed");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+  const handleDeleteSingle = async (payrollId) => {
+    setDeleteModal({ open: true, payrollId });
+  };
 
-  const handleDownloadPDF = async (record) => {
+  const handleDeleteConfirm = async () => {
+    const { payrollId } = deleteModal;
+    setDeleteModal({ open: false, payrollId: null });
+    setActionLoading(true);
     try {
-      await downloadPayrollPdf(record, { isAdminOrHR });
-    } catch (err) {
-      alert("Failed to compile PDF report: " + (err.response?.data?.message || err.message));
+      await deletePayrollEntry(payrollId);
+      setStatusMessage({ type: "success", text: "Payroll deleted." });
+      loadData();
+    } catch (error) {
+      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
+    } finally {
+      setActionLoading(false);
     }
+  };
+
+  const handleBulkApprove = async (payrollIds, comment) => {
+    setConfirmModal({
+      open: true,
+      title: "Bulk Approve",
+      message: `Approve ${payrollIds.length} payroll record(s)? This action cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal({ open: false, title: "", message: "", onConfirm: null });
+        setActionLoading(true);
+        try {
+          const res = await bulkApprovePayrolls(payrollIds, comment);
+          const data = res.data?.data;
+          setStatusMessage({
+            type: "success",
+            text: `Bulk approve: ${data?.approved || 0} approved, ${data?.failed || 0} failed.`,
+          });
+          loadData();
+        } catch (error) {
+          setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const handleViewBreakdown = async (record) => {
@@ -315,6 +294,7 @@ export default function Payroll() {
             ...previewRes.data.data,
             _id: record._id,
             status: record.status,
+            approvalStatus: record.approvalStatus,
             oneOffAdjustments: record.oneOffAdjustments || [],
             payrollCode: record.payrollCode,
           },
@@ -322,147 +302,20 @@ export default function Payroll() {
         )
       );
     } catch (err) {
-      setStatusMessage({ type: "error", text: err.response?.data?.message || err.message || "Failed to load slip breakdown." });
+      setStatusMessage({ type: "error", text: err.response?.data?.message || err.message || "Failed to load breakdown." });
     } finally {
       setBreakdownLoading(false);
     }
   };
 
-  const handleAddAdjustment = async (payload) => {
-    if (!selectedRecord?._id) throw new Error("Save payroll before adding adjustments");
-    setActionLoading(true);
+  const handleDownloadPDF = async (record) => {
+    setDownloadingId(record._id);
     try {
-      const res = await addPayrollAdjustment(selectedRecord._id, payload);
-      if (res.data?.data) setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
-      loadInitialData();
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleRemoveAdjustment = async (adjId) => {
-    if (!selectedRecord?._id) return;
-    if (!window.confirm("Remove this one-off adjustment and recalculate?")) return;
-    setActionLoading(true);
-    try {
-      const res = await removePayrollAdjustment(selectedRecord._id, adjId);
-      if (res.data?.data) setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
-      loadInitialData();
+      await downloadPayrollPdf(record, { isAdminOrHR });
     } catch (err) {
-      alert(err.response?.data?.message || err.message);
+      setStatusMessage({ type: "error", text: "Failed to compile PDF: " + (err.response?.data?.message || err.message) });
     } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDownloadCSV = () => {
-    const headers = ["REF NO", "BENEFICIARY NAME", "AMOUNT", "ACCOUNT NUMBER", "IFSC", "PAYMENT DATE", "YEAR", "STATUS"];
-    const rows = paymentHistory.map((item) => [
-      item.refNo || "", item.beneficiaryName || "", item.amount || "",
-      item.beneficiaryAccountNo || "", item.ifsc || "", item.paymentDate || "",
-      item.payrollYear || "", item.status || "",
-    ]);
-    const blob = new Blob([[headers.join(","), ...rows.map((r) => r.join(","))].join("\n")], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Payment_History_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-  };
-
-  const filteredHistory = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return payrollHistory;
-    return payrollHistory.filter(
-      (item) =>
-        (item.employeeName || "").toLowerCase().includes(query) ||
-        (item.employeeCode || "").toLowerCase().includes(query) ||
-        (item.payrollCode || "").toLowerCase().includes(query)
-    );
-  }, [payrollHistory, searchQuery]);
-
-  const metrics = useMemo(() => {
-    let totalPayroll = 0, earnings = 0, deductions = 0;
-    filteredHistory.forEach((item) => {
-      totalPayroll += item.netSalary || 0;
-      earnings += item.totalEarnings || 0;
-      deductions += item.totalDeduction || 0;
-    });
-    return { totalPayroll, earnings, deductions, processed: filteredHistory.length };
-  }, [filteredHistory]);
-
-  const chartData = useMemo(() => {
-    const mapItem = (item) => ({
-      name: item.employeeName || item.employeeCode || `${item.month} ${item.year}`,
-      earnings: item.totalEarnings,
-      deductions: item.totalDeduction,
-      netPay: item.netSalary,
-    });
-    if (isAdminOrHR) return filteredHistory.map(mapItem);
-    return filteredHistory.map(mapItem).reverse();
-  }, [filteredHistory, isAdminOrHR]);
-
-  const reviewPayrolls = useMemo(
-    () => (runPayrolls.length > 0 ? runPayrolls : filteredHistory),
-    [runPayrolls, filteredHistory]
-  );
-
-  const runSummary = useMemo(
-    () => getPayrollRunSummary(activeRun, reviewPayrolls),
-    [activeRun, reviewPayrolls]
-  );
-
-  const runIsFinalized = runSummary.runIsFinalized;
-
-  const showTopStats = isAdminOrHR
-    ? ["ops", "slips"].includes(activeTab)
-    : activeTab === "my_slips";
-
-  const handleApprovalSubmit = async () => {
-    if (!activeRun) return;
-    setActionLoading(true);
-    try {
-      if (approvalAction === "approve") await approvePayrollRun(activeRun._id, approvalComment);
-      else await rejectPayrollRun(activeRun._id, approvalComment);
-      setStatusMessage({ type: "success", text: approvalAction === "approve" ? "Payroll run approved." : "Payroll run rejected." });
-      setShowApprovalModal(false);
-      setApprovalComment("");
-      loadInitialData();
-    } catch (error) {
-      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleProcessRun = async () => {
-    if (!activeRun || !window.confirm("Generate payslip PDFs and mark this payroll run as processed?")) return;
-    setActionLoading(true);
-    try {
-      const res = await processPayrollRun(activeRun._id);
-      setActiveRun(res.data?.data?.run || res.data?.data);
-      setStatusMessage({ type: "success", text: `Payroll processed. ${res.data?.data?.payslips?.generated || 0} payslip(s) generated.` });
-      loadInitialData();
-    } catch (error) {
-      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleEmailPayslips = async () => {
-    if (!activeRun || !window.confirm("Email payslips to all employees with processed payroll?")) return;
-    setActionLoading(true);
-    try {
-      const res = await sendRunPayslips(activeRun._id);
-      setStatusMessage({
-        type: "success",
-        text: `Emails sent: ${res.data?.data?.sent || 0}, skipped: ${res.data?.data?.skipped || 0}, failed: ${res.data?.data?.failed || 0}`,
-      });
-      loadInitialData();
-    } catch (error) {
-      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
-    } finally {
-      setActionLoading(false);
+      setDownloadingId(null);
     }
   };
 
@@ -472,36 +325,34 @@ export default function Payroll() {
     try {
       await sendPayslipEmail(record._id);
       setStatusMessage({ type: "success", text: `Payslip emailed to ${record.employeeName}.` });
-      loadInitialData();
+      loadData();
     } catch (error) {
-      alert(error.response?.data?.message || error.message);
+      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleReopenPayroll = async (record) => {
-    if (
-      !record?._id ||
-      !window.confirm(
-        `Reopen payslip for ${record.employeeName}?\n\nThis unlocks the slip for correction. The monthly run stays finalized. After fixing, recalculate this employee in Payroll Processor, then release the payslip.`
-      )
-    ) {
-      return;
-    }
-    setActionLoading(true);
-    try {
-      const res = await reopenPayroll(record._id);
-      setStatusMessage({
-        type: "success",
-        text: res.data?.message || `Payslip reopened for ${record.employeeName}.`,
-      });
-      loadInitialData();
-    } catch (error) {
-      alert(error.response?.data?.message || error.message);
-    } finally {
-      setActionLoading(false);
-    }
+    if (!record?._id) return;
+    setConfirmModal({
+      open: true,
+      title: "Reopen Payroll",
+      message: `Reopen payslip for ${record.employeeName}? This will reset the approval status.`,
+      onConfirm: async () => {
+        setConfirmModal({ open: false, title: "", message: "", onConfirm: null });
+        setActionLoading(true);
+        try {
+          const res = await reopenPayroll(record._id);
+          setStatusMessage({ type: "success", text: res.data?.message || `Payslip reopened for ${record.employeeName}.` });
+          loadData();
+        } catch (error) {
+          setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const handleReleasePayroll = async (record) => {
@@ -509,83 +360,82 @@ export default function Payroll() {
     setActionLoading(true);
     try {
       const res = await releasePayroll(record._id);
-      setStatusMessage({
-        type: "success",
-        text: res.data?.message || `Payslip released for ${record.employeeName}.`,
-      });
-      loadInitialData();
+      setStatusMessage({ type: "success", text: res.data?.message || `Payslip released for ${record.employeeName}.` });
+      loadData();
     } catch (error) {
-      alert(error.response?.data?.message || error.message);
+      setStatusMessage({ type: "error", text: error.response?.data?.message || error.message });
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleReleaseAllPending = async () => {
-    if (!activeRun?._id) return;
-    if (
-      !window.confirm(
-        `Release all ${runSummary.pendingSlips} pending payslip(s) for ${activeRun.month} ${activeRun.year}? Employees will be able to view them.`
-      )
-    ) {
-      return;
-    }
+  const handleAddAdjustment = async (payload) => {
+    if (!selectedRecord?._id) throw new Error("Save payroll before adding adjustments");
     setActionLoading(true);
     try {
-      const res = await releaseAllPendingPayrolls(activeRun._id);
-      setStatusMessage({
-        type: "success",
-        text: res.data?.message || "Pending payslips released.",
-      });
-      loadInitialData();
-    } catch (error) {
-      alert(error.response?.data?.message || error.message);
+      const res = await addPayrollAdjustment(selectedRecord._id, payload);
+      if (res.data?.data) setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
+      loadData();
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleExportSummary = async () => {
-    try {
-      const res = await exportPayrollSummary({ month: selectedMonth, year: selectedYear });
-      const url = window.URL.createObjectURL(new Blob([res.data], { type: "text/csv" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `payroll-summary-${MONTH_NUMBER_TO_NAME[selectedMonth]}-${selectedYear}.csv`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      alert(error.response?.data?.message || "Failed to export summary");
-    }
+  const handleRemoveAdjustment = async (adjId) => {
+    if (!selectedRecord?._id) return;
+    setConfirmModal({
+      open: true,
+      title: "Remove Adjustment",
+      message: "Remove this adjustment?",
+      onConfirm: async () => {
+        setConfirmModal({ open: false, title: "", message: "", onConfirm: null });
+        setActionLoading(true);
+        try {
+          const res = await removePayrollAdjustment(selectedRecord._id, adjId);
+          if (res.data?.data) setSelectedRecord(enrichPayrollRecord(res.data.data, employees));
+          loadData();
+        } catch (err) {
+          setStatusMessage({ type: "error", text: err.response?.data?.message || err.message });
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
-  const handleSavePayment = async (payment) => {
-    try {
-      await updatePayment(payment._id, {
-        refNo: payment.refNo,
-        beneficiaryName: payment.beneficiaryName,
-        beneficiaryAccountNo: payment.accountNo || payment.beneficiaryAccountNo,
-        ifsc: payment.ifsc,
-        amount: payment.amount,
-        status: payment.status,
-        remark: payment.comment,
-      });
-      loadInitialData();
-    } catch (error) {
-      alert(error.response?.data?.message || "Failed to update payment");
-    }
-  };
+  const filteredHistory = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return payrolls;
+    return payrolls.filter(
+      (item) =>
+        (item.employeeName || "").toLowerCase().includes(query) ||
+        (item.employeeCode || "").toLowerCase().includes(query)
+    );
+  }, [payrolls, searchQuery]);
+
+  // const metrics = useMemo(() => {
+  //   let totalPayroll = 0, earnings = 0, deductions = 0;
+  //   filteredHistory.forEach((item) => {
+  //     totalPayroll += item.netSalary || 0;
+  //     earnings += item.totalEarnings || 0;
+  //     deductions += item.totalDeduction || 0;
+  //   });
+  //   return { totalPayroll, earnings, deductions, processed: filteredHistory.length };
+  // }, [filteredHistory]);
 
   return (
     <MainLayout>
       <main className="payroll-page">
-        <PayrollHeader
-          isAdminOrHR={isAdminOrHR}
-          actionLoading={actionLoading}
-          runIsFinalized={runIsFinalized}
-          // onUploadClick={() => setShowUploadPopup(true)}
-          onBulkProcess={() => runBulkCalculation(true)}
-        />
+        <div className="payroll-header-banner">
+          <div>
+            <h1 className="payroll-title">Payroll</h1>
+            <p className="payroll-subtitle">
+              {isAdminOrHR
+                ? "Calculate, approve and release employee payroll"
+                : "View your payslips and earnings"}
+            </p>
+          </div>
+        </div>
 
         <PayrollStatusBanner
           message={statusMessage}
@@ -594,95 +444,45 @@ export default function Payroll() {
 
         <PayrollTabs isAdminOrHR={isAdminOrHR} activeTab={activeTab} onTabChange={setActiveTab} />
 
-        {showTopStats && (
-          <PayrollStatsGrid metrics={metrics} isEmployeeView={!isAdminOrHR} />
-        )}
-
-        {isAdminOrHR && ["ops", "review", "slips"].includes(activeTab) && (
-          <PayrollRunStatusBanner
-            activeRun={activeRun}
-            payrolls={reviewPayrolls}
-            selectedMonth={selectedMonth}
-            selectedYear={selectedYear}
-          />
-        )}
-
-        {isAdminOrHR && activeTab === "ops" && (
-          <PayrollProcessorTab
-            selectedYear={selectedYear}
-            selectedMonth={selectedMonth}
-            selectedEmp={selectedEmp}
+        {isAdminOrHR && activeTab === "payroll" && (
+          <PayrollManager
             employees={employees}
-            actionLoading={actionLoading}
-            runIsFinalized={runIsFinalized}
-            onYearChange={setSelectedYear}
-            onMonthChange={setSelectedMonth}
-            onEmployeeChange={setSelectedEmp}
-            onPreview={handlePreview}
-            onBulkCalculate={() => runBulkCalculation(true)}
-          />
-        )}
-
-        {isAdminOrHR && activeTab === "review" && (
-          <PayrollReviewTab
-            activeRun={activeRun}
+            payrolls={payrolls}
             reviewPayrolls={reviewPayrolls}
-            runSummary={runSummary}
+            actionLoading={actionLoading}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
-            actionLoading={actionLoading}
             onMonthChange={setSelectedMonth}
-            onYearChange={setSelectedYear}
+            onYearChange={handleYearChange}
+            onPreview={handlePreview}
+            onCalculateSingle={handleCalculateSingle}
+            onBulkCalculate={handleBulkCalculate}
+            onApproveSingle={handleApproveSingle}
+            onDeleteSingle={handleDeleteSingle}
+            onBulkApprove={handleBulkApprove}
             onViewBreakdown={handleViewBreakdown}
-            onOpenApproval={(action) => { setApprovalAction(action); setShowApprovalModal(true); }}
-            onProcessRun={handleProcessRun}
-            onEmailPayslips={handleEmailPayslips}
-            onCreateRun={() => runBulkCalculation(false)}
-            onReleaseAllPending={handleReleaseAllPending}
+            statusMessage={statusMessage}
           />
         )}
 
-        {activeTab === (isAdminOrHR ? "slips" : "my_slips") && (
-          <PayrollSlipsTab
+        {activeTab === "payslips" && (
+          <PayslipsTab
             isAdminOrHR={isAdminOrHR}
             notLinkedToEmployee={notLinkedToEmployee}
-            runIsFinalized={runIsFinalized}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             searchQuery={searchQuery}
-            paymentHistory={paymentHistory}
             filteredHistory={filteredHistory}
             actionLoading={actionLoading}
+            downloadingId={downloadingId}
             onMonthChange={setSelectedMonth}
-            onYearChange={setSelectedYear}
+            onYearChange={handleYearChange}
             onSearchChange={setSearchQuery}
-            onDownloadCsv={handleDownloadCSV}
-            onEditPayment={(p) => { setEditingPayment({ ...p, accountNo: p.beneficiaryAccountNo }); setShowPaymentModal(true); }}
-            onViewBreakdown={handleViewBreakdown}
             onDownloadPdf={handleDownloadPDF}
             onEmailPayslip={handleSendPayslipEmail}
             onReopenPayroll={handleReopenPayroll}
             onReleasePayroll={handleReleasePayroll}
-          />
-        )}
-
-        {activeTab === "summary" && isAdminOrHR && (
-          <PayrollSummaryTab
-            selectedMonth={selectedMonth}
-            selectedYear={selectedYear}
-            summaryLoading={summaryLoading}
-            payrollSummary={payrollSummary}
-            onMonthChange={setSelectedMonth}
-            onYearChange={setSelectedYear}
-            onExport={handleExportSummary}
-          />
-        )}
-
-        {activeTab === (isAdminOrHR ? "analytics" : "my_analytics") && (
-          <PayrollAnalyticsTab
-            chartData={chartData}
-            metrics={metrics}
-            isEmployeeView={!isAdminOrHR}
+            onViewBreakdown={handleViewBreakdown}
           />
         )}
 
@@ -693,39 +493,58 @@ export default function Payroll() {
           onClose={closeDetailsPopup}
           isAdminOrHR={isAdminOrHR}
           actionLoading={actionLoading}
-          onConfirmSave={handleCalculateSingle}
+          onConfirmSave={() => {
+            if (!selectedRecord) return;
+            // Recalculate the record's own period, not the page-level filter.
+            const recordMonth =
+              MONTH_NAME_TO_NUMBER[selectedRecord.month] || selectedMonth;
+            const isDailyRecord =
+              (selectedRecord.payrollType || "monthly") === "daily";
+            handleCalculateSingle({
+              employeeId: selectedRecord.employeeId || selectedRecord.employeeCode,
+              month: recordMonth,
+              year: selectedRecord.year || selectedYear,
+              payrollType: selectedRecord.payrollType || "monthly",
+              payrollDate: isDailyRecord ? selectedRecord.payrollDate : undefined,
+            });
+          }}
           onAddAdjustment={handleAddAdjustment}
           onRemoveAdjustment={handleRemoveAdjustment}
         />
 
-        <PayrollApprovalModal
-          open={showApprovalModal}
-          action={approvalAction}
-          comment={approvalComment}
-          actionLoading={actionLoading}
-          onClose={() => setShowApprovalModal(false)}
-          onCommentChange={setApprovalComment}
-          onSubmit={handleApprovalSubmit}
-        />
+        {confirmModal.open && (
+          <div className="upload-overlay" onClick={() => setConfirmModal({ open: false, title: "", message: "", onConfirm: null })}>
+            <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
+              <h2>{confirmModal.title}</h2>
+              <p>{confirmModal.message}</p>
+              <div className="modal-actions" style={{ marginTop: 20 }}>
+                <button className="btn-cancel" onClick={() => setConfirmModal({ open: false, title: "", message: "", onConfirm: null })} type="button">
+                  Cancel
+                </button>
+                <button className="btn-primary-commit" onClick={confirmModal.onConfirm} type="button">
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <UpdatePayrollModal
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          itemToEdit={editingPayment}
-          onSave={handleSavePayment}
-        />
-
-        {/* Upload payments sheet — temporarily disabled
-        <PayrollUploadModal
-          open={showUploadPopup}
-          uploadFile={uploadFile}
-          uploadMessage={uploadMessage}
-          loading={loading}
-          onClose={() => setShowUploadPopup(false)}
-          onFileChange={setUploadFile}
-          onUpload={handleBulkUpload}
-        />
-        */}
+        {deleteModal.open && (
+          <div className="upload-overlay" onClick={() => setDeleteModal({ open: false, payrollId: null })}>
+            <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
+              <h2>Delete Payroll</h2>
+              <p>Are you sure you want to delete this payroll record? This action cannot be undone.</p>
+              <div className="modal-actions">
+                <button className="btn-cancel" onClick={() => setDeleteModal({ open: false, payrollId: null })} type="button">
+                  Cancel
+                </button>
+                <button className="btn-primary-commit" onClick={handleDeleteConfirm} style={{ background: "#ef4444" }} type="button">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </MainLayout>
   );

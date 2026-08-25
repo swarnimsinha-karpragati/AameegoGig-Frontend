@@ -13,6 +13,14 @@ export const MONTHS = [
   { value: 12, label: "December" },
 ];
 
+export const getAvailableMonths = (year) => {
+  const now = new Date();
+  if (year === now.getFullYear()) {
+    return MONTHS.filter((m) => m.value <= now.getMonth() + 1);
+  }
+  return MONTHS;
+};
+
 export const PAYROLL_YEARS = [2024, 2025, 2026, 2027, 2028];
 
 export const MONTH_NAME_TO_NUMBER = {
