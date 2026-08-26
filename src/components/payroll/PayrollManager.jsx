@@ -619,7 +619,7 @@ function PayrollRow({
         </div>
       )}
 
-      {payrollPagination?.pages > 1 && (
+      {/* {payrollPagination?.pages > 1 && (
         <Pagination
           currentPage={payrollPagination.page}
           totalPages={payrollPagination.pages}
@@ -641,7 +641,7 @@ function PayrollRow({
           showPageSize
           onPageSizeChange={onReviewLimitChange}
         />
-      )}
+      )} */}
     </div>
   );
 }
