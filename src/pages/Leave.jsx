@@ -10,6 +10,7 @@ import {
   Download,
   Users,
   ShieldCheck,
+  Info
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
@@ -458,18 +459,46 @@ function LeaveInner() {
     });
   };
 
-  const handleCancel = (id) => {
+  const handleCancel = (item) => {
+    let cancelReasonInput = "";
+
     openModal({
       title: "Cancel Leave Request",
-      message:
-        "Are you sure you want to cancel this leave request? This action cannot be undone.",
+      message: (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <p>
+            Are you sure you want to cancel this leave request? This action cannot be undone.
+          </p>
+          {item.status === "Approved" && (
+            <div style={{ marginTop: "10px" }}>
+              <label style={{ display: "block", marginBottom: "4px", fontWeight: 600 }}>
+                Cancellation Reason <span style={{ color: "red" }}>*</span>
+              </label>
+              <textarea
+                className="leave-input"
+                rows={3}
+                placeholder="Enter reason for cancelling..."
+                style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+                onChange={(e) => {
+                  cancelReasonInput = e.target.value;
+                }}
+              />
+            </div>
+          )}
+        </div>
+      ),
       confirmLabel: "Cancel Request",
       variant: "warning",
       onConfirm: async () => {
+        if (item.status === "Approved" && !cancelReasonInput.trim()) {
+          toast.error("Please provide a reason for cancelling");
+          return;
+        }
+
         setActionLoading(true);
         try {
-          await cancelLeaveRequest(id);
-          toast.success("Leave request cancelled");
+          await cancelLeaveRequest(item._id, { cancelReason: cancelReasonInput.trim() });
+          toast.success("Leave request cancelled successfully");
           loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Cancel failed");
@@ -691,94 +720,134 @@ function LeaveInner() {
     </section>
   );
 
-  const renderRequestsTable = ({ title, items, mode }) => (
-    <section className="leave-panel leave-glass">
-      <header className="leave-panel__head">
-        <h3>{title}</h3>
-      </header>
-      <div className="leave-table-wrap">
-        <table className="leave-table">
-          <thead>
-            <tr>
-              {mode === "all" || mode === "approve" ? <th>Employee</th> : null}
-              <th>Type</th>
-              <th>Date / Duration</th>
-              <th>Reason</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
+  const renderRequestsTable = ({ title, items, mode }) => {
+    const totalColumns = mode === "all" || mode === "approve" ? 6 : 5;
+
+    return (
+      <section className="leave-panel leave-glass">
+        <header className="leave-panel__head">
+          <h3>{title}</h3>
+        </header>
+        <div className="leave-table-wrap">
+          <table className="leave-table">
+            <thead>
               <tr>
-                <td colSpan={mode === "all" || mode === "approve" ? 6 : 5} className="leave-empty">
-                  No requests found
-                </td>
+                {mode === "all" || mode === "approve" ? <th>Employee</th> : null}
+                <th>Type</th>
+                <th>Date / Duration</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Action</th>
               </tr>
-            ) : null}
-            {items.map((item) => {
-              const empName = item.employeeId?.name || null;
-              return (
-                <tr key={item._id}>
-                  {mode === "all" || mode === "approve" ? <td>{empName || "-"}</td> : null}
-                  <td>{item.leaveType}</td>
-                  <td>
-                    {new Date(item.startDate).toLocaleDateString()} -{" "}
-                    {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
-                  </td>
-                  <td>{item.reason || "-"}</td>
-                  <td>
-                    <span
-                      className={leaveStatusClass[item.status] || "leave-status"}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td>
-                    {mode === "approve" &&
-                      canApprove &&
-                      item.status === "Pending" ? (
-                      <div className="leave-actions">
-                        <Button
-                          type="button"
-                          className="approve-btn"
-                          icon={<Check size={14} />}
-                          aria-label="Approve"
-                          onClick={() =>
-                            handleDecision(item._id, "approve", empName)
-                          }
-                        />
-                        <Button
-                          type="button"
-                          className="reject-btn"
-                          icon={<X size={14} />}
-                          aria-label="Reject"
-                          onClick={() =>
-                            handleDecision(item._id, "reject", empName)
-                          }
-                        />
-                      </div>
-                    ) : mode === "employee" && item.status === "Pending" ? (
-                      <Button
-                        type="button"
-                        id="leave-cancel-btn"
-                        className="action-btn-delete"
-                        onClick={() => handleCancel(item._id)}
-                      >
-                        Cancel
-                      </Button>
-                    ) : (
-                      "-"
-                    )}
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={totalColumns} className="leave-empty">
+                    No requests found
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+              ) : null}
+              {items.map((item) => {
+                const empName = item.employeeId?.name || null;
+                return (
+                  <tr key={item._id}>
+                    {mode === "all" || mode === "approve" ? (
+                      <td>{empName || "-"}</td>
+                    ) : null}
+                    <td>{item.leaveType}</td>
+                    <td>
+                      {new Date(item.startDate).toLocaleDateString()} -{" "}
+                      {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
+                    </td>
+                    <td>{item.reason || "-"}</td>
+
+                    {/* STATUS COLUMN WITH INLINE REASON TOOLTIP */}
+                    <td>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                        <span
+                          className={
+                            leaveStatusClass[item.status] || "leave-status"
+                          }
+                        >
+                          {item.status}
+                        </span>
+                        {item.status === "Cancelled" && item.cancelReason && (
+                          <span
+                            title={`Cancel Reason: ${item.cancelReason}`}
+                            style={{
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              color: "#6b7280",
+                            }}
+                            onClick={() =>
+                              openModal({
+                                title: "Cancellation Reason",
+                                message: item.cancelReason || "No reason specified.",
+                                variant: "info",
+                                confirmLabel: "Close",
+                                cancelLabel: null,
+                                showCancel: false,
+                              })
+                            }
+                          >
+                            <Info size={15} />
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td>
+                      {mode === "approve" &&
+                        canApprove &&
+                        item.status === "Pending" ? (
+                        <div className="leave-actions">
+                          <Button
+                            type="button"
+                            className="approve-btn"
+                            icon={<Check size={14} />}
+                            aria-label="Approve"
+                            onClick={() =>
+                              handleDecision(item._id, "approve", empName)
+                            }
+                          />
+                          <Button
+                            type="button"
+                            className="reject-btn"
+                            icon={<X size={14} />}
+                            aria-label="Reject"
+                            onClick={() =>
+                              handleDecision(item._id, "reject", empName)
+                            }
+                          />
+                        </div>
+                      ) : mode === "employee" &&
+                        (item.status === "Pending" ||
+                          item.status === "Approved") &&
+                        new Date(item.startDate).setHours(0, 0, 0, 0) >=
+                        new Date().setHours(0, 0, 0, 0) ? (
+                        <Button
+                          type="button"
+                          id="leave-cancel-btn"
+                          className="action-btn-delete"
+                          onClick={() => handleCancel(item)}
+                        >
+                          Cancel
+                        </Button>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section >
+    );
+  };
 
   const renderBalanceEditor = (balanceList, readOnly = false) => (
     <section className="leave-panel leave-glass">
@@ -966,11 +1035,38 @@ function LeaveInner() {
                 </td>
                 <td>{item.days}</td>
                 <td>
-                  <span
-                    className={leaveStatusClass[item.status] || "leave-status"}
-                  >
-                    {item.status}
-                  </span>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <span
+                      className={
+                        leaveStatusClass[item.status] || "leave-status"
+                      }
+                    >
+                      {item.status}
+                    </span>
+                    {item.status === "Cancelled" && item.cancelReason && (
+                      <span
+                        title={`Cancel Reason: ${item.cancelReason}`}
+                        style={{
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          color: "#6b7280",
+                        }}
+                        onClick={() =>
+                          openModal({
+                            title: "Cancellation Reason",
+                            message: item.cancelReason || "No reason specified.",
+                            variant: "info",
+                            confirmLabel: "Close",
+                            cancelLabel: null,
+                            showCancel: false,
+                          })
+                        }
+                      >
+                        <Info size={15} />
+                      </span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -979,6 +1075,7 @@ function LeaveInner() {
       </div>
     </section>
   );
+
   const renderOrganizationView = () => (
     <>
       <LeaveSummaryCards summary={orgSummary} />
