@@ -21,6 +21,7 @@ import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
 import { isSiteVendor } from "../utils/vendorIdhelper";
 import { clearAuthData } from "../utils/authStorage";
+import HelpDeskWidget from "../components/HelpDeskWidget";
 
 
 
@@ -300,6 +301,8 @@ function MainLayout({ children }) {
 
         <main className="page-content">{children}</main>
       </div>
+
+      <HelpDeskWidget />
     </div>
   );
 }
