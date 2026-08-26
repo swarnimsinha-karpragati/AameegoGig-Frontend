@@ -1,5 +1,6 @@
+// eslint-disable-next-line
 import React, { useState } from 'react';
-import { X, IndianRupee, AlertCircle } from 'lucide-react';
+import { X, IndianRupee } from 'lucide-react';
 import './AdvanceLoanRequestForm.css';
 
 const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canApprove = false }) => {
@@ -46,7 +47,7 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
             newErrors.repaymentOption = 'Repayment option is required';
         }
 
-        
+
 
         if (formData.repaymentOption === 'MONTHLY_INSTALLMENTS' &&
             (!formData.totalInstallments || Number(formData.totalInstallments) <= 0)) {
@@ -218,7 +219,7 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
                             </div>
                         </div>
 
-                        
+
 
                         {/* Total Installments */}
                         {formData.repaymentOption === 'MONTHLY_INSTALLMENTS' && (

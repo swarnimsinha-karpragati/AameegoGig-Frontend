@@ -28,7 +28,6 @@ import { getEmployees } from "../services/employeeService";
 import {
     getStoredUser,
     canApproveAdvanceLoan,
-    hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import "./AdvanceLoanRequest.css";
 import Card from "../components/Card";
@@ -51,13 +50,6 @@ const STATUS_LABELS = {
     PARTIALLY_PAID: "Partially Paid",
     FULLY_PAID: "Fully Paid",
     CANCELLED: "Cancelled",
-};
-
-const ROLE_DESCRIPTIONS = {
-    Organization: "Organization-wide advance and loan management",
-    HR: "Review, approve, and manage all advance/loan requests",
-    Manager: "Review and approve advance/loan requests for your team",
-    Employee: "Request advances/loans and track repayments",
 };
 
 const formatCurrency = (amount) =>
@@ -639,8 +631,8 @@ function DetailModal({ open, onClose, request }) {
                                 <span className="detail-info-label">Repayment Option</span>
                                 <span className="detail-info-value">
                                     {request.repaymentOption === "ONE_TIME" ? "One Time" :
-                                     request.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${request.totalInstallments} Months` :
-                                     "Custom Schedule"}
+                                        request.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${request.totalInstallments} Months` :
+                                            "Custom Schedule"}
                                 </span>
                             </div>
                             <div className="detail-info-row">
@@ -776,7 +768,6 @@ function AdvanceLoanInner() {
     const toast = useToast();
     const user = getStoredUser();
     const canApprove = canApproveAdvanceLoan(user?.role);
-    const canApply = hasLinkedEmployeeProfile(user);
 
     /* ── State ── */
     const [dashboard, setDashboard] = useState(null);
@@ -818,7 +809,6 @@ function AdvanceLoanInner() {
 
     /* ── Statistics ── */
     const summary = dashboard?.statistics || {};
-    const recentRequests = dashboard?.recentRequests || [];
 
     const teamMembers = useMemo(() => {
         if (!user?.employeeId) return employees;
@@ -900,7 +890,7 @@ function AdvanceLoanInner() {
     /* ── Request Handlers ── */
     const handleCreateRequest = async (formData) => {
         try {
-            const response = await createAdvanceLoanRequest(formData);
+            await createAdvanceLoanRequest(formData);
             toast.success(`${formData.requestType} request submitted successfully`);
             setShowRequestForm(false);
             loadData();

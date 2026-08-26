@@ -5,8 +5,14 @@ export const createResignation = async (data) => {
   return API.post("/resignation/createResignation", data);
 };
 
-export const getResignation = async (vendorId,employeeId) => {
-  return API.get(`/resignation/getResignation?vendorId=${vendorId}&employeeId=${employeeId}`);
+export const getResignation = async (vendorId, employeeId, params = {}) => {
+  const queryParams = new URLSearchParams({
+    vendorId,
+    employeeId,
+    page: params.page || 1,
+    limit: params.limit || 10,
+  });
+  return API.get(`/resignation/getResignation?${queryParams.toString()}`);
 };
 
 export const updateResignation = async (id,data) => {

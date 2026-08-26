@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Calculator, CheckCircle, XCircle, RefreshCw, Eye, ChevronDown, ChevronUp,
@@ -5,6 +6,7 @@ import {
 } from "lucide-react";
 import { getAvailableMonths, PAYROLL_YEARS, formatInr } from "../../utils/payrollConstants";
 import Button from "../Button";
+import Pagination from "../Pagination";
 
 /** Local (browser-timezone) today as YYYY-MM-DD — avoids the UTC shift of toISOString(). */
 const todayLocalISO = () => {
@@ -12,24 +14,24 @@ const todayLocalISO = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 };
 
-export default function PayrollManager({
-  employees,
-  payrolls,
-  reviewPayrolls,
-  actionLoading,
-  selectedMonth,
-  selectedYear,
-  onMonthChange,
-  onYearChange,
-  onPreview,
-  onCalculateSingle,
-  onBulkCalculate,
-  onApproveSingle,
-  onDeleteSingle,
-  onBulkApprove,
-  onViewBreakdown,
-  statusMessage,
-}) {
+export default function PayrollManager(props) {
+  const {
+    employees,
+    payrolls,
+    reviewPayrolls,
+    actionLoading,
+    selectedMonth,
+    selectedYear,
+    onMonthChange,
+    onYearChange,
+    onPreview,
+    onCalculateSingle,
+    onBulkCalculate,
+    onApproveSingle,
+    onDeleteSingle,
+    onBulkApprove,
+    onViewBreakdown,
+  } = props;
   const [payrollType, setPayrollType] = useState("monthly");
   const [selectedEmp, setSelectedEmp] = useState("");
   const [selectedEmpIds, setSelectedEmpIds] = useState([]);
@@ -347,7 +349,7 @@ export default function PayrollManager({
                   disabled={actionLoading || !selectedEmp || !dailyReady}
                   type="button"
                 >
-                  
+
                   Preview
                 </Button>
                 <Button
@@ -356,7 +358,7 @@ export default function PayrollManager({
                   disabled={actionLoading || !selectedEmp || !dailyReady}
                   type="button"
                 >
-                  
+
                   Calculate
                 </Button>
                 <div className="pm-calc-sep" />
@@ -367,7 +369,7 @@ export default function PayrollManager({
                     disabled={actionLoading || !dailyReady}
                     type="button"
                   >
-                    
+
                     Calculate All
                   </Button>
                   <span className="pm-calc-hint">
@@ -615,6 +617,30 @@ function PayrollRow({
             )}
           </div>
         </div>
+      )}
+
+      {payrollPagination?.pages > 1 && (
+        <Pagination
+          currentPage={payrollPagination.page}
+          totalPages={payrollPagination.pages}
+          totalRecords={payrollPagination.total}
+          limit={payrollPagination.limit}
+          onPageChange={onPayrollPageChange}
+          showPageSize
+          onPageSizeChange={onPayrollLimitChange}
+        />
+      )}
+
+      {reviewPagination?.pages > 1 && (
+        <Pagination
+          currentPage={reviewPagination.page}
+          totalPages={reviewPagination.pages}
+          totalRecords={reviewPagination.total}
+          limit={reviewPagination.limit}
+          onPageChange={onReviewPageChange}
+          showPageSize
+          onPageSizeChange={onReviewLimitChange}
+        />
       )}
     </div>
   );

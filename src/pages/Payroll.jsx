@@ -43,6 +43,8 @@ export default function Payroll() {
   const [payrolls, setPayrolls] = useState([]);
   const [reviewPayrolls, setReviewPayrolls] = useState([]);
   const [notLinkedToEmployee, setNotLinkedToEmployee] = useState(false);
+  const [payrollPagination, setPayrollPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [reviewPagination, setReviewPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
 
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showDetailsPopup, setShowDetailsPopup] = useState(false);
@@ -80,14 +82,21 @@ export default function Payroll() {
 
       // Employees get the same period filter as admins; the backend scopes the
       // result to the logged-in employee's own released records.
-      const params = { month: MONTH_NUMBER_TO_NAME[selectedMonth], year: selectedYear };
+      const params = { month: MONTH_NUMBER_TO_NAME[selectedMonth], year: selectedYear, page: payrollPagination.page, limit: payrollPagination.limit };
       const payrollRes = await getAllPayrollRecords(params);
       setPayrolls(payrollRes.data?.data || []);
+      if (payrollRes.data?.pagination) {
+        setPayrollPagination(prev => ({ ...prev, total: payrollRes.data.pagination.total, pages: payrollRes.data.pagination.pages }));
+      }
       setNotLinkedToEmployee(Boolean(payrollRes.data?.notLinked));
 
       if (isAdminOrHR) {
-        const reviewRes = await getAllPayrollRecords();
+        const reviewParams = { page: reviewPagination.page, limit: reviewPagination.limit };
+        const reviewRes = await getAllPayrollRecords(reviewParams);
         setReviewPayrolls(reviewRes.data?.data || []);
+        if (reviewRes.data?.pagination) {
+          setReviewPagination(prev => ({ ...prev, total: reviewRes.data.pagination.total, pages: reviewRes.data.pagination.pages }));
+        }
       }
     } catch (error) {
       console.error("Error loading payroll data:", error);
@@ -462,6 +471,12 @@ export default function Payroll() {
             onBulkApprove={handleBulkApprove}
             onViewBreakdown={handleViewBreakdown}
             statusMessage={statusMessage}
+            payrollPagination={payrollPagination}
+            onPayrollPageChange={setPage => setPayrollPagination(p => ({ ...p, page: setPage }))}
+            onPayrollLimitChange={setLimit => setPayrollPagination(p => ({ ...p, limit: setLimit, page: 1 }))}
+            reviewPagination={reviewPagination}
+            onReviewPageChange={setPage => setReviewPagination(p => ({ ...p, page: setPage }))}
+            onReviewLimitChange={setLimit => setReviewPagination(p => ({ ...p, limit: setLimit, page: 1 }))}
           />
         )}
 

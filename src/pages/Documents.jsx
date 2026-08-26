@@ -29,12 +29,14 @@ import {
 } from "../utils/documentTypes";
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
+import Pagination from "../components/Pagination";
 
 function Documents() {
   const [documents, setDocuments] = useState([]);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [loggedInUser, setLoggedInUser] = useState(null);
+  const [docPagination, setDocPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
 
   // Employee self-upload
   const [documentType, setDocumentType] = useState("AADHAAR");
@@ -67,14 +69,18 @@ function Documents() {
   const fetchDocuments = useCallback(async () => {
     if (!loggedInUser) return;
     try {
+      const params = { page: docPagination.page, limit: docPagination.limit };
       const res = canSeeAll
-        ? await getDocuments()
-        : await getEmployeeDocuments(loggedInUser.employeeId);
+        ? await getDocuments(params)
+        : await getEmployeeDocuments(loggedInUser.employeeId, params);
       setDocuments(res.data.documents || []);
+      if (res.data.pagination) {
+        setDocPagination(prev => ({ ...prev, total: res.data.pagination.total, pages: res.data.pagination.pages }));
+      }
     } catch (error) {
       console.error("Error fetching documents:", error);
     }
-  }, [loggedInUser, canSeeAll]);
+  }, [loggedInUser, canSeeAll, docPagination.page, docPagination.limit]);
 
   useEffect(() => {
     fetchDocuments();
@@ -291,6 +297,18 @@ function Documents() {
             </div>
           )}
         </div>
+
+        {docPagination.pages > 1 && (
+          <Pagination
+            currentPage={docPagination.page}
+            totalPages={docPagination.pages}
+            totalRecords={docPagination.total}
+            limit={docPagination.limit}
+            onPageChange={setDocPagination}
+            showPageSize
+            onPageSizeChange={(limit) => setDocPagination(p => ({ ...p, limit, page: 1 }))}
+          />
+        )}
       </div>
     </MainLayout>
   );
