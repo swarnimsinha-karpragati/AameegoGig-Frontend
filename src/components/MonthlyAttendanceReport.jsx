@@ -87,7 +87,7 @@ const MonthlyAttendanceReport = ({ handleReportModalClose }) => {
             <div className="mar-modal">
                 <div className="mar-header">
                     <h3>Download monthly attendance report</h3>
-                    <Button className='action-btn-edit' icon={<X/>} onClick={handleClose} disabled={loading}></Button>
+                    <Button className='action-btn-edit' icon={<X/>} onClick={handleClose}></Button>
                 </div>
                 <div className="mar-body">
                     <div className="select-group">
