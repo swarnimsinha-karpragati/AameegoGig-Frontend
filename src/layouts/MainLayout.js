@@ -95,6 +95,10 @@ function MainLayout({ children }) {
       title: "Expenses",
       subtitle: "Submit and manage expense claims",
     },
+    "/advance-loan": {
+      title: "Advance Loan",
+      subtitle: "Submit and manage Advance Loan claims",
+    },
     "/resignation": {
       title: "Resignation",
       subtitle: "Submit and manage resignation",
@@ -147,6 +151,11 @@ function MainLayout({ children }) {
       label: "Expenses",
       path: "/expenses",
       icon: ReceiptText,
+    },
+    {
+      label: "Advance Loan",
+      path: "/advance-loan",
+      icon: Wallet,
     },
     {
       label: "Documents",
