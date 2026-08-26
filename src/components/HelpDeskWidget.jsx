@@ -457,7 +457,7 @@ function HelpDeskWidget() {
 
       <button
         type="button"
-        className={`hdw-fab ${isOpen ? "active" : ""}`}
+        className={`hdw-fab`}
         title="HR Help Desk"
         onClick={() => {
           if (isOpen) {
