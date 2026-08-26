@@ -33,8 +33,8 @@ export const rejectLeaveRequest = async (id, comment = "") => {
   return res.data;
 };
 
-export const cancelLeaveRequest = async (id) => {
-  const res = await API.patch(`/leave/requests/${id}/cancel`);
+export const cancelLeaveRequest = async (id, cancelReason) => {
+  const res = await API.patch(`/leave/requests/${id}/cancel`, cancelReason);
   return res.data;
 };
 
