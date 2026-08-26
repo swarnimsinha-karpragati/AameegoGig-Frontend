@@ -143,6 +143,11 @@ export const bulkMarkToday = async (records) => {
   return res.data;
 };
 
+export const monthReport = async (vendorId,reportMonth,reportYear) => {
+  const res = await API.get(`/attendance/download-monthy-report?vendorId=${vendorId}&reportMonth=${reportMonth}&reportYear=${reportYear}`,{ responseType: 'blob' });
+  return res.data;
+};
+
 export const bulkUploadMonthAttendance = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
