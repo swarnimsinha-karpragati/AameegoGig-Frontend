@@ -1,10 +1,11 @@
 .hdw-fab {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 56px;
+  bottom: 80px;
+  right: 0px;
+  width: 45px;
   height: 56px;
-  border-radius: 50%;
+  border-top-left-radius: 15px;
+  border-bottom-left-radius: 15px;
   border: none;
   background: linear-gradient(135deg, #1E6BD6, #2BB7DA);
   color: #fff;
@@ -18,12 +19,12 @@
 }
 
 .hdw-fab:hover {
-  transform: scale(1.07);
+  width:76px;
 }
 
 .hdw-panel {
   position: fixed;
-  bottom: 92px;
+  bottom:150px;
   right: 24px;
   width: 380px;
   max-width: calc(100vw - 32px);

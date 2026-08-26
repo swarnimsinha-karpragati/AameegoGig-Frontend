@@ -164,6 +164,14 @@
   flex-direction: column;
 }
 
+.month-mark-button-wrap{
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  gap: 1rem;
+}
+
 .attendance-panel__head h2 {
   margin: 0;
   flex-shrink: 0;

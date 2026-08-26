@@ -8,7 +8,7 @@ import {
   getSalaryComponents,
 } from "../services/salaryComponentService";
 import { getStoredUser } from "../utils/roles";
-import { validateAnnualCtc } from "../utils/salaryValidation";
+import { validateAnnualCtc, validateComponentsMatchCtc } from "../utils/salaryValidation";
 import "./EmployeeSalaryStructureEditor.css";
 import Button from "./Button";
 
@@ -277,6 +277,12 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     const ctcErr = validateAnnualCtc(ctcAnnual);
     if (ctcErr) { setError(ctcErr); setSaving(false); return; }
 
+    // Manually entered components must add up to the Annual CTC (total × 12)
+    if (inputMode === "manual") {
+      const matchErr = validateComponentsMatchCtc({ ctcAnnual, components: safeComponents });
+      if (matchErr) { setError(matchErr); setSaving(false); return; }
+    }
+
     try {
       await saveEmployeeStructure(employeeId, {
         ctcAnnual: Number(ctcAnnual),
@@ -300,6 +306,17 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
   useImperativeHandle(ref, () => ({
     saveStructure: handleSave,
     hasUnsavedChanges: isRevising,
+    // Returns an error message when the Annual CTC is invalid or manually entered
+    // components don't add up to it (and surfaces it inline); "" when the structure
+    // is valid or not being revised.
+    validateStructure: () => {
+      if (!isRevising || inputMode !== "manual") return "";
+      const ctcErr = validateAnnualCtc(ctcAnnual);
+      if (ctcErr) { setError(ctcErr); return ctcErr; }
+      const matchErr = validateComponentsMatchCtc({ ctcAnnual, components: safeComponents });
+      if (matchErr) setError(matchErr);
+      return matchErr;
+    },
   }));
 
   if (loading) return <div className="emp-struct-editor__loading">Loading salary data...</div>;

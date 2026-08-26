@@ -153,3 +153,10 @@ export const exportPayrollSummary = async (params) => {
     responseType: "blob",
   });
 };
+
+export const downloadWageSheet = async (month, year) => {
+  return API.get("/payroll/reports/wagesheet/export", {
+    params: { month, year },
+    responseType: "blob",
+  });
+};

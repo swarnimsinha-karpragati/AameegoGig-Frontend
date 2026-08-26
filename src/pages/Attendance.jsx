@@ -50,6 +50,7 @@ import {
   EMPTY_MY_ROW,
   FILTER_LABELS,
 } from "../components/attendance/attendanceUtils";
+import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
 
 function Attendance() {
   const user = getStoredUser();
@@ -489,7 +490,7 @@ function Attendance() {
     employeeId: '',
     month: MONTHS[new Date().getMonth()],
     totalWorkingDays: '',
-    paidDays: '',
+    // paidDays: '',
     incentiveDays: '0',
   });
 
@@ -527,7 +528,6 @@ function Attendance() {
     };
 
     validateDays('totalWorkingDays', 'Total working days', { integer: true, required: true });
-    validateDays('paidDays', 'Paid days', { required: true });
     validateDays('incentiveDays', 'Incentive days');
 
     setErrors(newErrors);
@@ -629,11 +629,11 @@ function Attendance() {
       ["INSTRUCTIONS FOR MONTHLY ATTENDANCE BULK UPLOAD"],
       ["1. Employee Code (Required): Use the exact employee code, e.g. GRV-0026."],
       ["2. Month and Year (Required): Use full month name, e.g. August, and a four-digit year."],
-      ["3. Total Working Days and Paid Days (Required): Total Working Days must be a whole number. Paid Days can include 0.5."],
+      ["3. Total Working Days (Required): Total Working Days must be a whole number"],
       ["4. Incentive Days and Notes (Optional): Incentive Days can include 0.5. Leave it blank to use 0."],
       [],
-      ["Employee Code", "Month", "Year", "Total Working Days", "Paid Days", "Incentive Days", "Notes"],
-      ["GRV-0026", "August", 2026, 22, 21.5, 0.5, "Monthly attendance upload"],
+      ["Employee Code", "Month", "Year", "Total Working Days", "Incentive Days", "Notes"],
+      ["GRV-0026", "August", 2026, 22, 0, "Monthly attendance upload"],
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     worksheet["!cols"] = [
@@ -744,6 +744,16 @@ function Attendance() {
     setAttendanceAction("checkout");
     setShowSelfieModal(true);
   };
+
+  const [isReportModalOpen,setIsReportModalOpen] = useState(false)
+
+  const handleReportModal = () => {
+    setIsReportModalOpen(true);
+  }
+
+  const handleReportModalClose = () => {
+    setIsReportModalOpen(false);
+  }
 
   const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext, showLeaveWfh = true }) => (
     <AttendanceCalendar
@@ -1023,19 +1033,23 @@ function Attendance() {
             Record or update monthly attendance status and working days summary
           </p>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          className="month-mark-upload-trigger"
-          icon={<Upload size={16} />}
-          onClick={() => {
-            setMonthlyUploadResult(null);
-            clearMonthlyUploadFile();
-            setShowMonthlyUploadModal(true);
-          }}
-        >
-          Bulk Upload
-        </Button>
+        <div className="month-mark-button-wrap">
+          <Button
+            className="secondary-btn"
+            icon={<Upload size={16} />}
+            onClick={() => {
+              setMonthlyUploadResult(null);
+              clearMonthlyUploadFile();
+              setShowMonthlyUploadModal(true);
+            }}
+          >
+            Bulk Upload
+          </Button>
+          <Button onClick={handleReportModal}>
+            Download Report
+          </Button>
+
+        </div>
       </header>
 
       {errors.form && (
@@ -1109,7 +1123,7 @@ function Attendance() {
             )}
           </div>
 
-          <div className={`month-mark-field ${errors.paidDays ? 'month-mark-field--error' : ''}`}>
+          {/* <div className={`month-mark-field ${errors.paidDays ? 'month-mark-field--error' : ''}`}>
             <label htmlFor="paid-days" className="month-mark-label">Paid Days</label>
             <input
               id="paid-days"
@@ -1124,7 +1138,7 @@ function Attendance() {
               disabled={isSubmitting}
             />
             {errors.paidDays && <span className="month-mark-error-msg">{errors.paidDays}</span>}
-          </div>
+          </div> */}
 
           <div className={`month-mark-field ${errors.incentiveDays ? 'month-mark-field--error' : ''}`}>
             <label htmlFor="incentive-days" className="month-mark-label">Incentive Days</label>
@@ -1352,6 +1366,8 @@ function Attendance() {
           submitting={checkInSubmitting}
         />
 
+        {isReportModalOpen && <MonthlyAttendanceReport handleReportModalClose={handleReportModalClose}/>}
+
         {/* Confirmation Modal */}
         <ConfirmModal
           open={modal.open}
@@ -1437,7 +1453,7 @@ function Attendance() {
                 <Button type="button" variant="secondary" onClick={() => setShowMonthlyUploadModal(false)} disabled={monthlyUploadLoading}>
                   Close
                 </Button>
-                <Button type="button" icon={<Upload size={16} />} onClick={handleMonthlyBulkUpload} disabled={monthlyUploadLoading}>
+                <Button type="button" icon={<Upload size={16} />} onClick={handleMonthlyBulkUpload} disabled={monthlyUploadLoading || !monthlyUploadFile}>
                   {monthlyUploadLoading ? "Uploading..." : "Upload File"}
                 </Button>
               </footer>
