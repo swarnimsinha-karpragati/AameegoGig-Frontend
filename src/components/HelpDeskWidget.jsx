@@ -47,7 +47,8 @@ const formatTime = (value) => {
 
 function HelpDeskWidget() {
   const user = useMemo(() => getStoredUser(), []);
-  const isHrSide = user?.role === "Admin" || user?.role === "HR";
+  const isAdmin = user?.role === "Admin"
+  const isHrSide = user?.role === "HR";
 
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState("list"); // list | new | chat
@@ -75,6 +76,7 @@ function HelpDeskWidget() {
 
   const chatBottomRef = useRef(null);
   const activeTicketIdRef = useRef(null);
+  const hasScrolledToBottom = useRef(false);
 
   const loadTickets = useCallback(async () => {
     try {
@@ -127,8 +129,13 @@ function HelpDeskWidget() {
   }, []);
 
   useEffect(() => {
-    if (view === "chat" && thread?.messages) {
+    hasScrolledToBottom.current = false;
+  }, [view, thread?.ticket?._id]);
+
+  useEffect(() => {
+    if (view === "chat" && thread?.messages && !hasScrolledToBottom.current) {
       chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      hasScrolledToBottom.current = true;
     }
   }, [view, thread]);
 
@@ -201,13 +208,25 @@ function HelpDeskWidget() {
     }
   };
 
+  const handleClosePanel = () => {
+    setIsOpen(false);
+    setView("list");
+    setThread(null);
+    setActionError("");
+    setDraft("");
+    setShowCloseNote(false);
+    setCloseNote("");
+  };
+
   const renderList = () => (
     <>
       <div className="hdw-list-header">
-        <h4>{isHrSide ? "Assigned Tickets" : "My Tickets"}</h4>
+        <h4>{isHrSide || isAdmin ? "Assigned Tickets" : "My Tickets"}</h4>
+        {(!isHrSide && !isAdmin) && 
         <button type="button" className="hdw-new-btn" onClick={() => { setActionError(""); setView("new"); }}>
           <Plus size={15} /> New Ticket
         </button>
+        }
       </div>
 
       <div className="hdw-ticket-list">
@@ -216,7 +235,7 @@ function HelpDeskWidget() {
           <div className="hdw-empty">
             <MessageSquare size={28} />
             <p>No tickets yet.</p>
-            <span>Raise a ticket and the selected HR will respond here.</span>
+            {(!isHrSide && !isAdmin) && <span>Raise a ticket and the selected HR will respond here.</span>}
           </div>
         )}
         {tickets.map((t) => (
@@ -342,7 +361,7 @@ function HelpDeskWidget() {
               {t?.assignedHrUserId?.name ? ` · HR: ${t.assignedHrUserId.name}` : ""}
             </span>
           </div>
-          {!isClosed && t?.canClose && !showCloseNote && (
+          {isHrSide && !isClosed && t?.canClose && !showCloseNote && (
             <button type="button" className="hdw-close-btn" onClick={() => setShowCloseNote(true)}>
               Mark Closed
             </button>
@@ -423,7 +442,7 @@ function HelpDeskWidget() {
           <div className="hdw-panel-head">
             <Headset size={18} />
             <h3>HR Help Desk</h3>
-            <button type="button" className="hdw-x" onClick={() => setIsOpen(false)}>
+            <button type="button" className="hdw-x" onClick={handleClosePanel}>
               <X size={17} />
             </button>
           </div>
@@ -440,7 +459,13 @@ function HelpDeskWidget() {
         type="button"
         className={`hdw-fab ${isOpen ? "active" : ""}`}
         title="HR Help Desk"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (isOpen) {
+            handleClosePanel();
+          } else {
+            setIsOpen(true);
+          }
+        }}
       >
         {isOpen ? <X size={22} /> : <Headset size={22} />}
       </button>
