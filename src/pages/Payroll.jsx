@@ -13,6 +13,7 @@ import {
   releasePayroll,
   addPayrollAdjustment,
   removePayrollAdjustment,
+  downloadWageSheet,
 } from "../services/payrollService";
 import { getEmployees } from "../services/employeeService";
 import { getCurrentUser } from "../services/authService";
@@ -51,6 +52,7 @@ export default function Payroll() {
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [downloadingWageSheet, setDownloadingWageSheet] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
 
   const [confirmModal, setConfirmModal] = useState({ open: false, title: "", message: "", onConfirm: null });
@@ -328,6 +330,36 @@ export default function Payroll() {
     }
   };
 
+  const handleDownloadWageSheet = async () => {
+    setDownloadingWageSheet(true);
+    try {
+      const res = await downloadWageSheet(selectedMonth, selectedYear);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `WageSheet-${MONTH_NUMBER_TO_NAME[selectedMonth]}-${selectedYear}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatusMessage({
+        type: "success",
+        text: `Wage sheet for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear} downloaded.`,
+      });
+    } catch (err) {
+      setStatusMessage({
+        type: "error",
+        text:
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to download wage sheet.",
+      });
+    } finally {
+      setDownloadingWageSheet(false);
+    }
+  };
+
   const handleSendPayslipEmail = async (record) => {
     if (!record?._id) return;
     setActionLoading(true);
@@ -494,6 +526,8 @@ export default function Payroll() {
             onYearChange={handleYearChange}
             onSearchChange={setSearchQuery}
             onDownloadPdf={handleDownloadPDF}
+            onDownloadWageSheet={handleDownloadWageSheet}
+            downloadingWageSheet={downloadingWageSheet}
             onEmailPayslip={handleSendPayslipEmail}
             onReopenPayroll={handleReopenPayroll}
             onReleasePayroll={handleReleasePayroll}

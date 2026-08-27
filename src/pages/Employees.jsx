@@ -53,7 +53,7 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft, sumLetterMonthlyGross } from "../utils/salaryValidation";
+import { validateStructureDraft, validateComponentsMatchCtc, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
@@ -834,6 +834,15 @@ function Employees() {
           });
           return;
         }
+
+        // Manual component entry (no template) must add up to the Annual CTC.
+        if (!salaryDraft.structureId) {
+          const matchError = validateComponentsMatchCtc(salaryDraft);
+          if (matchError) {
+            setErrors({ salaryStructure: matchError });
+            return;
+          }
+        }
       }
 
       setErrors({});
@@ -1112,6 +1121,14 @@ function Employees() {
       if (Object.keys(formErrors).length) {
         setErrors(formErrors);
         scrollToFirstError(formErrors);
+        return;
+      }
+
+      // Manually entered salary components must add up to the Annual CTC before
+      // the employee (and their salary structure) can be saved.
+      const salaryMatchError = salaryEditorRef.current?.validateStructure?.();
+      if (salaryMatchError) {
+        alert(salaryMatchError);
         return;
       }
 
