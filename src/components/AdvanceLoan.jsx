@@ -25,6 +25,7 @@ import {
 } from "../services/advanceLoanService";
 import { canManageEmployees } from "../utils/roles";
 import { getEmployees } from "../services/employeeService";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
     getStoredUser,
     canApproveAdvanceLoan,
@@ -222,21 +223,16 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                     </p>
 
                     <div className="advance-form">
-                        {canApprove && employees.length > 0 && (
+                        {canApprove && (
                             <div className="form-group">
                                 <label>Employee *</label>
-                                <select
-                                    className={`form-control ${errors.employeeId ? "error" : ""}`}
+                                <SearchableEmployeeSelectServer
                                     value={formData.employeeId}
-                                    onChange={handleChange("employeeId")}
-                                >
-                                    <option value="">Select Employee</option>
-                                    {employees.map((emp) => (
-                                        <option key={emp._id} value={emp._id}>
-                                            {emp.employeeCode} — {emp.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(empId) => handleChange("employeeId")(empId)}
+                                    hasError={!!errors.employeeId}
+                                    controlClassName="form-control"
+                                    placeholder="Select Employee"
+                                />
                                 {errors.employeeId && (
                                     <span className="form-error">{errors.employeeId}</span>
                                 )}

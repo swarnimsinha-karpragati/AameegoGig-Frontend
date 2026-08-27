@@ -28,6 +28,7 @@ import {
   getReceiptUrl,
 } from "../services/expenseService";
 import { getEmployees } from "../services/employeeService";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
   getStoredUser,
   getExpenseViewKey,
@@ -435,22 +436,13 @@ function ExpenseInner() {
         <p>Fill in the details and attach a receipt when available.</p>
       </div>
       <form className="expense-form" onSubmit={(e) => handleCreate(e, forSelf)}>
-        {showEmployeeSelect && employees.length > 0 ? (
+        {showEmployeeSelect ? (
           <ExpenseFormField label="Employee" htmlFor="expense-employee">
-            <select
-              id="expense-employee"
-              className="expense-control"
+            <SearchableEmployeeSelectServer
               value={form.employeeId}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employeeId: e.target.value }))
-              }
-            >
-              {employees.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.employeeCode} — {emp.name}
-                </option>
-              ))}
-            </select>
+              onChange={(empId) => setForm((p) => ({ ...p, employeeId: empId }))}
+              controlClassName="expense-control"
+            />
           </ExpenseFormField>
         ) : null}
 

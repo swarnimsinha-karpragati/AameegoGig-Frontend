@@ -37,7 +37,7 @@ import {
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
-import SearchableEmployeeSelect from "../components/attendance/SearchableEmployeeSelect";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import AttendanceStats from "../components/attendance/AttendanceStats";
 import TodayMetricsGrid from "../components/attendance/TodayMetricsGrid";
 import SessionList from "../components/attendance/SessionList";
@@ -925,8 +925,7 @@ function Attendance() {
         <div className="attendance-mark-form__row">
           <div className="attendance-field attendance-field--employee">
             <label htmlFor="mark-employee">Employee</label>
-            <SearchableEmployeeSelect
-              employeeList={employeeList}
+            <SearchableEmployeeSelectServer
               value={markForm.employeeId}
               onChange={(empId) => setMarkForm((prev) => ({ ...prev, employeeId: empId }))}
               controlClassName="attendance-control"
@@ -1067,8 +1066,7 @@ function Attendance() {
             <label htmlFor="mark-employee" className="month-mark-label">
               Employee
             </label>
-            <SearchableEmployeeSelect
-              employeeList={employeeList}
+            <SearchableEmployeeSelectServer
               value={markMonthForm.employeeId}
               onChange={(empId) => handleMonthMarkChange('employeeId', empId)}
               disabled={isSubmitting}

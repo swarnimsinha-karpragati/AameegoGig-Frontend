@@ -1,6 +1,7 @@
 // eslint-disable-next-line
 import React, { useState } from 'react';
 import { X, IndianRupee } from 'lucide-react';
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import './AdvanceLoanRequestForm.css';
 
 const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canApprove = false }) => {
@@ -107,21 +108,16 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
                 <div className="alf-modal-body">
                     <div className="alf-form">
                         {/* Employee Select for Approvers */}
-                        {canApprove && employees.length > 0 && (
+                        {canApprove && (
                             <div className="alf-form-group">
                                 <label className="alf-label">Employee *</label>
-                                <select
-                                    className={`alf-input ${errors.employeeId ? 'alf-error' : ''}`}
+                                <SearchableEmployeeSelectServer
                                     value={formData.employeeId}
-                                    onChange={handleChange('employeeId')}
-                                >
-                                    <option value="">Select Employee</option>
-                                    {employees.map((emp) => (
-                                        <option key={emp._id} value={emp._id}>
-                                            {emp.employeeCode} — {emp.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(empId) => handleChange('employeeId')(empId)}
+                                    hasError={!!errors.employeeId}
+                                    controlClassName="alf-input"
+                                    placeholder="Select Employee"
+                                />
                                 {errors.employeeId && (
                                     <span className="alf-error-text">{errors.employeeId}</span>
                                 )}

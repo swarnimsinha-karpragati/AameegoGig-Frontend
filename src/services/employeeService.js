@@ -97,6 +97,10 @@ export const getEmployees = async (params = {}) => {
   return API.get("/employees", { params });
 };
 
+export const searchEmployees = async (params = {}) => {
+  return API.get("/employees/search", { params });
+};
+
 /* =========================
    ADD SINGLE EMPLOYEE
 ========================= */

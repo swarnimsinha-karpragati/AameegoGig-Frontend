@@ -17,6 +17,7 @@ import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
 import { getEmployees } from "../services/employeeService";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
   approveLeaveRequest,
   cancelLeaveRequest,
@@ -554,20 +555,11 @@ function LeaveInner() {
         {showEmployeeSelect ? (
           <div className="leave-field leave-field--wide">
             <label htmlFor="leave-employee">Employee</label>
-            <select
-              id="leave-employee"
-              className="leave-control"
+            <SearchableEmployeeSelectServer
               value={leaveForm.employeeId}
-              onChange={(e) =>
-                setLeaveForm((p) => ({ ...p, employeeId: e.target.value }))
-              }
-            >
-              {employeeList.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.employeeCode} - {emp.name}
-                </option>
-              ))}
-            </select>
+              onChange={(empId) => setLeaveForm((p) => ({ ...p, employeeId: empId }))}
+              controlClassName="leave-control"
+            />
           </div>
         ) : null}
         <div className="leave-field">
@@ -887,18 +879,11 @@ function LeaveInner() {
         <form className="balance-editor" onSubmit={handleSaveBalances}>
           <div className="leave-field">
             <label htmlFor="balance-employee">Employee</label>
-            <select
-              id="balance-employee"
-              className="leave-control"
+            <SearchableEmployeeSelectServer
               value={selectedBalanceEmployee}
-              onChange={(e) => setSelectedBalanceEmployee(e.target.value)}
-            >
-              {balanceList.map((b) => (
-                <option key={b.employeeId} value={b.employeeId}>
-                  {b.employeeCode} - {b.name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedBalanceEmployee}
+              controlClassName="leave-control"
+            />
           </div>
           <div className="leave-balance-grid">
             {leaveBalanceTypes.map((type) => (
