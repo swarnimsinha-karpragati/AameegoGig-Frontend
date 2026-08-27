@@ -47,6 +47,21 @@ export default function OrgProfileCard() {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
+  const syncStoredUser = useCallback((data) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "null");
+      if (!stored) return;
+      const next = {
+        ...stored,
+        vendorName: data.name ?? stored.vendorName,
+      };
+      localStorage.setItem("user", JSON.stringify(next));
+      window.dispatchEvent(new Event("user-updated"));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const handleSave = async () => {
     setSaving(true);
     setMessage("");
@@ -68,21 +83,6 @@ export default function OrgProfileCard() {
       setSaving(false);
     }
   };
-
-  const syncStoredUser = useCallback((data) => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("user") || "null");
-      if (!stored) return;
-      const next = {
-        ...stored,
-        vendorName: data.name ?? stored.vendorName,
-      };
-      localStorage.setItem("user", JSON.stringify(next));
-      window.dispatchEvent(new Event("user-updated"));
-    } catch {
-      // ignore
-    }
-  }, []);
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];

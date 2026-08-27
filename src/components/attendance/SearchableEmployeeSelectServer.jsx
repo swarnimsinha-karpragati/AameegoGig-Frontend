@@ -9,7 +9,6 @@ function SearchableEmployeeSelectServer({
   hasError = false,
   placeholder = "-- Select Employee --",
   controlClassName = "month-mark-control",
-  departmentId,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,7 +25,6 @@ function SearchableEmployeeSelectServer({
       try {
         const res = await searchEmployees({
           search: term,
-          departmentId,
           limit: 50,
         });
         const fetchedList = res.data.employees || [];
@@ -44,7 +42,7 @@ function SearchableEmployeeSelectServer({
         setLoading(false);
       }
     }, 200);
-  }, [departmentId, value]);
+  }, [value]);
 
   useEffect(() => {
     if (value) {

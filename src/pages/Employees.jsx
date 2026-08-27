@@ -36,6 +36,7 @@ import {
 } from "../services/letterService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
 import Pagination from "../components/Pagination";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import EmployeeSalaryStructureView from "../components/EmployeeSalaryStructureView";
 import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
 import { saveEmployeeStructure } from "../services/salaryComponentService";
@@ -209,8 +210,6 @@ function EmployeeFormFields({
   sections,
   values,
   onFieldChange,
-  employees,
-  excludeEmployeeId,
   emailRequired,
   department,
   errors
@@ -250,16 +249,13 @@ function EmployeeFormFields({
     if (field.type === "manager") {
       return (
         <>
-          <select {...common} value={values.managerId || ""}>
-            <option value="">Select manager (optional)</option>
-            {employees
-              .filter((emp) => emp._id !== excludeEmployeeId)
-              .map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.employeeCode} — {emp.name}
-                </option>
-              ))}
-          </select>
+          <SearchableEmployeeSelectServer
+            value={values.managerId}
+            onChange={(empId) => onFieldChange({ target: { name: field.key, value: empId } })}
+            hasError={!!fieldError(field.key)}
+            controlClassName="emp-field-input form-control"
+            placeholder="Select manager (optional)"
+          />
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}

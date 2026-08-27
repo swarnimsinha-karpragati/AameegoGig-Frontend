@@ -166,10 +166,6 @@ function MainLayout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand">
-
-            {/* <h1>
-              Aameego <span>Gig</span>
-            </h1> */}
             <img
               src={logo ? logo : defaultLogo}
               alt="Logo"
