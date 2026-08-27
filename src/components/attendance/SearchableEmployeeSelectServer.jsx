@@ -134,7 +134,7 @@ function SearchableEmployeeSelectServer({
                   key={emp._id}
                   className={`month-mark-combobox__item ${emp._id === value ? "month-mark-combobox__item--selected" : ""
                     }`}
-                  onClick={() => handleSelect(emp._id)}
+                  onClick={() => handleSelect(emp)}
                 >
                   <span className="month-mark-combobox__item-code">{emp.employeeCode}</span>
                   <span className="month-mark-combobox__item-name">{emp.name}</span>

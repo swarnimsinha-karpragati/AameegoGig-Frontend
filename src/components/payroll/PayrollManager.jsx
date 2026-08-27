@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { getAvailableMonths, PAYROLL_YEARS, formatInr } from "../../utils/payrollConstants";
 import Button from "../Button";
-import Pagination from "../Pagination";
 
 /** Local (browser-timezone) today as YYYY-MM-DD — avoids the UTC shift of toISOString(). */
 const todayLocalISO = () => {
@@ -618,30 +617,6 @@ function PayrollRow({
           </div>
         </div>
       )}
-
-      {/* {payrollPagination?.pages > 1 && (
-        <Pagination
-          currentPage={payrollPagination.page}
-          totalPages={payrollPagination.pages}
-          totalRecords={payrollPagination.total}
-          limit={payrollPagination.limit}
-          onPageChange={onPayrollPageChange}
-          showPageSize
-          onPageSizeChange={onPayrollLimitChange}
-        />
-      )}
-
-      {reviewPagination?.pages > 1 && (
-        <Pagination
-          currentPage={reviewPagination.page}
-          totalPages={reviewPagination.pages}
-          totalRecords={reviewPagination.total}
-          limit={reviewPagination.limit}
-          onPageChange={onReviewPageChange}
-          showPageSize
-          onPageSizeChange={onReviewLimitChange}
-        />
-      )} */}
     </div>
   );
 }
