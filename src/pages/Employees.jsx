@@ -643,7 +643,7 @@ function Employees() {
 
   const fetchEmployees = useCallback(async (departmentId) => {
     try {
-      const res = await getEmployees({ departmentId, page, limit, search });
+      const res = await getEmployees({ departmentId, page, limit, search, isPagination: "true" });
       setEmployees(
         res.data.employees || []
       );
