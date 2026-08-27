@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 import MainLayout from "../layouts/MainLayout";
 import {
@@ -35,6 +35,7 @@ import {
   generateAppointmentLetter,
 } from "../services/letterService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
+import Pagination from "../components/Pagination";
 import EmployeeSalaryStructureView from "../components/EmployeeSalaryStructureView";
 import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
 import { saveEmployeeStructure } from "../services/salaryComponentService";
@@ -527,7 +528,7 @@ function Employees() {
     nameAsPerPan: "",
     nameAsPerAadhaar: "",
     client: "",
-    payType:"MONTHLY",
+    payType: "MONTHLY",
 
     aadhaarNumber: "", panNumber: "",
     uan: "", pfNumber: "", esicNumber: "",
@@ -543,6 +544,9 @@ function Employees() {
 
   const [employees, setEmployees] = useState([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [pagination, setPagination] = useState({ total: 0, pages: 0 });
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
@@ -637,26 +641,32 @@ function Employees() {
      FETCH EMPLOYEES
   ========================= */
 
-  const fetchEmployees = async (departmentId) => {
+  const fetchEmployees = useCallback(async (departmentId) => {
     try {
-      const res = await getEmployees({ departmentId });
+      const res = await getEmployees({ departmentId, page, limit, search });
       setEmployees(
         res.data.employees || []
       );
+      if (res.data.pagination) {
+        setPagination({
+          total: res.data.pagination.total,
+          pages: res.data.pagination.pages,
+        });
+      }
     } catch (error) {
       console.error(
         "Error fetching employees:",
         error
       );
     }
-  };
+  }, [page, limit, search]);
 
   useEffect(() => {
     const loggedUser = localStorage.getItem('user')
     const { vendorId } = JSON.parse(loggedUser)
     fetchEmployees(departmentFilter);
     fetchDepartment(vendorId);
-  }, [departmentFilter]);
+  }, [departmentFilter, page, limit, search, fetchEmployees]);
 
   const fetchDepartment = async (vendorId) => {
     try {
@@ -1078,7 +1088,7 @@ function Employees() {
     uan: emp.uan || "",
     esicNumber: emp.esicNumber || "",
     userRole: emp.linkedUser?.role || emp.userRole || "Employee",
-    payType:emp.payType || "MONTHLY",
+    payType: emp.payType || "MONTHLY",
     allowedModules: defaultSelectedModules(
       emp.linkedUser?.role || emp.userRole || "Employee",
       emp.linkedUser?.allowedModules
@@ -1255,24 +1265,10 @@ function Employees() {
     };
 
   /* =========================
-     FILTER EMPLOYEES
-  ========================= */
+       FILTER EMPLOYEES
+     ========================= */
 
-  const filteredEmployees =
-    employees.filter((emp) =>
-      [
-        emp.employeeCode,
-        emp.name,
-        emp.email,
-        emp.phone,
-        emp.designation,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(
-          search.toLowerCase()
-        )
-    );
+  const filteredEmployees = employees;
 
   const handleUploadDocument =
     async () => {
@@ -1338,7 +1334,7 @@ function Employees() {
       <div className="employee-page">
 
         <p className="employee-page__count">
-          Total employees: <strong>{employees.length}</strong>
+          Total employees: <strong>{pagination?.total || 0}</strong>
         </p>
 
         <div className="employee-toolbar">
@@ -1568,6 +1564,18 @@ function Employees() {
             </table>
           </div>
         </div>
+
+        {pagination.pages > 1 && (
+          <Pagination
+            currentPage={page}
+            totalPages={pagination.pages}
+            totalRecords={pagination.total}
+            limit={limit}
+            onPageChange={setPage}
+            showPageSize
+            onPageSizeChange={setLimit}
+          />
+        )}
 
         {/* ================= ADD EMPLOYEE MODAL ================= */}
         {showAddModal ? (

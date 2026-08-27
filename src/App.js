@@ -23,6 +23,7 @@ import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
 import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
+import AdvanceLoanRequest from './components/AdvanceLoan';
 
 function App() {
   const token = localStorage.getItem("token");
@@ -80,6 +81,7 @@ function App() {
         <Route path=":vendor/leave" element={<ProtectedRoute><Leave /></ProtectedRoute>} />
         <Route path=":vendor/leave/policy" element={<ProtectedRoute><LeavePolicy /></ProtectedRoute>} />
         <Route path=":vendor/expenses" element={<ProtectedRoute><Expense /></ProtectedRoute>} />
+        <Route path=":vendor/advance-loan" element={<ProtectedRoute><AdvanceLoanRequest /></ProtectedRoute>} />
         <Route path=":vendor/resignation" element={<ProtectedRoute><Resignations /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>

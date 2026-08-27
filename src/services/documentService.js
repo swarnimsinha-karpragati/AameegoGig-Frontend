@@ -5,9 +5,10 @@ import { getApiUrl } from "../config/api";
    GET ALL DOCUMENTS
 ========================= */
 export const getDocuments =
-  async () => {
+  async (params = {}) => {
     return API.get(
-      "/documents"
+      "/documents",
+      { params }
     );
   };
 
@@ -116,8 +117,9 @@ export const uploadEmployeeDocument =
  GET EMPLOYEE DOCUMENTS
 ========================= */
 export const getEmployeeDocuments =
-  async (employeeId) => {
+  async (employeeId, params = {}) => {
     return API.get(
-      `/documents/employee/${employeeId}`
+      `/documents/employee/${employeeId}`,
+      { params }
     );
   };

@@ -15,6 +15,7 @@ import {
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
+import Pagination from "../components/Pagination";
 import {
   getExpenseDashboard,
   getExpenses,
@@ -27,6 +28,7 @@ import {
   getReceiptUrl,
 } from "../services/expenseService";
 import { getEmployees } from "../services/employeeService";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
   getStoredUser,
   getExpenseViewKey,
@@ -163,6 +165,7 @@ function ExpenseInner() {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
+  const [expPagination, setExpPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
 
   /* ── Confirm modal state ── */
   const [modal, setModal] = useState({
@@ -230,10 +233,13 @@ function ExpenseInner() {
     try {
       const [dashRes, expRes] = await Promise.all([
         getExpenseDashboard(),
-        getExpenses(),
+        getExpenses({ page: expPagination.page, limit: expPagination.limit }),
       ]);
       setDashboard(dashRes);
       setExpenses(expRes.expenses || []);
+      if (expRes.pagination) {
+        setExpPagination(prev => ({ ...prev, total: expRes.pagination.total, pages: expRes.pagination.pages }));
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load expense data");
     } finally {
@@ -430,22 +436,13 @@ function ExpenseInner() {
         <p>Fill in the details and attach a receipt when available.</p>
       </div>
       <form className="expense-form" onSubmit={(e) => handleCreate(e, forSelf)}>
-        {showEmployeeSelect && employees.length > 0 ? (
+        {showEmployeeSelect ? (
           <ExpenseFormField label="Employee" htmlFor="expense-employee">
-            <select
-              id="expense-employee"
-              className="expense-control"
+            <SearchableEmployeeSelectServer
               value={form.employeeId}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employeeId: e.target.value }))
-              }
-            >
-              {employees.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.employeeCode} — {emp.name}
-                </option>
-              ))}
-            </select>
+              onChange={(empId) => setForm((p) => ({ ...p, employeeId: empId }))}
+              controlClassName="expense-control"
+            />
           </ExpenseFormField>
         ) : null}
 
@@ -775,6 +772,18 @@ function ExpenseInner() {
           </tbody>
         </table>
       </div>
+
+      {expPagination.pages > 1 && (
+        <Pagination
+          currentPage={expPagination.page}
+          totalPages={expPagination.pages}
+          totalRecords={expPagination.total}
+          limit={expPagination.limit}
+          onPageChange={setPage => setExpPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setExpPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
     </section>
   );
 

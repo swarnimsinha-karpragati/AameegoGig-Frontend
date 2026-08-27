@@ -16,6 +16,7 @@ import "./Attendance.css";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
+import Pagination from "../components/Pagination";
 import SelfieCapture from "../components/SelfieCapture";
 import Button from "../components/Button";
 import { getEmployees } from "../services/employeeService";
@@ -36,7 +37,7 @@ import {
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
-import SearchableEmployeeSelect from "../components/attendance/SearchableEmployeeSelect";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import AttendanceStats from "../components/attendance/AttendanceStats";
 import TodayMetricsGrid from "../components/attendance/TodayMetricsGrid";
 import SessionList from "../components/attendance/SessionList";
@@ -107,6 +108,10 @@ function Attendance() {
   const [orgFilters, setOrgFilters] = useState(createInitialFilters);
   const [teamFilters, setTeamFilters] = useState(createInitialFilters);
 
+  const [selfPagination, setSelfPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [orgPagination, setOrgPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [teamPagination, setTeamPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+
   const [markForm, setMarkForm] = useState({
     employeeId: "",
     status: "Present",
@@ -140,11 +145,13 @@ function Attendance() {
     year: "numeric",
   });
 
-  const buildListParams = (target, viewDateObj, selectedDay, filterObj) => {
+  const buildListParams = (target, viewDateObj, selectedDay, filterObj, pagination) => {
     const params = {
       target,
       filterType: filterObj.filterType,
       search: filterObj.search || "",
+      page: pagination.page,
+      limit: pagination.limit,
     };
     if (selectedDay !== null) {
       params.filterType = "custom";
@@ -183,7 +190,7 @@ function Attendance() {
     try {
       const year = personalViewDate.getFullYear();
       const month = personalViewDate.getMonth() + 1;
-      const params = buildListParams("self", personalViewDate, selectedPersonalDay, selfFilters);
+      const params = buildListParams("self", personalViewDate, selectedPersonalDay, selfFilters, selfPagination);
       const [monthData, listRes] = await Promise.all([
         getMonthlyAttendance(year, month, "self"),
         getAttendanceList(params),
@@ -197,6 +204,9 @@ function Attendance() {
       });
       setSelfStats(monthData.stats || EMPTY_STATS);
       setSelfRows(listRes.rows || []);
+      if (listRes.pagination) {
+        setSelfPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
+      }
       if (listRes.hasTeam !== undefined) setHasTeam(listRes.hasTeam);
     } catch (err) {
       if (err.response?.status === 403) return;
@@ -209,7 +219,7 @@ function Attendance() {
     try {
       const year = orgViewDate.getFullYear();
       const month = orgViewDate.getMonth() + 1;
-      const params = buildListParams("org", orgViewDate, selectedOrgDay, orgFilters);
+      const params = buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, orgPagination);
       const [monthData, listRes] = await Promise.all([
         getMonthlyAttendance(year, month, "org"),
         getAttendanceList(params),
@@ -223,6 +233,9 @@ function Attendance() {
       });
       setOrgStats(monthData.stats || EMPTY_STATS);
       setOrgRows(listRes.rows || []);
+      if (listRes.pagination) {
+        setOrgPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
+      }
     } catch (err) {
       if (err.response?.status === 403) return;
       setError(err.response?.data?.message || "Failed to load attendance data");
@@ -232,9 +245,12 @@ function Attendance() {
   const loadTeamData = async () => {
     if (!hasTeam) return;
     try {
-      const params = buildListParams("team", personalViewDate, null, teamFilters);
+      const params = buildListParams("team", personalViewDate, null, teamFilters, teamPagination);
       const listRes = await getAttendanceList(params);
       setTeamRows(listRes.rows || []);
+      if (listRes.pagination) {
+        setTeamPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
+      }
     } catch (err) {
       if (err.response?.status === 403) return;
       setError(err.response?.data?.message || "Failed to load team attendance");
@@ -919,8 +935,7 @@ function Attendance() {
         <div className="attendance-mark-form__row">
           <div className="attendance-field attendance-field--employee">
             <label htmlFor="mark-employee">Employee</label>
-            <SearchableEmployeeSelect
-              employeeList={employeeList}
+            <SearchableEmployeeSelectServer
               value={markForm.employeeId}
               onChange={(empId) => setMarkForm((prev) => ({ ...prev, employeeId: empId }))}
               controlClassName="attendance-control"
@@ -1065,8 +1080,7 @@ function Attendance() {
             <label htmlFor="mark-employee" className="month-mark-label">
               Employee
             </label>
-            <SearchableEmployeeSelect
-              employeeList={employeeList}
+            <SearchableEmployeeSelectServer
               value={markMonthForm.employeeId}
               onChange={(empId) => handleMonthMarkChange('employeeId', empId)}
               disabled={isSubmitting}
@@ -1228,6 +1242,18 @@ function Attendance() {
         isCalendarSelection={selectedOrgDay !== null}
         onClearSelectedDay={() => setSelectedOrgDay(null)}
       />
+
+      {orgPagination.pages > 1 && (
+        <Pagination
+          currentPage={orgPagination.page}
+          totalPages={orgPagination.pages}
+          totalRecords={orgPagination.total}
+          limit={orgPagination.limit}
+          onPageChange={setPage => setOrgPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setOrgPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
     </>
   );
 
@@ -1263,6 +1289,18 @@ function Attendance() {
         isCalendarSelection={selectedPersonalDay !== null}
         onClearSelectedDay={() => setSelectedPersonalDay(null)}
       />
+
+      {selfPagination.pages > 1 && (
+        <Pagination
+          currentPage={selfPagination.page}
+          totalPages={selfPagination.pages}
+          totalRecords={selfPagination.total}
+          limit={selfPagination.limit}
+          onPageChange={setPage => setSelfPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setSelfPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
       <h1 className="attendance-title">Organization Attendance</h1>
       {renderMarkForm(employees, "Mark / Correct Attendance")}
       {renderMarkMonthForm(employees, "Mark / Month Attendance")}
@@ -1289,6 +1327,18 @@ function Attendance() {
         isCalendarSelection={selectedOrgDay !== null}
         onClearSelectedDay={() => setSelectedOrgDay(null)}
       />
+
+      {orgPagination.pages > 1 && (
+        <Pagination
+          currentPage={orgPagination.page}
+          totalPages={orgPagination.pages}
+          totalRecords={orgPagination.total}
+          limit={orgPagination.limit}
+          onPageChange={setPage => setOrgPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setOrgPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
     </>
   );
 
@@ -1323,6 +1373,18 @@ function Attendance() {
         onClearSelectedDay={() => setSelectedPersonalDay(null)}
       />
 
+      {selfPagination.pages > 1 && (
+        <Pagination
+          currentPage={selfPagination.page}
+          totalPages={selfPagination.pages}
+          totalRecords={selfPagination.total}
+          limit={selfPagination.limit}
+          onPageChange={setPage => setSelfPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setSelfPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
+
       {hasTeam && (
         <div>
           <TodayAttendanceTable
@@ -1333,6 +1395,18 @@ function Attendance() {
             filters={teamFilters}
             onFilterChange={handleTeamFilterChange}
           />
+
+          {teamPagination.pages > 1 && (
+            <Pagination
+              currentPage={teamPagination.page}
+              totalPages={teamPagination.pages}
+              totalRecords={teamPagination.total}
+              limit={teamPagination.limit}
+              onPageChange={setPage => setTeamPagination(p => ({ ...p, page: setPage }))}
+              showPageSize
+              onPageSizeChange={limit => setTeamPagination(p => ({ ...p, limit, page: 1 }))}
+            />
+          )}
         </div>
       )}
     </>
