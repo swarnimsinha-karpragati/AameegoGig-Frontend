@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, Upload } from "lucide-react";
 import {
   getOrgProfile,
@@ -59,6 +59,7 @@ export default function OrgProfileCard() {
         employeeCodePrefix: profile.employeeCodePrefix,
       });
       setProfile(res.data?.data);
+      syncStoredUser(res.data?.data)
       setMessage("Organization profile saved. New payslips will use these details.");
       setTimeout(() => setMessage(""), 3000);
     } catch (err) {
@@ -67,6 +68,21 @@ export default function OrgProfileCard() {
       setSaving(false);
     }
   };
+
+  const syncStoredUser = useCallback((data) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "null");
+      if (!stored) return;
+      const next = {
+        ...stored,
+        vendorName: data.name ?? stored.vendorName,
+      };
+      localStorage.setItem("user", JSON.stringify(next));
+      window.dispatchEvent(new Event("user-updated"));
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];

@@ -212,7 +212,7 @@ function Dashboard() {
                   </div>
                 )}
                 {showPayroll && data.payrollPending > 0 && (
-                  <Link to={`/${vendorName}/payroll?tab=review`} className="insight-chip warning">
+                  <Link to={`/${vendorName}/payroll?tab=payroll`} className="insight-chip warning">
                     <Wallet size={16} />
                     <span>{data.payrollPending} payroll record{data.payrollPending !== 1 ? "s" : ""} pending processing</span>
                   </Link>
