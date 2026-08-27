@@ -94,7 +94,8 @@ export const buildEmployeePayload = (data, extras = {}) => {
    GET ALL EMPLOYEES
 ========================= */
 export const getEmployees = async (params = {}) => {
-  return API.get("/employees", { params });
+  const mergedParams = { isPagination: "false", ...params };
+  return API.get("/employees", { params: mergedParams });
 };
 
 export const searchEmployees = async (params = {}) => {
