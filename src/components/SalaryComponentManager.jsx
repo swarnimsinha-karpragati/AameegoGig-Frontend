@@ -516,10 +516,10 @@ export default function SalaryComponentManager() {
         </div>
       </div>
       <div className="salary-cm__row-actions">
-        <button className="action-btn action-btn-edit" onClick={() => openEdit(comp)} title="Edit" type="button" disabled={loading}>
+        <button className="salary-cm__action-btn salary-cm__action-btn--edit" onClick={() => openEdit(comp)} title="Edit" type="button" disabled={loading}>
           <Pencil size={16} />
         </button>
-        <button className="action-btn action-btn-delete" onClick={() => handleDelete(comp.code, comp.isSystem)} title="Delete" type="button" disabled={loading}>
+        <button className="salary-cm__action-btn salary-cm__action-btn--delete" onClick={() => handleDelete(comp.code, comp.isSystem)} title="Delete" type="button" disabled={loading}>
           <Trash2 size={16} />
         </button>
       </div>

@@ -209,9 +209,17 @@ const SalaryStructure = () => {
         const basicComp = componentsList.find(c => c.code === "BASIC");
         let parsedEarnings = parseStructureItems(struct.earnings);
         let parsedDeductions = parseStructureItems(struct.deductions);
-        if (basicComp && !parsedEarnings.some(e => e.componentId === basicComp._id)) {
+        if (basicComp && !parsedEarnings.some(e => String(e.componentId) === String(basicComp._id))) {
             parsedEarnings.push({ componentId: basicComp._id });
         }
+        // Keep BASIC first and overall sortOrder (fixes Basic going last after update)
+        const sortByOrder = (arr) => [...arr].sort((a,b)=>{
+            const ca = componentsList.find(c=> String(c._id)===String(a.componentId));
+            const cb = componentsList.find(c=> String(c._id)===String(b.componentId));
+            return (ca?.sortOrder ?? 999) - (cb?.sortOrder ?? 999);
+        });
+        parsedEarnings = sortByOrder(parsedEarnings);
+        parsedDeductions = sortByOrder(parsedDeductions);
         setNewStructure({
             name: struct.name || "",
             description: struct.description || "",
@@ -451,12 +459,17 @@ const SalaryStructure = () => {
             setFormLoading(true);
             setError("");
             
+            const sortByGlobalOrder = (items) => [...(items || [])].sort((a,b) => {
+                const compA = componentsList.find(c => String(c._id) === String(a.componentId));
+                const compB = componentsList.find(c => String(c._id) === String(b.componentId));
+                return (compA?.sortOrder ?? 999) - (compB?.sortOrder ?? 999);
+            });
             const payload = {
                 vendorId: user.vendorId,
                 name: trimmedName,
                 description: trimmedDesc,
-                earnings: newStructure.earnings,
-                deductions: newStructure.deductions
+                earnings: sortByGlobalOrder(newStructure.earnings),
+                deductions: sortByGlobalOrder(newStructure.deductions)
             };
 
             if (editingId) {
@@ -529,7 +542,11 @@ const SalaryStructure = () => {
                                         <td>
                                             <div className="pill-container">
                                                 {struct.earnings?.length > 0 ? (
-                                                    struct.earnings.map((item, index) => (
+                                                    [...struct.earnings].sort((a,b)=>{
+                                                        const ca = componentsList.find(c=> String(c._id)===String(a.componentId?._id||a.componentId));
+                                                        const cb = componentsList.find(c=> String(c._id)===String(b.componentId?._id||b.componentId));
+                                                        return (ca?.sortOrder ?? 999) - (cb?.sortOrder ?? 999);
+                                                    }).map((item, index) => (
                                                         <span key={`earn-${struct._id}-${index}`} className="pill pill-earning">
                                                             {item.componentId?.name || "Unknown"}
                                                         </span>
@@ -542,7 +559,11 @@ const SalaryStructure = () => {
                                         <td>
                                             <div className="pill-container">
                                                 {struct.deductions?.length > 0 ? (
-                                                    struct.deductions.map((item, index) => (
+                                                    [...struct.deductions].sort((a,b)=>{
+                                                        const ca = componentsList.find(c=> String(c._id)===String(a.componentId?._id||a.componentId));
+                                                        const cb = componentsList.find(c=> String(c._id)===String(b.componentId?._id||b.componentId));
+                                                        return (ca?.sortOrder ?? 999) - (cb?.sortOrder ?? 999);
+                                                    }).map((item, index) => (
                                                         <span key={`deduct-${struct._id}-${index}`} className="pill pill-deduction">
                                                             {item.componentId?.name || "Unknown"}
                                                         </span>
@@ -554,10 +575,10 @@ const SalaryStructure = () => {
                                         </td>
                                         <td>
                                             <div className="table-actions">
-                                                <button className="action-btn action-btn-edit" onClick={() => handleEdit(struct)} title="Edit">
+                                                <button className="salary-struct__action-btn salary-struct__action-btn--edit" onClick={() => handleEdit(struct)} title="Edit">
                                                     <Pencil size={18} />
                                                 </button>
-                                                <button className="action-btn action-btn-delete" onClick={() => handleDelete(struct)} title="Delete">
+                                                <button className="salary-struct__action-btn salary-struct__action-btn--delete" onClick={() => handleDelete(struct)} title="Delete">
                                                     <Trash2 size={18} />
                                                 </button>
                                             </div>
@@ -671,11 +692,11 @@ const SalaryStructure = () => {
                                                         <span style={{display:"flex", alignItems:"center", gap:6, flexWrap:"wrap"}}>
                                                             {comp.name} 
                                                             {isBasic && <span style={{color: '#ef4444', fontSize: '11px'}}>*Required</span>}
-                                                            {overridden && <span className="salary-cm__badge" style={{background:"#fef3c7", color:"#92400e", fontSize:10, padding:"2px 6px", borderRadius:999}}>modified</span>}
+                                                            {overridden && <span style={{background:"#fef3c7", color:"#92400e", fontSize:10, padding:"2px 10px", borderRadius:999 , textAlign:"center"}}>Modified</span>}
                                                         </span>
                                                     </label>
                                                     {isSelected && (
-                                                        <button type="button" className="action-btn action-btn-edit" onClick={() => handleOpenOverride(comp, 'Earning')} title="Adjust for this structure" disabled={formLoading} style={{width:28, height:28, flexShrink:0, background:"#f8fafc", border:"1px solid #e2e8f0"}}>
+                                                        <button type="button" className="salary-struct__action-btn salary-struct__action-btn--adjust" onClick={() => handleOpenOverride(comp, 'Earning')} title="Adjust for this structure" disabled={formLoading}>
                                                             <SlidersHorizontal size={14} />
                                                         </button>
                                                     )}
@@ -706,11 +727,11 @@ const SalaryStructure = () => {
                                                         />
                                                         <span style={{display:"flex", alignItems:"center", gap:6}}>
                                                             {comp.name}
-                                                            {overridden && <span className="salary-cm__badge" style={{background:"#fef3c7", color:"#92400e", fontSize:10, padding:"2px 6px", borderRadius:999}}>modified</span>}
+                                                            {overridden && <span style={{background:"#fef3c7", color:"#92400e", fontSize:10, padding:"2px 10px", borderRadius:999 , textAlign:"center"}}>Modified</span>}
                                                         </span>
                                                     </label>
                                                     {isSelected && (
-                                                        <button type="button" className="action-btn action-btn-edit" onClick={() => handleOpenOverride(comp, 'Deduction')} title="Adjust for this structure" disabled={formLoading} style={{width:28, height:28, flexShrink:0, background:"#f8fafc", border:"1px solid #e2e8f0"}}>
+                                                        <button type="button" className="salary-struct__action-btn salary-struct__action-btn--adjust" onClick={() => handleOpenOverride(comp, 'Deduction')} title="Adjust for this structure" disabled={formLoading}>
                                                             <SlidersHorizontal size={14} />
                                                         </button>
                                                     )}
@@ -739,9 +760,8 @@ const SalaryStructure = () => {
                 <div className="salary-cm__overlay" style={{zIndex: 9999}} onClick={handleCloseOverride}>
                     <div className="salary-cm__modal salary-cm__modal--wide" style={{zIndex: 10000}} onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true">
                         <div className="salary-cm__modal-head">
-                            <div>
-                                <h3 style={{display:"flex", alignItems:"center", gap:8}}><Settings size={16}/> Adjust {overrideTarget.comp.name}</h3>
-                                <p className="salary-cm__modal-subtitle">Override for this structure only — does not affect the global component. Global: {CALC_LABELS[overrideTarget.comp.calculationType] || overrideTarget.comp.calculationType} {overrideTarget.comp.calculationType === "PercentOfComponent" ? `of ${overrideTarget.comp.baseComponent}` : ""} {FORMULA_TYPES.has(overrideTarget.comp.calculationType) ? `· ${overrideTarget.comp.formulaExpression||""}` : ""}</p>
+                            <div style={{flex:'1'}}>
+                                <h3 style={{display:"flex", alignItems:"center"}}><Settings size={16}/>Adjust {overrideTarget.comp.name}</h3>
                             </div>
                             <button type="button" className="salary-cm__modal-close" onClick={handleCloseOverride}><X size={18}/></button>
                         </div>
@@ -833,13 +853,13 @@ const SalaryStructure = () => {
                                     <div className="salary-cm__hint">Leave blank to use global</div>
                                 </div>
                             </div>
-                            <div className="salary-cm__field" style={{marginTop:12}}>
+                            {/* <div className="salary-cm__field" style={{marginTop:12}}>
                                 <label className="salary-cm__check" style={{marginBottom:0}}>
                                     <input type="checkbox" checked={!!overrideForm.isPartOfCTC} onChange={e=>handleOverrideChange("isPartOfCTC", e.target.checked)} />
                                     <span>Include in CTC</span>
                                 </label>
                                 <div className="salary-cm__hint">Global: {overrideTarget.comp.isPartOfCTC ? "Yes, part of CTC" : "No, outside CTC"} — override applies only to this structure</div>
-                            </div>
+                            </div> */}
                         </div>
                         <div className="salary-cm__modal-foot">
                             <Button className="secondary-btn" onClick={handleResetOverride} style={{marginRight:"auto", border:"1px dashed #cbd5e1", background:"#fff"}}>Reset to global</Button>

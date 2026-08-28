@@ -110,6 +110,8 @@
     justify-content: flex-end;
     gap: 12px;
     flex-direction: column;
+    align-items: flex-end;
+    padding-right: 10px;
 }
 
 /* --- Pills / Tags --- */
@@ -199,6 +201,51 @@
     color: #dc2626;
 }
 
+/* SCOPED: Salary Structure only - use salary-struct__action-btn (isolated from other files) */
+.salary-struct__action-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0px;
+    border-radius: 6px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-direction: column;
+    width: 32px;
+    height: 32px;
+}
+
+.salary-struct__action-btn--edit {
+    color: #3b82f6;
+}
+
+.salary-struct__action-btn--edit:hover {
+    color: #2563eb;
+}
+
+.salary-struct__action-btn--delete {
+    color: #ef4444;
+}
+
+.salary-struct__action-btn--delete:hover {
+    color: #dc2626;
+}
+
+.salary-struct__action-btn--adjust {
+    color: #64748b;
+    width: 28px;
+    height: 28px;
+    padding-right: 10px;
+}
+
+.salary-struct__action-btn--adjust:hover {
+    color: #3b82f6;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
 /* --- Modal Overlay & Container --- */
 .salary-cm__overlay {
     position: fixed;
@@ -235,7 +282,7 @@
 .salary-cm__modal-head {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     padding: 20px 24px;
     border-bottom: 1px solid #e2e8f0;
 }
