@@ -73,7 +73,8 @@ export const CTC_MATCH_ROUNDING_TOLERANCE = 6;
 
 /**
  * Manual component entry must fully allocate the Annual CTC:
- * (sum of ALL enabled component monthly amounts — earnings AND deductions) × 12 === Annual CTC.
+ * CTC = Earnings (gross) + Employer Contributions
+ * Employee Deductions are subtracted from earnings, NOT added to CTC.
  * Returns an error message when the breakdown does not add up to the CTC, else "".
  */
 export const validateComponentsMatchCtc = ({ ctcAnnual, components = [] }) => {
@@ -83,18 +84,23 @@ export const validateComponentsMatchCtc = ({ ctcAnnual, components = [] }) => {
   const lines = (components || []).filter((comp) => comp && comp.enabled !== false);
   if (!lines.length) return "";
 
-  const monthlyTotal = lines.reduce(
-    (sum, comp) => sum + (Number(comp.monthlyAmount) || 0),
-    0
-  );
+  const earnings = lines
+    .filter((comp) => comp.category === "Earning")
+    .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
+
+  const employerContributions = lines
+    .filter((comp) => comp.isEmployerContribution)
+    .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
+
+  const monthlyTotal = earnings + employerContributions;
   const actualAnnual = monthlyTotal * 12;
   const difference = Math.abs(annualCtc - actualAnnual);
   if (difference <= CTC_MATCH_ROUNDING_TOLERANCE) return "";
 
   const fmt = (n) => Math.round(n).toLocaleString("en-IN");
   return actualAnnual > annualCtc
-  ? `The total of all components (₹${fmt(actualAnnual)}) exceeds your Annual CTC (₹${fmt(annualCtc)}) by ₹${fmt(difference)}. Please adjust the amounts to match.`
-  : `The total of all components (₹${fmt(actualAnnual)}) is ₹${fmt(difference)} less than your Annual CTC (₹${fmt(annualCtc)}). Please increase the amounts to match.`;
+    ? `Total Earnings + Employer Contributions (₹${fmt(actualAnnual)}) exceeds Annual CTC (₹${fmt(annualCtc)}) by ₹${fmt(difference)}. Please adjust the amounts to match.`
+    : `Total Earnings + Employer Contributions (₹${fmt(actualAnnual)}) is ₹${fmt(difference)} less than Annual CTC (₹${fmt(annualCtc)}). Please increase the amounts to match.`;
 };
 
 /** Validate only the earning lines shown in the appointment letter salary table. */
