@@ -697,3 +697,326 @@
   color: #fff;
   border-color: #1e6bd6;
 }
+
+/* ========================================================
+   CUSTOM FORMULA BUILDER
+======================================================== */
+.salary-cm__formula-builder {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.salary-cm__formula-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.salary-cm__formula-help {
+  font-size: 11px;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.salary-cm__formula-input-wrap {
+  margin-bottom: 12px;
+}
+
+.salary-cm__formula-input {
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #fff;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.salary-cm__formula-input:focus {
+  border-color: #1e6bd6;
+  box-shadow: 0 0 0 3px rgba(30,107,214,0.12);
+}
+
+.salary-cm__formula-input.has-error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.10);
+}
+
+.salary-cm__formula-input.has-success {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.10);
+}
+
+.salary-cm__formula-preview {
+  margin-top: 8px;
+  min-height: 22px;
+}
+
+.formula-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 999px;
+  line-height: 1.3;
+}
+
+.formula-status.success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #bbf7d0;
+}
+
+.formula-status.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.formula-status.hint {
+  background: #fff;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  font-weight: 500;
+}
+
+.salary-cm__formula-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.salary-cm__formula-operators {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 640px) {
+  .salary-cm__formula-operators {
+    grid-template-columns: 1fr;
+  }
+}
+
+.formula-op-group {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.formula-op-group-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.formula-op-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.salary-cm__formula-btn {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  min-width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f172a;
+}
+
+.salary-cm__formula-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(15,23,42,0.08);
+}
+
+.salary-cm__formula-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.salary-cm__formula-btn.op {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.salary-cm__formula-btn.op:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.salary-cm__formula-btn.num {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+.salary-cm__formula-btn.func {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
+  font-size: 11px;
+  padding: 7px 8px;
+}
+
+.salary-cm__formula-btn.func:hover:not(:disabled) {
+  background: #fde68a;
+}
+
+.salary-cm__formula-btn.ghost {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #475569;
+  font-size: 12px;
+  height: 40px;
+  padding: 0 14px;
+  font-weight: 600;
+}
+
+.salary-cm__formula-chips {
+  margin-bottom: 14px;
+}
+
+.formula-chips-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.formula-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.formula-chip {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.formula-chip:hover:not(:disabled) {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+
+.salary-cm__formula-examples {
+  margin-bottom: 14px;
+}
+
+.formula-examples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.formula-example {
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.formula-example:hover:not(:disabled) {
+  border-color: #1e6bd6;
+  background: #f0f7ff;
+  transform: translateY(-1px);
+}
+
+.formula-example-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.formula-example code {
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #f1f5f9;
+  padding: 4px 6px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+
+.salary-cm__formula-note {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.salary-cm__formula-note code {
+  background: #fef3c7;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+}
+
+.salary-cm__badge.formula {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #bbf7d0;
+  display: inline-flex;
+  align-items: center;
+}
