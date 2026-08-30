@@ -34,9 +34,10 @@ import logoPartner3 from "../assets/landing/logo-partner-3.png";
 import logoPartner4 from "../assets/landing/logo-partner-4.png";
 import logoPartner5 from "../assets/landing/logo-partner-5.png";
 import logoPartner6 from "../assets/landing/logo-partner-6.png";
-import whoCard from "../assets/landing/who-card.png";
-import whoCalendar from "../assets/landing/who-calendar.png";
-import whoEvent from "../assets/landing/who-event.png";
+import adminTabVisual from "../assets/landing/admin.png";
+import hrTabVisual from "../assets/landing/hr-tab.png";
+import managerTabVisual from "../assets/landing/manager-tab.png";
+import employeeTabVisual from "../assets/landing/employee-tab.png";
 
 const HERO_BULLETS = [
   "Built for both blue-collar and white-collar teams.",
@@ -191,6 +192,7 @@ const ROLE_CONTENT = {
       "Configure leave, payroll, and attendance policies.",
       "Monitor system health and integration status.",
     ],
+    shot: adminTabVisual,
   },
   HR: {
     title: "Run HR operations from one place.",
@@ -200,6 +202,7 @@ const ROLE_CONTENT = {
       "Approve leave, attendance, and payroll workflows.",
       "Generate reports for leadership in minutes.",
     ],
+    shot: hrTabVisual,
   },
   Manager: {
     title: "Lead your team with clarity.",
@@ -209,6 +212,7 @@ const ROLE_CONTENT = {
       "Track attendance and shift coverage at a glance.",
       "Support your team with role-specific dashboards.",
     ],
+    shot: managerTabVisual,
   },
   Employee: {
     title: "Everything you need, self-serve.",
@@ -218,8 +222,11 @@ const ROLE_CONTENT = {
       "View payslips, attendance, and documents securely.",
       "Get notified when requests are approved or rejected.",
     ],
+    shot: employeeTabVisual,
   },
 };
+
+const ROLE_SHOTS = [adminTabVisual, hrTabVisual, managerTabVisual, employeeTabVisual];
 
 const FEATURES = [
   {
@@ -327,6 +334,13 @@ function LandingPage() {
 
     return () => window.clearInterval(timer);
   }, [roleRotatePaused, roleRotateKey]);
+
+  useEffect(() => {
+    ROLE_SHOTS.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, []);
 
   useEffect(() => {
     const el = statsRef.current;
@@ -573,6 +587,11 @@ function LandingPage() {
                 One Platform
                 <span className="landing-hero-dot" aria-hidden="true" />
               </span>
+              <span className="visually-hidden">
+                {" "}
+                — HRMS software for employee management, payroll, attendance &amp;
+                leave
+              </span>
             </h1>
 
             <p
@@ -580,7 +599,7 @@ function LandingPage() {
               style={{ "--lp-d": "90ms" }}
             >
               Hire, pay, manage, and grow your whole team — office and field - from
-              one simple platform.
+              one simple HRMS platform.
             </p>
 
             <ul className="landing-checklist">
@@ -742,12 +761,15 @@ function LandingPage() {
         </div>
 
         <div className="landing-who-body lp-reveal" style={{ "--lp-d": "80ms" }}>
-          <div className="landing-who-visual" aria-hidden="true">
-            <img src={whoCalendar} alt="" className="landing-who-calendar" />
-            <img src={whoCard} alt="" className="landing-who-card" />
-            <img src={whoEvent} alt="" className="landing-who-event" />
+          <div className="landing-who-visual landing-who-visual--shot" aria-hidden="true">
+            <img
+              key={activeRole}
+              src={role.shot}
+              alt={`Workza ${activeRole} dashboard — HRMS view for the ${activeRole.toLowerCase()} role`}
+              className="landing-who-shot"
+            />
           </div>
-          <div className="landing-who-copy" key={activeRole}>
+          <div className="landing-who-copy" key={`${activeRole}-copy`}>
             <h3>{role.title}</h3>
             <p>{role.body}</p>
             <ul className="landing-who-bullets">
@@ -774,7 +796,7 @@ function LandingPage() {
             </div>
             <h2>Everything your workforce needs, in one place.</h2>
             <p>
-              One system, every function — so nothing falls through the cracks
+              One HRMS, every HR function — so nothing falls through the cracks
               between tools.
             </p>
           </div>
