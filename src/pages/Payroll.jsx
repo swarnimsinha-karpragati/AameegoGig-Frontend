@@ -331,7 +331,7 @@ export default function Payroll() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `WageSheet-${MONTH_NUMBER_TO_NAME[selectedMonth]}-${selectedYear}.xlsx`;
+      link.download = `Wage Sheet ${MONTH_NUMBER_TO_NAME[selectedMonth].slice(0, 3)} ${selectedYear}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
       setStatusMessage({
