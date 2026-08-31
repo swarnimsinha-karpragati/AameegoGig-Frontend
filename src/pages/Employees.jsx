@@ -63,6 +63,26 @@ import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles"
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
 
+const EMPLOYEES_LIST_STATE_KEY = "employees-list-state";
+
+const readPersistedListState = () => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(EMPLOYEES_LIST_STATE_KEY));
+    if (!saved || typeof saved !== "object") return null;
+    return saved;
+  } catch {
+    return null;
+  }
+};
+
+const persistListState = (state) => {
+  try {
+    sessionStorage.setItem(EMPLOYEES_LIST_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore quota / private mode errors
+  }
+};
+
 const EMPLOYEE_FORM_SECTIONS = [
   {
     id: "basic",
@@ -538,10 +558,16 @@ function Employees() {
 
   const [form, setForm] = useState(initialForm);
 
+  const persistedListState = readPersistedListState();
+
   const [employees, setEmployees] = useState([]);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState(persistedListState?.search ?? "");
+  const [page, setPage] = useState(
+    Number.isFinite(persistedListState?.page) ? persistedListState.page : 1
+  );
+  const [limit, setLimit] = useState(
+    Number.isFinite(persistedListState?.limit) ? persistedListState.limit : 10
+  );
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
 
   const [uploadFile, setUploadFile] = useState(null);
@@ -549,7 +575,9 @@ function Employees() {
   const [loading, setLoading] = useState(false);
 
   const [department, setDepartment] = useState([]);
-  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState(
+    persistedListState?.departmentFilter ?? ""
+  );
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
@@ -637,12 +665,16 @@ function Employees() {
      FETCH EMPLOYEES
   ========================= */
 
-  const fetchEmployees = useCallback(async (departmentId) => {
+  const fetchEmployees = useCallback(async () => {
     try {
-      const res = await getEmployees({ departmentId, page, limit, search, isPagination: "true" });
-      setEmployees(
-        res.data.employees || []
-      );
+      const res = await getEmployees({
+        departmentId: departmentFilter || undefined,
+        page,
+        limit,
+        search,
+        isPagination: "true",
+      });
+      setEmployees(res.data.employees || []);
       if (res.data.pagination) {
         setPagination({
           total: res.data.pagination.total,
@@ -650,19 +682,24 @@ function Employees() {
         });
       }
     } catch (error) {
-      console.error(
-        "Error fetching employees:",
-        error
-      );
+      console.error("Error fetching employees:", error);
     }
-  }, [page, limit, search]);
+  }, [departmentFilter, page, limit, search]);
 
   useEffect(() => {
-    const loggedUser = localStorage.getItem('user')
-    const { vendorId } = JSON.parse(loggedUser)
-    fetchEmployees(departmentFilter);
+    persistListState({ search, page, limit, departmentFilter });
+  }, [search, page, limit, departmentFilter]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
+
+  useEffect(() => {
+    const loggedUser = localStorage.getItem("user");
+    if (!loggedUser) return;
+    const { vendorId } = JSON.parse(loggedUser);
     fetchDepartment(vendorId);
-  }, [departmentFilter, page, limit, search, fetchEmployees]);
+  }, []);
 
   const fetchDepartment = async (vendorId) => {
     try {
@@ -874,7 +911,6 @@ function Employees() {
       setForm(initialForm);
       setSalaryDraft(initialSalaryDraft);
       setShowAddModal(false);
-
       fetchEmployees();
     } catch (error) {
       setErrors({});
@@ -1186,11 +1222,13 @@ function Employees() {
     try {
       await deleteEmployee(id);
 
-      alert(
-        "Employee deleted successfully"
-      );
+      alert("Employee deleted successfully");
 
-      fetchEmployees();
+      if (employees.length <= 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        fetchEmployees();
+      }
     } catch (error) {
       alert(
         error.response?.data
@@ -1342,11 +1380,10 @@ function Employees() {
               type="text"
               placeholder="Search employees..."
               value={search}
-              onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
-              }
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
 
@@ -1356,7 +1393,10 @@ function Employees() {
             <div className="employee-filter">
               <select
                 value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
+                onChange={(e) => {
+                  setDepartmentFilter(e.target.value);
+                  setPage(1);
+                }}
               >
                 <option value="">
                   {isSiteVendor() ? "All Sites" : "All Departments"}
@@ -1569,7 +1609,10 @@ function Employees() {
             limit={limit}
             onPageChange={setPage}
             showPageSize
-            onPageSizeChange={setLimit}
+            onPageSizeChange={(nextLimit) => {
+              setLimit(nextLimit);
+              setPage(1);
+            }}
           />
         )}
 
