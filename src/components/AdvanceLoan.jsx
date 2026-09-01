@@ -8,6 +8,8 @@ import {
     X,
     Users,
     RefreshCw,
+    Settings,
+    AlertTriangle,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
@@ -22,6 +24,7 @@ import {
     recordPayment,
     getStatistics,
     getRequestDetails,
+    getLoanConfig,
 } from "../services/advanceLoanService";
 import { canManageEmployees } from "../utils/roles";
 import { getEmployees } from "../services/employeeService";
@@ -32,6 +35,7 @@ import {
 } from "../utils/roles";
 import "./AdvanceLoanRequest.css";
 import Card from "../components/Card";
+import LoanConfiguration from "./LoanConfiguration";
 
 const PAYMENT_METHODS = ["SALARY_DEDUCTION", "CASH", "BANK_TRANSFER", "OTHER"];
 
@@ -79,39 +83,17 @@ const getPriorityBadge = (priority, status) => {
     return `priority-badge ${classes[priority] || "priority-medium"}`;
 };
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 /* ===========================
-   SUMMARY CARDS
-=========================== */
+    SUMMARY CARDS
+   =========================== */
 function AdvanceLoanSummaryCards({ summary, labels = {} }) {
     const cards = [
-        {
-            key: "total",
-            icon: IndianRupee,
-            iconClass: "blue",
-            value: formatCurrency(summary.totalAmount),
-            label: labels.total || "Total Requested",
-        },
-        {
-            key: "pending",
-            icon: Clock3,
-            iconClass: "orange",
-            value: formatCurrency(summary.totalPendingAmount),
-            label: labels.pending || "Pending Amount",
-        },
-        {
-            key: "approved",
-            icon: CheckCircle2,
-            iconClass: "green",
-            value: formatCurrency(summary.totalApproved),
-            label: labels.approved || "Approved",
-        },
-        {
-            key: "paid",
-            icon: Banknote,
-            iconClass: "purple",
-            value: formatCurrency(summary.totalPaid),
-            label: labels.paid || "Total Paid",
-        },
+        { key: "total", icon: IndianRupee, iconClass: "blue", value: formatCurrency(summary.totalAmount), label: labels.total || "Total Requested" },
+        { key: "pending", icon: Clock3, iconClass: "orange", value: formatCurrency(summary.totalPendingAmount), label: labels.pending || "Pending Amount" },
+        { key: "approved", icon: CheckCircle2, iconClass: "green", value: formatCurrency(summary.totalApprovedAmount || summary.totalApproved || 0), label: labels.approved || "Approved" },
+        { key: "paid", icon: Banknote, iconClass: "purple", value: formatCurrency(summary.totalPaid || 0), label: labels.paid || "Total Paid" },
     ];
 
     return (
@@ -127,80 +109,133 @@ function AdvanceLoanSummaryCards({ summary, labels = {} }) {
 }
 
 /* ===========================
-   REQUEST FORM MODAL
-=========================== */
-function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove = false }) {
+    REQUEST FORM MODAL
+   =========================== */
+function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove = false, canCreate = true, loanConfig = null }) {
     const [formData, setFormData] = useState({
         requestType: "ADVANCE",
         amount: "",
         reason: "",
         repaymentOption: "MONTHLY_INSTALLMENTS",
         totalInstallments: 0,
+        tenure: 0,
         isEmergency: false,
         priority: "MEDIUM",
         employeeId: "",
     });
 
     const [errors, setErrors] = useState({});
+    const [monthlyBreakdown, setMonthlyBreakdown] = useState([]);
+
+    const maxTenure = loanConfig?.maxTenureMonths || 6;
+    const maxAdvanceAmount = loanConfig?.maxAdvanceAmount || 0;
+    const maxLoanAmount = loanConfig?.maxLoanAmount || 0;
+    const loanInterestRate = loanConfig?.loanInterestRate || 0;
+    const isLoanInterestEnabled = loanConfig?.isLoanInterestEnabled !== false;
+
+    useEffect(() => {
+        if (!open) {
+            setFormData({
+                requestType: "ADVANCE",
+                amount: "",
+                reason: "",
+                repaymentOption: "MONTHLY_INSTALLMENTS",
+                totalInstallments: 0,
+                tenure: 0,
+                isEmergency: false,
+                priority: "MEDIUM",
+                employeeId: "",
+            });
+            setErrors({});
+            setMonthlyBreakdown([]);
+        }
+    }, [open]);
+
+    useEffect(() => {
+        const amount = Number(formData.amount) || 0;
+        const isLoan = formData.requestType === "LOAN";
+        const isOneTime = formData.repaymentOption === "ONE_TIME";
+
+        if (isLoan && isLoanInterestEnabled && isOneTime && formData.tenure > 0) {
+            const totalInterest = (amount * loanInterestRate) / 100;
+            const interestPerMonth = totalInterest / formData.tenure;
+            const monthlyAmount = amount / formData.tenure;
+            let cm = new Date().getMonth() + 1;
+            let cy = new Date().getFullYear();
+            const bd = [];
+            for (let i = 1; i <= formData.tenure; i++) {
+                if (cm > 12) { cm = 1; cy += 1; }
+                bd.push({ month: MONTHS[cm - 1], year: cy, amount: Math.round(monthlyAmount * 100) / 100, interestAmount: Math.round(interestPerMonth * 100) / 100 });
+                cm += 1;
+            }
+            setMonthlyBreakdown(bd);
+        } else if (isLoan && isLoanInterestEnabled && amount > 200000 && formData.totalInstallments > 0) {
+            const totalInterest = (amount * loanInterestRate) / 100;
+            const interestPerMonth = totalInterest / formData.totalInstallments;
+            const monthlyAmount = amount / formData.totalInstallments;
+            let cm = new Date().getMonth() + 1;
+            let cy = new Date().getFullYear();
+            const bd = [];
+            for (let i = 1; i <= formData.totalInstallments; i++) {
+                if (cm > 12) { cm = 1; cy += 1; }
+                bd.push({ month: MONTHS[cm - 1], year: cy, amount: Math.round(monthlyAmount * 100) / 100, interestAmount: Math.round(interestPerMonth * 100) / 100 });
+                cm += 1;
+            }
+            setMonthlyBreakdown(bd);
+        } else {
+            setMonthlyBreakdown([]);
+        }
+    }, [formData.amount, formData.totalInstallments, formData.tenure, formData.requestType, formData.repaymentOption, isLoanInterestEnabled, loanInterestRate]);
 
     const handleChange = (field) => (e) => {
         const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
-        setFormData((prev) => ({
-            ...prev,
-            [field]: value,
-        }));
-        if (errors[field]) {
-            setErrors((prev) => ({ ...prev, [field]: "" }));
-        }
+        setFormData((prev) => ({ ...prev, [field]: value }));
+        if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
     };
 
     const validate = () => {
         const newErrors = {};
-
-        if (!formData.requestType) {
-            newErrors.requestType = "Request type is required";
+        if (!formData.requestType) newErrors.requestType = "Request type is required";
+        if (!formData.amount || Number(formData.amount) <= 0) newErrors.amount = "Amount must be greater than 0";
+        if (formData.requestType === "ADVANCE" && maxAdvanceAmount > 0 && Number(formData.amount) > maxAdvanceAmount) {
+            newErrors.amount = `Advance cannot exceed ₹${maxAdvanceAmount.toLocaleString()}`;
         }
-
-        if (!formData.amount || Number(formData.amount) <= 0) {
-            newErrors.amount = "Amount must be greater than 0";
+        if (formData.requestType === "LOAN" && maxLoanAmount > 0 && Number(formData.amount) > maxLoanAmount) {
+            newErrors.amount = `Loan cannot exceed ₹${maxLoanAmount.toLocaleString()}`;
         }
-
-        if (!formData.reason || !formData.reason.trim()) {
-            newErrors.reason = "Reason is required";
-        }
-
-        if (!formData.repaymentOption) {
-            newErrors.repaymentOption = "Repayment option is required";
-        }
-
-
-
-        if (formData.repaymentOption === "MONTHLY_INSTALLMENTS" &&
-            (!formData.totalInstallments || Number(formData.totalInstallments) <= 0)) {
+        if (!formData.reason || !formData.reason.trim()) newErrors.reason = "Reason is required";
+        if (!formData.repaymentOption) newErrors.repaymentOption = "Repayment option is required";
+        if (formData.repaymentOption === "MONTHLY_INSTALLMENTS" && (!formData.totalInstallments || Number(formData.totalInstallments) <= 0)) {
             newErrors.totalInstallments = "Total installments must be greater than 0";
         }
-
-        if (canApprove && !formData.employeeId) {
-            newErrors.employeeId = "Employee is required";
+        if (formData.repaymentOption === "ONE_TIME" && (!formData.tenure || Number(formData.tenure) <= 0)) {
+            newErrors.tenure = `Tenure must be between 1 and ${maxTenure} months`;
         }
-
+        if (formData.repaymentOption === "ONE_TIME" && Number(formData.tenure) > maxTenure) {
+            newErrors.tenure = `Maximum tenure is ${maxTenure} months`;
+        }
+        if (canApprove && !formData.employeeId) newErrors.employeeId = "Employee is required";
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = () => {
         if (!validate()) return;
-
-        const submitData = {
+        onSubmit({
             ...formData,
             amount: Number(formData.amount),
             totalInstallments: Number(formData.totalInstallments) || 0,
-        };
-
-        onSubmit(submitData);
+            tenure: Number(formData.tenure) || 0,
+        });
     };
 
     if (!open) return null;
+
+    const isLoan = formData.requestType === "LOAN";
+    const isOneTime = formData.repaymentOption === "ONE_TIME";
+    const showTenure = isOneTime;
+    const showMonthlyInstallments = formData.repaymentOption === "MONTHLY_INSTALLMENTS";
+    const showInterestInfo = isLoan && isLoanInterestEnabled && (Number(formData.amount) || 0) > 200000;
 
     return (
         <div className="advance-modal-overlay" onClick={onClose}>
@@ -208,19 +243,13 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                 <div className="advance-modal-header">
                     <h3>
                         Request {formData.requestType === "ADVANCE" ? "Advance" : "Loan"}
-                        {formData.isEmergency && (
-                            <span className="emergency-badge">⚠️ Emergency</span>
-                        )}
+                        {formData.isEmergency && <span className="emergency-badge">⚠️ Emergency</span>}
                     </h3>
-                    <button className="advance-modal-close" onClick={onClose}>
-                        <X size={20} />
-                    </button>
+                    <button className="advance-modal-close" onClick={onClose}><X size={20} /></button>
                 </div>
 
                 <div className="advance-modal-body">
-                    <p className="advance-modal-subtitle">
-                        Fill in the details to submit your request
-                    </p>
+                    <p className="advance-modal-subtitle">Fill in the details to submit your request</p>
 
                     <div className="advance-form">
                         {canApprove && (
@@ -233,9 +262,7 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                     controlClassName="form-control"
                                     placeholder="Select Employee"
                                 />
-                                {errors.employeeId && (
-                                    <span className="form-error">{errors.employeeId}</span>
-                                )}
+                                {errors.employeeId && <span className="form-error">{errors.employeeId}</span>}
                             </div>
                         )}
 
@@ -249,9 +276,7 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                 <option value="ADVANCE">Advance</option>
                                 <option value="LOAN">Loan</option>
                             </select>
-                            {errors.requestType && (
-                                <span className="form-error">{errors.requestType}</span>
-                            )}
+                            {errors.requestType && <span className="form-error">{errors.requestType}</span>}
                         </div>
 
                         <div className="form-group">
@@ -265,10 +290,17 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                 min="0"
                                 step="0.01"
                             />
-                            {errors.amount && (
-                                <span className="form-error">{errors.amount}</span>
-                            )}
+                            {errors.amount && <span className="form-error">{errors.amount}</span>}
+                            {isLoan && maxLoanAmount > 0 && <span className="form-hint">Max loan: ₹{maxLoanAmount.toLocaleString()}</span>}
+                            {formData.requestType === "ADVANCE" && maxAdvanceAmount > 0 && <span className="form-hint">Max advance: ₹{maxAdvanceAmount.toLocaleString()}</span>}
                         </div>
+
+                        {showInterestInfo && (
+                            <div className="form-interest-alert">
+                                <AlertTriangle size={16} />
+                                <span>Interest Rate: {loanInterestRate}% — applicable for loans above ₹2,00,000</span>
+                            </div>
+                        )}
 
                         <div className="form-group">
                             <label>Reason *</label>
@@ -279,41 +311,42 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                 onChange={handleChange("reason")}
                                 rows="3"
                             />
-                            {errors.reason && (
-                                <span className="form-error">{errors.reason}</span>
-                            )}
+                            {errors.reason && <span className="form-error">{errors.reason}</span>}
                         </div>
 
                         <div className="form-group">
                             <label>Repayment Option *</label>
                             <div className="radio-group">
                                 <label className="radio-label">
-                                    <input
-                                        type="radio"
-                                        value="ONE_TIME"
-                                        checked={formData.repaymentOption === "ONE_TIME"}
-                                        onChange={handleChange("repaymentOption")}
-                                    />
+                                    <input type="radio" value="ONE_TIME" checked={formData.repaymentOption === "ONE_TIME"} onChange={handleChange("repaymentOption")} />
                                     One Time Payment
                                 </label>
                                 <label className="radio-label">
-                                    <input
-                                        type="radio"
-                                        value="MONTHLY_INSTALLMENTS"
-                                        checked={formData.repaymentOption === "MONTHLY_INSTALLMENTS"}
-                                        onChange={handleChange("repaymentOption")}
-                                    />
+                                    <input type="radio" value="MONTHLY_INSTALLMENTS" checked={formData.repaymentOption === "MONTHLY_INSTALLMENTS"} onChange={handleChange("repaymentOption")} />
                                     Monthly Installments
                                 </label>
                             </div>
-                            {errors.repaymentOption && (
-                                <span className="form-error">{errors.repaymentOption}</span>
-                            )}
+                            {errors.repaymentOption && <span className="form-error">{errors.repaymentOption}</span>}
                         </div>
 
+                        {showTenure && (
+                            <div className="form-group">
+                                <label>Tenure (Months) *</label>
+                                <input
+                                    type="number"
+                                    className={`form-control ${errors.tenure ? "error" : ""}`}
+                                    placeholder={`Number of months (max ${maxTenure})`}
+                                    value={formData.tenure}
+                                    onChange={handleChange("tenure")}
+                                    min="1"
+                                    max={maxTenure}
+                                />
+                                {errors.tenure && <span className="form-error">{errors.tenure}</span>}
+                                <span className="form-hint">Maximum {maxTenure} months</span>
+                            </div>
+                        )}
 
-
-                        {formData.repaymentOption === "MONTHLY_INSTALLMENTS" && (
+                        {showMonthlyInstallments && (
                             <div className="form-group">
                                 <label>Total Installments *</label>
                                 <input
@@ -324,19 +357,40 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                     onChange={handleChange("totalInstallments")}
                                     min="1"
                                 />
-                                {errors.totalInstallments && (
-                                    <span className="form-error">{errors.totalInstallments}</span>
-                                )}
+                                {errors.totalInstallments && <span className="form-error">{errors.totalInstallments}</span>}
+                            </div>
+                        )}
+
+                        {monthlyBreakdown.length > 0 && (
+                            <div className="breakdown-preview">
+                                <h4>Monthly Breakdown Preview</h4>
+                                <table className="breakdown-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Month</th>
+                                            <th>Amount (₹)</th>
+                                            {showInterestInfo && <th>Interest (₹)</th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {monthlyBreakdown.map((item, idx) => (
+                                            <tr key={idx}>
+                                                <td>{item.month} {item.year}</td>
+                                                <td className="amount-cell">{formatCurrency(item.amount)}</td>
+                                                {showInterestInfo && <td className="amount-cell">{formatCurrency(item.interestAmount)}</td>}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                <div className="breakdown-total">
+                                    <strong>Total Payable: {formatCurrency(monthlyBreakdown.reduce((s, i) => s + i.amount + (showInterestInfo ? i.interestAmount : 0), 0))}</strong>
+                                </div>
                             </div>
                         )}
 
                         <div className="form-group">
                             <label>Priority</label>
-                            <select
-                                className="form-control"
-                                value={formData.priority}
-                                onChange={handleChange("priority")}
-                            >
+                            <select className="form-control" value={formData.priority} onChange={handleChange("priority")}>
                                 <option value="LOW">Low</option>
                                 <option value="MEDIUM">Medium</option>
                                 <option value="HIGH">High</option>
@@ -346,11 +400,7 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
 
                         <div className="form-group checkbox-group">
                             <label className="checkbox-label">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.isEmergency}
-                                    onChange={handleChange("isEmergency")}
-                                />
+                                <input type="checkbox" checked={formData.isEmergency} onChange={handleChange("isEmergency")} />
                                 <span>Mark as Emergency Request</span>
                             </label>
                         </div>
@@ -358,12 +408,9 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                 </div>
 
                 <div className="advance-modal-footer">
-                    <button className="btn-secondary" onClick={onClose}>
-                        Cancel
-                    </button>
+                    <button className="btn-secondary" onClick={onClose}>Cancel</button>
                     <button className="btn-primary" onClick={handleSubmit}>
-                        <IndianRupee size={16} />
-                        Submit Request
+                        <IndianRupee size={16} /> Submit Request
                     </button>
                 </div>
             </div>
@@ -372,8 +419,8 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
 }
 
 /* ===========================
-   PAYMENT MODAL
-=========================== */
+    PAYMENT MODAL
+   =========================== */
 function PaymentModal({ open, onClose, request, onSubmit }) {
     const [formData, setFormData] = useState({
         amount: "",
@@ -386,46 +433,31 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
     useEffect(() => {
         if (request) {
             let amount = "";
-            // Auto-fill amount for monthly installments
             if (request.repaymentOption === "MONTHLY_INSTALLMENTS" && request.totalInstallments > 0) {
                 const totalPayable = request.totalPayableAmount || request.amount;
                 const monthlyAmount = totalPayable / request.totalInstallments;
-                // Only auto-fill if remaining amount matches a full installment
                 if (Math.abs(request.remainingAmount - monthlyAmount) < 0.01 || request.remainingAmount >= monthlyAmount) {
                     amount = monthlyAmount.toFixed(2);
                 }
             }
-            setFormData((prev) => ({
-                ...prev,
-                amount,
-            }));
+            setFormData((prev) => ({ ...prev, amount }));
         }
     }, [request]);
 
     const handleChange = (field) => (e) => {
-        setFormData((prev) => ({
-            ...prev,
-            [field]: e.target.value,
-        }));
+        setFormData((prev) => ({ ...prev, [field]: e.target.value }));
     };
 
     const handleSubmit = () => {
         const amount = Number(formData.amount);
-        if (!amount || amount <= 0) {
-            alert("Please enter a valid payment amount");
-            return;
-        }
+        if (!amount || amount <= 0) { alert("Please enter a valid payment amount"); return; }
         if (request && amount > request.remainingAmount) {
             alert(`Amount cannot exceed remaining amount of ${formatCurrency(request.remainingAmount)}`);
             return;
         }
         onSubmit({
-            ...formData,
-            amount: Number(formData.amount),
-            paymentDate: formData.paymentDate,
-            paymentMethod: formData.paymentMethod,
-            referenceNumber: formData.referenceNumber || "",
-            remarks: formData.remarks || "",
+            ...formData, amount: Number(formData.amount), paymentDate: formData.paymentDate,
+            paymentMethod: formData.paymentMethod, referenceNumber: formData.referenceNumber || "", remarks: formData.remarks || "",
         });
     };
 
@@ -436,11 +468,8 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
             <div className="advance-modal payment-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="advance-modal-header">
                     <h3>Record Payment</h3>
-                    <button className="advance-modal-close" onClick={onClose}>
-                        <X size={20} />
-                    </button>
+                    <button className="advance-modal-close" onClick={onClose}><X size={20} /></button>
                 </div>
-
                 <div className="advance-modal-body">
                     <div className="payment-request-info">
                         <div className="info-row">
@@ -452,83 +481,49 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
                             <span className="info-value">{getTypeLabel(request.requestType)}</span>
                         </div>
                         <div className="info-row">
+                            <span className="info-label">Repayment - </span>
+                            <span className="info-value">{request.repaymentOption === "ONE_TIME" ? "One Time" : request.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${request.totalInstallments} Months` : "Custom"}</span>
+                        </div>
+                        <div className="info-row">
                             <span className="info-label">Remaining Amount - </span>
                             <span className="info-value highlight">{formatCurrency(request.remainingAmount)}</span>
                         </div>
+                        {request.deductionMonth && (
+                            <div className="info-row">
+                                <span className="info-label">Next Deduction - </span>
+                                <span className="info-value">{request.deductionMonth.month} {request.deductionMonth.year}</span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="advance-form">
                         <div className="form-group">
                             <label>Amount *</label>
-                            <input
-                                type="number"
-                                className="form-control"
-                                placeholder="Enter payment amount"
-                                value={formData.amount}
-                                onChange={handleChange("amount")}
-                                min="0"
-                                step="0.01"
-                            />
+                            <input type="number" className="form-control" placeholder="Enter payment amount" value={formData.amount} onChange={handleChange("amount")} min="0" step="0.01" />
                         </div>
-
                         <div className="form-group">
                             <label>Payment Date *</label>
-                            <input
-                                type="date"
-                                className="form-control"
-                                value={formData.paymentDate}
-                                onChange={handleChange("paymentDate")}
-                                max={new Date().toISOString().split("T")[0]}
-                            />
+                            <input type="date" className="form-control" value={formData.paymentDate} onChange={handleChange("paymentDate")} max={new Date().toISOString().split("T")[0]} />
                         </div>
-
                         <div className="form-group">
                             <label>Payment Method *</label>
-                            <select
-                                className="form-control"
-                                value={formData.paymentMethod}
-                                onChange={handleChange("paymentMethod")}
-                            >
-                                {PAYMENT_METHODS.map((method) => (
-                                    <option key={method} value={method}>
-                                        {method.replace("_", " ")}
-                                    </option>
-                                ))}
+                            <select className="form-control" value={formData.paymentMethod} onChange={handleChange("paymentMethod")}>
+                                {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m.replace("_", " ")}</option>)}
                             </select>
                         </div>
-
                         <div className="form-group">
                             <label>Reference Number</label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                placeholder="Enter reference number"
-                                value={formData.referenceNumber}
-                                onChange={handleChange("referenceNumber")}
-                            />
+                            <input type="text" className="form-control" placeholder="Enter reference number" value={formData.referenceNumber} onChange={handleChange("referenceNumber")} />
                         </div>
-
                         <div className="form-group">
                             <label>Remarks</label>
-                            <textarea
-                                className="form-control form-control--textarea"
-                                placeholder="Add any remarks..."
-                                value={formData.remarks}
-                                onChange={handleChange("remarks")}
-                                rows="2"
-                            />
+                            <textarea className="form-control form-control--textarea" placeholder="Add any remarks..." value={formData.remarks} onChange={handleChange("remarks")} rows="2" />
                         </div>
                     </div>
                 </div>
-
                 <div className="advance-modal-footer">
-                    <button className="btn-secondary" onClick={onClose}>
-                        Cancel
-                    </button>
-                    <button className="btn-primary" onClick={handleSubmit}>
-                        <Banknote size={16} />
-                        Record Payment
-                    </button>
+                    <button className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button className="btn-primary" onClick={handleSubmit}><Banknote size={16} /> Record Payment</button>
                 </div>
             </div>
         </div>
@@ -536,8 +531,8 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
 }
 
 /* ===========================
-   DETAIL MODAL
-=========================== */
+    DETAIL MODAL
+   =========================== */
 function DetailModal({ open, onClose, request }) {
     if (!open || !request) return null;
 
@@ -545,16 +540,11 @@ function DetailModal({ open, onClose, request }) {
     const totalPaid = paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0);
     const remainingAmount = (request.totalPayableAmount || request.amount || 0) - totalPaid;
     const isLoan = request.requestType === "LOAN";
-    const interestAmount = isLoan ? request.interestAmount || 0 : 0;
-    const totalPayable = request.totalPayableAmount || request.amount + interestAmount;
+    const interestAmount = isLoan ? (request.interestAmount || 0) : 0;
+    const totalPayable = request.totalPayableAmount || (request.amount + interestAmount);
 
     const getMethodLabel = (method) => {
-        const labels = {
-            SALARY_DEDUCTION: "Salary Deduction",
-            CASH: "Cash",
-            BANK_TRANSFER: "Bank Transfer",
-            OTHER: "Other",
-        };
+        const labels = { SALARY_DEDUCTION: "Salary Deduction", CASH: "Cash", BANK_TRANSFER: "Bank Transfer", OTHER: "Other" };
         return labels[method] || method;
     };
 
@@ -563,24 +553,18 @@ function DetailModal({ open, onClose, request }) {
             <div className="advance-modal detail-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="advance-modal-header">
                     <h3>Request Details</h3>
-                    <button className="advance-modal-close" onClick={onClose}>
-                        <X size={20} />
-                    </button>
+                    <button className="advance-modal-close" onClick={onClose}><X size={20} /></button>
                 </div>
-
                 <div className="advance-modal-body">
-                    {/* Summary Cards */}
                     <div className="detail-summary-grid">
                         <div className="detail-summary-card">
                             <div className="detail-summary-label">Total Amount</div>
                             <div className="detail-summary-value">{formatCurrency(request.amount)}</div>
                         </div>
-                        {isLoan && (
-                            <div className="detail-summary-card">
-                                <div className="detail-summary-label">Interest</div>
-                                <div className="detail-summary-value">{formatCurrency(interestAmount)}</div>
-                            </div>
-                        )}
+                        {isLoan && <div className="detail-summary-card">
+                            <div className="detail-summary-label">Interest</div>
+                            <div className="detail-summary-value">{formatCurrency(interestAmount)}</div>
+                        </div>}
                         <div className="detail-summary-card">
                             <div className="detail-summary-label">Total Payable</div>
                             <div className="detail-summary-value highlight">{formatCurrency(totalPayable)}</div>
@@ -596,14 +580,11 @@ function DetailModal({ open, onClose, request }) {
                         <div className="detail-summary-card">
                             <div className="detail-summary-label">Status</div>
                             <div className="detail-summary-value">
-                                <span className={STATUS_CLASS[request.status] || "advance-status"}>
-                                    {STATUS_LABELS[request.status] || request.status}
-                                </span>
+                                <span className={STATUS_CLASS[request.status] || "advance-status"}>{STATUS_LABELS[request.status] || request.status}</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Request Info */}
                     <div className="detail-section">
                         <h4>Request Information</h4>
                         <div className="detail-info-grid">
@@ -620,16 +601,23 @@ function DetailModal({ open, onClose, request }) {
                                 <span className="detail-info-value">{getTypeLabel(request.requestType)}</span>
                             </div>
                             <div className="detail-info-row">
-                                <span className="detail-info-label">Reason</span>
-                                <span className="detail-info-value">{request.reason || "-"}</span>
-                            </div>
-                            <div className="detail-info-row">
                                 <span className="detail-info-label">Repayment Option</span>
                                 <span className="detail-info-value">
-                                    {request.repaymentOption === "ONE_TIME" ? "One Time" :
-                                        request.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${request.totalInstallments} Months` :
-                                            "Custom Schedule"}
+                                    {request.repaymentOption === "ONE_TIME" ? `One Time (${request.tenure || request.totalInstallments} months)` :
+                                        request.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${request.totalInstallments} Months` : "Custom Schedule"}
                                 </span>
+                            </div>
+                            <div className="detail-info-row">
+                                <span className="detail-info-label">Interest Rate</span>
+                                <span className="detail-info-value">{isLoan && request.interestRate > 0 ? `${request.interestRate}%` : "N/A"}</span>
+                            </div>
+                            <div className="detail-info-row">
+                                <span className="detail-info-label">Next Deduction Month</span>
+                                <span className="detail-info-value">{request.deductionMonth ? `${request.deductionMonth.month} ${request.deductionMonth.year}` : "-"}</span>
+                            </div>
+                            <div className="detail-info-row">
+                                <span className="detail-info-label">Reason</span>
+                                <span className="detail-info-value">{request.reason || "-"}</span>
                             </div>
                             <div className="detail-info-row">
                                 <span className="detail-info-label">Priority</span>
@@ -656,24 +644,34 @@ function DetailModal({ open, onClose, request }) {
                         </div>
                     </div>
 
+                    {/* Salary Earnings Preview */}
+                    {request.status === "APPROVED" && request.salaryEarnings && (
+                        <div className="detail-section">
+                            <h4>Salary Earnings Entry (Next Month)</h4>
+                            <div className="detail-info-grid">
+                                <div className="detail-info-row">
+                                    <span className="detail-info-label">Entry Label</span>
+                                    <span className="detail-info-value">{request.salaryEarnings?.label || "-"}</span>
+                                </div>
+                                <div className="detail-info-row">
+                                    <span className="detail-info-label">Amount</span>
+                                    <span className="detail-info-value">{formatCurrency(request.salaryEarnings?.amount || 0)}</span>
+                                </div>
+                                <div className="detail-info-row">
+                                    <span className="detail-info-label">Status</span>
+                                    <span className="detail-info-value">{request.salaryEarnings?.isAdded ? "✅ Added to Payroll" : "⏳ Pending Addition"}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Payment History */}
                     <div className="detail-section">
                         <h4>Payment History</h4>
-                        {paymentHistory.length === 0 ? (
-                            <p className="detail-empty">No payments recorded yet</p>
-                        ) : (
+                        {paymentHistory.length === 0 ? <p className="detail-empty">No payments recorded yet</p> : (
                             <div className="detail-payment-table-wrapper">
                                 <table className="detail-payment-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Amount</th>
-                                            <th>Method</th>
-                                            <th>Reference</th>
-                                            <th>Recorded By</th>
-                                            <th>Remarks</th>
-                                        </tr>
-                                    </thead>
+                                    <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Recorded By</th><th>Remarks</th></tr></thead>
                                     <tbody>
                                         {paymentHistory.map((payment, index) => (
                                             <tr key={index}>
@@ -691,30 +689,20 @@ function DetailModal({ open, onClose, request }) {
                         )}
                     </div>
 
-                    {/* Custom Schedule */}
-                    {request.customRepaymentSchedule && request.customRepaymentSchedule.length > 0 && (
+                    {/* Monthly Breakdown for ONE_TIME */}
+                    {request.monthlyBreakdown && request.monthlyBreakdown.length > 0 && (
                         <div className="detail-section">
                             <h4>Repayment Schedule</h4>
                             <div className="detail-payment-table-wrapper">
                                 <table className="detail-payment-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Due Date</th>
-                                            <th>Amount</th>
-                                            <th>Status</th>
-                                            <th>Paid Date</th>
-                                        </tr>
-                                    </thead>
+                                    <thead><tr><th>Month</th><th>Amount</th><th>Interest</th><th>Status</th><th>Paid Date</th></tr></thead>
                                     <tbody>
-                                        {request.customRepaymentSchedule.map((item, index) => (
+                                        {request.monthlyBreakdown.map((item, index) => (
                                             <tr key={index}>
-                                                <td>{formatDate(item.date)}</td>
+                                                <td>{item.month} {item.year}</td>
                                                 <td className="amount-cell">{formatCurrency(item.amount)}</td>
-                                                <td>
-                                                    <span className={`schedule-status ${item.status?.toLowerCase()}`}>
-                                                        {item.status || "PENDING"}
-                                                    </span>
-                                                </td>
+                                                <td className="amount-cell">{formatCurrency(item.interestAmount || 0)}</td>
+                                                <td><span className={`schedule-status ${item.status?.toLowerCase()}`}>{item.status || "PENDING"}</span></td>
                                                 <td>{item.paidDate ? formatDate(item.paidDate) : "-"}</td>
                                             </tr>
                                         ))}
@@ -724,7 +712,27 @@ function DetailModal({ open, onClose, request }) {
                         </div>
                     )}
 
-                    {/* Comments */}
+                    {request.customRepaymentSchedule && request.customRepaymentSchedule.length > 0 && (
+                        <div className="detail-section">
+                            <h4>Repayment Schedule</h4>
+                            <div className="detail-payment-table-wrapper">
+                                <table className="detail-payment-table">
+                                    <thead><tr><th>Due Date</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead>
+                                    <tbody>
+                                        {request.customRepaymentSchedule.map((item, index) => (
+                                            <tr key={index}>
+                                                <td>{formatDate(item.date)}</td>
+                                                <td className="amount-cell">{formatCurrency(item.amount)}</td>
+                                                <td><span className={`schedule-status ${item.status?.toLowerCase()}`}>{item.status || "PENDING"}</span></td>
+                                                <td>{item.paidDate ? formatDate(item.paidDate) : "-"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
                     {request.comments && request.comments.length > 0 && (
                         <div className="detail-section">
                             <h4>Comments</h4>
@@ -732,12 +740,8 @@ function DetailModal({ open, onClose, request }) {
                                 {request.comments.map((comment, index) => (
                                     <div key={index} className="detail-comment">
                                         <div className="detail-comment-header">
-                                            <span className="detail-comment-author">
-                                                {comment.commentedBy?.name || comment.commentedBy?.employeeCode || "Unknown"}
-                                            </span>
-                                            <span className="detail-comment-date">
-                                                {formatDate(comment.commentedAt)}
-                                            </span>
+                                            <span className="detail-comment-author">{comment.commentedBy?.name || comment.commentedBy?.employeeCode || "Unknown"}</span>
+                                            <span className="detail-comment-date">{formatDate(comment.commentedAt)}</span>
                                         </div>
                                         <div className="detail-comment-text">{comment.comment}</div>
                                     </div>
@@ -746,11 +750,8 @@ function DetailModal({ open, onClose, request }) {
                         </div>
                     )}
                 </div>
-
                 <div className="advance-modal-footer">
-                    <button className="btn-primary" onClick={onClose}>
-                        Close
-                    </button>
+                    <button className="btn-primary" onClick={onClose}>Close</button>
                 </div>
             </div>
         </div>
@@ -758,14 +759,14 @@ function DetailModal({ open, onClose, request }) {
 }
 
 /* ===========================
-   INNER COMPONENT
-=========================== */
+    INNER COMPONENT
+   =========================== */
 function AdvanceLoanInner() {
     const toast = useToast();
     const user = getStoredUser();
     const canApprove = canApproveAdvanceLoan(user?.role);
+    const canCreate = user?.role !== "Admin";
 
-    /* ── State ── */
     const [dashboard, setDashboard] = useState(null);
     const [requests, setRequests] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -779,62 +780,52 @@ function AdvanceLoanInner() {
     const [detailRequest, setDetailRequest] = useState(null);
     const [filterStatus, setFilterStatus] = useState("");
     const [filterType, setFilterType] = useState("");
+    const [loanConfig, setLoanConfig] = useState(null);
+    const [payrollWarning, setPayrollWarning] = useState("");
 
     const [modal, setModal] = useState({
-        open: false,
-        title: "",
-        message: "",
-        confirmLabel: "Confirm",
-        variant: "danger",
-        onConfirm: null,
-        withInput: false,
-        inputValue: "",
+        open: false, title: "", message: "", confirmLabel: "Confirm", variant: "danger",
+        onConfirm: null, withInput: false, inputValue: "", inputLabel: "", inputPlaceholder: "",
     });
-
     const modalInputRef = useRef("");
 
-
-    const closeModal = () =>
-        setModal((m) => ({ ...m, open: false, inputValue: "" }));
-
+    const closeModal = () => setModal((m) => ({ ...m, open: false, inputValue: "" }));
     const openModal = (config) => {
         modalInputRef.current = "";
         setModal({ open: true, inputValue: "", withInput: false, ...config });
     };
 
-
-    /* ── Statistics ── */
     const summary = dashboard?.statistics || {};
 
     const teamMembers = useMemo(() => {
         if (!user?.employeeId) return employees;
-        return employees.filter(
-            (emp) => String(emp._id) !== String(user.employeeId)
-        );
+        return employees.filter((emp) => String(emp._id) !== String(user.employeeId));
     }, [employees, user?.employeeId]);
 
-    /* ── Data Loading ── */
-    const loadData = async () => {
+    const loadLoanConfig = useCallback(async () => {
+        try {
+            const res = await getLoanConfig();
+            if (res.config) setLoanConfig(res.config);
+        } catch { }
+    }, []);
+
+    const loadData = useCallback(async () => {
         setLoading(true);
         setError("");
+        setPayrollWarning("");
         try {
             const isAdminOrHR = canManageEmployees(user?.role);
             let dashRes = null;
             let reqRes = null;
 
-            if (isAdminOrHR) {
-                [dashRes, reqRes] = await Promise.all([
-                    getStatistics(),
-                    getAllRequests(),
-                ]);
+            if (isAdminOrHR || canCreate) {
+                [dashRes, reqRes] = await Promise.all([getStatistics(), getAllRequests()]);
             } else {
                 reqRes = await getMyRequests();
-                // Calculate stats from own requests
-                const myReqs = reqRes.requests || [];
+                const myReqs = reqRes?.requests || [];
                 const totalAmount = myReqs.reduce((sum, r) => sum + (r.amount || 0), 0);
-                const totalPendingAmount = myReqs
-                    .filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status))
-                    .reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
+                const totalPendingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
+                const totalApprovedAmount = myReqs.filter(r => r.status === "APPROVED").reduce((sum, r) => sum + (r.totalPayableAmount || r.amount || 0), 0);
                 const totalPaid = myReqs.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
                 const totalRequests = myReqs.length;
                 const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
@@ -842,48 +833,38 @@ function AdvanceLoanInner() {
                 const rejectedRequests = myReqs.filter(r => r.status === "REJECTED").length;
                 dashRes = {
                     statistics: {
-                        totalRequests,
-                        pendingRequests,
-                        approvedRequests,
-                        rejectedRequests,
-                        totalAmount,
-                        totalPendingAmount,
-                        totalPaid,
+                        totalRequests, pendingRequests, approvedRequests, rejectedRequests,
+                        totalAmount, totalPendingAmount, totalApprovedAmount, totalPaid,
                     },
                     recentRequests: myReqs.slice(0, 5),
                 };
             }
 
             setDashboard(dashRes);
-            setRequests(reqRes.requests || []);
+            setRequests(reqRes?.requests || []);
         } catch (err) {
             setError(err.response?.data?.message || "Failed to load data");
         } finally {
             setLoading(false);
         }
-    };
-
-    const loadEmployees = async () => {
-        if (!canApprove) return;
-        try {
-            const res = await getEmployees();
-            setEmployees(res.data?.employees || []);
-        } catch {
-            // non-blocking
-        }
-    };
+    }, [user?.role, canCreate]);
 
     useEffect(() => {
         loadData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        loadLoanConfig();
+    }, [loadData, loadLoanConfig]);
 
     useEffect(() => {
-        loadEmployees();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.role]);
+        if (!canApprove) return;
+        const fetchEmployees = async () => {
+            try {
+                const res = await getEmployees();
+                setEmployees(res.data?.employees || []);
+            } catch { }
+        };
+        fetchEmployees();
+    }, [user?.role, canApprove]);
 
-    /* ── Request Handlers ── */
     const handleCreateRequest = async (formData) => {
         try {
             await createAdvanceLoanRequest(formData);
@@ -891,81 +872,51 @@ function AdvanceLoanInner() {
             setShowRequestForm(false);
             loadData();
         } catch (err) {
-            toast.error(err.response?.data?.message || "Failed to submit request");
+            if (err.response?.data?.message?.includes("Payroll profile")) {
+                setPayrollWarning(err.response.data.message);
+            } else {
+                toast.error(err.response?.data?.message || "Failed to submit request");
+            }
         }
     };
 
     const handleCancelRequest = (id) => {
         openModal({
-            title: "Cancel Request",
-            message: "Are you sure you want to cancel this request?",
-            confirmLabel: "Cancel Request",
-            variant: "danger",
+            title: "Cancel Request", message: "Are you sure you want to cancel this request?",
+            confirmLabel: "Cancel Request", variant: "danger",
             onConfirm: async () => {
                 setActionLoading(true);
-                try {
-                    await cancelRequest(id);
-                    toast.success("Request cancelled successfully");
-                    loadData();
-                } catch (err) {
-                    toast.error(err.response?.data?.message || "Cancel failed");
-                } finally {
-                    setActionLoading(false);
-                    closeModal();
-                }
+                try { await cancelRequest(id); toast.success("Request cancelled successfully"); loadData(); }
+                catch (err) { toast.error(err.response?.data?.message || "Cancel failed"); }
+                finally { setActionLoading(false); closeModal(); }
             },
         });
     };
 
     const handleApprove = (id, name) => {
         openModal({
-            title: "Approve Request",
-            message: `Are you sure you want to approve${name ? ` ${name}'s` : " this"} request?`,
-            confirmLabel: "Approve",
-            variant: "success",
-            withInput: true,
-            inputValue: "",
-            inputLabel: "Comments (optional)",
-            inputPlaceholder: "Add any comments...",
+            title: "Approve Request", message: `Are you sure you want to approve${name ? ` ${name}'s` : " this"} request?`,
+            confirmLabel: "Approve", variant: "success", withInput: true, inputValue: "",
+            inputLabel: "Comments (optional)", inputPlaceholder: "Add any comments...",
             onConfirm: async () => {
                 setActionLoading(true);
-                try {
-                    await approveRequest(id, modalInputRef.current);
-                    toast.success("Request approved successfully");
-                    loadData();
-                } catch (err) {
-                    toast.error(err.response?.data?.message || "Approve failed");
-                } finally {
-                    setActionLoading(false);
-                    closeModal();
-                }
+                try { await approveRequest(id, modalInputRef.current); toast.success("Request approved successfully"); loadData(); }
+                catch (err) { toast.error(err.response?.data?.message || "Approve failed"); }
+                finally { setActionLoading(false); closeModal(); }
             },
         });
     };
 
     const handleReject = (id, name) => {
         openModal({
-            title: "Reject Request",
-            message: `You are about to reject${name ? ` ${name}'s` : " this"} request. Please provide a reason.`,
-            confirmLabel: "Reject",
-            variant: "danger",
-            withInput: true,
-            inputValue: "",
-            inputLabel: "Rejection Reason *",
-            inputPlaceholder: "Please provide a reason for rejection...",
+            title: "Reject Request", message: `You are about to reject${name ? ` ${name}'s` : " this"} request. Please provide a reason.`,
+            confirmLabel: "Reject", variant: "danger", withInput: true, inputValue: "",
+            inputLabel: "Rejection Reason *", inputPlaceholder: "Please provide a reason for rejection...",
             onConfirm: async () => {
                 setActionLoading(true);
-                try {
-                    console.log("df", modalInputRef.current)
-                    await rejectRequest(id, { rejectionReason: modalInputRef.current });
-                    toast.warning("Request rejected");
-                    loadData();
-                } catch (err) {
-                    toast.error(err.response?.data?.message || "Reject failed");
-                } finally {
-                    setActionLoading(false);
-                    closeModal();
-                }
+                try { await rejectRequest(id, { rejectionReason: modalInputRef.current }); toast.warning("Request rejected"); loadData(); }
+                catch (err) { toast.error(err.response?.data?.message || "Reject failed"); }
+                finally { setActionLoading(false); closeModal(); }
             },
         });
     };
@@ -978,9 +929,7 @@ function AdvanceLoanInner() {
             setShowPaymentModal(false);
             setSelectedRequest(null);
             loadData();
-        } catch (err) {
-            toast.error(err.response?.data?.message || "Failed to record payment");
-        }
+        } catch (err) { toast.error(err.response?.data?.message || "Failed to record payment"); }
     };
 
     const handleViewDetails = async (id) => {
@@ -989,97 +938,51 @@ function AdvanceLoanInner() {
             const response = await getRequestDetails(id);
             setDetailRequest(response.data?.request || response.request);
             setShowDetailModal(true);
-        } catch (err) {
-            toast.error(err.response?.data?.message || "Failed to load details");
-        } finally {
-            setActionLoading(false);
-        }
+        } catch (err) { toast.error(err.response?.data?.message || "Failed to load details"); }
+        finally { setActionLoading(false); }
     };
 
-    /* ── View Helpers ── */
-    const matchesUser = useCallback(
-        (item) => {
-            const empId = item.employeeId?._id || item.employeeId;
-            if (user?.employeeId && empId && String(empId) === String(user.employeeId))
-                return true;
-            const empName = item.employeeId?.name?.toLowerCase?.();
-            return empName && empName === user?.name?.toLowerCase?.();
-        },
-        [user?.employeeId, user?.name]
-    );
+    const matchesUser = useCallback((item) => {
+        const empId = item.employeeId?._id || item.employeeId;
+        if (user?.employeeId && empId && String(empId) === String(user.employeeId)) return true;
+        const empName = item.employeeId?.name?.toLowerCase?.();
+        return empName && empName === user?.name?.toLowerCase?.();
+    }, [user?.employeeId, user?.name]);
 
     const filteredRequests = useMemo(() => {
         let filtered = requests;
-        if (filterStatus) {
-            filtered = filtered.filter((r) => r.status === filterStatus);
-        }
-        if (filterType) {
-            filtered = filtered.filter((r) => r.requestType === filterType);
-        }
+        if (filterStatus) filtered = filtered.filter((r) => r.status === filterStatus);
+        if (filterType) filtered = filtered.filter((r) => r.requestType === filterType);
         return filtered;
     }, [requests, filterStatus, filterType]);
 
-    const myRequests = useMemo(
-        () => filteredRequests.filter(matchesUser),
-        [filteredRequests, matchesUser]
-    );
+    const myRequests = useMemo(() => filteredRequests.filter(matchesUser), [filteredRequests, matchesUser]);
+    const pendingRequests = useMemo(() => filteredRequests.filter((r) => r.status === "PENDING"), [filteredRequests]);
+    const approvedRequests = useMemo(() => filteredRequests.filter((r) => r.status === "APPROVED" || r.status === "PARTIALLY_PAID"), [filteredRequests]);
 
-    const pendingRequests = useMemo(
-        () => filteredRequests.filter((r) => r.status === "PENDING"),
-        [filteredRequests]
-    );
-
-    const approvedRequests = useMemo(
-        () => filteredRequests.filter((r) => r.status === "APPROVED" || r.status === "PARTIALLY_PAID"),
-        [filteredRequests]
-    );
-
-    /* ===========================
-       RENDER: Request Table
-    =========================== */
-    const renderRequestTable = ({
-        title,
-        items,
-        showEmployee = false,
-        showActions = false,
-        actionMode = "owner",
-    }) => (
+    const renderRequestTable = ({ title, items, showEmployee = false, showActions = false, actionMode = "owner" }) => (
         <section className="advance-card">
             <h3>{title}</h3>
             <div style={{ overflowX: "auto" }}>
                 <table className="advance-table">
-                    <thead>
-                        <tr>
-                            {showEmployee ? <th>Employee</th> : null}
-                            <th>Type</th>
-                            <th>Amount</th>
-                            <th>Reason</th>
-                            <th>Repayment</th>
-                            <th>Date</th>
-                            <th>Status</th>
-                            <th>Priority</th>
-                            {showActions ? <th>Actions</th> : null}
-                        </tr>
-                    </thead>
+                    <thead><tr>
+                        {showEmployee ? <th>Employee</th> : null}
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Repayment</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        {showActions ? <th>Actions</th> : null}
+                    </tr></thead>
                     <tbody>
                         {items.length === 0 ? (
-                            <tr>
-                                <td
-                                    colSpan={
-                                        showEmployee
-                                            ? showActions ? 9 : 8
-                                            : showActions ? 8 : 7
-                                    }
-                                    className="advance-empty"
-                                >
-                                    No requests found
-                                </td>
-                            </tr>
+                            <tr><td colSpan={showEmployee ? (showActions ? 9 : 8) : (showActions ? 8 : 7)} className="advance-empty">No requests found</td></tr>
                         ) : null}
                         {items.map((req) => {
                             const empName = req.employeeId?.name || null;
                             const isOwner = String(req.employeeId?._id || req.employeeId) === String(user?.employeeId);
-                            const canCancel = req.status === "PENDING" && isOwner;
+                            const canCancel = req.status === "PENDING" && isOwner && canCreate;
                             const canApproveAction = req.status === "PENDING" && !isOwner && canApprove;
                             const canRecordPayment = (req.status === "APPROVED" || req.status === "PARTIALLY_PAID") && !isOwner && canApprove && req.remainingAmount > 0;
                             const canView = ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(req.status);
@@ -1087,93 +990,34 @@ function AdvanceLoanInner() {
                             return (
                                 <tr key={req._id}>
                                     {showEmployee ? <td>{empName || "-"}</td> : null}
-                                    <td>
-                                        <span className="advance-type-badge">
-                                            {getTypeLabel(req.requestType)}
-                                        </span>
-                                    </td>
+                                    <td><span className="advance-type-badge">{getTypeLabel(req.requestType)}</span></td>
                                     <td className="amount-cell">{formatCurrency(req.amount)}</td>
-                                    <td className="reason-cell" title={req.reason}>
-                                        {req.reason.length > 40
-                                            ? `${req.reason.substring(0, 40)}...`
-                                            : req.reason}
-                                    </td>
                                     <td>
-                                        {req.repaymentOption === "ONE_TIME" ? (
-                                            "One Time"
-                                        ) : req.repaymentOption === "MONTHLY_INSTALLMENTS" ? (
-                                            `${req.totalInstallments} months`
-                                        ) : (
-                                            "Custom"
-                                        )}
+                                        {req.repaymentOption === "ONE_TIME" ? `One Time (${req.tenure || 0} mo)` :
+                                            req.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${req.totalInstallments} months` : "Custom"}
                                     </td>
                                     <td>{formatDate(req.createdAt)}</td>
-                                    <td>
-                                        <span className={STATUS_CLASS[req.status] || "advance-status"}>
-                                            {STATUS_LABELS[req.status] || req.status}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span className={getPriorityBadge(req.priority, req.status)}>
-                                            {req.priority}
-                                        </span>
-                                    </td>
+                                    <td><span className={STATUS_CLASS[req.status] || "advance-status"}>{STATUS_LABELS[req.status] || req.status}</span></td>
+                                    <td><span className={getPriorityBadge(req.priority, req.status)}>{req.priority}</span></td>
                                     {showActions ? (
                                         <td>
                                             <div className="advance-actions">
                                                 {canCancel && (
-                                                    <button
-                                                        className="action-btn cancel-btn"
-                                                        onClick={() => handleCancelRequest(req._id)}
-                                                    >
-                                                        <X size={14} />
-                                                        Cancel
-                                                    </button>
+                                                    <button className="action-btn cancel-btn" onClick={() => handleCancelRequest(req._id)}><X size={14} />Cancel</button>
                                                 )}
-
                                                 {canApproveAction && (actionMode === "approve" || actionMode === "full") && (
                                                     <>
-                                                        <button
-                                                            className="action-btn approve-btn"
-                                                            onClick={() => handleApprove(req._id, empName)}
-                                                        >
-                                                            <Check size={14} />
-                                                            Approve
-                                                        </button>
-                                                        <button
-                                                            className="action-btn reject-btn"
-                                                            onClick={() => handleReject(req._id, empName)}
-                                                        >
-                                                            <X size={14} />
-                                                            Reject
-                                                        </button>
+                                                        <button className="action-btn approve-btn" onClick={() => handleApprove(req._id, empName)}><Check size={14} />Approve</button>
+                                                        <button className="action-btn reject-btn" onClick={() => handleReject(req._id, empName)}><X size={14} />Reject</button>
                                                     </>
                                                 )}
-
                                                 {canRecordPayment && actionMode === "payment" && (
-                                                    <button
-                                                        className="action-btn payment-btn"
-                                                        onClick={() => {
-                                                            setSelectedRequest(req);
-                                                            setShowPaymentModal(true);
-                                                        }}
-                                                    >
-                                                        <Banknote size={14} />
-                                                        Record Payment
-                                                    </button>
+                                                    <button className="action-btn payment-btn" onClick={() => { setSelectedRequest(req); setShowPaymentModal(true); }}><Banknote size={14} />Record Payment</button>
                                                 )}
-
                                                 {canView && (
-                                                    <button
-                                                        className="action-btn view-btn"
-                                                        onClick={() => handleViewDetails(req._id)}
-                                                    >
-                                                        <Clock3 size={14} />
-                                                        View
-                                                    </button>
+                                                    <button className="action-btn view-btn" onClick={() => handleViewDetails(req._id)}><Clock3 size={14} />View</button>
                                                 )}
-
-                                                {req.status === "PENDING" && isOwner && !canApprove && (
+                                                {req.status === "PENDING" && isOwner && canCreate && (
                                                     <span className="awaiting-text">Awaiting approval</span>
                                                 )}
                                             </div>
@@ -1188,293 +1032,154 @@ function AdvanceLoanInner() {
         </section>
     );
 
-    /* ===========================
-       RENDER: Employee View
-    =========================== */
     const renderEmployeeView = () => (
         <>
             <div className="advance-page-header">
                 <div className="advance-header-left">
                     <h2 className="advance-page-title">My Advances & Loans</h2>
-                    <p className="advance-page-subtitle">
-                        Request advances or loans and track your repayments
-                    </p>
+                    <p className="advance-page-subtitle">Request advances or loans and track your repayments</p>
                 </div>
-                <button
-                    className="btn-primary"
-                    onClick={() => setShowRequestForm(true)}
-                >
-                    <IndianRupee size={16} />
-                    New Request
-                </button>
+                {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
             </div>
-
-            <AdvanceLoanSummaryCards
-                summary={summary}
-                labels={{
-                    total: "My Total",
-                    pending: "My Pending",
-                    approved: "My Approved",
-                    paid: "My Paid",
-                }}
-            />
-
-            {renderRequestTable({
-                title: "My Recent Requests",
-                items: myRequests.slice(0, 10),
-                showActions: true,
-                actionMode: "owner",
-            })}
+            {payrollWarning && (
+                <div className="advance-payroll-warning">
+                    <AlertTriangle size={20} />
+                    <span>{payrollWarning}</span>
+                </div>
+            )}
+            <AdvanceLoanSummaryCards summary={summary} labels={{ total: "My Total", pending: "My Pending", approved: "My Approved", paid: "My Paid" }} />
+            {renderRequestTable({ title: "My Recent Requests", items: myRequests.slice(0, 10), showActions: true, actionMode: "owner" })}
         </>
     );
 
-    /* ===========================
-       RENDER: Manager View
-    =========================== */
     const renderManagerView = () => (
         <>
             <div className="advance-page-header">
                 <div className="advance-header-left">
                     <h2 className="advance-page-title">Team Advances & Loans</h2>
-                    <p className="advance-page-subtitle">
-                        Manage your team's advance and loan requests
-                    </p>
+                    <p className="advance-page-subtitle">Manage your team's advance and loan requests</p>
                 </div>
-                <button
-                    className="btn-primary"
-                    onClick={() => setShowRequestForm(true)}
-                >
-                    <IndianRupee size={16} />
-                    New Request
-                </button>
+                {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
             </div>
-
             {teamMembers.length > 0 && (
-                <div className="advance-role-banner manager">
-                    <Users size={18} />
-                    <span>
-                        Managing {teamMembers.length} team member{teamMembers.length === 1 ? "" : "s"}
-                    </span>
-                </div>
+                <div className="advance-role-banner manager"><Users size={18} /><span>Managing {teamMembers.length} team member{teamMembers.length === 1 ? "" : "s"}</span></div>
             )}
-
-            <AdvanceLoanSummaryCards
-                summary={summary}
-                labels={{
-                    total: "Team Total",
-                    pending: "Team Pending",
-                    approved: "Team Approved",
-                    paid: "Team Paid",
-                }}
-            />
-
+            <AdvanceLoanSummaryCards summary={summary} labels={{ total: "Team Total", pending: "Team Pending", approved: "Team Approved", paid: "Team Paid" }} />
             <div className="advance-layout-grid">
-                {renderRequestTable({
-                    title: "Pending Approvals",
-                    items: pendingRequests,
-                    showEmployee: true,
-                    showActions: true,
-                    actionMode: "approve",
-                })}
-                {renderRequestTable({
-                    title: "Active Requests",
-                    items: approvedRequests,
-                    showEmployee: true,
-                    showActions: true,
-                    actionMode: "payment",
-                })}
+                {renderRequestTable({ title: "Pending Approvals", items: pendingRequests, showEmployee: true, showActions: true, actionMode: "approve" })}
+                {renderRequestTable({ title: "Active Requests", items: approvedRequests, showEmployee: true, showActions: true, actionMode: "payment" })}
             </div>
-
-            {renderRequestTable({
-                title: "All Team Requests",
-                items: requests,
-                showEmployee: true,
-            })}
+            {renderRequestTable({ title: "All Team Requests", items: requests, showEmployee: true })}
         </>
     );
 
-    /* ===========================
-       RENDER: Admin View
-    =========================== */
     const renderAdminView = () => (
         <>
             <div className="advance-page-header">
                 <div className="advance-header-left">
                     <h2 className="advance-page-title">Advance & Loan Management</h2>
-                    <p className="advance-page-subtitle">
-                        Manage all advance and loan requests across the organization
-                    </p>
+                    <p className="advance-page-subtitle">Manage all advance and loan requests across the organization</p>
                 </div>
                 <div className="advance-header-actions">
-                    <button className="btn-secondary" onClick={loadData}>
-                        <RefreshCw size={16} />
-                        Refresh
-                    </button>
-                    <button
-                        className="btn-primary"
-                        onClick={() => setShowRequestForm(true)}
-                    >
-                        <IndianRupee size={16} />
-                        New Request
-                    </button>
+                    <button className="btn-secondary" onClick={loadData}><RefreshCw size={16} />Refresh</button>
+                    {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
                 </div>
             </div>
-
             <AdvanceLoanSummaryCards summary={summary} />
-
             <div className="advance-stats-grid">
-                <div className="stat-card">
-                    <div className="stat-item">
-                        <span className="stat-label">Total Requests</span>
-                        <span className="stat-value">{summary.totalRequests || 0}</span>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-item">
-                        <span className="stat-label">Pending</span>
-                        <span className="stat-value pending">{summary.pendingRequests || 0}</span>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-item">
-                        <span className="stat-label">Approved</span>
-                        <span className="stat-value approved">{summary.approvedRequests || 0}</span>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-item">
-                        <span className="stat-label">Rejected</span>
-                        <span className="stat-value rejected">{summary.rejectedRequests || 0}</span>
-                    </div>
-                </div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Total Requests</span><span className="stat-value">{summary.totalRequests || 0}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Pending</span><span className="stat-value pending">{summary.pendingRequests || 0}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Approved</span><span className="stat-value approved">{summary.approvedRequests || 0}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Rejected</span><span className="stat-value rejected">{summary.rejectedRequests || 0}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Approved Amount</span><span className="stat-value approved">{formatCurrency(summary.totalApprovedAmount || summary.totalApproved || 0)}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Pending Amount</span><span className="stat-value pending">{formatCurrency(summary.totalPendingAmount || 0)}</span></div></div>
             </div>
-
             <div className="advance-filter-bar">
-                <div className="filter-group">
-                    <label>Status</label>
-                    <select
-                        className="filter-select"
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                    >
-                        <option value="">All Status</option>
-                        {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                            <option key={key} value={key}>{label}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="filter-group">
-                    <label>Type</label>
-                    <select
-                        className="filter-select"
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                    >
-                        <option value="">All Types</option>
-                        <option value="ADVANCE">Advance</option>
-                        <option value="LOAN">Loan</option>
-                    </select>
-                </div>
+                <div className="filter-group"><label>Status</label><select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                    <option value="">All Status</option>{Object.entries(STATUS_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select></div>
+                <div className="filter-group"><label>Type</label><select className="filter-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                    <option value="">All Types</option><option value="ADVANCE">Advance</option><option value="LOAN">Loan</option>
+                </select></div>
             </div>
-
             <div className="advance-layout-grid">
-                {renderRequestTable({
-                    title: "Pending Approvals",
-                    items: pendingRequests,
-                    showEmployee: true,
-                    showActions: true,
-                    actionMode: "full",
-                })}
-                {renderRequestTable({
-                    title: "Active Requests",
-                    items: approvedRequests,
-                    showEmployee: true,
-                    showActions: true,
-                    actionMode: "payment",
-                })}
+                {renderRequestTable({ title: "Pending Approvals", items: pendingRequests, showEmployee: true, showActions: true, actionMode: "full" })}
+                {renderRequestTable({ title: "Active Requests", items: approvedRequests, showEmployee: true, showActions: true, actionMode: "payment" })}
             </div>
-
-            {renderRequestTable({
-                title: "All Requests",
-                items: filteredRequests,
-                showEmployee: true,
-            })}
+            {renderRequestTable({ title: "All Requests", items: filteredRequests, showEmployee: true })}
         </>
     );
 
+    const [activeTab, setActiveTab] = useState(() => {
+        try {
+            const saved = localStorage.getItem("advance-loan-active-tab");
+            return saved || "requests";
+        } catch {
+            return "requests";
+        }
+    });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem("advance-loan-active-tab", activeTab);
+        } catch { }
+    }, [activeTab]);
+
+    const isAdminOrHR = user?.role === "Admin" || user?.role === "HR";
+
     const roleViews = {
-        Organization: renderAdminView,
-        HR: renderAdminView,
-        Admin: renderAdminView,
-        Manager: renderManagerView,
-        Employee: renderEmployeeView,
+        Organization: renderAdminView, HR: renderAdminView, Admin: renderAdminView,
+        Manager: renderManagerView, Employee: renderEmployeeView,
     };
 
-    /* ===========================
-       PAGE RENDER
-    =========================== */
+    const renderTabs = () => {
+        if (!isAdminOrHR) return null;
+        return (
+            <div className="advance-tabs">
+                <button
+                    className={`advance-tab ${activeTab === "requests" ? "active" : ""}`}
+                    onClick={() => setActiveTab("requests")}
+                >
+                    <Clock3 size={16} /> Requests
+                </button>
+                <button
+                    className={`advance-tab ${activeTab === "config" ? "active" : ""}`}
+                    onClick={() => setActiveTab("config")}
+                >
+                    <Settings size={16} /> Configuration
+                </button>
+            </div>
+        );
+    };
+
     return (
         <MainLayout>
             <div className="advance-page">
+                {renderTabs()}
                 {error ? <p className="advance-error">{error}</p> : null}
-
-                {loading && !dashboard ? (
-                    <p className="advance-empty">Loading data...</p>
-                ) : (
-                    roleViews[user?.role]?.() || roleViews.Employee()
+                {loading && !dashboard ? <p className="advance-empty">Loading data...</p> : (
+                    activeTab === "config" ? (
+                        <LoanConfiguration initialConfig={loanConfig} />
+                    ) : (
+                        roleViews[user?.role]?.() || roleViews.Employee()
+                    )
                 )}
-
-                <RequestFormModal
-                    open={showRequestForm}
-                    onClose={() => setShowRequestForm(false)}
-                    onSubmit={handleCreateRequest}
-                    employees={employees}
-                    canApprove={canApprove}
-                />
-
-                <PaymentModal
-                    open={showPaymentModal}
-                    onClose={() => {
-                        setShowPaymentModal(false);
-                        setSelectedRequest(null);
-                    }}
-                    request={selectedRequest}
-                    onSubmit={handleRecordPayment}
-                />
-
-                <DetailModal
-                    open={showDetailModal}
-                    onClose={() => setShowDetailModal(false)}
-                    request={detailRequest}
-                />
-
-                <ConfirmModal
-                    open={modal.open}
-                    title={modal.title}
-                    message={modal.message}
-                    confirmLabel={modal.confirmLabel}
-                    variant={modal.variant}
-                    loading={actionLoading}
-                    onConfirm={modal.onConfirm}
-                    onCancel={closeModal}
-                    inputLabel={modal.inputLabel}
-                    inputValue={modal.inputValue}
-                    onInputChange={(val) => { modalInputRef.current = val; setModal((m) => ({ ...m, inputValue: val })) }}
-                    inputPlaceholder={modal.inputPlaceholder}
-                />
+                {activeTab === "requests" && (
+                    <>
+                        <RequestFormModal open={showRequestForm} onClose={() => setShowRequestForm(false)} onSubmit={handleCreateRequest} employees={employees} canApprove={canApprove} canCreate={canCreate} loanConfig={loanConfig} />
+                        <PaymentModal open={showPaymentModal} onClose={() => { setShowPaymentModal(false); setSelectedRequest(null); }} request={selectedRequest} onSubmit={handleRecordPayment} />
+                        <DetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} request={detailRequest} />
+                        <ConfirmModal open={modal.open} title={modal.title} message={modal.message} confirmLabel={modal.confirmLabel} variant={modal.variant} loading={actionLoading} onConfirm={modal.onConfirm} onCancel={closeModal} inputLabel={modal.inputLabel} inputValue={modal.inputValue} onInputChange={(val) => { modalInputRef.current = val; setModal((m) => ({ ...m, inputValue: val })); }} inputPlaceholder={modal.inputPlaceholder} />
+                    </>
+                )}
             </div>
         </MainLayout>
     );
 }
 
-/* ===========================
-   PAGE EXPORT
-=========================== */
 function AdvanceLoan() {
     return (
-        <ToastProvider>
-            <AdvanceLoanInner />
-        </ToastProvider>
+        <ToastProvider><AdvanceLoanInner /></ToastProvider>
     );
 }
 
