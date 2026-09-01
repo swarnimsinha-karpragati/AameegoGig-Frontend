@@ -201,6 +201,36 @@
     }
 }
 
+/* Admin summary grid - up to 8 columns */
+.advance-summary-grid--admin {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1400px) {
+    .advance-summary-grid--admin {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .advance-summary-grid--admin {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .advance-summary-grid--admin {
+        grid-template-columns: 1fr;
+    }
+}
+
+.admin-tile-sub {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-top: 6px;
+    font-weight: 500;
+}
+
 /* ── Enhanced Stat Cards ── */
 .advance-stats-grid {
     display: grid;

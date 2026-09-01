@@ -200,4 +200,7 @@ export const getExpenseViewKey = (role) => {
 };
 
 export const canApproveAdvanceLoan = (role) =>
+  role === "Admin" || role === "HR";
+
+export const canViewAllAdvanceLoan = (role) =>
   role === "Admin" || role === "HR" || role === "Manager";

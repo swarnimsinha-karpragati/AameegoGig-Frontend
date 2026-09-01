@@ -11,6 +11,10 @@ import {
     Settings,
     AlertTriangle,
     Wallet,
+    BadgeCheck,
+    Ban,
+    Hourglass,
+    Scale,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
@@ -32,6 +36,7 @@ import SearchableEmployeeSelectServer from "../components/attendance/SearchableE
 import {
     getStoredUser,
     canApproveAdvanceLoan,
+    canViewAllAdvanceLoan,
 } from "../utils/roles";
 import "./AdvanceLoanRequest.css";
 import Card from "../components/Card";
@@ -127,6 +132,94 @@ function AdvanceLoanSummaryCards({ summary, labels = {}, showPrincipalRemaining 
                 <Card key={key} icon={<Icon size={22} />} iconClassName={iconClass} isInteractive={true}>
                     <Card.Header>{label}</Card.Header>
                     <Card.Body>{value}</Card.Body>
+                </Card>
+            ))}
+        </div>
+    );
+}
+
+/* ===========================
+    ADMIN SUMMARY TILES
+    Complete money-position view for the loan giver: kitna maanga, kitna
+    approve+kaha, kitna aaya, kitna baki, aur counts.
+   =========================== */
+function AdminSummaryTiles({ summary }) {
+    const tiles = [
+        {
+            key: "requests",
+            icon: IndianRupee,
+            iconClass: "blue",
+            label: "Total Requested",
+            value: formatCurrency(summary.totalAmount || 0),
+            sub: `${summary.totalRequests || 0} requests`,
+        },
+        {
+            key: "pending",
+            icon: Hourglass,
+            iconClass: "orange",
+            label: "Pending Approvals",
+            value: formatCurrency(summary.pendingApprovalAmount || 0),
+            sub: `${summary.pendingRequests || 0} awaiting`,
+        },
+        {
+            key: "approved",
+            icon: CheckCircle2,
+            iconClass: "green",
+            label: "Approved / Given",
+            value: formatCurrency(summary.givenTotal ?? summary.totalApprovedPrincipal ?? 0),
+            sub: `${summary.approvedRequests || 0} active + ${summary.fullyPaidRequests || 0} cleared`,
+        },
+        {
+            key: "recovered",
+            icon: Banknote,
+            iconClass: "purple",
+            label: "Recovered",
+            value: formatCurrency(summary.recoveredTotal ?? summary.totalPaid ?? 0),
+            sub: "Repayments received",
+        },
+        {
+            key: "outstanding",
+            icon: Scale,
+            iconClass: "red",
+            label: "Outstanding",
+            value: formatCurrency(summary.outstandingTotal ?? summary.totalRemainingPrincipal ?? 0),
+            sub: "Principal yet to recover",
+        },
+        {
+            key: "rejected",
+            icon: Ban,
+            iconClass: "gray",
+            label: "Rejected",
+            value: formatCurrency(summary.rejectedAmount || 0),
+            sub: `${summary.rejectedRequests || 0} requests`,
+        },
+        {
+            key: "cancelled",
+            icon: Clock3,
+            iconClass: "gray",
+            label: "Cancelled",
+            value: formatCurrency(summary.cancelledAmount || 0),
+            sub: `${summary.cancelledRequests || 0} requests`,
+        },
+        {
+            key: "fullypaid",
+            icon: BadgeCheck,
+            iconClass: "teal",
+            label: "Cleared / Fully Paid",
+            value: formatCurrency(summary.fullyPaidPrincipal || 0),
+            sub: `${summary.fullyPaidRequests || 0} settled`,
+        },
+    ];
+
+    return (
+        <div className="advance-summary-grid advance-summary-grid--admin">
+            {tiles.map(({ key, icon: Icon, iconClass, label, value, sub }) => (
+                <Card key={key} icon={<Icon size={22} />} iconClassName={iconClass} isInteractive={true}>
+                    <Card.Header>{label}</Card.Header>
+                    <Card.Body>
+                        {value}
+                        {sub && <div className="admin-tile-sub">{sub}</div>}
+                    </Card.Body>
                 </Card>
             ))}
         </div>
@@ -905,8 +998,8 @@ function AdvanceLoanInner() {
             let reqRes = null;
 
             // Fix: Employee should call getMyRequests (self only), Manager/Admin/HR can call getAllRequests + getStatistics
-            // canApproveAdvanceLoan = Admin|HR|Manager => team/org view; Employee => own view
-            const canViewAll = canApproveAdvanceLoan(user?.role);
+            // canViewAllAdvanceLoan = Admin|HR|Manager => team/org view; Employee => own view
+            const canViewAll = canViewAllAdvanceLoan(user?.role);
 
             if (canViewAll) {
                 try {
@@ -929,10 +1022,21 @@ function AdvanceLoanInner() {
                         const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
                         const approvedRequests = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).length;
                         const rejectedRequests = myReqs.filter(r => r.status === "REJECTED").length;
+                        const cancelledRequests = myReqs.filter(r => r.status === "CANCELLED").length;
+                        const fullyPaidRequests = myReqs.filter(r => r.status === "FULLY_PAID").length;
+                        const pendingApprovalAmount = myReqs.filter(r => r.status === "PENDING").reduce((sum, r) => sum + (r.amount || 0), 0);
+                        const rejectedAmount = myReqs.filter(r => r.status === "REJECTED").reduce((sum, r) => sum + (r.amount || 0), 0);
+                        const cancelledAmount = myReqs.filter(r => r.status === "CANCELLED").reduce((sum, r) => sum + (r.amount || 0), 0);
+                        const fullyPaidPrincipal = myReqs.filter(r => r.status === "FULLY_PAID").reduce((sum, r) => sum + (r.amount || 0), 0);
+                        const recoveredTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.totalPaid || 0), 0);
+                        const givenTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
                         dashRes = {
                             statistics: {
                                 totalRequests, pendingRequests, approvedRequests, rejectedRequests,
+                                cancelledRequests, fullyPaidRequests,
                                 totalAmount, totalApprovedPrincipal, totalRemainingAmount, totalRemainingPrincipal, totalPaid,
+                                pendingApprovalAmount, rejectedAmount, cancelledAmount, fullyPaidPrincipal,
+                                recoveredTotal, givenTotal, outstandingTotal: Math.max(0, givenTotal - recoveredTotal),
                             },
                             recentRequests: myReqs.slice(0, 5),
                         };
@@ -956,10 +1060,21 @@ function AdvanceLoanInner() {
                 const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
                 const approvedRequests = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).length;
                 const rejectedRequests = myReqs.filter(r => r.status === "REJECTED").length;
+                const cancelledRequests = myReqs.filter(r => r.status === "CANCELLED").length;
+                const fullyPaidRequests = myReqs.filter(r => r.status === "FULLY_PAID").length;
+                const pendingApprovalAmount = myReqs.filter(r => r.status === "PENDING").reduce((sum, r) => sum + (r.amount || 0), 0);
+                const rejectedAmount = myReqs.filter(r => r.status === "REJECTED").reduce((sum, r) => sum + (r.amount || 0), 0);
+                const cancelledAmount = myReqs.filter(r => r.status === "CANCELLED").reduce((sum, r) => sum + (r.amount || 0), 0);
+                const fullyPaidPrincipal = myReqs.filter(r => r.status === "FULLY_PAID").reduce((sum, r) => sum + (r.amount || 0), 0);
+                const recoveredTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.totalPaid || 0), 0);
+                const givenTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
                 dashRes = {
                     statistics: {
                         totalRequests, pendingRequests, approvedRequests, rejectedRequests,
+                        cancelledRequests, fullyPaidRequests,
                         totalAmount, totalApprovedPrincipal, totalRemainingAmount, totalRemainingPrincipal, totalPaid,
+                        pendingApprovalAmount, rejectedAmount, cancelledAmount, fullyPaidPrincipal,
+                        recoveredTotal, givenTotal, outstandingTotal: Math.max(0, givenTotal - recoveredTotal),
                     },
                     recentRequests: myReqs.slice(0, 5),
                 };
@@ -1205,7 +1320,7 @@ function AdvanceLoanInner() {
             {teamMembers.length > 0 && (
                 <div className="advance-role-banner manager"><Users size={18} /><span>Managing {teamMembers.length} team member{teamMembers.length === 1 ? "" : "s"}</span></div>
             )}
-            <AdvanceLoanSummaryCards summary={summary} labels={{ total: "Team Total Requested", approved: "Team Approved", remaining: "Team Remaining", paid: "Team Paid" }} showPrincipalRemaining />
+            <AdminSummaryTiles summary={summary} />
             <div className="advance-layout-grid">
                 {renderRequestTable({ title: "Pending Approvals", items: pendingRequests, showEmployee: true, showActions: true, actionMode: "approve" })}
                 {renderRequestTable({ title: "Active Requests", items: approvedRequests, showEmployee: true, showActions: true, actionMode: "payment" })}
@@ -1226,12 +1341,14 @@ function AdvanceLoanInner() {
                     {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
                 </div>
             </div>
-            <AdvanceLoanSummaryCards summary={summary} showPrincipalRemaining />
+            <AdminSummaryTiles summary={summary} />
             <div className="advance-stats-grid">
                 <div className="stat-card"><div className="stat-item"><span className="stat-label">Total Requests</span><span className="stat-value">{summary.totalRequests || 0}</span></div></div>
-                <div className="stat-card"><div className="stat-item"><span className="stat-label">Pending</span><span className="stat-value pending">{summary.pendingRequests || 0}</span></div></div>
-                <div className="stat-card"><div className="stat-item"><span className="stat-label">Approved</span><span className="stat-value approved">{summary.approvedRequests || 0}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Pending Approvals</span><span className="stat-value pending">{summary.pendingRequests || 0}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Active</span><span className="stat-value approved">{summary.approvedRequests || 0}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Cleared</span><span className="stat-value">{summary.fullyPaidRequests || 0}</span></div></div>
                 <div className="stat-card"><div className="stat-item"><span className="stat-label">Rejected</span><span className="stat-value rejected">{summary.rejectedRequests || 0}</span></div></div>
+                <div className="stat-card"><div className="stat-item"><span className="stat-label">Cancelled</span><span className="stat-value">{summary.cancelledRequests || 0}</span></div></div>
             </div>
             <div className="advance-filter-bar">
                 <div className="filter-group"><label>Status</label><select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
