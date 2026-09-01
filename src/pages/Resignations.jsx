@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import { createResignation, finalApproval, getResignation, rejectResignation, updateResignation, viewLetter } from "../services/resignationService";
+import Pagination from "../components/Pagination";
 import {
   Search,
   Plus,
@@ -70,6 +71,10 @@ function Resignations() {
   const [underMeRecords, setUnderMeRecords] = useState([]);
   const [finalApprovalRecords, setFinalApprovalRecords] = useState([]);
   
+  const [myPagination, setMyPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [underMePagination, setUnderMePagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [finalPagination, setFinalPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  
   const [search, setSearch] = useState("");
   const [hrSearch, setHrSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -123,17 +128,30 @@ function Resignations() {
     if (!vendorId) return;
     try {
       setLoading(true);
-      const res = await getResignation(vendorId, currentUser.employeeId?currentUser.employeeId:currentUser.id);
-      setMyRecords(res.data.myrecords || []);
-      setUnderMeRecords(res.data.underMe || []);
-      setFinalApprovalRecords(res.data.finalApproval || []);
+      const params = { 
+        page: myPagination.page, 
+        limit: myPagination.limit 
+      };
+      const res = await getResignation(vendorId, currentUser.employeeId?currentUser.employeeId:currentUser.id, params);
+      setMyRecords(res.data.myrecords?.data || []);
+      setUnderMeRecords(res.data.underMe?.data || []);
+      setFinalApprovalRecords(res.data.finalApproval?.data || []);
+      if (res.data.myrecords?.pagination) {
+        setMyPagination(prev => ({ ...prev, total: res.data.myrecords.pagination.total, pages: res.data.myrecords.pagination.pages }));
+      }
+      if (res.data.underMe?.pagination) {
+        setUnderMePagination(prev => ({ ...prev, total: res.data.underMe.pagination.total, pages: res.data.underMe.pagination.pages }));
+      }
+      if (res.data.finalApproval?.pagination) {
+        setFinalPagination(prev => ({ ...prev, total: res.data.finalApproval.pagination.total, pages: res.data.finalApproval.pagination.pages }));
+      }
     } catch (error) {
       console.error("Error standardizing resignation view initialization:", error);
     } finally {
       setLoading(false);
     }
     // eslint-disable-next-line 
-  }, [vendorId]);
+  }, [vendorId, myPagination.page, myPagination.limit, underMePagination.page, underMePagination.limit, finalPagination.page, finalPagination.limit]);
 
   useEffect(() => {
     if (vendorId) {
@@ -362,6 +380,19 @@ function Resignations() {
               </tbody>
             </table>
           </div>
+
+          {myPagination.pages > 1 && (
+            <Pagination
+              currentPage={myPagination.page}
+              totalPages={myPagination.pages}
+              totalRecords={myPagination.total}
+              limit={myPagination.limit}
+              onPageChange={setPage => setMyPagination(p => ({ ...p, page: setPage }))}
+              showPageSize
+              onPageSizeChange={limit => setMyPagination(p => ({ ...p, limit, page: 1 }))}
+            />
+          )}
+
         </div>
 
 
@@ -454,6 +485,19 @@ function Resignations() {
                 </table>
               </div>
             </div>
+
+            {underMePagination.pages > 1 && (
+              <Pagination
+                currentPage={underMePagination.page}
+                totalPages={underMePagination.pages}
+                totalRecords={underMePagination.total}
+                limit={underMePagination.limit}
+                onPageChange={setPage => setUnderMePagination(p => ({ ...p, page: setPage }))}
+                showPageSize
+                onPageSizeChange={limit => setUnderMePagination(p => ({ ...p, limit, page: 1 }))}
+              />
+            )}
+
           </>
         ) : (
           <div className="exit-mgmt-card exit-mgmt-card--mb-large exit-mgmt-card--empty-state">
@@ -543,6 +587,19 @@ function Resignations() {
                 </table>
               </div>
             </div>
+
+            {finalPagination.pages > 1 && (
+              <Pagination
+                currentPage={finalPagination.page}
+                totalPages={finalPagination.pages}
+                totalRecords={finalPagination.total}
+                limit={finalPagination.limit}
+                onPageChange={setPage => setFinalPagination(p => ({ ...p, page: setPage }))}
+                showPageSize
+                onPageSizeChange={limit => setFinalPagination(p => ({ ...p, limit, page: 1 }))}
+              />
+            )}
+
           </>
         )}
 

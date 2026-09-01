@@ -30,20 +30,20 @@ function InputField({
   return (
     <div className="field-container">
       {/* {label && <label className="profile-label">{label}</label>} */}
-      
-      <div className="label-row">
-    {label && (
-      <label className="profile-label">
-        {label}
-      </label>
-    )}
 
-    {error && (
-      <span className="error-inline">
-        {error}
-      </span>
-    )}
-  </div>
+      <div className="label-row">
+        {label && (
+          <label className="profile-label">
+            {label}
+          </label>
+        )}
+
+        {error && (
+          <span className="error-inline">
+            {error}
+          </span>
+        )}
+      </div>
 
       <div className="input-wrapper">
         <div className="input-icon">{icon}</div>
@@ -93,7 +93,7 @@ export default function ProfileCard() {
     { name: "email", label: "Email", value: values.email, inputType: "email", required: true },
     { name: "phone", label: "Phone", value: values.phone, inputType: "tel", required: true },
     { name: "location", label: "Location", value: values.location, required: true },
-    { name: "department", label: "Department", value: values.department, required: true },
+    { name: "department", label: "Department", value: values.department, required: false },
     { name: "role", label: "Role", value: values.role, required: true },
   ];
 
@@ -245,13 +245,13 @@ export default function ProfileCard() {
         name: fullName,
         phone,
         location,
-        department,
       });
       const data = res.data?.data || {};
       applyProfileData(data);
       syncStoredUser(data);
       setIsFormDisabled(true);
       setShowSavePopup(true);
+      window.dispatchEvent(new Event("user-updated"));
     } catch (err) {
       setActionError(err.response?.data?.message || "Failed to save profile");
     } finally {
@@ -360,7 +360,7 @@ export default function ProfileCard() {
             label="Email"
             icon={<Mail size={15} color="#2563eb" />}
             value={email}
-            onChange={() => {}}
+            onChange={() => { }}
             placeholder="Enter your email"
             error={errors.email}
             isFormDisabled
@@ -410,18 +410,18 @@ export default function ProfileCard() {
             error={errors.department}
             isFormDisabled={true}
           />
-          
+
 
           <InputField
             label="Role"
             icon={<Briefcase size={15} color="#2563eb" />}
             value={role}
-            onChange={() => {}}
+            onChange={() => { }}
             placeholder="Enter role"
             error={errors.role}
             isFormDisabled
           />
-       
+
         </div>
       </div>
 
@@ -458,7 +458,7 @@ export default function ProfileCard() {
 
             <div className="camera-options">
               <Button
-                
+
                 onClick={() => {
                   galleryInputRef.current?.click();
                   setShowOptions(false);
@@ -468,7 +468,7 @@ export default function ProfileCard() {
               </Button>
 
               <Button
-                
+
                 onClick={() => {
                   setShowCamera(true);
                   setShowOptions(false);
@@ -519,32 +519,32 @@ export default function ProfileCard() {
 
       {/* save popup */}
       {showSavePopup && (
-  <div className="upload-overlay">
-    <div className="upload-modal">
-      <button
-        className="upload-close"
-        onClick={() => setShowSavePopup(false)}
-      >
-        ✕
-      </button>
+        <div className="upload-overlay">
+          <div className="upload-modal">
+            <button
+              className="upload-close"
+              onClick={() => setShowSavePopup(false)}
+            >
+              ✕
+            </button>
 
-      <div className="upload-icon">✅</div>
+            <div className="upload-icon">✅</div>
 
-      <h2>Profile Saved</h2>
+            <h2>Profile Saved</h2>
 
-      <p>
-        Your profile details have been saved successfully.
-      </p>
+            <p>
+              Your profile details have been saved successfully.
+            </p>
 
-      <button
-        className="upload-submit-btn"
-        onClick={() => setShowSavePopup(false)}
-      >
-        OK
-      </button>
-    </div>
-  </div>
-)}
+            <button
+              className="upload-submit-btn"
+              onClick={() => setShowSavePopup(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -21,35 +21,59 @@ import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
 import { isSiteVendor } from "../utils/vendorIdhelper";
 import { clearAuthData } from "../utils/authStorage";
-
-
+import HelpDeskWidget from "../components/HelpDeskWidget";
 
 function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
   const [avatarBroken, setAvatarBroken] = useState(false);
-  const [vendorCode, setVendorCode] = useState("")
 
+  // Sync state dynamically whenever local storage changes
   useEffect(() => {
     const refreshUser = () => {
       const storedUser = getStoredUser();
       setUser(storedUser);
       setAvatarBroken(false);
-      const formatName = storedUser?.vendorName?.trim()?.replace(/\//g, "")?.replace(/\s+/g, "-").toLowerCase() || "";
-      setVendorCode(formatName);
     };
+
     window.addEventListener("storage", refreshUser);
     window.addEventListener("user-updated", refreshUser);
     refreshUser();
+
     return () => {
       window.removeEventListener("storage", refreshUser);
       window.removeEventListener("user-updated", refreshUser);
     };
   }, []);
 
-  const avatarSrc = resolveMediaUrl(user?.photoDisplayUrl, user?.photoUrl);
+  // Compute fresh Vendor Code slug whenever user vendorName changes
+  const vendorCode = useMemo(() => {
+    return user?.vendorName?.trim()?.replace(/\//g, "")?.replace(/\s+/g, "-").toLowerCase() || "";
+  }, [user?.vendorName]);
 
+  // Dynamic Name Resolution
+  const displayName = useMemo(() => {
+    if (user?.role === "HR" || user?.role === "Employee") {
+      return user?.name || user?.employeeName || user?.vendorName || "User";
+    }
+    return user?.vendorName || "User";
+  }, [user]);
+
+  // Sync URL when vendorCode changes dynamically
+  useEffect(() => {
+    if (!vendorCode) return;
+    const pathSegments = location.pathname.split("/").filter(Boolean);
+    const currentVendorInUrl = pathSegments[0];
+
+    // If URL vendorCode doesn't match updated vendorCode state, update URL params
+    if (currentVendorInUrl && currentVendorInUrl !== vendorCode) {
+      const remainingPath = pathSegments.slice(1).join("/");
+      navigate(`/${vendorCode}/${remainingPath}`, { replace: true });
+    }
+  }, [vendorCode, location.pathname, navigate]);
+
+  const avatarSrc = resolveMediaUrl(user?.photoDisplayUrl, user?.photoUrl);
   const isSite = isSiteVendor();
 
   const normalizeRoutePath = (pathname) => {
@@ -63,109 +87,35 @@ function MainLayout({ children }) {
   const currentPath = normalizeRoutePath(location.pathname);
 
   const pageMeta = {
-    "/dashboard": {
-      title: "Dashboard",
-      subtitle: "Welcome back! Here's what's happening today",
-    },
-    "/sites": {
-      title: "Sites",
-      subtitle: "Manage your organization sites",
-    },
-    "/departments": {
-      title: "Departments",
-      subtitle: "Manage your organization departments",
-    },
-    "/employees": {
-      title: "Employees",
-      subtitle: "Manage your organization workforce",
-    },
-    "/attendance": {
-      title: "Attendance",
-      subtitle: "Track and manage employee attendance",
-    },
-    "/leave": {
-      title: "Leave",
-      subtitle: "Review and approve employee leave requests",
-    },
-    "/payroll": {
-      title: "Payroll",
-      subtitle: "Manage salaries and payroll processing",
-    },
-    "/expenses": {
-      title: "Expenses",
-      subtitle: "Submit and manage expense claims",
-    },
-    "/resignation": {
-      title: "Resignation",
-      subtitle: "Submit and manage resignation",
-    },
-    "/documents": {
-      title: "Documents",
-      subtitle: "Store and manage company documents",
-    },
-    "/settings": {
-      title: "Settings",
-      subtitle: "Configure your HRMS preferences",
-    },
+    "/dashboard": { title: "Dashboard", subtitle: "Welcome back! Here's what's happening today" },
+    "/sites": { title: "Sites", subtitle: "Manage your organization sites" },
+    "/departments": { title: "Departments", subtitle: "Manage your organization departments" },
+    "/employees": { title: "Employees", subtitle: "Manage your organization workforce" },
+    "/attendance": { title: "Attendance", subtitle: "Track and manage employee attendance" },
+    "/leave": { title: "Leave", subtitle: "Review and approve employee leave requests" },
+    "/payroll": { title: "Payroll", subtitle: "Manage salaries and payroll processing" },
+    "/expenses": { title: "Expenses", subtitle: "Submit and manage expense claims" },
+    "/advance-loan": { title: "Advance Loan", subtitle: "Submit and manage Advance Loan claims" },
+    "/resignation": { title: "Resignation", subtitle: "Submit and manage resignation" },
+    "/documents": { title: "Documents", subtitle: "Store and manage company documents" },
+    "/settings": { title: "Settings", subtitle: "Configure your HRMS preferences" },
   };
 
-  const currentPage =
-    pageMeta[currentPath] || pageMeta["/dashboard"];
+  const currentPage = pageMeta[currentPath] || pageMeta["/dashboard"];
 
   const menuItems = [
-    {
-      label: "Dashboard",
-      path: "/dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      label: isSite ? "Sites" : "Departments",
-      path: isSite ? "/sites" : "/departments",
-      icon: Building2,
-    },
-    {
-      label: "Employees",
-      path: "/employees",
-      icon: Users,
-    },
-    {
-      label: "Attendance",
-      path: "/attendance",
-      icon: Clock3,
-    },
-    {
-      label: "Leave",
-      path: "/leave",
-      icon: CalendarDays,
-    },
-    {
-      label: "Payroll",
-      path: "/payroll",
-      icon: Wallet,
-    },
-    {
-      label: "Expenses",
-      path: "/expenses",
-      icon: ReceiptText,
-    },
-    {
-      label: "Documents",
-      path: "/documents",
-      icon: FileText,
-    },
-    {
-      label: "Resignation",
-      path: "/resignation",
-      icon: FileSignature,
-    },
-    {
-      label: "Settings",
-      path: "/settings",
-      icon: Settings,
-    },
-  ].filter((item) =>
-    canAccessRoute(user?.role, item.path, user?.allowedModules)
-  );
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: isSite ? "Sites" : "Departments", path: isSite ? "/sites" : "/departments", icon: Building2 },
+    { label: "Employees", path: "/employees", icon: Users },
+    { label: "Attendance", path: "/attendance", icon: Clock3 },
+    { label: "Leave", path: "/leave", icon: CalendarDays },
+    { label: "Payroll", path: "/payroll", icon: Wallet },
+    { label: "Expenses", path: "/expenses", icon: ReceiptText },
+    { label: "Advance Loan", path: "/advance-loan", icon: Wallet },
+    { label: "Documents", path: "/documents", icon: FileText },
+    { label: "Resignation", path: "/resignation", icon: FileSignature },
+    { label: "Settings", path: "/settings", icon: Settings },
+  ].filter((item) => canAccessRoute(user?.role, item.path, user?.allowedModules));
 
   const [logo, setLogo] = useState(() => {
     const storedUser = getStoredUser();
@@ -216,10 +166,6 @@ function MainLayout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand">
-
-            {/* <h1>
-              Aameego <span>Gig</span>
-            </h1> */}
             <img
               src={logo ? logo : defaultLogo}
               alt="Logo"
@@ -267,13 +213,15 @@ function MainLayout({ children }) {
                 onError={() => setAvatarBroken(true)}
               />
             ) : (
-              user?.name?.charAt(0) || "U"
+              displayName.charAt(0).toUpperCase() || "U"
             )}
           </div>
 
           <div className="user-meta">
-            <h4>{user?.name || "User"}</h4>
-            <p>{getRoleLabel(user?.role)}</p>
+            <h5 className="user-vendor-name" title={displayName}>
+              {displayName}
+            </h5>
+            <p className="user-role-badge">{getRoleLabel(user?.role)}</p>
           </div>
         </div>
       </aside>
@@ -300,6 +248,8 @@ function MainLayout({ children }) {
 
         <main className="page-content">{children}</main>
       </div>
+
+      <HelpDeskWidget />
     </div>
   );
 }

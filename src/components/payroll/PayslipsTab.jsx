@@ -2,7 +2,8 @@ import React, { useMemo, useState } from "react";
 import { Search, Download, Eye, Mail, RefreshCw, Send } from "lucide-react";
 import Button from "../Button";
 import MonthYearFilter from "./MonthYearFilter";
-import { formatInr, formatStatusLabel } from "../../utils/payrollConstants";
+import { formatInr, formatStatusLabel, getAvailableMonths } from "../../utils/payrollConstants";
+import { getStoredUser } from "../../utils/roles";
 
 export default function PayslipsTab({
   isAdminOrHR,
@@ -17,6 +18,8 @@ export default function PayslipsTab({
   onYearChange,
   onSearchChange,
   onDownloadPdf,
+  onDownloadWageSheet,
+  downloadingWageSheet,
   onEmailPayslip,
   onReopenPayroll,
   onReleasePayroll,
@@ -28,6 +31,9 @@ export default function PayslipsTab({
     if (typeFilter === "all") return filteredHistory;
     return filteredHistory.filter((r) => (r.payrollType || "monthly") === typeFilter);
   }, [filteredHistory, typeFilter]);
+
+  const availableMonths = getAvailableMonths(selectedYear);
+  const user = getStoredUser();
 
   return (
     <div className="history-table-container glass-morphism">
@@ -64,6 +70,19 @@ export default function PayslipsTab({
             </div>
             
           </div>
+          {isAdminOrHR && (
+            <Button
+              type="button"
+              className="wage-sheet-btn"
+              icon={<Download size={16} />}
+              onClick={onDownloadWageSheet}
+              disabled={downloadingWageSheet}
+              title="Download month-wise and daily wages in Excel"
+            >
+              {downloadingWageSheet ? "Preparing..." : `${availableMonths[selectedMonth-1]?.label} Wage Sheet`}
+            </Button>
+          )}
+          {(user?.role === "Admin" || user?.role === "HR") &&  (
           <div className="table-search-bar">
               <Search size={18} />
               <input
@@ -73,6 +92,7 @@ export default function PayslipsTab({
                 onChange={(e) => onSearchChange(e.target.value)}
               />
             </div>
+            )}
         </div>
       </div>
 

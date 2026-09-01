@@ -16,6 +16,7 @@ import "./Attendance.css";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
+import Pagination from "../components/Pagination";
 import SelfieCapture from "../components/SelfieCapture";
 import Button from "../components/Button";
 import { getEmployees } from "../services/employeeService";
@@ -36,7 +37,7 @@ import {
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
-import SearchableEmployeeSelect from "../components/attendance/SearchableEmployeeSelect";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import AttendanceStats from "../components/attendance/AttendanceStats";
 import TodayMetricsGrid from "../components/attendance/TodayMetricsGrid";
 import SessionList from "../components/attendance/SessionList";
@@ -50,6 +51,7 @@ import {
   EMPTY_MY_ROW,
   FILTER_LABELS,
 } from "../components/attendance/attendanceUtils";
+import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
 
 function Attendance() {
   const user = getStoredUser();
@@ -106,6 +108,10 @@ function Attendance() {
   const [orgFilters, setOrgFilters] = useState(createInitialFilters);
   const [teamFilters, setTeamFilters] = useState(createInitialFilters);
 
+  const [selfPagination, setSelfPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [orgPagination, setOrgPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [teamPagination, setTeamPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+
   const [markForm, setMarkForm] = useState({
     employeeId: "",
     status: "Present",
@@ -139,11 +145,13 @@ function Attendance() {
     year: "numeric",
   });
 
-  const buildListParams = (target, viewDateObj, selectedDay, filterObj) => {
+  const buildListParams = (target, viewDateObj, selectedDay, filterObj, pagination) => {
     const params = {
       target,
       filterType: filterObj.filterType,
       search: filterObj.search || "",
+      page: pagination.page,
+      limit: pagination.limit,
     };
     if (selectedDay !== null) {
       params.filterType = "custom";
@@ -182,7 +190,7 @@ function Attendance() {
     try {
       const year = personalViewDate.getFullYear();
       const month = personalViewDate.getMonth() + 1;
-      const params = buildListParams("self", personalViewDate, selectedPersonalDay, selfFilters);
+      const params = buildListParams("self", personalViewDate, selectedPersonalDay, selfFilters, selfPagination);
       const [monthData, listRes] = await Promise.all([
         getMonthlyAttendance(year, month, "self"),
         getAttendanceList(params),
@@ -196,6 +204,9 @@ function Attendance() {
       });
       setSelfStats(monthData.stats || EMPTY_STATS);
       setSelfRows(listRes.rows || []);
+      if (listRes.pagination) {
+        setSelfPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
+      }
       if (listRes.hasTeam !== undefined) setHasTeam(listRes.hasTeam);
     } catch (err) {
       if (err.response?.status === 403) return;
@@ -208,7 +219,7 @@ function Attendance() {
     try {
       const year = orgViewDate.getFullYear();
       const month = orgViewDate.getMonth() + 1;
-      const params = buildListParams("org", orgViewDate, selectedOrgDay, orgFilters);
+      const params = buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, orgPagination);
       const [monthData, listRes] = await Promise.all([
         getMonthlyAttendance(year, month, "org"),
         getAttendanceList(params),
@@ -222,6 +233,9 @@ function Attendance() {
       });
       setOrgStats(monthData.stats || EMPTY_STATS);
       setOrgRows(listRes.rows || []);
+      if (listRes.pagination) {
+        setOrgPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
+      }
     } catch (err) {
       if (err.response?.status === 403) return;
       setError(err.response?.data?.message || "Failed to load attendance data");
@@ -231,9 +245,12 @@ function Attendance() {
   const loadTeamData = async () => {
     if (!hasTeam) return;
     try {
-      const params = buildListParams("team", personalViewDate, null, teamFilters);
+      const params = buildListParams("team", personalViewDate, null, teamFilters, teamPagination);
       const listRes = await getAttendanceList(params);
       setTeamRows(listRes.rows || []);
+      if (listRes.pagination) {
+        setTeamPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
+      }
     } catch (err) {
       if (err.response?.status === 403) return;
       setError(err.response?.data?.message || "Failed to load team attendance");
@@ -489,7 +506,7 @@ function Attendance() {
     employeeId: '',
     month: MONTHS[new Date().getMonth()],
     totalWorkingDays: '',
-    paidDays: '',
+    // paidDays: '',
     incentiveDays: '0',
   });
 
@@ -527,7 +544,6 @@ function Attendance() {
     };
 
     validateDays('totalWorkingDays', 'Total working days', { integer: true, required: true });
-    validateDays('paidDays', 'Paid days', { required: true });
     validateDays('incentiveDays', 'Incentive days');
 
     setErrors(newErrors);
@@ -629,11 +645,11 @@ function Attendance() {
       ["INSTRUCTIONS FOR MONTHLY ATTENDANCE BULK UPLOAD"],
       ["1. Employee Code (Required): Use the exact employee code, e.g. GRV-0026."],
       ["2. Month and Year (Required): Use full month name, e.g. August, and a four-digit year."],
-      ["3. Total Working Days and Paid Days (Required): Total Working Days must be a whole number. Paid Days can include 0.5."],
+      ["3. Total Working Days (Required): Total Working Days must be a whole number"],
       ["4. Incentive Days and Notes (Optional): Incentive Days can include 0.5. Leave it blank to use 0."],
       [],
-      ["Employee Code", "Month", "Year", "Total Working Days", "Paid Days", "Incentive Days", "Notes"],
-      ["GRV-0026", "August", 2026, 22, 21.5, 0.5, "Monthly attendance upload"],
+      ["Employee Code", "Month", "Year", "Total Working Days", "Incentive Days", "Notes"],
+      ["GRV-0026", "August", 2026, 22, 0, "Monthly attendance upload"],
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     worksheet["!cols"] = [
@@ -744,6 +760,16 @@ function Attendance() {
     setAttendanceAction("checkout");
     setShowSelfieModal(true);
   };
+
+  const [isReportModalOpen,setIsReportModalOpen] = useState(false)
+
+  const handleReportModal = () => {
+    setIsReportModalOpen(true);
+  }
+
+  const handleReportModalClose = () => {
+    setIsReportModalOpen(false);
+  }
 
   const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext, showLeaveWfh = true }) => (
     <AttendanceCalendar
@@ -909,8 +935,7 @@ function Attendance() {
         <div className="attendance-mark-form__row">
           <div className="attendance-field attendance-field--employee">
             <label htmlFor="mark-employee">Employee</label>
-            <SearchableEmployeeSelect
-              employeeList={employeeList}
+            <SearchableEmployeeSelectServer
               value={markForm.employeeId}
               onChange={(empId) => setMarkForm((prev) => ({ ...prev, employeeId: empId }))}
               controlClassName="attendance-control"
@@ -1023,19 +1048,23 @@ function Attendance() {
             Record or update monthly attendance status and working days summary
           </p>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          className="month-mark-upload-trigger"
-          icon={<Upload size={16} />}
-          onClick={() => {
-            setMonthlyUploadResult(null);
-            clearMonthlyUploadFile();
-            setShowMonthlyUploadModal(true);
-          }}
-        >
-          Bulk Upload
-        </Button>
+        <div className="month-mark-button-wrap">
+          <Button
+            className="secondary-btn"
+            icon={<Upload size={16} />}
+            onClick={() => {
+              setMonthlyUploadResult(null);
+              clearMonthlyUploadFile();
+              setShowMonthlyUploadModal(true);
+            }}
+          >
+            Bulk Upload
+          </Button>
+          <Button onClick={handleReportModal}>
+            Download Report
+          </Button>
+
+        </div>
       </header>
 
       {errors.form && (
@@ -1051,8 +1080,7 @@ function Attendance() {
             <label htmlFor="mark-employee" className="month-mark-label">
               Employee
             </label>
-            <SearchableEmployeeSelect
-              employeeList={employeeList}
+            <SearchableEmployeeSelectServer
               value={markMonthForm.employeeId}
               onChange={(empId) => handleMonthMarkChange('employeeId', empId)}
               disabled={isSubmitting}
@@ -1109,7 +1137,7 @@ function Attendance() {
             )}
           </div>
 
-          <div className={`month-mark-field ${errors.paidDays ? 'month-mark-field--error' : ''}`}>
+          {/* <div className={`month-mark-field ${errors.paidDays ? 'month-mark-field--error' : ''}`}>
             <label htmlFor="paid-days" className="month-mark-label">Paid Days</label>
             <input
               id="paid-days"
@@ -1124,7 +1152,7 @@ function Attendance() {
               disabled={isSubmitting}
             />
             {errors.paidDays && <span className="month-mark-error-msg">{errors.paidDays}</span>}
-          </div>
+          </div> */}
 
           <div className={`month-mark-field ${errors.incentiveDays ? 'month-mark-field--error' : ''}`}>
             <label htmlFor="incentive-days" className="month-mark-label">Incentive Days</label>
@@ -1214,6 +1242,18 @@ function Attendance() {
         isCalendarSelection={selectedOrgDay !== null}
         onClearSelectedDay={() => setSelectedOrgDay(null)}
       />
+
+      {orgPagination.pages > 1 && (
+        <Pagination
+          currentPage={orgPagination.page}
+          totalPages={orgPagination.pages}
+          totalRecords={orgPagination.total}
+          limit={orgPagination.limit}
+          onPageChange={setPage => setOrgPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setOrgPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
     </>
   );
 
@@ -1249,6 +1289,18 @@ function Attendance() {
         isCalendarSelection={selectedPersonalDay !== null}
         onClearSelectedDay={() => setSelectedPersonalDay(null)}
       />
+
+      {selfPagination.pages > 1 && (
+        <Pagination
+          currentPage={selfPagination.page}
+          totalPages={selfPagination.pages}
+          totalRecords={selfPagination.total}
+          limit={selfPagination.limit}
+          onPageChange={setPage => setSelfPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setSelfPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
       <h1 className="attendance-title">Organization Attendance</h1>
       {renderMarkForm(employees, "Mark / Correct Attendance")}
       {renderMarkMonthForm(employees, "Mark / Month Attendance")}
@@ -1275,6 +1327,18 @@ function Attendance() {
         isCalendarSelection={selectedOrgDay !== null}
         onClearSelectedDay={() => setSelectedOrgDay(null)}
       />
+
+      {orgPagination.pages > 1 && (
+        <Pagination
+          currentPage={orgPagination.page}
+          totalPages={orgPagination.pages}
+          totalRecords={orgPagination.total}
+          limit={orgPagination.limit}
+          onPageChange={setPage => setOrgPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setOrgPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
     </>
   );
 
@@ -1309,6 +1373,18 @@ function Attendance() {
         onClearSelectedDay={() => setSelectedPersonalDay(null)}
       />
 
+      {selfPagination.pages > 1 && (
+        <Pagination
+          currentPage={selfPagination.page}
+          totalPages={selfPagination.pages}
+          totalRecords={selfPagination.total}
+          limit={selfPagination.limit}
+          onPageChange={setPage => setSelfPagination(p => ({ ...p, page: setPage }))}
+          showPageSize
+          onPageSizeChange={limit => setSelfPagination(p => ({ ...p, limit, page: 1 }))}
+        />
+      )}
+
       {hasTeam && (
         <div>
           <TodayAttendanceTable
@@ -1319,6 +1395,18 @@ function Attendance() {
             filters={teamFilters}
             onFilterChange={handleTeamFilterChange}
           />
+
+          {teamPagination.pages > 1 && (
+            <Pagination
+              currentPage={teamPagination.page}
+              totalPages={teamPagination.pages}
+              totalRecords={teamPagination.total}
+              limit={teamPagination.limit}
+              onPageChange={setPage => setTeamPagination(p => ({ ...p, page: setPage }))}
+              showPageSize
+              onPageSizeChange={limit => setTeamPagination(p => ({ ...p, limit, page: 1 }))}
+            />
+          )}
         </div>
       )}
     </>
@@ -1351,6 +1439,8 @@ function Attendance() {
           onCapture={handleSelfieCapture}
           submitting={checkInSubmitting}
         />
+
+        {isReportModalOpen && <MonthlyAttendanceReport handleReportModalClose={handleReportModalClose}/>}
 
         {/* Confirmation Modal */}
         <ConfirmModal
@@ -1437,7 +1527,7 @@ function Attendance() {
                 <Button type="button" variant="secondary" onClick={() => setShowMonthlyUploadModal(false)} disabled={monthlyUploadLoading}>
                   Close
                 </Button>
-                <Button type="button" icon={<Upload size={16} />} onClick={handleMonthlyBulkUpload} disabled={monthlyUploadLoading}>
+                <Button type="button" icon={<Upload size={16} />} onClick={handleMonthlyBulkUpload} disabled={monthlyUploadLoading || !monthlyUploadFile}>
                   {monthlyUploadLoading ? "Uploading..." : "Upload File"}
                 </Button>
               </footer>

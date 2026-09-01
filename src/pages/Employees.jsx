@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 import MainLayout from "../layouts/MainLayout";
 import {
@@ -35,6 +35,8 @@ import {
   generateAppointmentLetter,
 } from "../services/letterService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
+import Pagination from "../components/Pagination";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import EmployeeSalaryStructureView from "../components/EmployeeSalaryStructureView";
 import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
 import { saveEmployeeStructure } from "../services/salaryComponentService";
@@ -52,7 +54,7 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft, sumLetterMonthlyGross } from "../utils/salaryValidation";
+import { validateStructureDraft, validateComponentsMatchCtc, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
@@ -60,6 +62,26 @@ import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles"
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
+
+const EMPLOYEES_LIST_STATE_KEY = "employees-list-state";
+
+const readPersistedListState = () => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(EMPLOYEES_LIST_STATE_KEY));
+    if (!saved || typeof saved !== "object") return null;
+    return saved;
+  } catch {
+    return null;
+  }
+};
+
+const persistListState = (state) => {
+  try {
+    sessionStorage.setItem(EMPLOYEES_LIST_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore quota / private mode errors
+  }
+};
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -208,8 +230,6 @@ function EmployeeFormFields({
   sections,
   values,
   onFieldChange,
-  employees,
-  excludeEmployeeId,
   emailRequired,
   department,
   errors
@@ -249,16 +269,13 @@ function EmployeeFormFields({
     if (field.type === "manager") {
       return (
         <>
-          <select {...common} value={values.managerId || ""}>
-            <option value="">Select manager (optional)</option>
-            {employees
-              .filter((emp) => emp._id !== excludeEmployeeId)
-              .map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.employeeCode} — {emp.name}
-                </option>
-              ))}
-          </select>
+          <SearchableEmployeeSelectServer
+            value={values.managerId}
+            onChange={(empId) => onFieldChange({ target: { name: field.key, value: empId } })}
+            hasError={!!fieldError(field.key)}
+            controlClassName="emp-field-input form-control"
+            placeholder="Select manager (optional)"
+          />
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}
@@ -527,7 +544,7 @@ function Employees() {
     nameAsPerPan: "",
     nameAsPerAadhaar: "",
     client: "",
-    payType:"MONTHLY",
+    payType: "MONTHLY",
 
     aadhaarNumber: "", panNumber: "",
     uan: "", pfNumber: "", esicNumber: "",
@@ -541,15 +558,26 @@ function Employees() {
 
   const [form, setForm] = useState(initialForm);
 
+  const persistedListState = readPersistedListState();
+
   const [employees, setEmployees] = useState([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(persistedListState?.search ?? "");
+  const [page, setPage] = useState(
+    Number.isFinite(persistedListState?.page) ? persistedListState.page : 1
+  );
+  const [limit, setLimit] = useState(
+    Number.isFinite(persistedListState?.limit) ? persistedListState.limit : 10
+  );
+  const [pagination, setPagination] = useState({ total: 0, pages: 0 });
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [department, setDepartment] = useState([]);
-  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState(
+    persistedListState?.departmentFilter ?? ""
+  );
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
@@ -637,26 +665,41 @@ function Employees() {
      FETCH EMPLOYEES
   ========================= */
 
-  const fetchEmployees = async (departmentId) => {
+  const fetchEmployees = useCallback(async () => {
     try {
-      const res = await getEmployees({ departmentId });
-      setEmployees(
-        res.data.employees || []
-      );
+      const res = await getEmployees({
+        departmentId: departmentFilter || undefined,
+        page,
+        limit,
+        search,
+        isPagination: "true",
+      });
+      setEmployees(res.data.employees || []);
+      if (res.data.pagination) {
+        setPagination({
+          total: res.data.pagination.total,
+          pages: res.data.pagination.pages,
+        });
+      }
     } catch (error) {
-      console.error(
-        "Error fetching employees:",
-        error
-      );
+      console.error("Error fetching employees:", error);
     }
-  };
+  }, [departmentFilter, page, limit, search]);
 
   useEffect(() => {
-    const loggedUser = localStorage.getItem('user')
-    const { vendorId } = JSON.parse(loggedUser)
-    fetchEmployees(departmentFilter);
+    persistListState({ search, page, limit, departmentFilter });
+  }, [search, page, limit, departmentFilter]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
+
+  useEffect(() => {
+    const loggedUser = localStorage.getItem("user");
+    if (!loggedUser) return;
+    const { vendorId } = JSON.parse(loggedUser);
     fetchDepartment(vendorId);
-  }, [departmentFilter]);
+  }, []);
 
   const fetchDepartment = async (vendorId) => {
     try {
@@ -824,6 +867,15 @@ function Employees() {
           });
           return;
         }
+
+        // Manual component entry (no template) must add up to the Annual CTC.
+        if (!salaryDraft.structureId) {
+          const matchError = validateComponentsMatchCtc(salaryDraft);
+          if (matchError) {
+            setErrors({ salaryStructure: matchError });
+            return;
+          }
+        }
       }
 
       setErrors({});
@@ -859,7 +911,6 @@ function Employees() {
       setForm(initialForm);
       setSalaryDraft(initialSalaryDraft);
       setShowAddModal(false);
-
       fetchEmployees();
     } catch (error) {
       setErrors({});
@@ -1069,7 +1120,7 @@ function Employees() {
     uan: emp.uan || "",
     esicNumber: emp.esicNumber || "",
     userRole: emp.linkedUser?.role || emp.userRole || "Employee",
-    payType:emp.payType || "MONTHLY",
+    payType: emp.payType || "MONTHLY",
     allowedModules: defaultSelectedModules(
       emp.linkedUser?.role || emp.userRole || "Employee",
       emp.linkedUser?.allowedModules
@@ -1102,6 +1153,14 @@ function Employees() {
       if (Object.keys(formErrors).length) {
         setErrors(formErrors);
         scrollToFirstError(formErrors);
+        return;
+      }
+
+      // Manually entered salary components must add up to the Annual CTC before
+      // the employee (and their salary structure) can be saved.
+      const salaryMatchError = salaryEditorRef.current?.validateStructure?.();
+      if (salaryMatchError) {
+        alert(salaryMatchError);
         return;
       }
 
@@ -1163,11 +1222,13 @@ function Employees() {
     try {
       await deleteEmployee(id);
 
-      alert(
-        "Employee deleted successfully"
-      );
+      alert("Employee deleted successfully");
 
-      fetchEmployees();
+      if (employees.length <= 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        fetchEmployees();
+      }
     } catch (error) {
       alert(
         error.response?.data
@@ -1238,24 +1299,10 @@ function Employees() {
     };
 
   /* =========================
-     FILTER EMPLOYEES
-  ========================= */
+       FILTER EMPLOYEES
+     ========================= */
 
-  const filteredEmployees =
-    employees.filter((emp) =>
-      [
-        emp.employeeCode,
-        emp.name,
-        emp.email,
-        emp.phone,
-        emp.designation,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(
-          search.toLowerCase()
-        )
-    );
+  const filteredEmployees = employees;
 
   const handleUploadDocument =
     async () => {
@@ -1321,7 +1368,7 @@ function Employees() {
       <div className="employee-page">
 
         <p className="employee-page__count">
-          Total employees: <strong>{employees.length}</strong>
+          Total employees: <strong>{pagination?.total || 0}</strong>
         </p>
 
         <div className="employee-toolbar">
@@ -1333,11 +1380,10 @@ function Employees() {
               type="text"
               placeholder="Search employees..."
               value={search}
-              onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
-              }
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
 
@@ -1347,7 +1393,10 @@ function Employees() {
             <div className="employee-filter">
               <select
                 value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
+                onChange={(e) => {
+                  setDepartmentFilter(e.target.value);
+                  setPage(1);
+                }}
               >
                 <option value="">
                   {isSiteVendor() ? "All Sites" : "All Departments"}
@@ -1551,6 +1600,21 @@ function Employees() {
             </table>
           </div>
         </div>
+
+        {pagination.pages > 1 && (
+          <Pagination
+            currentPage={page}
+            totalPages={pagination.pages}
+            totalRecords={pagination.total}
+            limit={limit}
+            onPageChange={setPage}
+            showPageSize
+            onPageSizeChange={(nextLimit) => {
+              setLimit(nextLimit);
+              setPage(1);
+            }}
+          />
+        )}
 
         {/* ================= ADD EMPLOYEE MODAL ================= */}
         {showAddModal ? (

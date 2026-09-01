@@ -34,6 +34,7 @@ export const ROUTE_ACCESS = {
   "/documents": ["Admin", "HR", "Manager", "Employee"],
   "/expenses": ["Admin", "HR", "Manager", "Employee"],
   "/resignation": ["Admin", "HR", "Manager", "Employee"],
+  "/advance-loan": ["Admin", "HR", "Manager", "Employee"],
   "/settings": ["Admin", "HR", "Manager", "Employee"],
 };
 
@@ -44,6 +45,7 @@ export const GRANTABLE_MODULES = [
   { key: "expenses", label: "Expenses", path: "/expenses" },
   { key: "documents", label: "Documents", path: "/documents" },
   { key: "resignation", label: "Resignation", path: "/resignation" },
+  { key: "advance-loan", label: "Advance Loan", path: "/advance-loan" },
   { key: "employees", label: "Employees", path: "/employees" },
   { key: "departments", label: "Departments / Sites", path: "/departments" },
 ];
@@ -61,6 +63,7 @@ const MODULE_BY_PATH = {
   "/documents": "documents",
   "/expenses": "expenses",
   "/resignation": "resignation",
+  "/advance-loan": "advance-loan",
   "/settings": "settings",
 };
 
@@ -102,6 +105,7 @@ export const DASHBOARD_STAT_MODULE = {
   leave: "leave",
   balance: "leave",
   expense: "expenses",
+  advanceLoan: "advance-loan",
 };
 
 export const userHasModule = (userOrRole, moduleKey, allowedModules) => {
@@ -109,7 +113,7 @@ export const userHasModule = (userOrRole, moduleKey, allowedModules) => {
   const modules = Array.isArray(allowedModules)
     ? allowedModules
     : userOrRole?.allowedModules;
-  const canonical = moduleKey === "expense" ? "expenses" : moduleKey;
+  const canonical = moduleKey === "expense" ? "expenses" : moduleKey === "advanceLoan" ? "advance-loan" : moduleKey;
   if (role === "Admin") return true;
   if (ALWAYS_ON_MODULES.includes(canonical)) return true;
   if (!Array.isArray(modules)) return true;
@@ -191,3 +195,6 @@ export const getExpenseViewKey = (role) => {
   if (role === "Manager") return "Manager";
   return "Employee";
 };
+
+export const canApproveAdvanceLoan = (role) =>
+  role === "Admin" || role === "HR" || role === "Manager";

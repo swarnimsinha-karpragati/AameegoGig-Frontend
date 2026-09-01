@@ -10,6 +10,8 @@ import {
 
 export const MAX_MONTHLY_AMOUNT = LIMITS.MONTHLY_AMOUNT_MAX;
 export const MAX_ANNUAL_CTC = LIMITS.ANNUAL_CTC_MAX;
+/** Annual CTC must be at least ₹12 so the monthly CTC rounds to ₹1 or more. */
+export const MIN_ANNUAL_CTC = 12;
 
 /** Matches CTC split / payroll rounding — annual CTC is stored as a whole rupee amount. */
 export const monthlyCtcFromAnnual = (annualCTC) => {
@@ -18,7 +20,13 @@ export const monthlyCtcFromAnnual = (annualCTC) => {
 };
 
 export const validateAnnualCtc = (value) =>
-  validateField({ value, label: "Annual CTC", kind: "currency_annual" });
+  validateField({
+    value,
+    label: "Annual CTC",
+    kind: "currency_annual",
+    required: true,
+    min: MIN_ANNUAL_CTC,
+  });
 
 const FIXED_GROSS_CALC_TYPES = new Set(["FixedMonthly", "Manual"]);
 
@@ -59,6 +67,41 @@ export const computeContributingGross = (components = []) =>
   components
     .filter((comp) => contributesToGross(comp))
     .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
+
+/** Rounding buffer for CTC values not divisible by 12 (max drift of round(annual/12)*12). */
+export const CTC_MATCH_ROUNDING_TOLERANCE = 6;
+
+/**
+ * Manual component entry must fully allocate the Annual CTC:
+ * CTC = Earnings (gross) + Employer Contributions
+ * Employee Deductions are subtracted from earnings, NOT added to CTC.
+ * Returns an error message when the breakdown does not add up to the CTC, else "".
+ */
+export const validateComponentsMatchCtc = ({ ctcAnnual, components = [] }) => {
+  const annualCtc = Number(ctcAnnual) || 0;
+  if (annualCtc <= 0) return "";
+
+  const lines = (components || []).filter((comp) => comp && comp.enabled !== false);
+  if (!lines.length) return "";
+
+  const earnings = lines
+    .filter((comp) => comp.category === "Earning")
+    .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
+
+  const employerContributions = lines
+    .filter((comp) => comp.isEmployerContribution)
+    .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
+
+  const monthlyTotal = earnings + employerContributions;
+  const actualAnnual = monthlyTotal * 12;
+  const difference = Math.abs(annualCtc - actualAnnual);
+  if (difference <= CTC_MATCH_ROUNDING_TOLERANCE) return "";
+
+  const fmt = (n) => Math.round(n).toLocaleString("en-IN");
+  return actualAnnual > annualCtc
+    ? `Total Earnings + Employer Contributions (₹${fmt(actualAnnual)}) exceeds Annual CTC (₹${fmt(annualCtc)}) by ₹${fmt(difference)}. Please adjust the amounts to match.`
+    : `Total Earnings + Employer Contributions (₹${fmt(actualAnnual)}) is ₹${fmt(difference)} less than Annual CTC (₹${fmt(annualCtc)}). Please increase the amounts to match.`;
+};
 
 /** Validate only the earning lines shown in the appointment letter salary table. */
 export const validateLetterSalaryStructure = ({ annualCTC, salaryComponents = [] }) => {

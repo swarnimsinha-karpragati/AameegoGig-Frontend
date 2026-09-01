@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Pencil, Trash2, X, Layers, AlertCircle } from "lucide-react"; 
+import { Pencil, Trash2, X, Layers, AlertCircle, Calculator } from "lucide-react"; 
 import {
   getSalaryComponents,
   createSalaryComponent,
@@ -18,11 +18,10 @@ const CALC_LABELS = {
   PercentOfComponent: "% of component",
   PercentOfGross: "% of gross",
   PercentOfCTC: "% of CTC",
-  // Manual: "Manual",
-  // Formula: "Formula",
-  // SlabBased: "Slab Based",
-  // AttendanceBased: "Attendance Based"
+  CustomFormula: "Custom Formula",
 };
+
+const FORMULA_TYPES = new Set(["CustomFormula", "Formula"]);
 
 const codes = [
   { code: "BASIC", name: "Basic Pay", category: "Earning" },
@@ -44,6 +43,15 @@ const codes = [
   { code: "LWF_ER", name: "Labour Welfare Fund (Employer)", category: "Deduction", isEmployerContribution: true },
   { code: "INSURANCE", name: "Corporate Insurance Premium", category: "Deduction", isEmployerContribution: true },
   { code: "OTHER", name: "Custom (Other)", category: "Earning" }
+];
+
+const OPERATORS = [
+  { label: "+", token: " + ", title: "Add" },
+  { label: "−", token: " - ", title: "Subtract" },
+  { label: "×", token: " * ", title: "Multiply" },
+  { label: "÷", token: " / ", title: "Divide" },
+  { label: "(", token: "(", title: "Open bracket" },
+  { label: ")", token: ")", title: "Close bracket" },
 ];
 
 const formatTemplateLabel = (template) => {
@@ -81,6 +89,76 @@ const emptyForm = {
   slabs: [],
 };
 
+// Helpers for formula validation & preview
+const validateFormulaLocal = (expr, selfCode, allComponents) => {
+  if (!expr || !expr.trim()) return "Formula cannot be empty";
+  const trimmed = expr.trim();
+  if (trimmed.length > 500) return "Formula must be ≤ 500 chars";
+  // balanced parens
+  let depth = 0;
+  for (const ch of trimmed) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (depth < 0) return "Unbalanced parentheses: extra ')'";
+  }
+  if (depth !== 0) return "Unbalanced parentheses: missing ')'";
+  // self reference
+  if (selfCode) {
+    const re = new RegExp(`\\b${selfCode}\\b`, "i");
+    if (re.test(trimmed)) return `Formula cannot reference itself (${selfCode})`;
+  }
+  // allowed chars
+  const stripped = trimmed.replace(/\b(MIN|MAX|GROSS|CTC)\b/gi, "");
+  const safePattern = /^[A-Z0-9_+\-*/().,\s]+$/i;
+  if (!safePattern.test(stripped)) return "Contains invalid characters. Use A-Z, 0-9, +, -, *, /, ( ), ., , and component codes";
+  // unknown components
+  const codePattern = /\b[A-Z][A-Z0-9_]*\b/g;
+  const tokens = [...new Set((trimmed.match(codePattern) || []).map((t) => t.toUpperCase()))].filter((c) => !["MIN","MAX","GROSS","CTC"].includes(c));
+  const available = new Set((allComponents || []).map((c) => String(c.code).toUpperCase()));
+  // Also allow numeric literals – but codePattern requires leading letter, so numbers won't appear
+  for (const tok of tokens) {
+    if (/^\d+$/.test(tok)) continue;
+    if (!available.has(tok)) {
+      // allow forward reference? Show warning but not block if component list empty?
+      // If custom code not yet in library, still allow but warn
+      // We'll treat unknown as error only if available non-empty
+      if (available.size > 0) return `Unknown component '${tok}' — choose from dropdown`;
+    }
+  }
+  if (!/[A-Z0-9+\-*/()]/.test(trimmed)) return "Formula should contain an operator or component";
+  return "";
+};
+
+const tryEvaluateFormula = (expr, sampleMap = {}) => {
+  if (!expr || !expr.trim()) return { ok: false, error: "Empty" };
+  let e = expr.trim();
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rep = (tok, val) => { e = e.replace(new RegExp(`\\b${esc(tok)}\\b`, "gi"), String(val)); };
+  const sampleGross = sampleMap.GROSS || 50000;
+  const sampleCTC = sampleMap.CTC || 60000;
+  rep("GROSS", sampleGross);
+  rep("CTC", sampleCTC);
+  const pat = /\b[A-Z][A-Z0-9_]*\b/g;
+  const toks = [...new Set((e.match(pat) || []).map((t) => t.toUpperCase()))].filter((c) => !["MIN","MAX","GROSS","CTC"].includes(c));
+  toks.sort((a,b)=>b.length-a.length);
+  for (const t of toks) {
+    const val = sampleMap[t] != null ? sampleMap[t] : 5000;
+    rep(t, val);
+  }
+  const safe = e.replace(/\bmin\b/gi,"Math.min").replace(/\bmax\b/gi,"Math.max");
+  if (!/^[0-9+\-*/().,\sMathminax]+$/i.test(safe)) return { ok: false, error: "Invalid characters after substitution" };
+  try {
+    // eslint-disable-next-line no-new-func
+    const v = Function(`"use strict"; return (${safe})`)();
+    const num = Number(v);
+    if (!Number.isFinite(num)) return { ok: false, error: "Result is not finite" };
+    return { ok: true, value: Math.round(num) };
+  } catch (err) {
+    return { ok: false, error: err.message || "Syntax error" };
+  }
+};
+
+
 export default function SalaryComponentManager() {
   const [components, setComponents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,8 +170,10 @@ export default function SalaryComponentManager() {
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [templates, setTemplates] = useState([]);
+  const [formulaComponentPick, setFormulaComponentPick] = useState("");
 
   const isMounted = useRef(true);
+  const formulaInputRef = useRef(null);
 
   useEffect(() => {
     isMounted.current = true;
@@ -140,19 +220,76 @@ export default function SalaryComponentManager() {
     setEditing(null);
     setForm(emptyForm);
     setSelectedPreset("");
+    setFormulaComponentPick("");
     setError("");
     setShowModal(true);
   };
 
   const openEdit = (comp) => {
     setEditing(comp.code);
-    setForm({ ...emptyForm, ...comp, slabs: comp.slabs || [], departments: comp.departments || [] });
+    // Normalize calculationType: map legacy Formula to CustomFormula for UI
+    const normalized = comp.calculationType === "Formula" ? "CustomFormula" : comp.calculationType;
+    setForm({ ...emptyForm, ...comp, calculationType: normalized || comp.calculationType, slabs: comp.slabs || [], departments: comp.departments || [] });
     
     const isStandard = codes.find(c => c.code === comp.code && c.code !== "OTHER");
     setSelectedPreset(isStandard ? comp.code : "OTHER");
-    
+    setFormulaComponentPick("");
     setError("");
     setShowModal(true);
+  };
+
+  const isFormula = FORMULA_TYPES.has(form.calculationType);
+
+  const formulaValidationMsg = useMemo(() => {
+    if (!isFormula) return "";
+    return validateFormulaLocal(form.formulaExpression, form.code, components.filter(c=>c.code!==form.code));
+  }, [form.formulaExpression, form.code, components, isFormula]);
+
+  const insertFormulaToken = (token) => {
+    if (error) setError("");
+    const input = formulaInputRef.current;
+    const current = form.formulaExpression || "";
+    if (input && typeof input.selectionStart === "number") {
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      const before = current.slice(0, start);
+      const after = current.slice(end);
+      const next = before + token + after;
+      setForm((prev) => ({ ...prev, formulaExpression: next }));
+      // restore cursor after state update
+      setTimeout(() => {
+        input.focus();
+        const pos = start + token.length;
+        input.setSelectionRange(pos, pos);
+      }, 0);
+    } else {
+      setForm((prev) => ({ ...prev, formulaExpression: current + token }));
+    }
+  };
+
+  const handleFormulaComponentSelect = (e) => {
+    const val = e.target.value;
+    setFormulaComponentPick(val);
+    if (!val) return;
+    insertFormulaToken(val);
+    // reset pick to allow re-inserting same
+    setTimeout(() => setFormulaComponentPick(""), 100);
+  };
+
+  const handleFormulaClear = () => {
+    setForm((prev) => ({ ...prev, formulaExpression: "" }));
+    setError("");
+    if (formulaInputRef.current) formulaInputRef.current.focus();
+  };
+
+  const handleFormulaBackspace = () => {
+    const cur = form.formulaExpression || "";
+    if (!cur) return;
+    // remove last token char, but if ends with "MIN(" or "MAX(", remove whole
+    let next = cur;
+    if (cur.endsWith("MIN(") || cur.endsWith("MAX(")) next = cur.slice(0, -4);
+    else next = cur.slice(0, -1);
+    setForm((prev) => ({ ...prev, formulaExpression: next }));
   };
 
   const handleSave = async () => {
@@ -195,6 +332,14 @@ export default function SalaryComponentManager() {
       }
     }
 
+    if (isFormula) {
+      const fErr = validateFormulaLocal(form.formulaExpression, trimmedCode, components);
+      if (fErr) return setError(fErr);
+      // try evaluate
+      const evalRes = tryEvaluateFormula(form.formulaExpression, { BASIC: 30000, HRA: 15000, GROSS: 50000, CTC: 60000 });
+      if (!evalRes.ok) return setError(`Formula error: ${evalRes.error}`);
+    }
+
     if (form.threshold !== null && form.threshold !== "" && Number(form.threshold) < 0) {
       return setError("Threshold cannot be a negative number.");
     }
@@ -224,10 +369,13 @@ export default function SalaryComponentManager() {
         ...form,
         name: trimmedName,
         code: trimmedCode,
+        // Normalize CustomFormula -> backend supports both; send CustomFormula
+        calculationType: form.calculationType === "Formula" ? "CustomFormula" : form.calculationType,
         rate: Number(form.rate) || 0,
         defaultValue: Number(form.defaultValue) || 0,
         cap: form.cap === "" || form.cap === null ? null : Number(form.cap),
         threshold: form.threshold === "" || form.threshold === null ? null : Number(form.threshold),
+        formulaExpression: (form.formulaExpression || "").trim(),
         departments: Array.isArray(form.departments)
           ? form.departments
           : String(form.departmentsText || "")
@@ -344,23 +492,34 @@ export default function SalaryComponentManager() {
     }
   };
 
+  const getCalcLabel = (comp) => {
+    const t = comp.calculationType;
+    if (FORMULA_TYPES.has(t)) {
+      const expr = comp.formulaExpression || "";
+      return expr ? `Custom: ${expr.length > 30 ? expr.slice(0,30)+"…" : expr}` : "Custom Formula";
+    }
+    if (t === "PercentOfComponent") return `% of ${comp.baseComponent || "—"}`;
+    return CALC_LABELS[t] || t || "Fixed";
+  };
+
   const renderRow = (comp) => (
     <div key={comp.code} className={`salary-cm__row ${!comp.isActive ? "salary-cm__inactive" : ""}`}>
       <div>
         <div className="salary-cm__row-name">
           {comp.name}
           {comp.isSystem && <span className="salary-cm__badge system">system</span>}
+          {FORMULA_TYPES.has(comp.calculationType) && <span className="salary-cm__badge formula"><Calculator size={10} style={{marginRight:3, verticalAlign:"-1px"}}/>formula</span>}
         </div>
         <div className="salary-cm__row-meta">
-          <p>{comp.calculationType !== "PercentOfComponent" ? CALC_LABELS[comp.calculationType] : `% of ${comp.baseComponent}`}</p>
+          <p>{getCalcLabel(comp)}</p>
           <p>{comp.departments?.length ? ` · ${comp.departments.join(", ")}` : ""}</p>
         </div>
       </div>
       <div className="salary-cm__row-actions">
-        <button className="action-btn action-btn-edit" onClick={() => openEdit(comp)} title="Edit" type="button" disabled={loading}>
+        <button className="salary-cm__action-btn salary-cm__action-btn--edit" onClick={() => openEdit(comp)} title="Edit" type="button" disabled={loading}>
           <Pencil size={16} />
         </button>
-        <button className="action-btn action-btn-delete" onClick={() => handleDelete(comp.code, comp.isSystem)} title="Delete" type="button" disabled={loading}>
+        <button className="salary-cm__action-btn salary-cm__action-btn--delete" onClick={() => handleDelete(comp.code, comp.isSystem)} title="Delete" type="button" disabled={loading}>
           <Trash2 size={16} />
         </button>
       </div>
@@ -370,6 +529,14 @@ export default function SalaryComponentManager() {
   const earnings = components.filter((c) => c.category === "Earning");
   const deductions = components.filter((c) => c.category === "Deduction" && !c.isEmployerContribution);
   const employerLines = components.filter((c) => c.isEmployerContribution);
+
+  // Available components for formula builder (exclude self, include GROSS/CTC specials)
+  const formulaAvailableComponents = components.filter(c => c.code !== form.code);
+  const formulaDropdownOptions = [
+    ...formulaAvailableComponents.map(c => ({ value: c.code, label: `${c.code} — ${c.name}` })),
+    { value: "GROSS", label: "GROSS — Total earnings" },
+    { value: "CTC", label: "CTC — Monthly CTC" },
+  ];
 
   return (
     <div className="salary-cm">
@@ -441,7 +608,7 @@ export default function SalaryComponentManager() {
       {showModal &&
         createPortal(
         <div className="salary-cm__overlay" onClick={() => !saving && setShowModal(false)}>
-          <div className="salary-cm__modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="salary-cm-modal-title">
+          <div className="salary-cm__modal salary-cm__modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="salary-cm-modal-title">
             <div className="salary-cm__modal-head">
               <div>
                 <h3 id="salary-cm-modal-title">{editing ? "Edit Component" : "Add Salary Component"}</h3>
@@ -602,6 +769,77 @@ export default function SalaryComponentManager() {
                     </div>
                   </div>
 
+                </div>
+              )}
+
+              {/* ========== CUSTOM FORMULA BUILDER (SIMPLIFIED) ========== */}
+              {isFormula && (
+                <div className="salary-cm__modal-section salary-cm__formula-builder">
+                  <div className="salary-cm__formula-head">
+                    <span className="salary-cm__modal-section-title" style={{marginBottom:0, display:"flex", alignItems:"center", gap:6}}>
+                      <Calculator size={14}/> Custom Formula
+                    </span>
+                    <span className="salary-cm__formula-help">Use components + operators</span>
+                  </div>
+
+                  <div className="salary-cm__field" style={{marginBottom:"10px"}}>
+                    <label htmlFor="sc-formula-input">Formula Expression <span style={{color:"#ef4444"}}>*</span></label>
+                    <textarea
+                      ref={formulaInputRef}
+                      id="sc-formula-input"
+                      className={`salary-cm__formula-input ${formulaValidationMsg ? "has-error" : ""}`}
+                      value={form.formulaExpression}
+                      onChange={(e)=> handleChange("formulaExpression", e.target.value)}
+                      placeholder="e.g. BASIC * 0.12  or  (BASIC + HRA) * 0.10  or  GROSS * 0.05"
+                      rows={2}
+                      disabled={saving}
+                    />
+                    {formulaValidationMsg ? (
+                      <div className="salary-cm__hint" style={{color:"#ef4444", marginTop:6, display:"flex", gap:6, alignItems:"center"}}><AlertCircle size={12}/>{formulaValidationMsg}</div>
+                    ) : (
+                      <div className="salary-cm__hint">Use codes like BASIC, HRA, GROSS, CTC with + - * / ( ) . Supports MIN(a,b) and MAX(a,b).</div>
+                    )}
+                  </div>
+
+                  <div className="salary-cm__formula-row">
+                    <div className="salary-cm__field" style={{flex:1, marginBottom:0}}>
+                      <label htmlFor="sc-formula-comp">Insert component</label>
+                      <select id="sc-formula-comp" value={formulaComponentPick} onChange={handleFormulaComponentSelect} disabled={saving}>
+                        <option value="">Select component…</option>
+                        {formulaDropdownOptions.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{display:"flex", gap:6, alignItems:"flex-end"}}>
+                      <button type="button" className="salary-cm__formula-btn ghost" onClick={handleFormulaClear} disabled={saving} title="Clear">Clear</button>
+                      <button type="button" className="salary-cm__formula-btn ghost" onClick={handleFormulaBackspace} disabled={saving} title="Backspace">⌫</button>
+                    </div>
+                  </div>
+
+                  <div className="salary-cm__formula-operators" style={{gridTemplateColumns:"1fr"}}>
+                    <div className="formula-op-group">
+                      <span className="formula-op-group-label">Operators</span>
+                      <div className="formula-op-btns">
+                        {OPERATORS.map(op => (
+                          <button key={op.label} type="button" className="salary-cm__formula-btn op" onClick={()=> insertFormulaToken(op.token)} disabled={saving} title={op.title}>{op.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="salary-cm__grid2" style={{marginTop:"12px", marginBottom:0}}>
+                    <div className="salary-cm__field" style={{marginBottom:0}}>
+                      <label htmlFor="sc-formula-cap">Maximum Cap (₹)</label>
+                      <input id="sc-formula-cap" type="number" min="0" value={form.cap ?? ""} onChange={(e)=> handleChange("cap", e.target.value===""?null:Number(e.target.value))} placeholder="e.g., 1800" disabled={saving}/>
+                      <div className="salary-cm__hint">Limits max amount after calculation. Leave blank for no limit.</div>
+                    </div>
+                    <div className="salary-cm__field" style={{marginBottom:0}}>
+                      <label htmlFor="sc-formula-threshold">Threshold (₹)</label>
+                      <input id="sc-formula-threshold" type="number" min="0" value={form.threshold ?? ""} onChange={(e)=> handleChange("threshold", e.target.value===""?null:Number(e.target.value))} placeholder="e.g., 21000" disabled={saving}/>
+                      <div className="salary-cm__hint">Applies only if base ≤ threshold (e.g., ESIC).</div>
+                    </div>
+                  </div>
                 </div>
               )}
 

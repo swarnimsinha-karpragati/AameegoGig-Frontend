@@ -8,7 +8,7 @@ import {
   getSalaryComponents,
 } from "../services/salaryComponentService";
 import { getStoredUser } from "../utils/roles";
-import { validateAnnualCtc } from "../utils/salaryValidation";
+import { validateAnnualCtc, validateComponentsMatchCtc } from "../utils/salaryValidation";
 import "./EmployeeSalaryStructureEditor.css";
 import Button from "./Button";
 
@@ -60,9 +60,9 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     return () => { isMounted.current = false; };
   }, []);
 
-  // Safely grab components as an array to prevent crash
-  // eslint-disable-next-line
-  const safeComponents = Array.isArray(components) ? components : [];
+    // Safely grab components as an array to prevent crash
+    // eslint-disable-next-line
+    const safeComponents = Array.isArray(components) ? components : [];
 
   const syncDraft = (nextCtc, nextStructId, nextComponents) => {
     if (isDraftMode && onDraftChange) {
@@ -164,18 +164,18 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     syncDraft(ctcAnnual, "", []);
   };
 
-  const handleCalculateSplit = async () => {
-    if (!selectedStructureId) return setError("Please select a Salary Structure template.");
-    const ctcErr = validateAnnualCtc(ctcAnnual);
-    if (ctcErr) return setError(ctcErr);
+    const handleCalculateSplit = async () => {
+        if (!selectedStructureId) return setError("Please select a Salary Structure template.");
+        const ctcErr = validateAnnualCtc(ctcAnnual);
+        if (ctcErr) return setError(ctcErr);
 
-    try {
-      setCalculating(true);
-      setError("");
-      const res = await calculateStructureSplit(user.vendorId, {
-        ctcAnnual: Number(ctcAnnual),
-        structureId: selectedStructureId
-      });
+        try {
+            setCalculating(true);
+            setError("");
+            const res = await calculateStructureSplit(user.vendorId, {
+                ctcAnnual: Number(ctcAnnual),
+                structureId: selectedStructureId
+            });
       
       // FIX: Robustly target the new nested "components" array from the backend JSON response
       let parsedComponents = [];
@@ -277,6 +277,12 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     const ctcErr = validateAnnualCtc(ctcAnnual);
     if (ctcErr) { setError(ctcErr); setSaving(false); return; }
 
+    // Components must add up to Annual CTC (total × 12) - validated for both template and manual (as requested)
+    {
+      const matchErr = validateComponentsMatchCtc({ ctcAnnual, components: safeComponents });
+      if (matchErr) { setError(matchErr); setSaving(false); return; }
+    }
+
     try {
       await saveEmployeeStructure(employeeId, {
         ctcAnnual: Number(ctcAnnual),
@@ -300,6 +306,15 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
   useImperativeHandle(ref, () => ({
     saveStructure: handleSave,
     hasUnsavedChanges: isRevising,
+    // Returns an error message when the Annual CTC is invalid or components don't add up to it (validated for both template and manual)
+    validateStructure: () => {
+      if (!isRevising) return "";
+      const ctcErr = validateAnnualCtc(ctcAnnual);
+      if (ctcErr) { setError(ctcErr); return ctcErr; }
+      const matchErr = validateComponentsMatchCtc({ ctcAnnual, components: safeComponents });
+      if (matchErr) setError(matchErr);
+      return matchErr;
+    },
   }));
 
   if (loading) return <div className="emp-struct-editor__loading">Loading salary data...</div>;

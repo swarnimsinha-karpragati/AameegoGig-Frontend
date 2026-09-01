@@ -7,8 +7,8 @@ import {
   deleteDepartment,
   getOtPolicies,
   getShifts,
-  getEmployees,
 } from "../services/departmentService";
+import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 
 import {
   Search,
@@ -27,11 +27,9 @@ import { isSiteVendor } from "../utils/vendorIdhelper";
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
 
-
 function DepModal({ title, onClose, size = "md", children, footer }) {
   return (
     <div
-
       className="manage-depts-overlay"
       onClick={(e) => e.target === e.currentTarget && onClose?.()}
     >
@@ -92,7 +90,7 @@ function Departments() {
     departmentHead: "",
     sitePayoutRule: "",
     stateName: "",
-  }
+  };
 
   const [form, setForm] = useState(initialForm);
   const [departments, setDepartments] = useState([]);
@@ -100,7 +98,6 @@ function Departments() {
 
   const [shifts, setShifts] = useState([]);
   const [otPolicies, setOtPolicies] = useState([]);
-  const [employees, setEmployees] = useState([]);
 
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -112,17 +109,15 @@ function Departments() {
     if (!vendorId) return;
     try {
       setLoading(true);
-      const [depRes, shiftRes, otRes, empRes] = await Promise.all([
+      const [depRes, shiftRes, otRes] = await Promise.all([
         getDepartments(vendorId),
         getShifts(vendorId),
         getOtPolicies(vendorId),
-        getEmployees(vendorId)
       ]);
 
       setDepartments(depRes.data || []);
       setShifts(shiftRes.data || []);
       setOtPolicies(otRes.data || []);
-      setEmployees(empRes.data || []);
     } catch (error) {
       console.error("Error standardizing " + name + " view initialization:", error);
     } finally {
@@ -137,10 +132,17 @@ function Departments() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       [name]: value,
-    });
+    }));
+  };
+
+  const handleHeadChange = (employeeId) => {
+    setForm((prev) => ({
+      ...prev,
+      departmentHead: employeeId,
+    }));
   };
 
   const handleModalClose = () => {
@@ -343,12 +345,12 @@ function Departments() {
         </FormField>
 
         <FormField label="Department Head / Manager" htmlFor="dep-head" fullWidth>
-          <select id="dep-head" name="departmentHead" value={form.departmentHead} onChange={handleChange} disabled={isDisabled}>
-            <option value="">Assign Later</option>
-            {employees.map((emp) => (
-              <option key={emp._id} value={emp._id}>{emp.name} — ({emp.email})</option>
-            ))}
-          </select>
+          <SearchableEmployeeSelectServer
+            value={form.departmentHead}
+            onChange={handleHeadChange}
+            disabled={isDisabled}
+            placeholder="Search & select department manager..."
+          />
         </FormField>
       </FormSection>
     </form>
@@ -434,7 +436,7 @@ function Departments() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="manage-depts-empty">
+                    <td colSpan="8" className="manage-depts-empty">
                       {loading ? "Loading administrative departments..." : "No matching organization branches discovered."}
                     </td>
                   </tr>
@@ -465,7 +467,7 @@ function Departments() {
         ) : null}
 
         {isViewing ? (
-          <DepModal title={name + "Analysis Review"} onClose={handleModalClose} size="lg">
+          <DepModal title={name + " Analysis Review"} onClose={handleModalClose} size="lg">
             {renderFormFields(true)}
           </DepModal>
         ) : null}

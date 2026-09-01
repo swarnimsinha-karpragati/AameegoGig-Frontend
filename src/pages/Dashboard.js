@@ -12,6 +12,7 @@ import {
   ArrowRight,
   UserPlus,
   Wallet,
+  UserMinus,
 } from "lucide-react";
 import {
   BarChart,
@@ -35,6 +36,7 @@ const STAT_ICONS = {
   calendar: CalendarDays,
   receipt: Receipt,
   clock: Clock3,
+  "user-minus": UserMinus,
 };
 
 const ACTIVITY_COLORS = {
@@ -68,6 +70,7 @@ function StatCard({ stat }) {
     calendar: "orange",
     receipt: "purple",
     clock: "orange",
+    "user-minus": "red",
   }[stat.icon] || "blue";
 
   return (
@@ -194,7 +197,7 @@ function Dashboard() {
               </div>
             )}
 
-            {isOrgView && ((showEmployees && data.newJoinersThisMonth > 0) || (showPayroll && data.payrollPending > 0)) && (
+            {isOrgView && ((showEmployees && data.newJoinersThisMonth > 0) || (showPayroll && data.payrollPending > 0) || (showEmployees && data.exitEmployees > 0)) && (
               <div className="insights-row">
                 {showEmployees && data.newJoinersThisMonth > 0 && (
                   <div className="insight-chip">
@@ -202,8 +205,14 @@ function Dashboard() {
                     <span>{data.newJoinersThisMonth} new joiner{data.newJoinersThisMonth !== 1 ? "s" : ""} this month</span>
                   </div>
                 )}
+                {showEmployees && data.exitEmployees > 0 && (
+                  <div className="insight-chip warning">
+                    <UserMinus size={16} />
+                    <span>{data.exitEmployees} employee{data.exitEmployees !== 1 ? "s" : ""} exited</span>
+                  </div>
+                )}
                 {showPayroll && data.payrollPending > 0 && (
-                  <Link to={`/${vendorName}/payroll?tab=review`} className="insight-chip warning">
+                  <Link to={`/${vendorName}/payroll?tab=payroll`} className="insight-chip warning">
                     <Wallet size={16} />
                     <span>{data.payrollPending} payroll record{data.payrollPending !== 1 ? "s" : ""} pending processing</span>
                   </Link>
