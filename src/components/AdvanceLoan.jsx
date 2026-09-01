@@ -10,6 +10,7 @@ import {
     RefreshCw,
     Settings,
     AlertTriangle,
+    Wallet,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
@@ -84,15 +85,40 @@ const getPriorityBadge = (priority, status) => {
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+const formatDeductionMonth = (dm) => {
+    if (!dm || dm.month == null || dm.year == null) return "-";
+    const raw = String(dm.month).trim();
+    const num = parseInt(raw, 10);
+    // numeric "10" or "010" or 10 -> convert to month name
+    if (!isNaN(num) && num >= 1 && num <= 12) {
+        return `${MONTHS[num - 1]} ${dm.year}`;
+    }
+    // already month name like "October" or "Oct"
+    return `${dm.month} ${dm.year}`;
+};
+
 /* ===========================
     SUMMARY CARDS
    =========================== */
-function AdvanceLoanSummaryCards({ summary, labels = {} }) {
+function AdvanceLoanSummaryCards({ summary, labels = {}, showPrincipalRemaining = false }) {
+    // Total Requested = principal amount (what user actually applied for, without interest)
+    const totalRequested = summary.totalAmount || 0;
+    // Approved = approved principal amount (without interest)
+    const approvedAmount = summary.totalApprovedPrincipal || summary.totalApprovedAmount || summary.totalApproved || 0;
+    // Remaining to Pay:
+    //   Admin/Manager → remaining principal only (interest is employee's responsibility)
+    //   Employee → full remaining including interest (what they actually owe)
+    const remainingToPay = showPrincipalRemaining
+        ? (summary.totalRemainingPrincipal ?? summary.totalRemainingAmount ?? 0)
+        : (summary.totalRemainingAmount ?? summary.totalPendingAmount ?? 0);
+    // Total Paid = what has been paid so far
+    const totalPaid = summary.totalPaid || 0;
+
     const cards = [
-        { key: "total", icon: IndianRupee, iconClass: "blue", value: formatCurrency(summary.totalAmount), label: labels.total || "Total Requested" },
-        { key: "pending", icon: Clock3, iconClass: "orange", value: formatCurrency(summary.totalPendingAmount), label: labels.pending || "Pending Amount" },
-        { key: "approved", icon: CheckCircle2, iconClass: "green", value: formatCurrency(summary.totalApprovedAmount || summary.totalApproved || 0), label: labels.approved || "Approved" },
-        { key: "paid", icon: Banknote, iconClass: "purple", value: formatCurrency(summary.totalPaid || 0), label: labels.paid || "Total Paid" },
+        { key: "total", icon: IndianRupee, iconClass: "blue", value: formatCurrency(totalRequested), label: labels.total || "Total Requested" },
+        { key: "approved", icon: CheckCircle2, iconClass: "green", value: formatCurrency(approvedAmount), label: labels.approved || "Approved" },
+        { key: "remaining", icon: Wallet, iconClass: "orange", value: formatCurrency(remainingToPay), label: labels.remaining || "Remaining to Pay" },
+        { key: "paid", icon: Banknote, iconClass: "purple", value: formatCurrency(totalPaid), label: labels.paid || "Total Paid" },
     ];
 
     return (
@@ -110,7 +136,7 @@ function AdvanceLoanSummaryCards({ summary, labels = {} }) {
 /* ===========================
     REQUEST FORM MODAL
    =========================== */
-function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove = false, canCreate = true, loanConfig = null }) {
+function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove = false, canCreate = true, loanConfig = null, apiError = "" }) {
     const [formData, setFormData] = useState({
         requestType: "ADVANCE",
         amount: "",
@@ -127,10 +153,13 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
     const [monthlyBreakdown, setMonthlyBreakdown] = useState([]);
 
     const maxTenure = loanConfig?.maxTenureMonths || 6;
+    const maxLoanTenure = loanConfig?.maxLoanTenureMonths || 12;
     const maxAdvanceAmount = loanConfig?.maxAdvanceAmount || 0;
     const maxLoanAmount = loanConfig?.maxLoanAmount || 0;
     const loanInterestRate = loanConfig?.loanInterestRate || 0;
     const isLoanInterestEnabled = loanConfig?.isLoanInterestEnabled !== false;
+    // Apply-time max tenure depends on requestType
+    const effectiveMaxTenureOneTime = formData.requestType === "LOAN" ? maxLoanTenure : maxTenure;
 
     useEffect(() => {
         if (!open) {
@@ -155,20 +184,15 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
         const isLoan = formData.requestType === "LOAN";
         const isOneTime = formData.repaymentOption === "ONE_TIME";
 
-        if (isLoan && isLoanInterestEnabled && isOneTime && formData.tenure > 0) {
-            const totalInterest = (amount * loanInterestRate) / 100;
-            const interestPerMonth = totalInterest / formData.tenure;
-            const monthlyAmount = amount / formData.tenure;
-            let cm = new Date().getMonth() + 1;
-            let cy = new Date().getFullYear();
-            const bd = [];
-            for (let i = 1; i <= formData.tenure; i++) {
-                if (cm > 12) { cm = 1; cy += 1; }
-                bd.push({ month: MONTHS[cm - 1], year: cy, amount: Math.round(monthlyAmount * 100) / 100, interestAmount: Math.round(interestPerMonth * 100) / 100 });
-                cm += 1;
-            }
-            setMonthlyBreakdown(bd);
-        } else if (isLoan && isLoanInterestEnabled && amount > 200000 && formData.totalInstallments > 0) {
+        if (isOneTime && formData.tenure > 0) {
+            // ONE_TIME manual repayment - single due month, not salary deduction
+            const totalInterest = isLoan && isLoanInterestEnabled ? (amount * loanInterestRate) / 100 : 0;
+            const dueDate = new Date();
+            dueDate.setMonth(dueDate.getMonth() + Number(formData.tenure));
+            const dueMonth = MONTHS[dueDate.getMonth()];
+            const dueYear = dueDate.getFullYear();
+            setMonthlyBreakdown([{ month: dueMonth, year: dueYear, amount: Math.round(amount * 100) / 100, interestAmount: Math.round(totalInterest * 100) / 100, isOneTimeDue: true }]);
+        } else if (isLoan && isLoanInterestEnabled && formData.totalInstallments > 0) {
             const totalInterest = (amount * loanInterestRate) / 100;
             const interestPerMonth = totalInterest / formData.totalInstallments;
             const monthlyAmount = amount / formData.totalInstallments;
@@ -187,9 +211,54 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
     }, [formData.amount, formData.totalInstallments, formData.tenure, formData.requestType, formData.repaymentOption, isLoanInterestEnabled, loanInterestRate]);
 
     const handleChange = (field) => (e) => {
-        const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
-        setFormData((prev) => ({ ...prev, [field]: value }));
-        if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+        const rawValue = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+        // compute next form state for live validation
+        const nextForm = { ...formData, [field]: rawValue };
+        const nextMaxTenure = loanConfig?.maxTenureMonths || 6;
+        const nextMaxLoanTenure = loanConfig?.maxLoanTenureMonths || 12;
+        const nextEffectiveOneTime = nextForm.requestType === "LOAN" ? nextMaxLoanTenure : nextMaxTenure;
+
+        setFormData((prev) => ({ ...prev, [field]: rawValue }));
+
+        // Live validation for tenure / totalInstallments on month select
+        setErrors((prev) => {
+            const next = { ...prev };
+            // clear current field error first, then re-validate
+            if (next[field]) delete next[field];
+
+            if (field === "tenure" || field === "requestType" || field === "repaymentOption") {
+                const t = Number(nextForm.tenure);
+                if (nextForm.repaymentOption === "ONE_TIME" && t > 0) {
+                    if (t > nextEffectiveOneTime) next.tenure = `Maximum tenure is ${nextEffectiveOneTime} months ( ${nextEffectiveOneTime})`;
+                    else delete next.tenure;
+                }
+            }
+            if (field === "totalInstallments" || field === "requestType" || field === "repaymentOption") {
+                const ti = Number(nextForm.totalInstallments);
+                if (nextForm.repaymentOption === "MONTHLY_INSTALLMENTS" && ti > 0) {
+                    if (nextForm.requestType === "LOAN" && ti > nextMaxLoanTenure) {
+                        next.totalInstallments = `Maximum tenure for Loan is ${nextMaxLoanTenure} months ( ${nextMaxLoanTenure})`;
+                    } else if (nextForm.requestType === "ADVANCE" && ti > nextMaxTenure) {
+                        next.totalInstallments = `Maximum tenure is ${nextMaxTenure} months ( ${nextMaxTenure})`;
+                    } else {
+                        if (next.totalInstallments?.includes("Maximum tenure")) delete next.totalInstallments;
+                    }
+                }
+            }
+            // also re-validate the other field when requestType changes
+            if (field === "requestType") {
+                const ti = Number(nextForm.totalInstallments);
+                const t = Number(nextForm.tenure);
+                if (nextForm.repaymentOption === "MONTHLY_INSTALLMENTS" && ti > 0) {
+                    const limit = nextForm.requestType === "LOAN" ? nextMaxLoanTenure : nextMaxTenure;
+                    if (ti > limit) next.totalInstallments = nextForm.requestType === "LOAN" ? `Maximum tenure for Loan is ${limit} months ( ${limit})` : `Maximum tenure is ${limit} months ( ${limit})`;
+                }
+                if (nextForm.repaymentOption === "ONE_TIME" && t > 0 && t > nextEffectiveOneTime) {
+                    next.tenure = `Maximum tenure is ${nextEffectiveOneTime} months ( ${nextEffectiveOneTime})`;
+                }
+            }
+            return next;
+        });
     };
 
     const validate = () => {
@@ -207,11 +276,20 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
         if (formData.repaymentOption === "MONTHLY_INSTALLMENTS" && (!formData.totalInstallments || Number(formData.totalInstallments) <= 0)) {
             newErrors.totalInstallments = "Total installments must be greater than 0";
         }
-        if (formData.repaymentOption === "ONE_TIME" && (!formData.tenure || Number(formData.tenure) <= 0)) {
-            newErrors.tenure = `Tenure must be between 1 and ${maxTenure} months`;
+        // Max Tenure for Loan validation at apply time (MONTHLY_INSTALLMENTS)
+        if (formData.repaymentOption === "MONTHLY_INSTALLMENTS" && Number(formData.totalInstallments) > 0) {
+            if (formData.requestType === "LOAN" && Number(formData.totalInstallments) > maxLoanTenure) {
+                newErrors.totalInstallments = `Maximum tenure for Loan is ${maxLoanTenure} months`;
+            }
+            if (formData.requestType === "ADVANCE" && Number(formData.totalInstallments) > maxTenure) {
+                newErrors.totalInstallments = `Maximum tenure is ${maxTenure} months`;
+            }
         }
-        if (formData.repaymentOption === "ONE_TIME" && Number(formData.tenure) > maxTenure) {
-            newErrors.tenure = `Maximum tenure is ${maxTenure} months`;
+        if (formData.repaymentOption === "ONE_TIME" && (!formData.tenure || Number(formData.tenure) <= 0)) {
+            newErrors.tenure = `Tenure must be between 1 and ${effectiveMaxTenureOneTime} months`;
+        }
+        if (formData.repaymentOption === "ONE_TIME" && Number(formData.tenure) > effectiveMaxTenureOneTime) {
+            newErrors.tenure = `Maximum tenure is ${effectiveMaxTenureOneTime} months`;
         }
         if (canApprove && !formData.employeeId) newErrors.employeeId = "Employee is required";
         setErrors(newErrors);
@@ -234,7 +312,7 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
     const isOneTime = formData.repaymentOption === "ONE_TIME";
     const showTenure = isOneTime;
     const showMonthlyInstallments = formData.repaymentOption === "MONTHLY_INSTALLMENTS";
-    const showInterestInfo = isLoan && isLoanInterestEnabled && (Number(formData.amount) || 0) > 200000;
+    const showInterestInfo = isLoan && isLoanInterestEnabled && loanInterestRate > 0;
 
     return (
         <div className="advance-modal-overlay" onClick={onClose}>
@@ -249,6 +327,12 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
 
                 <div className="advance-modal-body">
                     <p className="advance-modal-subtitle">Fill in the details to submit your request</p>
+                    {apiError && (
+                        <div className="advance-error" style={{ marginBottom: "12px" }}>
+                            <AlertTriangle size={16} />
+                            <span>{apiError}</span>
+                        </div>
+                    )}
 
                     <div className="advance-form">
                         {canApprove && (
@@ -297,7 +381,7 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                         {showInterestInfo && (
                             <div className="form-interest-alert">
                                 <AlertTriangle size={16} />
-                                <span>Interest Rate: {loanInterestRate}% — applicable for loans above ₹2,00,000</span>
+                                <span>Interest Rate: {loanInterestRate}% </span>
                             </div>
                         )}
 
@@ -334,14 +418,14 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                 <input
                                     type="number"
                                     className={`form-control ${errors.tenure ? "error" : ""}`}
-                                    placeholder={`Number of months (max ${maxTenure})`}
+                                    placeholder={`Number of months (max ${effectiveMaxTenureOneTime})`}
                                     value={formData.tenure}
                                     onChange={handleChange("tenure")}
                                     min="1"
-                                    max={maxTenure}
+                                    max={effectiveMaxTenureOneTime}
                                 />
                                 {errors.tenure && <span className="form-error">{errors.tenure}</span>}
-                                <span className="form-hint">Maximum {maxTenure} months</span>
+                                <span className="form-hint">Maximum {effectiveMaxTenureOneTime} months{isLoan ? " (Max Tenure for Loan)" : " (Max Tenure for One-Time)"}</span>
                             </div>
                         )}
 
@@ -351,18 +435,21 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                 <input
                                     type="number"
                                     className={`form-control ${errors.totalInstallments ? "error" : ""}`}
-                                    placeholder="Number of months"
+                                    placeholder={`Number of months (max ${isLoan ? maxLoanTenure : maxTenure})`}
                                     value={formData.totalInstallments}
                                     onChange={handleChange("totalInstallments")}
                                     min="1"
+                                    max={isLoan ? maxLoanTenure : maxTenure}
                                 />
                                 {errors.totalInstallments && <span className="form-error">{errors.totalInstallments}</span>}
+                                <span className="form-hint">Maximum {isLoan ? maxLoanTenure : maxTenure} months{isLoan ? " (Max Tenure for Loan)" : ""}</span>
                             </div>
                         )}
 
                         {monthlyBreakdown.length > 0 && (
                             <div className="breakdown-preview">
-                                <h4>Monthly Breakdown Preview</h4>
+                                <h4>{isOneTime ? "Due Preview (Manual Repayment - Not auto deducted from salary)" : "Monthly Breakdown Preview (Salary Deduction)"}</h4>
+                                {isOneTime && <p className="form-hint" style={{ marginBottom: "8px", color: "#dc2626" }}>One-time payment is manual - you can repay anytime within the tenure. {isLoan ? "Total amount with interest is due in the due month." : "Full amount is due in the due month (no interest)."}</p>}
                                 <table className="breakdown-table">
                                     <thead>
                                         <tr>
@@ -490,7 +577,7 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
                         {request.deductionMonth && (
                             <div className="info-row">
                                 <span className="info-label">Next Deduction - </span>
-                                <span className="info-value">{request.deductionMonth.month} {request.deductionMonth.year}</span>
+                                <span className="info-value">{formatDeductionMonth(request.deductionMonth)}</span>
                             </div>
                         )}
                     </div>
@@ -612,7 +699,7 @@ function DetailModal({ open, onClose, request }) {
                             </div>
                             <div className="detail-info-row">
                                 <span className="detail-info-label">Next Deduction Month</span>
-                                <span className="detail-info-value">{request.deductionMonth ? `${request.deductionMonth.month} ${request.deductionMonth.year}` : "-"}</span>
+                                <span className="detail-info-value">{formatDeductionMonth(request.deductionMonth)}</span>
                             </div>
                             <div className="detail-info-row">
                                 <span className="detail-info-label">Reason</span>
@@ -781,6 +868,7 @@ function AdvanceLoanInner() {
     const [filterType, setFilterType] = useState("");
     const [loanConfig, setLoanConfig] = useState(null);
     const [payrollWarning, setPayrollWarning] = useState("");
+    const [formApiError, setFormApiError] = useState("");
 
     const [modal, setModal] = useState({
         open: false, title: "", message: "", confirmLabel: "Confirm", variant: "danger",
@@ -828,9 +916,14 @@ function AdvanceLoanInner() {
                     if (allErr.response?.status === 403) {
                         reqRes = await getMyRequests();
                         const myReqs = reqRes?.requests || [];
+                        // Total Requested = principal amount (what user applied for, no interest)
                         const totalAmount = myReqs.reduce((sum, r) => sum + (r.amount || 0), 0);
-                        const totalPendingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
-                        const totalApprovedAmount = myReqs.filter(r => r.status === "APPROVED").reduce((sum, r) => sum + (r.totalPayableAmount || r.amount || 0), 0);
+                        // Approved principal = sum of principal for approved/partially-paid requests
+                        const totalApprovedPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
+                        // Remaining to Pay = sum of remainingAmount for active loans (includes interest - for employee view)
+                        const totalRemainingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
+                        // Remaining principal only (without interest - for admin/manager view)
+                        const totalRemainingPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + Math.max(0, (r.amount || 0) - (r.totalPaid || 0)), 0);
                         const totalPaid = myReqs.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
                         const totalRequests = myReqs.length;
                         const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
@@ -839,7 +932,7 @@ function AdvanceLoanInner() {
                         dashRes = {
                             statistics: {
                                 totalRequests, pendingRequests, approvedRequests, rejectedRequests,
-                                totalAmount, totalPendingAmount, totalApprovedAmount, totalPaid,
+                                totalAmount, totalApprovedPrincipal, totalRemainingAmount, totalRemainingPrincipal, totalPaid,
                             },
                             recentRequests: myReqs.slice(0, 5),
                         };
@@ -850,9 +943,14 @@ function AdvanceLoanInner() {
             } else {
                 reqRes = await getMyRequests();
                 const myReqs = reqRes?.requests || [];
+                // Total Requested = principal amount (what user applied for, no interest)
                 const totalAmount = myReqs.reduce((sum, r) => sum + (r.amount || 0), 0);
-                const totalPendingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
-                const totalApprovedAmount = myReqs.filter(r => r.status === "APPROVED").reduce((sum, r) => sum + (r.totalPayableAmount || r.amount || 0), 0);
+                // Approved principal = sum of principal for approved/partially-paid requests
+                const totalApprovedPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
+                // Remaining to Pay = sum of remainingAmount for active loans (includes interest - for employee view)
+                const totalRemainingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
+                // Remaining principal only (without interest - for admin/manager view)
+                const totalRemainingPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + Math.max(0, (r.amount || 0) - (r.totalPaid || 0)), 0);
                 const totalPaid = myReqs.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
                 const totalRequests = myReqs.length;
                 const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
@@ -861,7 +959,7 @@ function AdvanceLoanInner() {
                 dashRes = {
                     statistics: {
                         totalRequests, pendingRequests, approvedRequests, rejectedRequests,
-                        totalAmount, totalPendingAmount, totalApprovedAmount, totalPaid,
+                        totalAmount, totalApprovedPrincipal, totalRemainingAmount, totalRemainingPrincipal, totalPaid,
                     },
                     recentRequests: myReqs.slice(0, 5),
                 };
@@ -881,6 +979,11 @@ function AdvanceLoanInner() {
         loadLoanConfig();
     }, [loadData, loadLoanConfig]);
 
+    // Refetch latest loan config whenever request form is opened - ensures dynamic admin value (e.g., 25) is shown
+    useEffect(() => {
+        if (showRequestForm) loadLoanConfig();
+    }, [showRequestForm, loadLoanConfig]);
+
     useEffect(() => {
         if (!canApprove) return;
         const fetchEmployees = async () => {
@@ -898,14 +1001,18 @@ function AdvanceLoanInner() {
             toast.success(`${formData.requestType} request submitted successfully`);
             setError("");
             setPayrollWarning("");
+            setFormApiError("");
             setShowRequestForm(false);
             loadData();
         } catch (err) {
-            const msg = err.response?.data?.message || "Failed to submit request";
+            const msg = err.response?.data?.message || err.message || "Failed to submit request";
+            // Always show API error inside modal + top + toast
             if (msg.includes("Payroll profile")) {
                 setPayrollWarning(msg);
+                setFormApiError(msg);
             } else {
                 setError(msg);
+                setFormApiError(msg);
                 toast.error(msg);
             }
         }
@@ -1018,7 +1125,8 @@ function AdvanceLoanInner() {
                             const canCancel = req.status === "PENDING" && isOwner && canCreate;
                             const canApproveAction = req.status === "PENDING" && !isOwner && canApprove;
                             const canRecordPayment = (req.status === "APPROVED" || req.status === "PARTIALLY_PAID") && !isOwner && canApprove && req.remainingAmount > 0;
-                            const canView = ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(req.status);
+                            // Admin pending should show View + Approve + Reject (user request detail)
+                            const canView = ["PENDING", "APPROVED", "PARTIALLY_PAID", "FULLY_PAID", "REJECTED", "CANCELLED"].includes(req.status);
 
                             return (
                                 <tr key={req._id}>
@@ -1080,7 +1188,7 @@ function AdvanceLoanInner() {
                     <span>{payrollWarning}</span>
                 </div>
             )}
-            <AdvanceLoanSummaryCards summary={summary} labels={{ total: "My Total", pending: "My Pending", approved: "My Approved", paid: "My Paid" }} />
+            <AdvanceLoanSummaryCards summary={summary} labels={{ total: "My Total Requested", approved: "My Approved", remaining: "My Remaining", paid: "My Paid" }} />
             {renderRequestTable({ title: "My Recent Requests", items: myRequests.slice(0, 10), showActions: true, actionMode: "owner" })}
         </>
     );
@@ -1097,7 +1205,7 @@ function AdvanceLoanInner() {
             {teamMembers.length > 0 && (
                 <div className="advance-role-banner manager"><Users size={18} /><span>Managing {teamMembers.length} team member{teamMembers.length === 1 ? "" : "s"}</span></div>
             )}
-            <AdvanceLoanSummaryCards summary={summary} labels={{ total: "Team Total", pending: "Team Pending", approved: "Team Approved", paid: "Team Paid" }} />
+            <AdvanceLoanSummaryCards summary={summary} labels={{ total: "Team Total Requested", approved: "Team Approved", remaining: "Team Remaining", paid: "Team Paid" }} showPrincipalRemaining />
             <div className="advance-layout-grid">
                 {renderRequestTable({ title: "Pending Approvals", items: pendingRequests, showEmployee: true, showActions: true, actionMode: "approve" })}
                 {renderRequestTable({ title: "Active Requests", items: approvedRequests, showEmployee: true, showActions: true, actionMode: "payment" })}
@@ -1118,14 +1226,12 @@ function AdvanceLoanInner() {
                     {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
                 </div>
             </div>
-            <AdvanceLoanSummaryCards summary={summary} />
+            <AdvanceLoanSummaryCards summary={summary} showPrincipalRemaining />
             <div className="advance-stats-grid">
                 <div className="stat-card"><div className="stat-item"><span className="stat-label">Total Requests</span><span className="stat-value">{summary.totalRequests || 0}</span></div></div>
                 <div className="stat-card"><div className="stat-item"><span className="stat-label">Pending</span><span className="stat-value pending">{summary.pendingRequests || 0}</span></div></div>
                 <div className="stat-card"><div className="stat-item"><span className="stat-label">Approved</span><span className="stat-value approved">{summary.approvedRequests || 0}</span></div></div>
                 <div className="stat-card"><div className="stat-item"><span className="stat-label">Rejected</span><span className="stat-value rejected">{summary.rejectedRequests || 0}</span></div></div>
-                <div className="stat-card"><div className="stat-item"><span className="stat-label">Approved Amount</span><span className="stat-value approved">{formatCurrency(summary.totalApprovedAmount || summary.totalApproved || 0)}</span></div></div>
-                <div className="stat-card"><div className="stat-item"><span className="stat-label">Pending Amount</span><span className="stat-value pending">{formatCurrency(summary.totalPendingAmount || 0)}</span></div></div>
             </div>
             <div className="advance-filter-bar">
                 <div className="filter-group"><label>Status</label><select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
@@ -1192,14 +1298,14 @@ function AdvanceLoanInner() {
                 {error ? <p className="advance-error">{error}</p> : null}
                 {loading && !dashboard ? <p className="advance-empty">Loading data...</p> : (
                     activeTab === "config" ? (
-                        <LoanConfiguration initialConfig={loanConfig} />
+                        <LoanConfiguration initialConfig={loanConfig} onConfigUpdate={(cfg) => setLoanConfig(cfg)} />
                     ) : (
                         roleViews[user?.role]?.() || roleViews.Employee()
                     )
                 )}
                 {activeTab === "requests" && (
                     <>
-                        <RequestFormModal open={showRequestForm} onClose={() => setShowRequestForm(false)} onSubmit={handleCreateRequest} employees={employees} canApprove={canApprove} canCreate={canCreate} loanConfig={loanConfig} />
+                        <RequestFormModal open={showRequestForm} onClose={() => { setShowRequestForm(false); setFormApiError(""); }} onSubmit={handleCreateRequest} employees={employees} canApprove={canApprove} canCreate={canCreate} loanConfig={loanConfig} apiError={formApiError} />
                         <PaymentModal open={showPaymentModal} onClose={() => { setShowPaymentModal(false); setSelectedRequest(null); }} request={selectedRequest} onSubmit={handleRecordPayment} />
                         <DetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} request={detailRequest} />
                         <ConfirmModal open={modal.open} title={modal.title} message={modal.message} confirmLabel={modal.confirmLabel} variant={modal.variant} loading={actionLoading} onConfirm={modal.onConfirm} onCancel={closeModal} inputLabel={modal.inputLabel} inputValue={modal.inputValue} onInputChange={(val) => { modalInputRef.current = val; setModal((m) => ({ ...m, inputValue: val })); }} inputPlaceholder={modal.inputPlaceholder} />

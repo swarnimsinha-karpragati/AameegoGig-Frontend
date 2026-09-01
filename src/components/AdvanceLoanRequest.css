@@ -552,6 +552,30 @@
     box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
 }
 
+.advance-status.rejected {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #991b1b;
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+.advance-status.partially-paid {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #1e40af;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.advance-status.fully-paid {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    color: #14532d;
+    box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+}
+
+.advance-status.cancelled {
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    color: #475569;
+    box-shadow: 0 2px 4px rgba(100, 116, 139, 0.2);
+}
+
 /* ── Enhanced Action Buttons ── */
 .action-btn {
     min-width: 100px;

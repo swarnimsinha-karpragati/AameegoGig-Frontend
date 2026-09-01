@@ -4,7 +4,7 @@ import { getLoanConfig, updateLoanConfig } from "../services/advanceLoanService"
 import { ToastProvider, useToast } from "../components/Toast";
 import Card from "../components/Card";
 
-function LoanConfigurationInner({ initialConfig }) {
+function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
     const toast = useToast();
     const hasFetched = useRef(false);
     const [config, setConfig] = useState(initialConfig || null);
@@ -132,6 +132,7 @@ function LoanConfigurationInner({ initialConfig }) {
                     advanceEarningsLabel: res.config.advanceEarningsLabel || "Advance Deduction",
                     isSalaryDeductionActive: res.config.isSalaryDeductionActive !== false,
                 });
+                if (onConfigUpdate) onConfigUpdate(res.config);
                 toast.success("Loan configuration updated successfully");
                 setError("");
             }
@@ -193,15 +194,15 @@ function LoanConfigurationInner({ initialConfig }) {
                                         <input type="number" className="loan-input" value={formData.loanInterestRate} onChange={handleChange("loanInterestRate")} min="0" max="100" step="0.5" disabled={!formData.isLoanInterestEnabled} />
                                         <span className="loan-input-suffix">%</span>
                                     </div>
-                                    <span className="loan-hint">Interest rate for loans. Applies to loans above ₹2,00,000</span>
+                                    <span className="loan-hint">Interest rate for loans. Applies to all loans when enabled</span>
                                 </div>
                                 <div className="loan-config-group">
                                     <label>Max Tenure for Loan (Months)</label>
                                     <div className="loan-input-wrapper">
-                                        <input type="number" className="loan-input" value={formData.maxLoanTenureMonths} onChange={handleChange("maxLoanTenureMonths")} min="1" max="12" />
+                                        <input type="number" className="loan-input" value={formData.maxLoanTenureMonths} onChange={handleChange("maxLoanTenureMonths")} min="1" placeholder="Default 12" />
                                         <span className="loan-input-suffix"><Clock size={16} /></span>
                                     </div>
-                                    <span className="loan-hint">Maximum months for loan repayment (up to 12 months)</span>
+                                    <span className="loan-hint">Maximum months for loan repayment (default 12)</span>
                                 </div>
                                 <div className="loan-config-group">
                                     <label>Enable Loan Interest</label>
@@ -236,10 +237,10 @@ function LoanConfigurationInner({ initialConfig }) {
                                 <div className="loan-config-group">
                                     <label>Max Tenure for One-Time (Months)</label>
                                     <div className="loan-input-wrapper">
-                                        <input type="number" className="loan-input" value={formData.maxTenureMonths} onChange={handleChange("maxTenureMonths")} min="1" max="12" />
+                                        <input type="number" className="loan-input" value={formData.maxTenureMonths} onChange={handleChange("maxTenureMonths")} min="1" placeholder="Default 6" />
                                         <span className="loan-input-suffix"><Clock size={16} /></span>
                                     </div>
-                                    <span className="loan-hint">Maximum months for One Time repayment option (up to 12 months)</span>
+                                    <span className="loan-hint">Maximum months for One Time repayment option (default 6)</span>
                                 </div>
                                 <div className="loan-config-group">
                                     <label>Salary Earnings Label (Advance)</label>
@@ -275,9 +276,9 @@ function LoanConfigurationInner({ initialConfig }) {
     );
 }
 
-function LoanConfiguration({ initialConfig }) {
+function LoanConfiguration({ initialConfig, onConfigUpdate }) {
     return (
-        <ToastProvider><LoanConfigurationInner initialConfig={initialConfig} /></ToastProvider>
+        <ToastProvider><LoanConfigurationInner initialConfig={initialConfig} onConfigUpdate={onConfigUpdate} /></ToastProvider>
     );
 }
 
