@@ -10,6 +10,7 @@ function LoanConfigurationInner({ initialConfig }) {
     const [config, setConfig] = useState(initialConfig || null);
     const [loading, setLoading] = useState(!initialConfig);
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
     const [formData, setFormData] = useState(initialConfig ? {
         loanInterestRate: initialConfig.loanInterestRate || 0,
         maxAdvanceAmount: initialConfig.maxAdvanceAmount || 0,
@@ -64,7 +65,9 @@ function LoanConfigurationInner({ initialConfig }) {
                     });
                 }
             } catch (err) {
-                toast.error("Failed to load configuration");
+                const msg = err.response?.data?.message || "Failed to load configuration";
+                setError(msg);
+                toast.error(msg);
             } finally {
                 setLoading(false);
             }
@@ -96,10 +99,12 @@ function LoanConfigurationInner({ initialConfig }) {
     const handleChange = (field) => (e) => {
         const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
         setFormData((prev) => ({ ...prev, [field]: value }));
+        if (error) setError("");
     };
 
     const handleSave = async () => {
         setSaving(true);
+        setError("");
         try {
             const payload = {
                 ...formData,
@@ -128,9 +133,12 @@ function LoanConfigurationInner({ initialConfig }) {
                     isSalaryDeductionActive: res.config.isSalaryDeductionActive !== false,
                 });
                 toast.success("Loan configuration updated successfully");
+                setError("");
             }
         } catch (err) {
-            toast.error(err.response?.data?.message || "Failed to save configuration");
+            const msg = err.response?.data?.message || "Failed to save configuration";
+            setError(msg);
+            toast.error(msg);
         } finally {
             setSaving(false);
         }
@@ -161,6 +169,12 @@ function LoanConfigurationInner({ initialConfig }) {
                     <button className="btn-secondary" onClick={handleSave} disabled={saving}><Save size={16} />{saving ? "Saving..." : "Save Configuration"}</button>
                 </div>
             </div>
+            {error && (
+                <div className="loan-config-error">
+                    <AlertTriangle size={18} />
+                    <span>{error}</span>
+                </div>
+            )}
 
             {config && (
                 <div className="loan-config-grid">

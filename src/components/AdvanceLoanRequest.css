@@ -1512,6 +1512,43 @@
     flex-wrap: wrap;
 }
 
+.advance-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border: 1px solid #fecaca;
+    border-left: 4px solid #dc2626;
+    border-radius: 12px;
+    padding: 14px 20px;
+    color: #dc2626;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.loan-config-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border: 1px solid #fecaca;
+    border-left: 4px solid #dc2626;
+    border-radius: 12px;
+    padding: 14px 20px;
+    color: #dc2626;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+.form-error {
+    color: #dc2626;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 4px;
+    display: block;
+}
+
 .advance-payroll-warning {
     display: flex;
     align-items: center;

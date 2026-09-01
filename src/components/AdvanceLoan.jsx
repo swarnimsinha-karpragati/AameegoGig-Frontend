@@ -26,7 +26,6 @@ import {
     getRequestDetails,
     getLoanConfig,
 } from "../services/advanceLoanService";
-import { canManageEmployees } from "../utils/roles";
 import { getEmployees } from "../services/employeeService";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
@@ -814,12 +813,40 @@ function AdvanceLoanInner() {
         setError("");
         setPayrollWarning("");
         try {
-            const isAdminOrHR = canManageEmployees(user?.role);
             let dashRes = null;
             let reqRes = null;
 
-            if (isAdminOrHR || canCreate) {
-                [dashRes, reqRes] = await Promise.all([getStatistics(), getAllRequests()]);
+            // Fix: Employee should call getMyRequests (self only), Manager/Admin/HR can call getAllRequests + getStatistics
+            // canApproveAdvanceLoan = Admin|HR|Manager => team/org view; Employee => own view
+            const canViewAll = canApproveAdvanceLoan(user?.role);
+
+            if (canViewAll) {
+                try {
+                    [dashRes, reqRes] = await Promise.all([getStatistics(), getAllRequests()]);
+                } catch (allErr) {
+                    // If Manager/HR fails due to permission, fallback to my requests for safety
+                    if (allErr.response?.status === 403) {
+                        reqRes = await getMyRequests();
+                        const myReqs = reqRes?.requests || [];
+                        const totalAmount = myReqs.reduce((sum, r) => sum + (r.amount || 0), 0);
+                        const totalPendingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
+                        const totalApprovedAmount = myReqs.filter(r => r.status === "APPROVED").reduce((sum, r) => sum + (r.totalPayableAmount || r.amount || 0), 0);
+                        const totalPaid = myReqs.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
+                        const totalRequests = myReqs.length;
+                        const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
+                        const approvedRequests = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).length;
+                        const rejectedRequests = myReqs.filter(r => r.status === "REJECTED").length;
+                        dashRes = {
+                            statistics: {
+                                totalRequests, pendingRequests, approvedRequests, rejectedRequests,
+                                totalAmount, totalPendingAmount, totalApprovedAmount, totalPaid,
+                            },
+                            recentRequests: myReqs.slice(0, 5),
+                        };
+                    } else {
+                        throw allErr;
+                    }
+                }
             } else {
                 reqRes = await getMyRequests();
                 const myReqs = reqRes?.requests || [];
@@ -847,7 +874,7 @@ function AdvanceLoanInner() {
         } finally {
             setLoading(false);
         }
-    }, [user?.role, canCreate]);
+    }, [user?.role]);
 
     useEffect(() => {
         loadData();
@@ -869,13 +896,17 @@ function AdvanceLoanInner() {
         try {
             await createAdvanceLoanRequest(formData);
             toast.success(`${formData.requestType} request submitted successfully`);
+            setError("");
+            setPayrollWarning("");
             setShowRequestForm(false);
             loadData();
         } catch (err) {
-            if (err.response?.data?.message?.includes("Payroll profile")) {
-                setPayrollWarning(err.response.data.message);
+            const msg = err.response?.data?.message || "Failed to submit request";
+            if (msg.includes("Payroll profile")) {
+                setPayrollWarning(msg);
             } else {
-                toast.error(err.response?.data?.message || "Failed to submit request");
+                setError(msg);
+                toast.error(msg);
             }
         }
     };
@@ -886,8 +917,8 @@ function AdvanceLoanInner() {
             confirmLabel: "Cancel Request", variant: "danger",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await cancelRequest(id); toast.success("Request cancelled successfully"); loadData(); }
-                catch (err) { toast.error(err.response?.data?.message || "Cancel failed"); }
+                try { await cancelRequest(id); setError(""); toast.success("Request cancelled successfully"); loadData(); }
+                catch (err) { const msg = err.response?.data?.message || "Cancel failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
         });
@@ -900,8 +931,8 @@ function AdvanceLoanInner() {
             inputLabel: "Comments (optional)", inputPlaceholder: "Add any comments...",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await approveRequest(id, modalInputRef.current); toast.success("Request approved successfully"); loadData(); }
-                catch (err) { toast.error(err.response?.data?.message || "Approve failed"); }
+                try { await approveRequest(id, modalInputRef.current); setError(""); toast.success("Request approved successfully"); loadData(); }
+                catch (err) { const msg = err.response?.data?.message || "Approve failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
         });
@@ -914,8 +945,8 @@ function AdvanceLoanInner() {
             inputLabel: "Rejection Reason *", inputPlaceholder: "Please provide a reason for rejection...",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await rejectRequest(id, { rejectionReason: modalInputRef.current }); toast.warning("Request rejected"); loadData(); }
-                catch (err) { toast.error(err.response?.data?.message || "Reject failed"); }
+                try { await rejectRequest(id, { rejectionReason: modalInputRef.current }); setError(""); toast.warning("Request rejected"); loadData(); }
+                catch (err) { const msg = err.response?.data?.message || "Reject failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
         });
@@ -925,11 +956,12 @@ function AdvanceLoanInner() {
         if (!selectedRequest) return;
         try {
             await recordPayment(selectedRequest._id, paymentData);
+            setError("");
             toast.success("Payment recorded successfully");
             setShowPaymentModal(false);
             setSelectedRequest(null);
             loadData();
-        } catch (err) { toast.error(err.response?.data?.message || "Failed to record payment"); }
+        } catch (err) { const msg = err.response?.data?.message || "Failed to record payment"; setError(msg); toast.error(msg); }
     };
 
     const handleViewDetails = async (id) => {
@@ -938,7 +970,8 @@ function AdvanceLoanInner() {
             const response = await getRequestDetails(id);
             setDetailRequest(response.data?.request || response.request);
             setShowDetailModal(true);
-        } catch (err) { toast.error(err.response?.data?.message || "Failed to load details"); }
+            setError("");
+        } catch (err) { const msg = err.response?.data?.message || "Failed to load details"; setError(msg); toast.error(msg); }
         finally { setActionLoading(false); }
     };
 
