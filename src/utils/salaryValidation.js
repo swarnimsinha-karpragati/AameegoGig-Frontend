@@ -12,6 +12,8 @@ export const MAX_MONTHLY_AMOUNT = LIMITS.MONTHLY_AMOUNT_MAX;
 export const MAX_ANNUAL_CTC = LIMITS.ANNUAL_CTC_MAX;
 /** Annual CTC must be at least ₹12 so the monthly CTC rounds to ₹1 or more. */
 export const MIN_ANNUAL_CTC = 12;
+export const MIN_DAILY_WAGE = 10;
+export const MAX_DAILY_WAGE = 100000;
 
 /** Matches CTC split / payroll rounding — annual CTC is stored as a whole rupee amount. */
 export const monthlyCtcFromAnnual = (annualCTC) => {
@@ -26,6 +28,16 @@ export const validateAnnualCtc = (value) =>
     kind: "currency_annual",
     required: true,
     min: MIN_ANNUAL_CTC,
+  });
+
+export const validateDailyWage = (value) =>
+  validateField({
+    value,
+    label: "Daily Wage",
+    kind: "currency_monthly",
+    required: true,
+    min: MIN_DAILY_WAGE,
+    max: MAX_DAILY_WAGE,
   });
 
 const FIXED_GROSS_CALC_TYPES = new Set(["FixedMonthly", "Manual"]);
@@ -68,6 +80,17 @@ export const computeContributingGross = (components = []) =>
     .filter((comp) => contributesToGross(comp))
     .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
 
+export const computeDailyGross = (components = []) =>
+  components
+    .filter((comp) => contributesToGross({ ...comp, monthlyAmount: comp.dailyAmount ?? comp.monthlyAmount }))
+    .reduce((sum, comp) => sum + (Number(comp.dailyAmount ?? comp.monthlyAmount) || 0), 0);
+
+export const isDailyGrossWithinWage = (dailyGross, dailyWage, { lineCount = 1 } = {}) => {
+  const limit = Number(dailyWage) || 0;
+  if (limit <= 0) return true;
+  return dailyGross <= limit + grossCtcTolerance(lineCount);
+};
+
 /** Rounding buffer for CTC values not divisible by 12 (max drift of round(annual/12)*12). */
 export const CTC_MATCH_ROUNDING_TOLERANCE = 6;
 
@@ -101,6 +124,23 @@ export const validateComponentsMatchCtc = ({ ctcAnnual, components = [] }) => {
   return actualAnnual > annualCtc
     ? `Total Earnings + Employer Contributions (₹${fmt(actualAnnual)}) exceeds Annual CTC (₹${fmt(annualCtc)}) by ₹${fmt(difference)}. Please adjust the amounts to match.`
     : `Total Earnings + Employer Contributions (₹${fmt(actualAnnual)}) is ₹${fmt(difference)} less than Annual CTC (₹${fmt(annualCtc)}). Please increase the amounts to match.`;
+};
+
+export const validateComponentsMatchDailyWage = ({ dailyWage, components = [] }) => {
+  // Gross model: dailyWage is gross (earnings), employer contributions are extra, not part of wage
+  const wage = Number(dailyWage) || 0;
+  if (wage <= 0) return "";
+  const lines = (components || []).filter((comp) => comp && comp.enabled !== false);
+  if (!lines.length) return "";
+  const earnings = lines
+    .filter((comp) => comp.category === "Earning")
+    .reduce((sum, comp) => sum + (Number(comp.dailyAmount ?? comp.monthlyAmount) || 0), 0);
+  const difference = Math.abs(wage - earnings);
+  if (difference <= CTC_MATCH_ROUNDING_TOLERANCE) return "";
+  const fmt = (n) => Math.round(n).toLocaleString("en-IN");
+  return earnings > wage
+    ? `Total Earnings (₹${fmt(earnings)}/day) exceeds Daily Wage (₹${fmt(wage)}/day) by ₹${fmt(difference)}. Please adjust.`
+    : `Total Earnings (₹${fmt(earnings)}/day) is ₹${fmt(difference)} less than Daily Wage (₹${fmt(wage)}/day). Please adjust.`;
 };
 
 /** Validate only the earning lines shown in the appointment letter salary table. */
@@ -137,7 +177,28 @@ export const validateLetterSalaryStructure = ({ annualCTC, salaryComponents = []
   return errors;
 };
 
-export const validateStructureDraft = ({ ctcAnnual, components = [] }) => {
+export const validateStructureDraft = ({ ctcAnnual, dailyWage, wageType, components = [] }) => {
+  const isDaily = String(wageType || "").toUpperCase() === "DAILY" || (dailyWage != null && dailyWage !== "" && (ctcAnnual == null || ctcAnnual === "" || Number(ctcAnnual) === 0));
+  if (isDaily) {
+    const errors = [];
+    const wageErr = validateDailyWage(dailyWage);
+    if (wageErr) errors.push(wageErr);
+    const contributing = (components || []).filter((comp) => contributesToGross({ ...comp, monthlyAmount: comp.dailyAmount ?? comp.monthlyAmount }));
+    for (const comp of components || []) {
+      const amt = comp.dailyAmount ?? comp.monthlyAmount;
+      const amountErr = validateField({
+        value: amt,
+        label: `${comp.name || comp.code || "Component"} amount`,
+        kind: "currency_monthly",
+      });
+      if (amountErr) errors.push(amountErr);
+    }
+    const dailyGross = computeDailyGross(components);
+    if (!isDailyGrossWithinWage(dailyGross, dailyWage, { lineCount: contributing.length })) {
+      errors.push(`Daily gross (₹${dailyGross.toLocaleString("en-IN")}) cannot exceed daily wage (₹${Number(dailyWage).toLocaleString("en-IN")})`);
+    }
+    return errors;
+  }
   const errors = [];
   const ctcErr = validateAnnualCtc(ctcAnnual);
   if (ctcErr) errors.push(ctcErr);
