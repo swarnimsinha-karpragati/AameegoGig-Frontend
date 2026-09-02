@@ -49,3 +49,18 @@ export const addComment = async (id, comment) => {
     const response = await API.post(`/advance-loan/requests/${id}/comments`, { comment });
     return response.data;
 };
+
+export const getLoanConfig = async () => {
+    const response = await API.get('/loan-config/config');
+    return response.data;
+};
+
+export const updateLoanConfig = async (data) => {
+    const response = await API.put('/loan-config/config', data);
+    return response.data;
+};
+
+export const getLoanStatistics = async () => {
+    const response = await API.get('/loan-config/statistics');
+    return response.data;
+};
