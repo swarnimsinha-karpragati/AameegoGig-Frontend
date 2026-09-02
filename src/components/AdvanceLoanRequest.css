@@ -2043,3 +2043,56 @@
     font-size: 0.9rem;
     color: #0f172a;
 }
+/* =========================
+   REQUEST SUMMARY BLOCK
+   (approve / reject confirmation)
+========================= */
+
+.modal-message-text {
+    margin: 0 0 12px;
+    color: #334155;
+    line-height: 1.5;
+}
+
+.request-summary-block {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 0 0 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.request-summary-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 0.85rem;
+}
+
+.request-summary-row--highlight {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    margin-top: 2px;
+    padding: 6px 8px;
+}
+
+.request-summary-row--highlight .rs-value {
+    font-weight: 700;
+    color: #1d4ed8;
+}
+
+.rs-label {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.rs-value {
+    color: #0f172a;
+    font-weight: 500;
+    word-break: break-word;
+}

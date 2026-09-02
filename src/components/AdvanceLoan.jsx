@@ -78,6 +78,14 @@ const getTypeLabel = (type) => {
     return type === "ADVANCE" ? "Advance" : "Loan";
 };
 
+const getRepaymentLabel = (req) => {
+    if (!req?.repaymentOption) return "-";
+    if (req.repaymentOption === "ONE_TIME") return `One Time Payment (${req.tenure || req.totalInstallments || 0} months)`;
+    if (req.repaymentOption === "MONTHLY_INSTALLMENTS") return `Monthly Installments (${req.totalInstallments || 0} months)`;
+    if (req.repaymentOption === "CUSTOM") return "Custom Schedule";
+    return req.repaymentOption;
+};
+
 const getPriorityBadge = (priority, status) => {
     const classes = {
         LOW: "priority-low",
@@ -222,6 +230,58 @@ function AdminSummaryTiles({ summary }) {
                     </Card.Body>
                 </Card>
             ))}
+        </div>
+    );
+}
+
+/* ===========================
+    REQUEST SUMMARY BLOCK
+    Shown inside approve/reject confirmation so the admin can clearly see the
+    application details (incl. Repayment Option) before acting.
+   =========================== */
+function RequestSummaryBlock({ request, showEmployee = false }) {
+    if (!request) return null;
+    const isLoan = request.requestType === "LOAN";
+    return (
+        <div className="request-summary-block">
+            {showEmployee && (
+                <div className="request-summary-row">
+                    <span className="rs-label">Employee</span>
+                    <span className="rs-value">{request.employeeId?.name || request.employeeName || "-"}</span>
+                </div>
+            )}
+            <div className="request-summary-row">
+                <span className="rs-label">Type</span>
+                <span className="rs-value">{getTypeLabel(request.requestType)}</span>
+            </div>
+            <div className="request-summary-row">
+                <span className="rs-label">Amount</span>
+                <span className="rs-value">{formatCurrency(request.amount)}</span>
+            </div>
+            {isLoan && request.interestAmount > 0 && (
+                <div className="request-summary-row">
+                    <span className="rs-label">Interest ({request.interestRate}%)</span>
+                    <span className="rs-value">{formatCurrency(request.interestAmount)}</span>
+                </div>
+            )}
+            <div className="request-summary-row">
+                <span className="rs-label">Total Payable</span>
+                <span className="rs-value">{formatCurrency(request.totalPayableAmount || request.amount)}</span>
+            </div>
+            <div className="request-summary-row request-summary-row--highlight">
+                <span className="rs-label">Repayment Option</span>
+                <span className="rs-value">{getRepaymentLabel(request)}</span>
+            </div>
+            <div className="request-summary-row">
+                <span className="rs-label">Requested Date</span>
+                <span className="rs-value">{formatDate(request.createdAt)}</span>
+            </div>
+            {request.reason ? (
+                <div className="request-summary-row">
+                    <span className="rs-label">Reason</span>
+                    <span className="rs-value">{request.reason}</span>
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -1146,28 +1206,40 @@ function AdvanceLoanInner() {
         });
     };
 
-    const handleApprove = (id, name) => {
+    const handleApprove = (request) => {
         openModal({
-            title: "Approve Request", message: `Are you sure you want to approve${name ? ` ${name}'s` : " this"} request?`,
+            title: "Approve Request",
+            message: (
+                <>
+                    <p className="modal-message-text">Are you sure you want to approve this request?</p>
+                    <RequestSummaryBlock request={request} showEmployee />
+                </>
+            ),
             confirmLabel: "Approve", variant: "success", withInput: true, inputValue: "",
             inputLabel: "Comments (optional)", inputPlaceholder: "Add any comments...",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await approveRequest(id, modalInputRef.current); setError(""); toast.success("Request approved successfully"); loadData(); }
+                try { await approveRequest(request._id, modalInputRef.current); setError(""); toast.success("Request approved successfully"); loadData(); }
                 catch (err) { const msg = err.response?.data?.message || "Approve failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
         });
     };
 
-    const handleReject = (id, name) => {
+    const handleReject = (request) => {
         openModal({
-            title: "Reject Request", message: `You are about to reject${name ? ` ${name}'s` : " this"} request. Please provide a reason.`,
+            title: "Reject Request",
+            message: (
+                <>
+                    <p className="modal-message-text">You are about to reject this request. Please provide a reason.</p>
+                    <RequestSummaryBlock request={request} showEmployee />
+                </>
+            ),
             confirmLabel: "Reject", variant: "danger", withInput: true, inputValue: "",
             inputLabel: "Rejection Reason *", inputPlaceholder: "Please provide a reason for rejection...",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await rejectRequest(id, { rejectionReason: modalInputRef.current }); setError(""); toast.warning("Request rejected"); loadData(); }
+                try { await rejectRequest(request._id, { rejectionReason: modalInputRef.current }); setError(""); toast.warning("Request rejected"); loadData(); }
                 catch (err) { const msg = err.response?.data?.message || "Reject failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
@@ -1248,10 +1320,7 @@ function AdvanceLoanInner() {
                                     {showEmployee ? <td>{empName || "-"}</td> : null}
                                     <td><span className="advance-type-badge">{getTypeLabel(req.requestType)}</span></td>
                                     <td className="amount-cell">{formatCurrency(req.amount)}</td>
-                                    <td>
-                                        {req.repaymentOption === "ONE_TIME" ? `One Time (${req.tenure || 0} mo)` :
-                                            req.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${req.totalInstallments} months` : "Custom"}
-                                    </td>
+                                    <td>{getRepaymentLabel(req)}</td>
                                     <td>{formatDate(req.createdAt)}</td>
                                     <td><span className={STATUS_CLASS[req.status] || "advance-status"}>{STATUS_LABELS[req.status] || req.status}</span></td>
                                     <td><span className={getPriorityBadge(req.priority, req.status)}>{req.priority}</span></td>
@@ -1263,8 +1332,8 @@ function AdvanceLoanInner() {
                                                 )}
                                                 {canApproveAction && (actionMode === "approve" || actionMode === "full") && (
                                                     <>
-                                                        <button className="action-btn approve-btn" onClick={() => handleApprove(req._id, empName)}><Check size={14} />Approve</button>
-                                                        <button className="action-btn reject-btn" onClick={() => handleReject(req._id, empName)}><X size={14} />Reject</button>
+                                                        <button className="action-btn approve-btn" onClick={() => handleApprove(req)}><Check size={14} />Approve</button>
+                                                        <button className="action-btn reject-btn" onClick={() => handleReject(req)}><X size={14} />Reject</button>
                                                     </>
                                                 )}
                                                 {canRecordPayment && actionMode === "payment" && (
