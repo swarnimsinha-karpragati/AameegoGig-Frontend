@@ -12,6 +12,7 @@ export default function PayslipsTab({
   selectedYear,
   searchQuery,
   filteredHistory,
+  payrolls: payrollsProp,
   actionLoading,
   downloadingId,
   onMonthChange,
@@ -34,6 +35,25 @@ export default function PayslipsTab({
 
   const availableMonths = getAvailableMonths(selectedYear);
   const user = getStoredUser();
+
+  const payrollsForGuard = payrollsProp || filteredHistory;
+  const canDownloadWageSheet = useMemo(() => {
+    if (!payrollsForGuard.length) return false;
+    const hasProcessed = payrollsForGuard.some(
+      (p) => (p.status === "Processed" || p.approvalStatus === "Approved") && (Number(p.netSalary) > 0 || Number(p.totalEarnings) > 0)
+    );
+    const hasAnyPayout = payrollsForGuard.some((p) => Number(p.netSalary) > 0 || Number(p.totalEarnings) > 0);
+    return hasProcessed && hasAnyPayout;
+  }, [payrollsForGuard]);
+
+  const handleWageSheetClick = () => {
+    if (!canDownloadWageSheet && isAdminOrHR) {
+      // Let parent show toast, but also guard locally if onDownloadWageSheet is direct
+      // The parent Payroll.jsx also validates and shows: "Payroll for September 2026 is not yet processed. Cannot download Wage Sheet."
+      // If parent does not block, we trigger a fallback toast via custom event is not needed — parent handles it.
+    }
+    onDownloadWageSheet();
+  };
 
   return (
     <div className="history-table-container glass-morphism">
@@ -75,9 +95,13 @@ export default function PayslipsTab({
               type="button"
               className="wage-sheet-btn"
               icon={<Download size={16} />}
-              onClick={onDownloadWageSheet}
-              disabled={downloadingWageSheet}
-              title="Download month-wise and daily wages in Excel"
+              onClick={handleWageSheetClick}
+              disabled={downloadingWageSheet || !canDownloadWageSheet}
+              title={
+                !canDownloadWageSheet
+                  ? `Payroll for ${availableMonths[selectedMonth - 1]?.label} ${selectedYear} is not yet processed. Cannot download Wage Sheet.`
+                  : "Download month-wise and daily wages in Excel"
+              }
             >
               {downloadingWageSheet ? "Preparing..." : `${availableMonths[selectedMonth-1]?.label} Wage Sheet`}
             </Button>
