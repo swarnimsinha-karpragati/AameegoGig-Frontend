@@ -54,7 +54,7 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft, validateComponentsMatchCtc, sumLetterMonthlyGross } from "../utils/salaryValidation";
+import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
@@ -634,7 +634,7 @@ function Employees() {
   const [showAddModal, setShowAddModal] =
     useState(false);
 
-  const initialSalaryDraft = { ctcAnnual: 0, components: [] };
+  const initialSalaryDraft = { wageType: "MONTHLY", ctcAnnual: 0, dailyWage: 0, components: [] };
   const [salaryDraft, setSalaryDraft] = useState(initialSalaryDraft);
 
   const [showUploadModal, setShowUploadModal] =
@@ -868,9 +868,12 @@ function Employees() {
           return;
         }
 
-        // Manual component entry (no template) must add up to the Annual CTC.
+        // Manual component entry must add up to CTC / daily wage when no template used
         if (!salaryDraft.structureId) {
-          const matchError = validateComponentsMatchCtc(salaryDraft);
+          const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || (Number(salaryDraft.dailyWage) > 0);
+          const matchError = isDailyDraft
+            ? validateComponentsMatchDailyWage(salaryDraft)
+            : validateComponentsMatchCtc(salaryDraft);
           if (matchError) {
             setErrors({ salaryStructure: matchError });
             return;
@@ -885,7 +888,13 @@ function Employees() {
 
       if (newEmployeeId && hasSalaryData(salaryDraft)) {
         try {
-          await saveEmployeeStructure(newEmployeeId, {
+          const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || Number(salaryDraft.dailyWage) > 0;
+          await saveEmployeeStructure(newEmployeeId, isDailyDraft ? {
+            wageType: "DAILY",
+            dailyWage: Number(salaryDraft.dailyWage) || 0,
+            components: salaryDraft.components,
+          } : {
+            wageType: "MONTHLY",
             ctcAnnual: Number(salaryDraft.ctcAnnual) || 0,
             components: salaryDraft.components,
           });
@@ -1701,6 +1710,7 @@ function Employees() {
                 ) : null}
                 <EmployeeSalaryStructureEditor
                   key="add-employee-salary-structure"
+                  payType={form.payType}
                   draftValue={salaryDraft}
                   onDraftChange={setSalaryDraft}
                   hideActions
@@ -1852,7 +1862,7 @@ function Employees() {
                   description="Dynamic earnings and deductions from your organization library"
                   fullWidth
                 >
-                  <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} />
+                  <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} payType={selectedEmployee.payType} />
                 </FormSection>
               </>
             ) : (

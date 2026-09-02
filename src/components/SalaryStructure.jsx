@@ -546,11 +546,15 @@ const SalaryStructure = () => {
                                                         const ca = componentsList.find(c=> String(c._id)===String(a.componentId?._id||a.componentId));
                                                         const cb = componentsList.find(c=> String(c._id)===String(b.componentId?._id||b.componentId));
                                                         return (ca?.sortOrder ?? 999) - (cb?.sortOrder ?? 999);
-                                                    }).map((item, index) => (
+                                                    }).map((item, index) => {
+                                                        const comp = item.componentId;
+                                                        const fallback = componentsList.find(c=> String(c._id)===String(comp?._id||comp));
+                                                        const name = comp?.name || fallback?.name || fallback?.code || comp?.code || "Unknown";
+                                                        return (
                                                         <span key={`earn-${struct._id}-${index}`} className="pill pill-earning">
-                                                            {item.componentId?.name || "Unknown"}
+                                                            {name}
                                                         </span>
-                                                    ))
+                                                    )})
                                                 ) : (
                                                     <span className="no-data">None</span>
                                                 )}
@@ -563,11 +567,15 @@ const SalaryStructure = () => {
                                                         const ca = componentsList.find(c=> String(c._id)===String(a.componentId?._id||a.componentId));
                                                         const cb = componentsList.find(c=> String(c._id)===String(b.componentId?._id||b.componentId));
                                                         return (ca?.sortOrder ?? 999) - (cb?.sortOrder ?? 999);
-                                                    }).map((item, index) => (
+                                                    }).map((item, index) => {
+                                                        const comp = item.componentId;
+                                                        const fallback = componentsList.find(c=> String(c._id)===String(comp?._id||comp));
+                                                        const name = comp?.name || fallback?.name || fallback?.code || comp?.code || "Unknown";
+                                                        return (
                                                         <span key={`deduct-${struct._id}-${index}`} className="pill pill-deduction">
-                                                            {item.componentId?.name || "Unknown"}
+                                                            {name}
                                                         </span>
-                                                    ))
+                                                    )})
                                                 ) : (
                                                     <span className="no-data">None</span>
                                                 )}
