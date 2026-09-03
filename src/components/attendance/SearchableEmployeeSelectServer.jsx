@@ -99,16 +99,19 @@ function SearchableEmployeeSelectServer({
             ? `${selectedEmployee.employeeCode} - ${selectedEmployee.name}`
             : placeholder}
         </span>
-        {selectedEmployee && !disabled && (
-          <button
-            type="button"
-            className="month-mark-combobox__clear"
-            onClick={handleClear}
-          >
-            ×
-          </button>
-        )}
-        <span className="month-mark-combobox__arrow">{isOpen ? "▲" : "▼"}</span>
+        <span className="month-mark-combobox__trigger-actions">
+          {selectedEmployee && !disabled && (
+            <button
+              type="button"
+              className="month-mark-combobox__clear"
+              onClick={handleClear}
+              aria-label="Clear selected employee"
+            >
+              ×
+            </button>
+          )}
+          <span className="month-mark-combobox__arrow">{isOpen ? "▲" : "▼"}</span>
+        </span>
       </div>
 
       {isOpen && !disabled && (

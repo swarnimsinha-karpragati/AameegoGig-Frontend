@@ -49,6 +49,16 @@
   justify-content: space-between;
   cursor: pointer;
   user-select: none;
+  gap: 0.5rem;
+}
+
+.month-mark-combobox__placeholder,
+.month-mark-combobox__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .month-mark-combobox__placeholder {
@@ -60,10 +70,16 @@
   font-weight: 500;
 }
 
+.month-mark-combobox__trigger-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .month-mark-combobox__arrow {
   font-size: 0.7rem;
   color: #64748b;
-  margin-left: 0.5rem;
 }
 
 .month-mark-combobox__clear {
