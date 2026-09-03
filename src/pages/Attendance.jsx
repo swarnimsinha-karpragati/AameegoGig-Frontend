@@ -1235,6 +1235,8 @@ function Attendance() {
         rows={displayedOrgRows}
         loading={loading}
         showActions
+        target="org"
+        downloadParams={buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, { page: 1, limit: 10 })}
         filters={orgFilters}
         onFilterChange={handleOrgFilterChange}
         holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
@@ -1282,6 +1284,8 @@ function Attendance() {
         title={getTableTitle("My Attendance History", selectedPersonalDay, personalViewDate, selfFilters)}
         rows={displayedPersonalRows}
         loading={loading}
+        target="self"
+        downloadParams={buildListParams("self", personalViewDate, selectedPersonalDay, selfFilters, { page: 1, limit: 10 })}
         filters={selfFilters}
         onFilterChange={handleSelfFilterChange}
         holiday={selectedPersonalDay !== null ? selfCalendar.holidays[selectedPersonalDay] : null}
@@ -1320,6 +1324,8 @@ function Attendance() {
         rows={displayedOrgRows}
         loading={loading}
         showActions
+        target="org"
+        downloadParams={buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, { page: 1, limit: 10 })}
         filters={orgFilters}
         onFilterChange={handleOrgFilterChange}
         holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
@@ -1365,6 +1371,8 @@ function Attendance() {
         title={getTableTitle("My Attendance History", selectedPersonalDay, personalViewDate, selfFilters)}
         rows={displayedPersonalRows}
         loading={loading}
+        target="self"
+        downloadParams={buildListParams("self", personalViewDate, selectedPersonalDay, selfFilters, { page: 1, limit: 10 })}
         filters={selfFilters}
         onFilterChange={handleSelfFilterChange}
         holiday={selectedPersonalDay !== null ? selfCalendar.holidays[selectedPersonalDay] : null}
@@ -1392,6 +1400,8 @@ function Attendance() {
             title={`${getFilterDefaultTitle(teamFilters)} — My Team`}
             rows={displayedTeamRows}
             loading={loading}
+            target="team"
+            downloadParams={buildListParams("team", personalViewDate, null, teamFilters, { page: 1, limit: 10 })}
             filters={teamFilters}
             onFilterChange={handleTeamFilterChange}
           />
