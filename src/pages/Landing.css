@@ -1432,7 +1432,7 @@ body:has(.landing-page) {
   position: relative;
   background: #1755a6;
   color: #ffffff;
-  overflow: clip;
+  overflow: visible;
   padding: 84px 0 0;
 }
 
@@ -1537,6 +1537,7 @@ body:has(.landing-page) {
   color: #0f1d3a;
   box-shadow: 0 12px 32px rgba(11, 26, 75, 0.12);
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .landing-form-grid {
@@ -1544,6 +1545,20 @@ body:has(.landing-page) {
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   margin: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+
+.landing-form-grid:has(.landing-dd.is-open) {
+  z-index: 40;
+}
+
+.landing-demo-form:has(.landing-dd.is-open) > .landing-btn,
+.landing-demo-form:has(.landing-dd.is-open) > .landing-form-status,
+.landing-demo-form:has(.landing-dd.is-open) > .landing-form-note {
+  position: relative;
+  z-index: 0;
 }
 
 .landing-field {
@@ -1552,6 +1567,13 @@ body:has(.landing-page) {
   gap: 5px;
   min-width: 0;
   text-align: left;
+  overflow: visible;
+  position: relative;
+  z-index: 0;
+}
+
+.landing-field:has(.landing-dd.is-open) {
+  z-index: 30;
 }
 
 .landing-field label {
@@ -1563,8 +1585,7 @@ body:has(.landing-page) {
 }
 
 .landing-form-grid input,
-.landing-form-grid textarea,
-.landing-form-grid select {
+.landing-form-grid textarea {
   font-family: "Inter", "Sora", sans-serif;
   font-size: 14px;
   font-weight: 400;
@@ -1575,9 +1596,13 @@ body:has(.landing-page) {
   color: #0f1d3a;
   background: rgba(246, 248, 247, 0.5);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
   width: 100%;
   box-sizing: border-box;
+}
+
+.landing-form-grid input {
+  min-height: 48px;
 }
 
 .landing-form-grid input::placeholder,
@@ -1585,28 +1610,14 @@ body:has(.landing-page) {
   color: rgba(15, 29, 58, 0.5);
 }
 
-.landing-form-grid select {
-  color: #8896bf;
-}
-
-.landing-select.has-value select {
-  color: #0f1d3a;
-}
-
-.landing-form-grid select option {
-  color: #0f1d3a;
-}
-
 .landing-form-grid input:focus,
-.landing-form-grid textarea:focus,
-.landing-form-grid select:focus {
+.landing-form-grid textarea:focus {
   border-color: #1755a6;
   background: #ffffff;
 }
 
 .landing-form-grid input.is-invalid,
-.landing-form-grid textarea.is-invalid,
-.landing-form-grid select.is-invalid {
+.landing-form-grid textarea.is-invalid {
   border-color: #dc2626;
 }
 
@@ -1629,27 +1640,183 @@ body:has(.landing-page) {
   color: #dc2626;
 }
 
-.landing-select {
+/* Custom dropdown — higher specificity so global `.landing-page button` reset does not strip chrome */
+.landing-dd {
   position: relative;
+  width: 100%;
+  z-index: 1;
 }
 
-.landing-select select {
+.landing-dd.is-open {
+  z-index: 40;
+}
+
+.landing-page .landing-dd-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px 12px 13px;
+  border: 1px solid #dde2f0;
+  border-radius: 8px;
+  background: rgba(246, 248, 247, 0.5);
+  font-family: "Inter", "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  color: #0f1d3a;
+  text-align: left;
+  cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  padding: 10px 29px 10px 17px;
-  line-height: 16.67px;
-  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
 }
 
-.landing-select img {
+.landing-dd-placeholder,
+.landing-dd-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-dd-placeholder {
+  color: rgba(15, 29, 58, 0.5);
+}
+
+.landing-dd-value {
+  color: #0f1d3a;
+  font-weight: 500;
+}
+
+.landing-dd-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: #6b7794;
+  transition: transform 0.2s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.landing-dd.is-open .landing-dd-chevron {
+  transform: rotate(180deg);
+  color: #1755a6;
+}
+
+.landing-page .landing-dd-trigger:hover {
+  border-color: #c5cee3;
+  background: #ffffff;
+}
+
+.landing-page .landing-dd-trigger:focus,
+.landing-page .landing-dd-trigger:focus-visible {
+  outline: none;
+  border-color: #1755a6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(23, 85, 166, 0.12);
+}
+
+.landing-page .landing-dd.is-open .landing-dd-trigger {
+  border-color: #1755a6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(23, 85, 166, 0.12);
+}
+
+.landing-page .landing-dd.is-invalid .landing-dd-trigger {
+  border-color: #dc2626;
+}
+
+.landing-page .landing-dd.is-invalid .landing-dd-trigger:focus,
+.landing-page .landing-dd.is-invalid.is-open .landing-dd-trigger {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
+.landing-dd-menu {
   position: absolute;
-  right: 12px;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  transform: translateY(-50%);
-  pointer-events: none;
-  opacity: 0.55;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow:
+    0 4px 6px rgba(15, 29, 58, 0.04),
+    0 16px 40px rgba(15, 29, 58, 0.14);
+  max-height: 240px;
+  overflow-y: auto;
+  animation: landing-dd-in 0.16s ease both;
+  z-index: 50;
+  isolation: isolate;
+}
+
+@keyframes landing-dd-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.landing-dd-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-family: "Inter", "Sora", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: #0f1d3a;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.landing-dd-option.is-active {
+  background: #f3f7fc;
+}
+
+.landing-dd-option.is-selected {
+  color: #1755a6;
+  font-weight: 600;
+  background: #eef4fb;
+}
+
+.landing-dd-option.is-selected.is-active {
+  background: #e4eefb;
+}
+
+.landing-dd-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(23, 85, 166, 0.1);
+  color: #1755a6;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-dd-menu,
+  .landing-dd-chevron {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 .landing-demo-form .landing-btn--block {
