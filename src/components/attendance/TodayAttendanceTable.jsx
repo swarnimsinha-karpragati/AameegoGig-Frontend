@@ -1,11 +1,11 @@
 import { Fragment, useState, useEffect } from "react";
-import * as XLSX from "xlsx";
 import { Calendar as CalendarIcon, RotateCcw, Download, Camera, ChevronUp, ChevronDown } from "lucide-react";
 import SessionList from "./SessionList";
 import SessionLocationLink from "./SessionLocationLink";
 import SelfieModal from "./SelfieModal";
-import { getCheckInSelfieUrl } from "../../services/attendanceService";
+import { getCheckInSelfieUrl, downloadAttendanceReport } from "../../services/attendanceService";
 import { normalizeRecord, statusTextClass } from "./attendanceUtils";
+import { useToast } from "../Toast";
 import "./TodayAttendanceTable.css";
 
 function TodayAttendanceTable({
@@ -19,11 +19,15 @@ function TodayAttendanceTable({
   weekOff = null,
   isCalendarSelection = false,
   onClearSelectedDay,
+  target = "self",
+  downloadParams = null,
 }) {
   const [expandedRowId, setExpandedRowId] = useState(null);
   const [selfieModal, setSelfieModal] = useState({ open: false, imageUrl: "", title: "" });
   const [localSearch, setLocalSearch] = useState(filters.search);
   const [isSearching, setIsSearching] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     setLocalSearch(filters.search);
@@ -50,37 +54,38 @@ function TodayAttendanceTable({
     setSelfieModal({ open: true, imageUrl, title });
   };
   const today = new Date().toISOString().split("T")[0];
-  const downloadAttendance = () => {
-    const data = rows.map((r) => {
-      const row = normalizeRecord(r);
-      return {
-        "Employee Name": row.name,
-        "Employee ID": row.id,
-        "Date": row.formattedDate,
-        "Check In": row.checkIn,
-        "Check Out": row.checkOut,
-        "Working Hours": row.hours,
-        "Present Days": row.presentDays ?? "-",
-        "Absent Days": row.absentDays ?? "-",
-        "Half Days": row.halfDays ?? "-",
-        "Late Days": row.lateDays ?? "-",
-        "Paid Days": row.paidDays ?? "-",
-        "Working Days": row.workingDays ?? "-",
-        "Calendar Days": row.calendarDays ?? "-",
-        Status: row.status,
+  const downloadAttendance = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const params = downloadParams || {
+        target,
+        filterType: filters.filterType,
+        search: filters.search || "",
+        startDate: filters.startDate || "",
+        endDate: filters.endDate || "",
+        month: filters.month,
+        year: filters.year,
       };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    ws["!cols"] = [
-      { wch: 15 }, { wch: 25 }, { wch: 18 }, { wch: 15 }, { wch: 15 },
-      { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
-      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-    XLSX.writeFile(wb, `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
+      const blob = await downloadAttendanceReport(params);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Attendance report downloaded");
+    } catch (err) {
+      const msg =
+        err?.response?.status === 404
+          ? "No attendance records found for the selected date range."
+          : err?.response?.data?.message || "Failed to download attendance report.";
+      toast.error(msg);
+    } finally {
+      setDownloading(false);
+    }
   };
   const isTableLoading = loading || isSearching;
 
@@ -164,9 +169,9 @@ function TodayAttendanceTable({
                   30 Days
                 </button>
 
-                <button className="attendance-download-btn" onClick={downloadAttendance}>
+                <button className="attendance-download-btn" onClick={downloadAttendance} disabled={downloading}>
                   <Download size={16} />
-                  <span>Download</span>
+                  <span>{downloading ? "Downloading..." : "Download"}</span>
                 </button>
               </div>
             </div>
