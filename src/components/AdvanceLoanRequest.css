@@ -400,7 +400,6 @@
 
 .advance-table tbody tr:hover {
     background: #f8fafc;
-    transform: scale(1.001);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
@@ -685,6 +684,8 @@
 
     cursor: pointer;
     box-sizing: border-box;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 /* Cancel */
@@ -1645,6 +1646,25 @@
     white-space: nowrap;
 }
 
+.view-breakup-btn-inline {
+    display: inline;
+    padding: 0;
+    margin-left: 4px;
+    font-size: inherit;
+    font-weight: 700;
+    color: #0066cc;
+    background: none;
+    border: none;
+    border-bottom: 1px dashed #0066cc;
+    cursor: pointer;
+    vertical-align: baseline;
+    transition: color 0.15s;
+}
+.view-breakup-btn-inline:hover {
+    color: #0052a3;
+    border-bottom-color: #0052a3;
+}
+
 .breakdown-preview {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
@@ -1749,6 +1769,71 @@
     gap: 20px;
 }
 
+/* ── Redesigned Configuration Cards ── */
+.lcfg-card {
+    background: #fff;
+    border: 1px solid #e8edf3;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.lcfg-card:hover {
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.lcfg-card-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.lcfg-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.lcfg-card-icon.blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.lcfg-card-icon.green { background: linear-gradient(135deg, #10b981, #059669); }
+.lcfg-card-icon.orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
+
+.lcfg-card-head-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.lcfg-card-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.lcfg-card-sub {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.lcfg-card-body {
+    padding: 20px;
+    flex: 1;
+}
+
 .loan-config-section {
     display: flex;
     flex-direction: column;
@@ -1759,6 +1844,11 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+}
+
+.loan-config-group + .loan-config-group {
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 16px;
 }
 
 .loan-config-group label {
@@ -1785,6 +1875,12 @@
 .loan-input:focus {
     border-color: #2563eb;
     box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+.loan-input:disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
 }
 
 .loan-input-wrapper {
@@ -1889,6 +1985,36 @@
     cursor: not-allowed;
 }
 
+/* Save button stays a fixed size while saving so the layout doesn't shift */
+.loan-save-btn {
+    min-width: 190px;
+    justify-content: center;
+}
+
+.loan-save-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #cbd5e1;
+    border-top: 2px solid #2563eb;
+    border-radius: 50%;
+    animation: loanConfigSpin 0.7s linear infinite;
+}
+
+.loan-config-success {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border: 1px solid #6ee7b7;
+    border-left: 4px solid #059669;
+    border-radius: 12px;
+    padding: 14px 20px;
+    color: #047857;
+    font-size: 0.875rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);
+}
+
 .btn-primary {
     display: inline-flex;
     align-items: center;
@@ -1920,17 +2046,109 @@
 .advance-actions {
     display: flex;
     gap: 8px;
+    row-gap: 10px;
     flex-wrap: wrap;
     align-items: center;
 }
 
-.action-btn {
-    min-width: 80px;
-    min-height: 36px;
-    padding: 8px 12px;
+/* ── Row Action Dropdown (three-dot menu) ── */
+.advance-actions-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.advance-menu-wrap {
+    position: relative;
+    display: inline-flex;
+    z-index: 10;
+}
+
+.advance-menu-wrap.open {
+    z-index: 100;
+}
+
+.advance-menu-trigger {
+    width: 34px;
+    height: 34px;
     border: none;
     border-radius: 8px;
-    font-size: 0.75rem;
+    background: transparent;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.advance-menu-trigger:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #e2e8f0;
+}
+
+.advance-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 190px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+    padding: 6px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.advance-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: background 0.12s ease;
+}
+
+.advance-dropdown-item:hover {
+    background: #f8fafc;
+}
+
+.advance-dropdown-item svg {
+    flex-shrink: 0;
+}
+
+.advance-dropdown-item.menu-approve { color: #059669; }
+.advance-dropdown-item.menu-approve:hover { background: #ecfdf5; }
+
+.advance-dropdown-item.menu-reject { color: #dc2626; }
+.advance-dropdown-item.menu-reject:hover { background: #fef2f2; }
+
+.advance-dropdown-item.menu-cancel { color: #d97706; }
+.advance-dropdown-item.menu-cancel:hover { background: #fffbeb; }
+
+.advance-dropdown-item.menu-view { color: #4f46e5; }
+.advance-dropdown-item.menu-view:hover { background: #eef2ff; }
+
+.action-btn {
+    min-width: 96px;
+    min-height: 36px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.78rem;
     font-weight: 600;
     line-height: 1.2;
     font-family: inherit;
@@ -1938,9 +2156,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 6px;
     box-sizing: border-box;
     white-space: nowrap;
+    flex-shrink: 0;
     transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
@@ -1968,6 +2187,8 @@
     gap: 6px;
     cursor: pointer;
     box-sizing: border-box;
+    white-space: nowrap;
+    flex-shrink: 0;
     transition: all 0.2s ease;
 }
 
@@ -2096,3 +2317,132 @@
     font-weight: 500;
     word-break: break-word;
 }
+
+/* ── Edit Repayment Button ── */
+.repayment-btn {
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+    border: 1px solid #bfdbfe !important;
+}
+
+.repayment-btn:hover {
+    background: #dbeafe !important;
+}
+
+/* ── Payment Request Info (Record Payment header) ── */
+.payment-request-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 18px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #fff;
+    border: 1px solid #e8edf3;
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.info-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.info-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+.info-item-remaining {
+    border-color: #bfdbfe;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.info-item-remaining .info-value {
+    color: #1d4ed8;
+}
+
+.info-value.highlight {
+    font-size: 1.05rem;
+}
+
+@media (max-width: 520px) {
+    .payment-request-info {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+}
+
+/* ── EMI List (Record Payment - Monthly Installments) ── */
+.emi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.emi-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    font-size: 0.875rem;
+    color: #111827;
+}
+
+.emi-item:hover {
+    border-color: #93c5fd;
+    background: #f8fafc;
+}
+
+.emi-item.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.emi-month {
+    font-weight: 600;
+    color: #374151;
+}
+
+.emi-amount {
+    font-weight: 700;
+    color: #2563eb;
+}
+
+/* ── Rejection Reason (shown in request list/row) ── */
+.rejection-reason {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: #b91c1c;
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 3px 6px;
+    max-width: 220px;
+    white-space: normal;
+}
+
