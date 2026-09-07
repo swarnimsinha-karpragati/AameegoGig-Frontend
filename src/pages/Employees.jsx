@@ -1588,6 +1588,7 @@ function Employees() {
                   <th>Phone</th>
                   <th>Designation</th>
                   <th>{name} name</th>
+                  <th>Reporting Manager</th>
                   <th>State name</th>
                   <th>App Login</th>
                   <th>Status</th>
@@ -1601,21 +1602,25 @@ function Employees() {
                     <tr key={emp._id}>
                       <td>{emp.employeeCode}</td>
 
-                      <td>{emp.name}</td>
+                      <td title={emp.name}>{emp.name}</td>
 
                       <td>
                         {emp.phone || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.designation}>
                         {emp.designation || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.department}>
                         {emp.department || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.managerId?.name}>
+                        {emp.managerId?.name || "-"}
+                      </td>
+
+                      <td title={emp.stateName}>
                         {emp.stateName || "-"}
                       </td>
 
@@ -2095,6 +2100,15 @@ function Employees() {
                     <div>
                       <label>Designation</label>
                       <span>{selectedEmployee.designation || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Reporting Manager</label>
+                      <span>
+                        {selectedEmployee.managerId?.name ||
+                          selectedEmployee.managerName ||
+                          "-"}
+                      </span>
                     </div>
 
                     <div>

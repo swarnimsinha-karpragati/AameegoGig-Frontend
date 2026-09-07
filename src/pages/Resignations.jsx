@@ -90,6 +90,18 @@ function Resignations() {
   const [isLoading,setIsLoading] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
+
+  const formatDayAfterDispatch = (dateStr) => {
+    if (!dateStr) return "Pending selection";
+    const day = new Date(dateStr);
+    day.setDate(day.getDate() + 1);
+    const formatted = day.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    return `${formatted} at 10:00 AM`;
+  };
   
   const [checklistForm, setChecklistForm] = useState({
     isExitChecklistCleared: false,
@@ -713,6 +725,27 @@ function Resignations() {
 
               {isHrFinalizing && (
                 <>
+                  <FormSection title="Automated Document Delivery Schedule" description="How the exit documentation and settlement will run automatically after this sign-off:">
+                    <div className="exit-mgmt-schedule-box">
+                      <div className="exit-mgmt-schedule-row">
+                        <span>Experience / Relieving Letters dispatched</span>
+                        <strong>{formatDayAfterDispatch(selectedResignation?.lastWorkingDay)}</strong>
+                      </div>
+                      <div className="exit-mgmt-schedule-row">
+                        <span>Final Salary Slips + F&amp;F Statement dispatched</span>
+                        <strong>{formatDayAfterDispatch(checklistForm.finalSettlementDate)}</strong>
+                      </div>
+                      <div className="exit-mgmt-schedule-row">
+                        <span>F&amp;F Status update</span>
+                        <strong>Auto-updates to "Settled" after dispatch</strong>
+                      </div>
+                      <div className="exit-mgmt-schedule-row">
+                        <span>Account Deletion</span>
+                        <strong>{checklistForm.deleteEmployeeAccount ? "After F&F dispatch" : "Not scheduled"}</strong>
+                      </div>
+                    </div>
+                  </FormSection>
+
                   <FormSection title="Clearance Criteria Checkmarks" description="Review separation checklist flags before completing final settlement approval">
                     <div className="exit-mgmt-checkbox-list">
                       <label className="exit-mgmt-checkbox-label">
@@ -860,8 +893,10 @@ function Resignations() {
                 <FormField label="Asset Recovery"><input type="text" value={selectedResignation.isAssetRecovered ? "✅ Recovered" : "❌ Pending"} disabled /></FormField>
                 <FormField label="Knowledge Transfer"><input type="text" value={selectedResignation.isKnowledgeTransferDone ? "✅ Completed" : "❌ Pending"} disabled /></FormField>
                 <FormField label="Overall Exit Checklist"><input type="text" value={selectedResignation.isExitChecklistCleared ? "✅ Cleared" : "❌ Not Cleared"} disabled /></FormField>
-                <FormField label="F&F Status"><input type="text" value={selectedResignation.isFullAndFinalSettled ? `✅ Settled ($${selectedResignation.fnfAmount})` : "❌ Processing"} disabled /></FormField>
+                <FormField label="F&F Status"><input type="text" value={selectedResignation.fnfSentAt ? `✅ Settled ($${selectedResignation.fnfAmount}) on ${new Date(selectedResignation.fnfSentAt).toLocaleDateString()}` : (selectedResignation.status === "Verified" ? "❌ Processing" : "⏳ Scheduled (day after settlement date @ 10:00 AM)")} disabled /></FormField>
                 <FormField label="Certificates Issued"><input type="text" value={`${selectedResignation.isExperienceLetterIssued ? "Experience" : ""} ${selectedResignation.isRelievingLetterIssued ? "Relieving" : ""}`.trim() || "None"} disabled /></FormField>
+                <FormField label="Letters Dispatch Date"><input type="text" value={selectedResignation.lettersSentAt ? new Date(selectedResignation.lettersSentAt).toLocaleDateString() : "Scheduled (day after LWD @ 10:00 AM)"} disabled /></FormField>
+                <FormField label="F&F Dispatch Date"><input type="text" value={selectedResignation.fnfSentAt ? new Date(selectedResignation.fnfSentAt).toLocaleDateString() : "Scheduled (day after settlement date @ 10:00 AM)"} disabled /></FormField>
                 <FormField label="Asset recovery notes"><input type="text" value={selectedResignation.assetRecoveryNotes ? selectedResignation.assetRecoveryNotes : "No Notes"} disabled /></FormField>
                 <FormField label="Approved Date"><input type="text" value={selectedResignation.approvedDate ? new Date(selectedResignation.approvedDate).toLocaleDateString() : "N/A"} disabled /></FormField>
                 <FormField label="Final Settlement Date"><input type="text" value={selectedResignation.finalSettlementDate ? new Date(selectedResignation.finalSettlementDate).toLocaleDateString() : "N/A"} disabled /></FormField>
@@ -914,6 +949,21 @@ function Resignations() {
                   </button>
                 ) : (
                   <span className="no-document-msg">Relieving Letter is not issued.</span>
+                )}
+              </FormField>
+
+              <FormField label=" F&F Statement" fullWidth>
+                {selectedResignation.fnfDocumentUrl ? (
+                  <button
+                    type="button"
+                    className="document-download-link document-download-link--btn"
+                    onClick={() => viewLetter(selectedResignation._id,'fnfDocumentUrl')}
+                  >
+                    <FileText size={18} />
+                    <span>View Document Record</span>
+                  </button>
+                ) : (
+                  <span className="no-document-msg">F&F Statement is generated after dispatch.</span>
                 )}
               </FormField>
             </FormSection>
