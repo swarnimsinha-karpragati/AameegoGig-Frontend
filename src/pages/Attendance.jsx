@@ -956,6 +956,7 @@ function Attendance() {
               <option>Absent</option>
               <option>Half Day</option>
               <option>Late</option>
+              <option>Leave</option>
               <option>WFH</option>
             </select>
           </div>
@@ -988,7 +989,7 @@ function Attendance() {
               onChange={(e) =>
                 setMarkForm((prev) => ({ ...prev, checkIn: e.target.value }))
               }
-              disabled={markForm?.status === "Absent"}
+              disabled={markForm?.status === "Absent" || markForm?.status === "Leave"}
             />
           </div>
 
@@ -1002,7 +1003,7 @@ function Attendance() {
               onChange={(e) =>
                 setMarkForm((prev) => ({ ...prev, checkOut: e.target.value }))
               }
-              disabled={markForm?.status === "Absent"}
+              disabled={markForm?.status === "Absent" || markForm?.status === "Leave"}
             />
           </div>
 
@@ -1021,9 +1022,9 @@ function Attendance() {
           </div>
         </div>
 
-        {markForm.status === "Absent" ? (
+        {markForm.status === "Absent" || markForm.status === "Leave" ? (
           <p className="attendance-mark-form__hint">
-            Check-in and check-out times are not required when status is Absent.
+            Check-in and check-out times are not required when status is {markForm.status}.
           </p>
         ) : null}
 

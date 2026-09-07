@@ -67,26 +67,6 @@ import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles"
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
 
-const EMPLOYEES_LIST_STATE_KEY = "employees-list-state";
-
-const readPersistedListState = () => {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(EMPLOYEES_LIST_STATE_KEY));
-    if (!saved || typeof saved !== "object") return null;
-    return saved;
-  } catch {
-    return null;
-  }
-};
-
-const persistListState = (state) => {
-  try {
-    sessionStorage.setItem(EMPLOYEES_LIST_STATE_KEY, JSON.stringify(state));
-  } catch {
-    // ignore quota / private mode errors
-  }
-};
-
 const EMPLOYEE_FORM_SECTIONS = [
   {
     id: "basic",
@@ -101,6 +81,7 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "departmentId", label: name, required: true },
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
+      { key: "peopleManagerId", label: "People Manager", type: "people-manager" },
       { key: "dateOfJoining", label: "Date of Joining", type: "date" },
       { key: "dob", label: "Date of Birth", type: "date" },
     ],
@@ -236,7 +217,8 @@ function EmployeeFormFields({
   onFieldChange,
   emailRequired,
   department,
-  errors
+  errors,
+  showTransferNotice
 }) {
   const fieldError = (key) => errors?.[key];
   const inputClassName = (key) =>
@@ -266,19 +248,27 @@ function EmployeeFormFields({
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}
+          {showTransferNotice ? (
+            <p className="emp-transfer-notice">
+              Transfer letter will be created and sent to the employee when saved.
+            </p>
+          ) : null}
         </>
       );
     }
 
-    if (field.type === "manager") {
+    if (field.type === "manager" || field.type === "people-manager") {
+      const excludedManagerId =
+        field.type === "manager" ? values.peopleManagerId : values.managerId;
       return (
         <>
           <SearchableEmployeeSelectServer
-            value={values.managerId}
+            value={values[field.key]}
             onChange={(empId) => onFieldChange({ target: { name: field.key, value: empId } })}
+            excludeIds={[excludedManagerId]}
             hasError={!!fieldError(field.key)}
             controlClassName="emp-field-input form-control"
-            placeholder="Select manager (optional)"
+            placeholder={`Select ${field.label.toLowerCase()} (optional)`}
           />
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
@@ -554,7 +544,7 @@ function Employees() {
     uan: "", pfNumber: "", esicNumber: "",
     bankName: "", accountHolderName: "", accountNumber: "", ifscCode: "",
     highestQualification: "",
-    dateOfJoining: "", relievingDate: "", managerId: "",
+    dateOfJoining: "", relievingDate: "", managerId: "", peopleManagerId: "",
     basicSalary: "", hra: "", conveyanceAllowance: "", incentive: "", otherAllowance: "", professionalTax: "",
     createAppLogin: false, userRole: "Employee", userPassword: "",
     allowedModules: defaultSelectedModules("Employee"),
@@ -562,26 +552,19 @@ function Employees() {
 
   const [form, setForm] = useState(initialForm);
 
-  const persistedListState = readPersistedListState();
-
   const [employees, setEmployees] = useState([]);
-  const [search, setSearch] = useState(persistedListState?.search ?? "");
-  const [page, setPage] = useState(
-    Number.isFinite(persistedListState?.page) ? persistedListState.page : 1
-  );
-  const [limit, setLimit] = useState(
-    Number.isFinite(persistedListState?.limit) ? persistedListState.limit : 10
-  );
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [department, setDepartment] = useState([]);
-  const [departmentFilter, setDepartmentFilter] = useState(
-    persistedListState?.departmentFilter ?? ""
-  );
+  const [departmentFilter, setDepartmentFilter] = useState("");
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
@@ -625,6 +608,9 @@ function Employees() {
 
   const [selectedEmployee, setSelectedEmployee] =
     useState(null);
+
+  const [originalDepartmentId, setOriginalDepartmentId] =
+    useState("");
 
   const [isEditing, setIsEditing] =
     useState(false);
@@ -729,10 +715,6 @@ function Employees() {
       console.error("Error fetching employees:", error);
     }
   }, [departmentFilter, page, limit, search]);
-
-  useEffect(() => {
-    persistListState({ search, page, limit, departmentFilter });
-  }, [search, page, limit, departmentFilter]);
 
   useEffect(() => {
     fetchEmployees();
@@ -881,6 +863,7 @@ function Employees() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
 
     if (
       form.createAppLogin &&
@@ -926,6 +909,7 @@ function Employees() {
       }
 
       setErrors({});
+      setSubmitting(true);
       const res = await addEmployee(payload);
       const data = res.data;
       const newEmployeeId = data.employee?._id;
@@ -971,6 +955,8 @@ function Employees() {
 
       const serverMessage = error.response?.data?.message || "Failed to add employee";
       alert(serverMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1132,6 +1118,7 @@ function Employees() {
     departmentId: emp.departmentId || emp.department || "",
     departmentName: emp.departmentName || "",
     managerId: emp.managerId?._id || emp.managerId || "",
+    peopleManagerId: emp.peopleManagerId?._id || emp.peopleManagerId || "",
     dob: emp.dob ? emp.dob.split("T")[0] : "",
     dateOfJoining:
       emp.dateOfJoining
@@ -1182,6 +1169,7 @@ function Employees() {
 
   const handleEdit = (emp) => {
     setErrors({});
+    setOriginalDepartmentId(String(emp.departmentId || emp.department || ""));
     setSelectedEmployee(normalizeEmployeeForForm(emp));
 
     setEnableLoginOnUpdate(false);
@@ -1189,6 +1177,7 @@ function Employees() {
   };
 
   const handleUpdate = async () => {
+    if (submitting) return;
     try {
       if (
         enableLoginOnUpdate &&
@@ -1218,6 +1207,7 @@ function Employees() {
       }
 
       setErrors({});
+      setSubmitting(true);
 
       const res = await updateEmployee(
         selectedEmployee._id,
@@ -1257,6 +1247,8 @@ function Employees() {
 
       const serverMessage = error.response?.data?.message || "Failed to update employee";
       alert(serverMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1601,6 +1593,7 @@ function Employees() {
                   <th>Phone</th>
                   <th>Designation</th>
                   <th>{name} name</th>
+                  <th>Reporting Manager</th>
                   <th>State name</th>
                   <th>App Login</th>
                   <th>Status</th>
@@ -1614,21 +1607,25 @@ function Employees() {
                     <tr key={emp._id}>
                       <td>{emp.employeeCode}</td>
 
-                      <td>{emp.name}</td>
+                      <td title={emp.name}>{emp.name}</td>
 
                       <td>
                         {emp.phone || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.designation}>
                         {emp.designation || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.department}>
                         {emp.department || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.managerId?.name}>
+                        {emp.managerId?.name || "-"}
+                      </td>
+
+                      <td title={emp.stateName}>
                         {emp.stateName || "-"}
                       </td>
 
@@ -1852,9 +1849,9 @@ function Employees() {
                 <Button
                   type="submit"
                   form="add-employee-form"
-                  disabled={hasFormErrors}
+                  disabled={hasFormErrors || submitting}
                 >
-                  Save Employee
+                  {submitting ? "Creating..." : "Save Employee"}
                 </Button>
               </>
             }
@@ -2001,9 +1998,9 @@ function Employees() {
                   <Button
                     type="button"
                     onClick={handleUpdate}
-                    disabled={hasFormErrors}
+                    disabled={hasFormErrors || submitting}
                   >
-                    Save Changes
+                    {submitting ? "Saving..." : "Save Changes"}
                   </Button>
                 </>
               ) : null
@@ -2020,6 +2017,13 @@ function Employees() {
                   emailRequired={enableLoginOnUpdate}
                   department={department}
                   errors={errors}
+                  showTransferNotice={
+                    isEditing &&
+                    !!selectedEmployee?.departmentId &&
+                    !!originalDepartmentId &&
+                    String(selectedEmployee.departmentId) !==
+                      String(originalDepartmentId)
+                  }
                 />
                 <FormSection title="App Access">
                   <AppLoginSection
@@ -2101,6 +2105,15 @@ function Employees() {
                     <div>
                       <label>Designation</label>
                       <span>{selectedEmployee.designation || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Reporting Manager</label>
+                      <span>
+                        {selectedEmployee.managerId?.name ||
+                          selectedEmployee.managerName ||
+                          "-"}
+                      </span>
                     </div>
 
                     <div>

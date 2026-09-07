@@ -655,16 +655,17 @@ function LeaveInner() {
           />
         </div>
         <div className="leave-field leave-field--full">
-          <label htmlFor="leave-reason">Reason</label>
+          <label htmlFor="leave-reason">Reason <span style={{ color: "#e53e3e" }}>*</span></label>
           <input
             id="leave-reason"
             type="text"
             className="leave-control"
-            placeholder="Optional reason for leave"
+            placeholder="Reason for leave"
             value={leaveForm.reason}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, reason: e.target.value }))
             }
+            required
           />
         </div>
         {dateValidationError ? (
@@ -702,6 +703,7 @@ function LeaveInner() {
                 {new Date(item.startDate).toLocaleDateString()} -{" "}
                 {new Date(item.endDate).toLocaleDateString()}
               </p>
+              <small>Approved by: {item.approverId?.name || "-"}</small>
             </div>
             <span className={leaveStatusClass[item.status] || "leave-status"}>
               {item.status}
@@ -713,7 +715,7 @@ function LeaveInner() {
   );
 
   const renderRequestsTable = ({ title, items, mode }) => {
-    const totalColumns = mode === "all" || mode === "approve" ? 6 : 5;
+    const totalColumns = mode === "all" || mode === "approve" ? 7 : 6;
 
     return (
       <section className="leave-panel leave-glass">
@@ -729,6 +731,7 @@ function LeaveInner() {
                 <th>Date / Duration</th>
                 <th>Reason</th>
                 <th>Status</th>
+                <th>Approved By</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -789,6 +792,8 @@ function LeaveInner() {
                         )}
                       </div>
                     </td>
+
+                    <td>{item.approverId?.name || "-"}</td>
 
                     <td>
                       {mode === "approve" &&
@@ -1000,12 +1005,13 @@ function LeaveInner() {
               <th>Dates</th>
               <th>Days</th>
               <th>Status</th>
+              <th>Approved By</th>
             </tr>
           </thead>
           <tbody>
             {!loading && items.length === 0 ? (
               <tr>
-                <td colSpan={5} className="leave-empty">
+                <td colSpan={6} className="leave-empty">
                   No requests found
                 </td>
               </tr>
@@ -1053,6 +1059,7 @@ function LeaveInner() {
                     )}
                   </div>
                 </td>
+                <td>{item.approverId?.name || "-"}</td>
               </tr>
             ))}
           </tbody>

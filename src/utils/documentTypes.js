@@ -11,6 +11,7 @@ export const DOC_TYPE_LABEL = {
   MEDICAL_CARD: "Medical Card",
   SALARY_SLIP: "Salary Slip",
   APPOINTMENT_LETTER: "Appointment Letter",
+  TRANSFER_LETTER: "Transfer Letter",
 };
 
 export const DOC_TYPE_OPTIONS = Object.entries(DOC_TYPE_LABEL).map(
@@ -31,6 +32,7 @@ export const DOC_TYPE_ACCEPT = {
   MEDICAL_CARD: [".pdf", ".png", ".jpg", ".jpeg"],
   SALARY_SLIP: [".pdf"],
   APPOINTMENT_LETTER: [".pdf"],
+  TRANSFER_LETTER: [".pdf"],
 };
 
 // For the file picker's `accept` attribute.

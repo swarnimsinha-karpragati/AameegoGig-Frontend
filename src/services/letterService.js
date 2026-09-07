@@ -11,3 +11,7 @@ export const generateWarningLetter = async (data) => {
 export const generateTerminationLetter = async (data) => {
   return API.post('/letters/termination', data);
 };
+
+export const generateTransferLetter = async (data) => {
+  return API.post('/letters/transfer', data);
+};
