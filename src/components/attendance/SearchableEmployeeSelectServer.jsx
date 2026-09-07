@@ -9,6 +9,7 @@ function SearchableEmployeeSelectServer({
   hasError = false,
   placeholder = "-- Select Employee --",
   controlClassName = "month-mark-control",
+  excludeIds = [],
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -17,9 +18,13 @@ function SearchableEmployeeSelectServer({
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const dropdownRef = useRef(null);
   const debounceRef = useRef(null);
+  const requestIdRef = useRef(0);
+
+  const excludeKey = excludeIds.filter(Boolean).map(String).join(",");
 
   const fetchEmployees = useCallback(async (term) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    const requestId = ++requestIdRef.current;
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
@@ -27,35 +32,40 @@ function SearchableEmployeeSelectServer({
           search: term,
           limit: 50,
         });
-        const fetchedList = res.data.employees || [];
+        const excluded = new Set(excludeKey ? excludeKey.split(",") : []);
+        const fetchedList = (res.data.employees || []).filter(
+          (employee) => !excluded.has(String(employee._id))
+        );
+        if (requestId !== requestIdRef.current) return;
         setEmployees(fetchedList);
         if (value) {
           const match = fetchedList.find((e) => e._id === value);
           if (match) {
             setSelectedEmployee(match);
+          } else {
+            setSelectedEmployee(null);
           }
         }
       } catch (err) {
+        if (requestId !== requestIdRef.current) return;
         console.error("Employee search error:", err);
         setEmployees([]);
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) setLoading(false);
       }
     }, 200);
-  }, [value]);
+  }, [value, excludeKey]);
 
   useEffect(() => {
+    setSelectedEmployee(null);
+    setSearchTerm("");
     if (value) {
       fetchEmployees("");
-    } else {
-      setSelectedEmployee(null);
-      setSearchTerm("");
     }
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-    // eslint-disable-next-line 
-  }, [value]);
+  }, [value, excludeKey, fetchEmployees]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {

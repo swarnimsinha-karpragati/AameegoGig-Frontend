@@ -81,6 +81,7 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "departmentId", label: name, required: true },
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
+      { key: "peopleManagerId", label: "People Manager", type: "people-manager" },
       { key: "dateOfJoining", label: "Date of Joining", type: "date" },
       { key: "dob", label: "Date of Birth", type: "date" },
     ],
@@ -256,15 +257,18 @@ function EmployeeFormFields({
       );
     }
 
-    if (field.type === "manager") {
+    if (field.type === "manager" || field.type === "people-manager") {
+      const excludedManagerId =
+        field.type === "manager" ? values.peopleManagerId : values.managerId;
       return (
         <>
           <SearchableEmployeeSelectServer
-            value={values.managerId}
+            value={values[field.key]}
             onChange={(empId) => onFieldChange({ target: { name: field.key, value: empId } })}
+            excludeIds={[excludedManagerId]}
             hasError={!!fieldError(field.key)}
             controlClassName="emp-field-input form-control"
-            placeholder="Select manager (optional)"
+            placeholder={`Select ${field.label.toLowerCase()} (optional)`}
           />
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
@@ -540,7 +544,7 @@ function Employees() {
     uan: "", pfNumber: "", esicNumber: "",
     bankName: "", accountHolderName: "", accountNumber: "", ifscCode: "",
     highestQualification: "",
-    dateOfJoining: "", relievingDate: "", managerId: "",
+    dateOfJoining: "", relievingDate: "", managerId: "", peopleManagerId: "",
     basicSalary: "", hra: "", conveyanceAllowance: "", incentive: "", otherAllowance: "", professionalTax: "",
     createAppLogin: false, userRole: "Employee", userPassword: "",
     allowedModules: defaultSelectedModules("Employee"),
@@ -1114,6 +1118,7 @@ function Employees() {
     departmentId: emp.departmentId || emp.department || "",
     departmentName: emp.departmentName || "",
     managerId: emp.managerId?._id || emp.managerId || "",
+    peopleManagerId: emp.peopleManagerId?._id || emp.peopleManagerId || "",
     dob: emp.dob ? emp.dob.split("T")[0] : "",
     dateOfJoining:
       emp.dateOfJoining

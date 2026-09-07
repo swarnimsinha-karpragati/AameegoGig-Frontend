@@ -34,6 +34,7 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "dateOfJoining",
   "relievingDate",
   "managerId",
+  "peopleManagerId",
   "client",
   "state",
   "ctc",
@@ -64,6 +65,15 @@ export const buildEmployeePayload = (data, extras = {}) => {
       typeof data.managerId === "object"
         ? data.managerId._id
         : data.managerId;
+  }
+
+  if (data.peopleManagerId === "" || data.peopleManagerId === null) {
+    payload.peopleManagerId = null;
+  } else if (data.peopleManagerId) {
+    payload.peopleManagerId =
+      typeof data.peopleManagerId === "object"
+        ? data.peopleManagerId._id
+        : data.peopleManagerId;
   }
 
   const shouldCreateLogin =

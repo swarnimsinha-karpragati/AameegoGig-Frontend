@@ -132,6 +132,11 @@ export const employeeValidationSchema = Yup.object().shape({
     .transform((value, originalValue) => (originalValue === "" ? null : value))
     .default(null),
 
+  peopleManagerId: Yup.string()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
+
   bankName: Yup.string().trim().default(""),
   accountHolderName: Yup.string().trim().default(""),
 
