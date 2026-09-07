@@ -67,26 +67,6 @@ import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles"
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
 
-const EMPLOYEES_LIST_STATE_KEY = "employees-list-state";
-
-const readPersistedListState = () => {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(EMPLOYEES_LIST_STATE_KEY));
-    if (!saved || typeof saved !== "object") return null;
-    return saved;
-  } catch {
-    return null;
-  }
-};
-
-const persistListState = (state) => {
-  try {
-    sessionStorage.setItem(EMPLOYEES_LIST_STATE_KEY, JSON.stringify(state));
-  } catch {
-    // ignore quota / private mode errors
-  }
-};
-
 const EMPLOYEE_FORM_SECTIONS = [
   {
     id: "basic",
@@ -236,7 +216,8 @@ function EmployeeFormFields({
   onFieldChange,
   emailRequired,
   department,
-  errors
+  errors,
+  showTransferNotice
 }) {
   const fieldError = (key) => errors?.[key];
   const inputClassName = (key) =>
@@ -265,6 +246,11 @@ function EmployeeFormFields({
           </select>
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
+          {showTransferNotice ? (
+            <p className="emp-transfer-notice">
+              Transfer letter will be created and sent to the employee when saved.
+            </p>
           ) : null}
         </>
       );
@@ -562,26 +548,19 @@ function Employees() {
 
   const [form, setForm] = useState(initialForm);
 
-  const persistedListState = readPersistedListState();
-
   const [employees, setEmployees] = useState([]);
-  const [search, setSearch] = useState(persistedListState?.search ?? "");
-  const [page, setPage] = useState(
-    Number.isFinite(persistedListState?.page) ? persistedListState.page : 1
-  );
-  const [limit, setLimit] = useState(
-    Number.isFinite(persistedListState?.limit) ? persistedListState.limit : 10
-  );
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [department, setDepartment] = useState([]);
-  const [departmentFilter, setDepartmentFilter] = useState(
-    persistedListState?.departmentFilter ?? ""
-  );
+  const [departmentFilter, setDepartmentFilter] = useState("");
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
@@ -625,6 +604,9 @@ function Employees() {
 
   const [selectedEmployee, setSelectedEmployee] =
     useState(null);
+
+  const [originalDepartmentId, setOriginalDepartmentId] =
+    useState("");
 
   const [isEditing, setIsEditing] =
     useState(false);
@@ -729,10 +711,6 @@ function Employees() {
       console.error("Error fetching employees:", error);
     }
   }, [departmentFilter, page, limit, search]);
-
-  useEffect(() => {
-    persistListState({ search, page, limit, departmentFilter });
-  }, [search, page, limit, departmentFilter]);
 
   useEffect(() => {
     fetchEmployees();
@@ -881,6 +859,7 @@ function Employees() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
 
     if (
       form.createAppLogin &&
@@ -926,6 +905,7 @@ function Employees() {
       }
 
       setErrors({});
+      setSubmitting(true);
       const res = await addEmployee(payload);
       const data = res.data;
       const newEmployeeId = data.employee?._id;
@@ -971,6 +951,8 @@ function Employees() {
 
       const serverMessage = error.response?.data?.message || "Failed to add employee";
       alert(serverMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1182,6 +1164,7 @@ function Employees() {
 
   const handleEdit = (emp) => {
     setErrors({});
+    setOriginalDepartmentId(String(emp.departmentId || emp.department || ""));
     setSelectedEmployee(normalizeEmployeeForForm(emp));
 
     setEnableLoginOnUpdate(false);
@@ -1189,6 +1172,7 @@ function Employees() {
   };
 
   const handleUpdate = async () => {
+    if (submitting) return;
     try {
       if (
         enableLoginOnUpdate &&
@@ -1218,6 +1202,7 @@ function Employees() {
       }
 
       setErrors({});
+      setSubmitting(true);
 
       const res = await updateEmployee(
         selectedEmployee._id,
@@ -1257,6 +1242,8 @@ function Employees() {
 
       const serverMessage = error.response?.data?.message || "Failed to update employee";
       alert(serverMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1852,9 +1839,9 @@ function Employees() {
                 <Button
                   type="submit"
                   form="add-employee-form"
-                  disabled={hasFormErrors}
+                  disabled={hasFormErrors || submitting}
                 >
-                  Save Employee
+                  {submitting ? "Creating..." : "Save Employee"}
                 </Button>
               </>
             }
@@ -2001,9 +1988,9 @@ function Employees() {
                   <Button
                     type="button"
                     onClick={handleUpdate}
-                    disabled={hasFormErrors}
+                    disabled={hasFormErrors || submitting}
                   >
-                    Save Changes
+                    {submitting ? "Saving..." : "Save Changes"}
                   </Button>
                 </>
               ) : null
@@ -2020,6 +2007,13 @@ function Employees() {
                   emailRequired={enableLoginOnUpdate}
                   department={department}
                   errors={errors}
+                  showTransferNotice={
+                    isEditing &&
+                    !!selectedEmployee?.departmentId &&
+                    !!originalDepartmentId &&
+                    String(selectedEmployee.departmentId) !==
+                      String(originalDepartmentId)
+                  }
                 />
                 <FormSection title="App Access">
                   <AppLoginSection

@@ -32,6 +32,7 @@ import {
     getStatistics,
     getRequestDetails,
     getLoanConfig,
+    deferDeduction,
 } from "../services/advanceLoanService";
 import { getEmployees } from "../services/employeeService";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
@@ -857,6 +858,70 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
 
 
 /* ===========================
+    APPROVE MODAL (with disbursed date)
+   =========================== */
+function ApproveModal({ open, request, onClose, loading = false, onSubmit }) {
+    const [comments, setComments] = useState("");
+    const [disbursedDate, setDisbursedDate] = useState("");
+
+    useEffect(() => {
+        if (open) {
+            setComments("");
+            setDisbursedDate(new Date().toISOString().split("T")[0]);
+        }
+    }, [open]);
+
+    if (!open || !request) return null;
+
+    const handleSubmit = () => {
+        if (!disbursedDate) {
+            alert("Please select the disbursed/dispatch date.");
+            return;
+        }
+        onSubmit({
+            comments,
+            disbursedDate,
+        });
+    };
+
+    return (
+        <div className="advance-modal-overlay" onClick={onClose}>
+            <div className="advance-modal approve-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="advance-modal-header">
+                    <h3>Approve Request</h3>
+                    <button className="advance-modal-close" onClick={onClose}><X size={20} /></button>
+                </div>
+                <div className="advance-modal-body">
+                    <RequestSummaryBlock request={request} showEmployee />
+                    <div className="advance-form">
+                        <div className="form-group">
+                            <label>Date amount was dispatched / released *</label>
+                            <input
+                                type="date"
+                                className="form-control"
+                                value={disbursedDate}
+                                max={new Date().toISOString().split("T")[0]}
+                                onChange={(e) => setDisbursedDate(e.target.value)}
+                            />
+                            <p className="form-hint">This date will appear on the salary slip as the disbursement date (informational, not added to earnings).</p>
+                        </div>
+                        <div className="form-group">
+                            <label>Comments (optional)</label>
+                            <textarea className="form-control form-control--textarea" placeholder="Add any comments..." value={comments} onChange={(e) => setComments(e.target.value)} rows="3" />
+                        </div>
+                    </div>
+                </div>
+                <div className="advance-modal-footer">
+                    <button className="btn-secondary" onClick={onClose}>Cancel</button>
+                    <button className="btn-primary" onClick={handleSubmit} disabled={loading}><CheckCircle2 size={16} /> {loading ? "Processing..." : "Approve"}</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+/* ===========================
     DETAIL MODAL
    =========================== */
 function DetailModal({ open, onClose, request }) {
@@ -955,6 +1020,24 @@ function DetailModal({ open, onClose, request }) {
                                 <span className="detail-info-label">Created</span>
                                 <span className="detail-info-value">{formatDate(request.createdAt)}</span>
                             </div>
+                            {request.disbursedDate && (
+                                <div className="detail-info-row">
+                                    <span className="detail-info-label">Disbursed Date</span>
+                                    <span className="detail-info-value">{formatDate(request.disbursedDate)}</span>
+                                </div>
+                            )}
+                            {request.skippedMonths > 0 && (
+                                <div className="detail-info-row">
+                                    <span className="detail-info-label">Months Skipped</span>
+                                    <span className="detail-info-value">{request.skippedMonths}</span>
+                                </div>
+                            )}
+                            {request.comments && request.comments.length > 0 && (
+                                <div className="detail-info-row">
+                                    <span className="detail-info-label">Last Comment</span>
+                                    <span className="detail-info-value">{request.comments[request.comments.length - 1]?.comment || "-"}</span>
+                                </div>
+                            )}
                             {request.approvedAt && (
                                 <div className="detail-info-row">
                                     <span className="detail-info-label">Approved</span>
@@ -970,22 +1053,18 @@ function DetailModal({ open, onClose, request }) {
                         </div>
                     </div>
 
-                    {/* Salary Earnings Preview */}
+                    {/* Salary Slip Info Line Preview */}
                     {request.status === "APPROVED" && request.salaryEarnings && (
                         <div className="detail-section">
-                            <h4>Salary Earnings Entry (Next Month)</h4>
+                            <h4>Salary Slip Info Line (Informational)</h4>
                             <div className="detail-info-grid">
                                 <div className="detail-info-row">
-                                    <span className="detail-info-label">Entry Label</span>
-                                    <span className="detail-info-value">{request.salaryEarnings?.label || "-"}</span>
-                                </div>
-                                <div className="detail-info-row">
-                                    <span className="detail-info-label">Amount</span>
+                                    <span className="detail-info-label">Disbursed Amount</span>
                                     <span className="detail-info-value">{formatCurrency(request.salaryEarnings?.amount || 0)}</span>
                                 </div>
                                 <div className="detail-info-row">
-                                    <span className="detail-info-label">Status</span>
-                                    <span className="detail-info-value">{request.salaryEarnings?.isAdded ? "✅ Added to Payroll" : "⏳ Pending Addition"}</span>
+                                    <span className="detail-info-label">Disbursed Date</span>
+                                    <span className="detail-info-value">{request.disbursedDate ? formatDate(request.disbursedDate) : "-"}</span>
                                 </div>
                             </div>
                         </div>
@@ -1145,6 +1224,8 @@ function AdvanceLoanInner() {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [detailRequest, setDetailRequest] = useState(null);
+    const [showApproveModal, setShowApproveModal] = useState(false);
+    const [approveRequestData, setApproveRequestData] = useState(null);
     const [filterStatus, setFilterStatus] = useState("");
     const [filterType, setFilterType] = useState("");
     const [loanConfig, setLoanConfig] = useState(null);
@@ -1343,23 +1424,50 @@ function AdvanceLoanInner() {
     };
 
     const handleApprove = (request) => {
+        setApproveRequestData(request);
+        setShowApproveModal(true);
+    };
+
+    const handleDeferDeduction = (request) => {
         openModal({
-            title: "Approve Request",
+            title: "Defer / Skip This Month's Deduction",
             message: (
                 <>
-                    <p className="modal-message-text">Are you sure you want to approve this request?</p>
+                    <p className="modal-message-text">
+                        Are you sure you want to skip this month's deduction for {request.employeeId?.name || "this employee"}?
+                        All upcoming unpaid months will be pushed forward by one month (e.g. Jul, Aug → Aug, Sep).
+                    </p>
                     <RequestSummaryBlock request={request} showEmployee />
                 </>
             ),
-            confirmLabel: "Approve", variant: "success", withInput: true, inputValue: "",
-            inputLabel: "Comments (optional)", inputPlaceholder: "Add any comments...",
+            confirmLabel: "Skip Month", variant: "warning", withInput: true, inputValue: "",
+            inputLabel: "Reason (optional)", inputPlaceholder: "Why is this month being skipped?",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await approveRequest(request._id, modalInputRef.current); setError(""); toast.success("Request approved successfully"); loadData(); }
-                catch (err) { const msg = err.response?.data?.message || "Approve failed"; setError(msg); toast.error(msg); }
+                try { await deferDeduction(request._id, { comments: modalInputRef.current }); setError(""); toast.success("Deduction deferred to next month"); loadData(); }
+                catch (err) { const msg = err.response?.data?.message || "Defer failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
         });
+    };
+
+    const handleApproveSubmit = async (data) => {
+        if (!approveRequestData) return;
+        setActionLoading(true);
+        try {
+            await approveRequest(approveRequestData._id, data);
+            setError("");
+            toast.success("Request approved successfully");
+            setShowApproveModal(false);
+            setApproveRequestData(null);
+            loadData();
+        } catch (err) {
+            const msg = err.response?.data?.message || "Approve failed";
+            setError(msg);
+            toast.error(msg);
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     const handleReject = (request) => {
@@ -1482,6 +1590,9 @@ function AdvanceLoanInner() {
                                                     }
                                                     if (canRecordPayment && actionMode === "payment") {
                                                         items.push({ key: "payment", label: "Record Payment", icon: <Banknote size={14} />, cls: "", onClick: () => { setSelectedRequest(req); setShowPaymentModal(true); } });
+                                                        if (req.repaymentOption !== "ONE_TIME") {
+                                                            items.push({ key: "skip", label: "Skip This Month", icon: <RefreshCw size={14} />, cls: "", onClick: () => handleDeferDeduction(req) });
+                                                        }
                                                     }
                                                     if (canView) {
                                                         items.push({ key: "view", label: "View", icon: <Eye size={14} />, cls: "menu-view", onClick: () => handleViewDetails(req._id) });
@@ -1652,6 +1763,7 @@ function AdvanceLoanInner() {
                     <>
                         <RequestFormModal open={showRequestForm} onClose={() => { setShowRequestForm(false); setFormApiError(""); }} onSubmit={handleCreateRequest} employees={employees} canApprove={canApprove} canCreate={canCreate} loanConfig={loanConfig} apiError={formApiError} />
                         <PaymentModal open={showPaymentModal} onClose={() => { setShowPaymentModal(false); setSelectedRequest(null); }} request={selectedRequest} onSubmit={handleRecordPayment} />
+                        <ApproveModal open={showApproveModal} request={approveRequestData} loading={actionLoading} onClose={() => { setShowApproveModal(false); setApproveRequestData(null); }} onSubmit={handleApproveSubmit} />
                         <DetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} request={detailRequest} />
                         <ConfirmModal open={modal.open} title={modal.title} message={modal.message} confirmLabel={modal.confirmLabel} variant={modal.variant} loading={actionLoading} onConfirm={modal.onConfirm} onCancel={closeModal} inputLabel={modal.inputLabel} inputValue={modal.inputValue} onInputChange={(val) => { modalInputRef.current = val; setModal((m) => ({ ...m, inputValue: val })); }} inputPlaceholder={modal.inputPlaceholder} />
                     </>

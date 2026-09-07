@@ -655,16 +655,17 @@ function LeaveInner() {
           />
         </div>
         <div className="leave-field leave-field--full">
-          <label htmlFor="leave-reason">Reason</label>
+          <label htmlFor="leave-reason">Reason <span style={{ color: "#e53e3e" }}>*</span></label>
           <input
             id="leave-reason"
             type="text"
             className="leave-control"
-            placeholder="Optional reason for leave"
+            placeholder="Reason for leave"
             value={leaveForm.reason}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, reason: e.target.value }))
             }
+            required
           />
         </div>
         {dateValidationError ? (
