@@ -27,12 +27,16 @@ import {
   FileText,
   FolderOpen,
   Download,
-  MoreVertical
+  MoreVertical,
+  TriangleAlert,
+  OctagonX
 } from "lucide-react";
 
 
 import {
   generateAppointmentLetter,
+  generateWarningLetter,
+  generateTerminationLetter,
 } from "../services/letterService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
 import Pagination from "../components/Pagination";
@@ -658,6 +662,46 @@ function Employees() {
     });
 
   const [letterEmployeeId, setLetterEmployeeId] = useState(null);
+
+  const [
+    showWarningModal,
+    setShowWarningModal,
+  ] = useState(false);
+
+  const [warningData, setWarningData] =
+    useState({
+      employeeId: "",
+      employeeName: "",
+      employeeCode: "",
+      designation: "",
+      department: "",
+      incidentDate: "",
+      reason: "",
+      severity: "First",
+      actionTaken: "",
+      responsePeriod: "5",
+    });
+
+  const [
+    showTerminationModal,
+    setShowTerminationModal,
+  ] = useState(false);
+
+  const [terminationData, setTerminationData] =
+    useState({
+      employeeId: "",
+      employeeName: "",
+      employeeCode: "",
+      designation: "",
+      department: "",
+      terminationDate: "",
+      reason: "",
+      noticePeriod: "",
+      workLocation: "",
+      client: "",
+      settlementDate: "",
+      noticeClause: "7(B)",
+    });
 
   const salaryEditorRef = useRef(null);
 
@@ -1308,6 +1352,108 @@ function Employees() {
     };
 
   /* =========================
+       GENERATE WARNING LETTER
+     ========================= */
+
+  const handleGenerateWarning =
+    async () => {
+      if (
+        !warningData.employeeName ||
+        !warningData.designation ||
+        !warningData.incidentDate ||
+        !warningData.reason?.trim()
+      ) {
+        alert(
+          "Please fill all mandatory fields (employee, designation, incident date, and reason)"
+        );
+        return;
+      }
+
+      try {
+        setLoading(true);
+        await generateWarningLetter({
+          employeeId: warningData.employeeId,
+          employeeName: warningData.employeeName,
+          employeeCode: warningData.employeeCode,
+          designation: warningData.designation,
+          department: warningData.department,
+          incidentDate: warningData.incidentDate,
+          reason: warningData.reason,
+          severity: warningData.severity,
+          actionTaken: warningData.actionTaken,
+          responsePeriod: warningData.responsePeriod,
+        });
+
+        alert(
+          "Warning Letter Generated Successfully"
+        );
+
+        setShowWarningModal(false);
+
+      } catch (error) {
+        alert(
+          error.response?.data
+            ?.message ||
+          "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* =========================
+       GENERATE TERMINATION LETTER
+     ========================= */
+
+  const handleGenerateTermination =
+    async () => {
+      if (
+        !terminationData.employeeName ||
+        !terminationData.designation ||
+        !terminationData.terminationDate ||
+        !terminationData.reason?.trim()
+      ) {
+        alert(
+          "Please fill all mandatory fields (employee, designation, termination date, and reason)"
+        );
+        return;
+      }
+
+      try {
+        setLoading(true);
+        await generateTerminationLetter({
+          employeeId: terminationData.employeeId,
+          employeeName: terminationData.employeeName,
+          employeeCode: terminationData.employeeCode,
+          designation: terminationData.designation,
+          department: terminationData.department,
+          terminationDate: terminationData.terminationDate,
+          reason: terminationData.reason,
+          noticePeriod: terminationData.noticePeriod,
+          workLocation: terminationData.workLocation,
+          client: terminationData.client,
+          settlementDate: terminationData.settlementDate,
+          noticeClause: terminationData.noticeClause,
+        });
+
+        alert(
+          "Termination Letter Generated Successfully"
+        );
+
+        setShowTerminationModal(false);
+
+      } catch (error) {
+        alert(
+          error.response?.data
+            ?.message ||
+          "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* =========================
        FILTER EMPLOYEES
      ========================= */
 
@@ -1563,6 +1709,52 @@ function Employees() {
                                 }}
                               >
                                 <FileText size={16} /> Appointment Letter
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  setWarningData({
+                                    employeeId: emp._id,
+                                    employeeName: emp.name || "",
+                                    employeeCode: emp.employeeCode || "",
+                                    designation: emp.designation || "",
+                                    department: emp.department || "",
+                                    incidentDate: new Date().toISOString().split("T")[0],
+                                    reason: "",
+                                    severity: "First",
+                                    actionTaken: "",
+                                    responsePeriod: "5",
+                                  });
+                                  setShowWarningModal(true);
+                                }}
+                              >
+                                <TriangleAlert size={16} /> Warning Letter
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenDropdownId(null);
+                                  setTerminationData({
+                                    employeeId: emp._id,
+                                    employeeName: emp.name || "",
+                                    employeeCode: emp.employeeCode || "",
+                                    designation: emp.designation || "",
+                                    department: emp.department || "",
+                                    terminationDate: new Date().toISOString().split("T")[0],
+                                    reason: "",
+                                    noticePeriod: "",
+                                    workLocation: emp.location || "",
+                                    client: emp.client || "",
+                                    settlementDate: new Date().toISOString().split("T")[0],
+                                    noticeClause: "7(B)",
+                                  });
+                                  setShowTerminationModal(true);
+                                }}
+                              >
+                                <OctagonX size={16} /> Termination Letter
                               </button>
 
                               <button
@@ -2235,6 +2427,291 @@ function Employees() {
                 letterData={letterData}
                 onChange={patchLetterData}
               />
+            </FormSection>
+          </EmpModal>
+        ) : null}
+
+        {showWarningModal ? (
+          <EmpModal
+            title="Generate Warning Letter"
+            onClose={() => setShowWarningModal(false)}
+            size="md"
+            footer={
+              <Button
+                type="button"
+                icon={<TriangleAlert size={16} />}
+                onClick={handleGenerateWarning}
+                disabled={loading}
+                style={{ flex: 1 }}
+              >
+                {loading ? "Generating…" : "Generate Warning Letter"}
+              </Button>
+            }
+          >
+            <FormSection
+              title="Employee Details"
+              description="Auto-filled from the selected employee"
+            >
+              <FormField label="Employee Name" htmlFor="warn-name" required>
+                <input
+                  id="warn-name"
+                  required
+                  value={warningData.employeeName}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Employee Code" htmlFor="warn-code">
+                <input
+                  id="warn-code"
+                  value={warningData.employeeCode}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Designation" htmlFor="warn-designation" required>
+                <input
+                  id="warn-designation"
+                  required
+                  value={warningData.designation}
+                  readOnly
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Incident Details"
+              description="Provide details regarding the incident and action"
+            >
+              <FormField label="Incident Date" htmlFor="warn-incident-date" required>
+                <input
+                  id="warn-incident-date"
+                  required
+                  type="date"
+                  value={warningData.incidentDate}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      incidentDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              <FormField label="Warning Severity" htmlFor="warn-severity">
+                <select
+                  id="warn-severity"
+                  value={warningData.severity}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      severity: e.target.value,
+                    })
+                  }
+                >
+                  <option value="First">First</option>
+                  <option value="Second">Second</option>
+                  <option value="Final">Final</option>
+                </select>
+              </FormField>
+
+              <FormField label="Reason / Description" htmlFor="warn-reason" fullWidth required>
+                <textarea
+                  id="warn-reason"
+                  required
+                  rows={4}
+                  value={warningData.reason}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      reason: e.target.value,
+                    })
+                  }
+                  placeholder="Describe the incident / violation in detail"
+                />
+              </FormField>
+
+              <FormField label="Action Taken" htmlFor="warn-action" fullWidth>
+                <textarea
+                  id="warn-action"
+                  rows={2}
+                  value={warningData.actionTaken}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      actionTaken: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. deduction, suspension, coaching, etc."
+                />
+              </FormField>
+
+              <FormField label="Response Period (days)" htmlFor="warn-response">
+                <input
+                  id="warn-response"
+                  type="number"
+                  min="1"
+                  value={warningData.responsePeriod}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      responsePeriod: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+            </FormSection>
+          </EmpModal>
+        ) : null}
+
+        {showTerminationModal ? (
+          <EmpModal
+            title="Generate Termination Letter"
+            onClose={() => setShowTerminationModal(false)}
+            size="md"
+            footer={
+              <Button
+                type="button"
+                icon={<OctagonX size={16} />}
+                onClick={handleGenerateTermination}
+                disabled={loading}
+                style={{ flex: 1 }}
+              >
+                {loading ? "Generating…" : "Generate Termination Letter"}
+              </Button>
+            }
+          >
+            <FormSection
+              title="Employee Details"
+              description="Auto-filled from the selected employee"
+            >
+              <FormField label="Employee Name" htmlFor="term-name" required>
+                <input
+                  id="term-name"
+                  required
+                  value={terminationData.employeeName}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Employee Code" htmlFor="term-code">
+                <input
+                  id="term-code"
+                  value={terminationData.employeeCode}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Designation" htmlFor="term-designation" required>
+                <input
+                  id="term-designation"
+                  required
+                  value={terminationData.designation}
+                  readOnly
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Termination Details"
+              description="Provide details regarding the termination"
+            >
+              <FormField label="Termination / Last Working Day" htmlFor="term-date" required>
+                <input
+                  id="term-date"
+                  required
+                  type="date"
+                  value={terminationData.terminationDate}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      terminationDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              <FormField label="Reason for Termination" htmlFor="term-reason" fullWidth required>
+                <textarea
+                  id="term-reason"
+                  required
+                  rows={4}
+                  value={terminationData.reason}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      reason: e.target.value,
+                    })
+                  }
+                  placeholder="Describe the reason for termination"
+                />
+              </FormField>
+
+              <FormField label="Notice Period (payment in lieu)" htmlFor="term-notice" fullWidth>
+                <input
+                  id="term-notice"
+                  value={terminationData.noticePeriod}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      noticePeriod: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 1 month salary or leave blank"
+                />
+              </FormField>
+
+              <FormField label="Work Location / Site" htmlFor="term-location" fullWidth>
+                <input
+                  id="term-location"
+                  value={terminationData.workLocation}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      workLocation: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Gurgaon"
+                />
+              </FormField>
+
+              <FormField label="Client / Site Name" htmlFor="term-client" fullWidth>
+                <input
+                  id="term-client"
+                  value={terminationData.client}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      client: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. ABC Towers"
+                />
+              </FormField>
+
+              <FormField label="Settlement / F&F Reporting Date" htmlFor="term-settlement">
+                <input
+                  id="term-settlement"
+                  type="date"
+                  value={terminationData.settlementDate}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      settlementDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              <FormField label="Appointment Letter Clause No." htmlFor="term-clause">
+                <input
+                  id="term-clause"
+                  value={terminationData.noticeClause}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      noticeClause: e.target.value,
+                    })
+                  }
+                  placeholder='e.g. 7(B)'
+                />
+              </FormField>
             </FormSection>
           </EmpModal>
         ) : null}
