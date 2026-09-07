@@ -277,12 +277,11 @@ function Resignations() {
                   id: currentUser?.employeeId || currentUser?.id,
                   refModel: currentUser?.employeeId ? "Employee" : "User" 
                 },
-                ...checklistForm,
-                fnfAmount: Number(checklistForm.fnfAmount)
+                isKnowledgeTransferDone: checklistForm.isKnowledgeTransferDone
             };
             await updateResignation(approvingRecordId, payload);
             fetchAllData();
-            alert(`Checklist metrics successfully saved with configuration status: ${payload.status}.`);
+            alert(`Knowledge Transfer handover confirmed. Resignation moved to Verified for HR sign-off.`);
             handleModalClose();
         }
         setIsLoading(false)
@@ -453,7 +452,7 @@ function Resignations() {
                                 <>
                                   <button 
                                     className="exit-mgmt-btn-approve" 
-                                    title="Process Checklist Fields" 
+                                    title="Confirm KT Handover & Approve" 
                                     onClick={() => handleApproveOrEditClick(res, false)}
                                   >
                                     <CheckCircle size={15} />
@@ -679,7 +678,7 @@ function Resignations() {
 
         {showApproveModal ? (
           <ResModal
-            title={isHrFinalizing ? "Execute Absolute Exit Sign-off" : "Update Exit Checklist Configuration"}
+            title={isHrFinalizing ? "Execute Absolute Exit Sign-off" : "Manager KT Handover Approval"}
             onClose={handleModalClose}
             size="lg"
             footer={
@@ -698,18 +697,8 @@ function Resignations() {
             }
           >
             <form onSubmit={(e) => e.preventDefault()}>
-              <FormSection title="Clearance Criteria Checkmarks" description="Review separation checklist flags before completing action processing profiles">
+              <FormSection title="Knowledge Transfer (KT) Handover" description="Confirm whether the resigning employee has completed the knowledge transfer of their responsibilities to a designated receiver.">
                 <div className="exit-mgmt-checkbox-list">
-                  <label className="exit-mgmt-checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      name="isAssetRecovered" 
-                      checked={checklistForm.isAssetRecovered} 
-                      onChange={handleChecklistChange} 
-                    />
-                    <strong>Company Assets Recovered</strong>
-                  </label>
-
                   <label className="exit-mgmt-checkbox-label">
                     <input 
                       type="checkbox" 
@@ -719,79 +708,92 @@ function Resignations() {
                     />
                     <strong>Knowledge Transfer (KT) Handover Complete</strong>
                   </label>
-
-                  <label className="exit-mgmt-checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      name="isExitChecklistCleared" 
-                      checked={checklistForm.isExitChecklistCleared} 
-                      onChange={handleChecklistChange} 
-                    />
-                    <strong>Overall Exit Checklist Master Flag Cleared</strong>
-                  </label>
                 </div>
               </FormSection>
 
-              <FormSection title="Financial Ledger & Certificate Settings">
-                <FormField label="Asset Recovery Logging Notes" htmlFor="assetNotes" fullWidth>
-                  <input 
-                    id="assetNotes"
-                    type="text" 
-                    name="assetRecoveryNotes" 
-                    value={checklistForm.assetRecoveryNotes} 
-                    onChange={handleChecklistChange} 
-                    placeholder="Outstanding property tokens or hardware metrics..."
-                  />
-                </FormField>
-
-                <FormField label="Full & Final Settlement Status">
-                  <label className="exit-mgmt-checkbox-label exit-mgmt-checkbox-label--mt">
-                    <input 
-                      type="checkbox" 
-                      name="isFullAndFinalSettled" 
-                      checked={checklistForm.isFullAndFinalSettled} 
-                      onChange={handleChecklistChange} 
-                    />
-                    Settled
-                  </label>
-                </FormField>
-
-                <FormField label="F&F Calculation Value ($)">
-                  <input 
-                    type="number" 
-                    name="fnfAmount" 
-                    value={checklistForm.fnfAmount} 
-                    onChange={handleChecklistChange} 
-                    min="0"
-                  />
-                </FormField>
-
-                <div className="exit-mgmt-checkbox-group">
-                  <label className="exit-mgmt-checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      name="isExperienceLetterIssued" 
-                      checked={checklistForm.isExperienceLetterIssued} 
-                      onChange={handleChecklistChange} 
-                    />
-                    <strong>Issue Experience Letter</strong>
-                  </label>
-
-                  <label className="exit-mgmt-checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      name="isRelievingLetterIssued" 
-                      checked={checklistForm.isRelievingLetterIssued} 
-                      onChange={handleChecklistChange} 
-                    />
-                    <strong>Issue Relieving Letter</strong>
-                  </label>
-                </div>
-              </FormSection>
-
-             
               {isHrFinalizing && (
                 <>
+                  <FormSection title="Clearance Criteria Checkmarks" description="Review separation checklist flags before completing final settlement approval">
+                    <div className="exit-mgmt-checkbox-list">
+                      <label className="exit-mgmt-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          name="isAssetRecovered" 
+                          checked={checklistForm.isAssetRecovered} 
+                          onChange={handleChecklistChange} 
+                        />
+                        <strong>Company Assets Recovered</strong>
+                      </label>
+
+                      <label className="exit-mgmt-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          name="isExitChecklistCleared" 
+                          checked={checklistForm.isExitChecklistCleared} 
+                          onChange={handleChecklistChange} 
+                        />
+                        <strong>Overall Exit Checklist Master Flag Cleared</strong>
+                      </label>
+                    </div>
+                  </FormSection>
+
+                  <FormSection title="Financial Ledger & Certificate Settings">
+                    <FormField label="Asset Recovery Logging Notes" htmlFor="assetNotes" fullWidth>
+                      <input 
+                        id="assetNotes"
+                        type="text" 
+                        name="assetRecoveryNotes" 
+                        value={checklistForm.assetRecoveryNotes} 
+                        onChange={handleChecklistChange} 
+                        placeholder="Outstanding property tokens or hardware metrics..."
+                      />
+                    </FormField>
+
+                    <FormField label="Full & Final Settlement Status">
+                      <label className="exit-mgmt-checkbox-label exit-mgmt-checkbox-label--mt">
+                        <input 
+                          type="checkbox" 
+                          name="isFullAndFinalSettled" 
+                          checked={checklistForm.isFullAndFinalSettled} 
+                          onChange={handleChecklistChange} 
+                        />
+                        Settled
+                      </label>
+                    </FormField>
+
+                    <FormField label="F&F Calculation Value ($)">
+                      <input 
+                        type="number" 
+                        name="fnfAmount" 
+                        value={checklistForm.fnfAmount} 
+                        onChange={handleChecklistChange} 
+                        min="0"
+                      />
+                    </FormField>
+
+                    <div className="exit-mgmt-checkbox-group">
+                      <label className="exit-mgmt-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          name="isExperienceLetterIssued" 
+                          checked={checklistForm.isExperienceLetterIssued} 
+                          onChange={handleChecklistChange} 
+                        />
+                        <strong>Issue Experience Letter</strong>
+                      </label>
+
+                      <label className="exit-mgmt-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          name="isRelievingLetterIssued" 
+                          checked={checklistForm.isRelievingLetterIssued} 
+                          onChange={handleChecklistChange} 
+                        />
+                        <strong>Issue Relieving Letter</strong>
+                      </label>
+                    </div>
+                  </FormSection>
+
                   <FormField label="Final Settlement Date" htmlFor="finalSettlementDate" required fullWidth>
                     <input
                       id="finalSettlementDate"

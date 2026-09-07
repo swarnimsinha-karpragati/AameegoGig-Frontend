@@ -1692,7 +1692,10 @@ function Employees() {
 
                               <button
                                 type="button"
+                                disabled={!emp.isActive}
+                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
                                 onClick={() => {
+                                  if (!emp.isActive) return;
                                   setOpenDropdownId(null);
                                   setLetterEmployeeId(emp._id);
                                   setLetterData({
@@ -1713,7 +1716,10 @@ function Employees() {
 
                               <button
                                 type="button"
+                                disabled={!emp.isActive}
+                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
                                 onClick={() => {
+                                  if (!emp.isActive) return;
                                   setOpenDropdownId(null);
                                   setWarningData({
                                     employeeId: emp._id,
@@ -1735,7 +1741,10 @@ function Employees() {
 
                               <button
                                 type="button"
+                                disabled={!emp.isActive}
+                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
                                 onClick={() => {
+                                  if (!emp.isActive) return;
                                   setOpenDropdownId(null);
                                   setTerminationData({
                                     employeeId: emp._id,
