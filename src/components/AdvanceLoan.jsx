@@ -4,7 +4,6 @@ import {
     Clock3,
     CheckCircle2,
     Banknote,
-    Check,
     X,
     Users,
     RefreshCw,
@@ -15,6 +14,9 @@ import {
     Ban,
     Hourglass,
     Scale,
+    MoreVertical,
+    Eye,
+    XCircle,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
@@ -272,6 +274,18 @@ function RequestSummaryBlock({ request, showEmployee = false }) {
                 <span className="rs-label">Repayment Option</span>
                 <span className="rs-value">{getRepaymentLabel(request)}</span>
             </div>
+            {request.repaymentOption === "MONTHLY_INSTALLMENTS" && (
+                <div className="request-summary-row">
+                    <span className="rs-label">Monthly Installment</span>
+                    <span className="rs-value">
+                        {formatCurrency(request.approvedRepayment?.monthlyAmount || request.repaymentAmount || 0)}
+                        {" / month"}
+                        {(request.approvedRepayment?.totalInstallments || request.totalInstallments) > 0 && (
+                            <> for {(request.approvedRepayment?.totalInstallments || request.totalInstallments)} months</>
+                        )}
+                    </span>
+                </div>
+            )}
             <div className="request-summary-row">
                 <span className="rs-label">Requested Date</span>
                 <span className="rs-value">{formatDate(request.createdAt)}</span>
@@ -297,6 +311,7 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
         repaymentOption: "MONTHLY_INSTALLMENTS",
         totalInstallments: 0,
         tenure: 0,
+        repaymentAmount: "",
         isEmergency: false,
         priority: "MEDIUM",
         employeeId: "",
@@ -304,15 +319,13 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
 
     const [errors, setErrors] = useState({});
     const [monthlyBreakdown, setMonthlyBreakdown] = useState([]);
+    const [derivedMonths, setDerivedMonths] = useState(0);
+    const [showBreakdown, setShowBreakdown] = useState(false);
 
-    const maxTenure = loanConfig?.maxTenureMonths || 6;
-    const maxLoanTenure = loanConfig?.maxLoanTenureMonths || 12;
     const maxAdvanceAmount = loanConfig?.maxAdvanceAmount || 0;
     const maxLoanAmount = loanConfig?.maxLoanAmount || 0;
     const loanInterestRate = loanConfig?.loanInterestRate || 0;
     const isLoanInterestEnabled = loanConfig?.isLoanInterestEnabled !== false;
-    // Apply-time max tenure depends on requestType
-    const effectiveMaxTenureOneTime = formData.requestType === "LOAN" ? maxLoanTenure : maxTenure;
 
     useEffect(() => {
         if (!open) {
@@ -323,12 +336,14 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                 repaymentOption: "MONTHLY_INSTALLMENTS",
                 totalInstallments: 0,
                 tenure: 0,
+                repaymentAmount: "",
                 isEmergency: false,
                 priority: "MEDIUM",
                 employeeId: "",
             });
             setErrors({});
             setMonthlyBreakdown([]);
+            setDerivedMonths(0);
         }
     }, [open]);
 
@@ -345,69 +360,77 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
             const dueMonth = MONTHS[dueDate.getMonth()];
             const dueYear = dueDate.getFullYear();
             setMonthlyBreakdown([{ month: dueMonth, year: dueYear, amount: Math.round(amount * 100) / 100, interestAmount: Math.round(totalInterest * 100) / 100, isOneTimeDue: true }]);
-        } else if (isLoan && isLoanInterestEnabled && formData.totalInstallments > 0) {
-            const totalInterest = (amount * loanInterestRate) / 100;
-            const interestPerMonth = totalInterest / formData.totalInstallments;
-            const monthlyAmount = amount / formData.totalInstallments;
-            let cm = new Date().getMonth() + 1;
-            let cy = new Date().getFullYear();
-            const bd = [];
-            for (let i = 1; i <= formData.totalInstallments; i++) {
-                if (cm > 12) { cm = 1; cy += 1; }
-                bd.push({ month: MONTHS[cm - 1], year: cy, amount: Math.round(monthlyAmount * 100) / 100, interestAmount: Math.round(interestPerMonth * 100) / 100 });
-                cm += 1;
-            }
-            setMonthlyBreakdown(bd);
+            setShowBreakdown(true);
         } else {
             setMonthlyBreakdown([]);
+            setDerivedMonths(0);
+            setShowBreakdown(false);
         }
-    }, [formData.amount, formData.totalInstallments, formData.tenure, formData.requestType, formData.repaymentOption, isLoanInterestEnabled, loanInterestRate]);
+    }, [formData.amount, formData.tenure, formData.requestType, formData.repaymentOption, formData.repaymentAmount, isLoanInterestEnabled, loanInterestRate]);
+
+    const handleViewBreakup = () => {
+        const amount = Number(formData.amount) || 0;
+        if (amount <= 0 || !formData.repaymentAmount || Number(formData.repaymentAmount) <= 0) return;
+        const totalInterest = isLoan && isLoanInterestEnabled ? (amount * loanInterestRate) / 100 : 0;
+        const totalPayable = amount + totalInterest;
+        const monthlyAmt = Number(formData.repaymentAmount);
+        const numMonths = Math.max(1, Math.ceil(totalPayable / monthlyAmt));
+        const monthlyInterest = numMonths > 0 ? Math.round((totalInterest / numMonths) * 100) / 100 : 0;
+        let cm = new Date().getMonth() + 1;
+        let cy = new Date().getFullYear();
+        if (cm === 12) { cm = 1; cy += 1; } else { cm += 1; }
+        const bd = [];
+        for (let i = 1; i <= numMonths; i++) {
+            if (cm > 12) { cm = 1; cy += 1; }
+            const isLast = i === numMonths;
+            let totalM = Math.round(monthlyAmt * 100) / 100;
+            if (isLast) {
+                const accounted = totalM * (numMonths - 1);
+                totalM = Math.max(0, Math.round((totalPayable - accounted) * 100) / 100);
+            }
+            let interest_i = monthlyInterest;
+            if (isLast) {
+                interest_i = Math.max(0, Math.round((totalInterest - monthlyInterest * (numMonths - 1)) * 100) / 100);
+            }
+            const principal_i = Math.max(0, Math.round((totalM - interest_i) * 100) / 100);
+            bd.push({ month: MONTHS[cm - 1], year: cy, amount: principal_i, interestAmount: interest_i });
+            cm += 1;
+        }
+        setMonthlyBreakdown(bd);
+        setDerivedMonths(numMonths);
+        setShowBreakdown(true);
+    };
 
     const handleChange = (field) => (e) => {
         const rawValue = e.target.type === "checkbox" ? e.target.checked : e.target.value;
-        // compute next form state for live validation
-        const nextForm = { ...formData, [field]: rawValue };
-        const nextMaxTenure = loanConfig?.maxTenureMonths || 6;
-        const nextMaxLoanTenure = loanConfig?.maxLoanTenureMonths || 12;
-        const nextEffectiveOneTime = nextForm.requestType === "LOAN" ? nextMaxLoanTenure : nextMaxTenure;
+        const nextForm = {
+            ...formData,
+            [field]: rawValue,
+            // Loans are always repaid via monthly installments (no one-time option).
+            ...(field === "requestType" && rawValue === "LOAN" ? { repaymentOption: "MONTHLY_INSTALLMENTS" } : {}),
+        };
+        setFormData(nextForm);
 
-        setFormData((prev) => ({ ...prev, [field]: rawValue }));
-
-        // Live validation for tenure / totalInstallments on month select
+        // Live validation for amount and monthly installment amount.
         setErrors((prev) => {
             const next = { ...prev };
-            // clear current field error first, then re-validate
             if (next[field]) delete next[field];
-
-            if (field === "tenure" || field === "requestType" || field === "repaymentOption") {
-                const t = Number(nextForm.tenure);
-                if (nextForm.repaymentOption === "ONE_TIME" && t > 0) {
-                    if (t > nextEffectiveOneTime) next.tenure = `Maximum tenure is ${nextEffectiveOneTime} months ( ${nextEffectiveOneTime})`;
-                    else delete next.tenure;
+            if (nextForm.repaymentOption === "MONTHLY_INSTALLMENTS" && Number(nextForm.repaymentAmount) > 0) {
+                const totalInterest = nextForm.requestType === "LOAN" && isLoanInterestEnabled ? (Number(nextForm.amount || 0) * loanInterestRate) / 100 : 0;
+                const totalPayable = Number(nextForm.amount || 0) + totalInterest;
+                if (Number(nextForm.repaymentAmount) > totalPayable) {
+                    next.repaymentAmount = `Monthly amount cannot exceed total payable of ${formatCurrency(totalPayable)}`;
+                } else {
+                    delete next.repaymentAmount;
                 }
             }
-            if (field === "totalInstallments" || field === "requestType" || field === "repaymentOption") {
-                const ti = Number(nextForm.totalInstallments);
-                if (nextForm.repaymentOption === "MONTHLY_INSTALLMENTS" && ti > 0) {
-                    if (nextForm.requestType === "LOAN" && ti > nextMaxLoanTenure) {
-                        next.totalInstallments = `Maximum tenure for Loan is ${nextMaxLoanTenure} months ( ${nextMaxLoanTenure})`;
-                    } else if (nextForm.requestType === "ADVANCE" && ti > nextMaxTenure) {
-                        next.totalInstallments = `Maximum tenure is ${nextMaxTenure} months ( ${nextMaxTenure})`;
-                    } else {
-                        if (next.totalInstallments?.includes("Maximum tenure")) delete next.totalInstallments;
-                    }
-                }
-            }
-            // also re-validate the other field when requestType changes
-            if (field === "requestType") {
-                const ti = Number(nextForm.totalInstallments);
-                const t = Number(nextForm.tenure);
-                if (nextForm.repaymentOption === "MONTHLY_INSTALLMENTS" && ti > 0) {
-                    const limit = nextForm.requestType === "LOAN" ? nextMaxLoanTenure : nextMaxTenure;
-                    if (ti > limit) next.totalInstallments = nextForm.requestType === "LOAN" ? `Maximum tenure for Loan is ${limit} months ( ${limit})` : `Maximum tenure is ${limit} months ( ${limit})`;
-                }
-                if (nextForm.repaymentOption === "ONE_TIME" && t > 0 && t > nextEffectiveOneTime) {
-                    next.tenure = `Maximum tenure is ${nextEffectiveOneTime} months ( ${nextEffectiveOneTime})`;
+            if (nextForm.requestType && Number(nextForm.amount) > 0) {
+                if (nextForm.requestType === "ADVANCE" && maxAdvanceAmount > 0 && Number(nextForm.amount) > maxAdvanceAmount) {
+                    next.amount = `Advance cannot exceed ₹${maxAdvanceAmount.toLocaleString()}`;
+                } else if (nextForm.requestType === "LOAN" && maxLoanAmount > 0 && Number(nextForm.amount) > maxLoanAmount) {
+                    next.amount = `Loan cannot exceed ₹${maxLoanAmount.toLocaleString()}`;
+                } else {
+                    delete next.amount;
                 }
             }
             return next;
@@ -426,23 +449,18 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
         }
         if (!formData.reason || !formData.reason.trim()) newErrors.reason = "Reason is required";
         if (!formData.repaymentOption) newErrors.repaymentOption = "Repayment option is required";
-        if (formData.repaymentOption === "MONTHLY_INSTALLMENTS" && (!formData.totalInstallments || Number(formData.totalInstallments) <= 0)) {
-            newErrors.totalInstallments = "Total installments must be greater than 0";
-        }
-        // Max Tenure for Loan validation at apply time (MONTHLY_INSTALLMENTS)
-        if (formData.repaymentOption === "MONTHLY_INSTALLMENTS" && Number(formData.totalInstallments) > 0) {
-            if (formData.requestType === "LOAN" && Number(formData.totalInstallments) > maxLoanTenure) {
-                newErrors.totalInstallments = `Maximum tenure for Loan is ${maxLoanTenure} months`;
-            }
-            if (formData.requestType === "ADVANCE" && Number(formData.totalInstallments) > maxTenure) {
-                newErrors.totalInstallments = `Maximum tenure is ${maxTenure} months`;
+        if (formData.repaymentOption === "MONTHLY_INSTALLMENTS" && (!formData.repaymentAmount || Number(formData.repaymentAmount) <= 0)) {
+            newErrors.repaymentAmount = "Monthly installment amount must be greater than 0";
+        } else if (formData.repaymentOption === "MONTHLY_INSTALLMENTS" && Number(formData.repaymentAmount) > 0) {
+            const isLoan = formData.requestType === "LOAN";
+            const totalInterest = isLoan && isLoanInterestEnabled ? (Number(formData.amount) * loanInterestRate) / 100 : 0;
+            const totalPayable = Number(formData.amount) + totalInterest;
+            if (Number(formData.repaymentAmount) > totalPayable) {
+                newErrors.repaymentAmount = `Monthly amount cannot exceed total payable of ${formatCurrency(totalPayable)}`;
             }
         }
         if (formData.repaymentOption === "ONE_TIME" && (!formData.tenure || Number(formData.tenure) <= 0)) {
-            newErrors.tenure = `Tenure must be between 1 and ${effectiveMaxTenureOneTime} months`;
-        }
-        if (formData.repaymentOption === "ONE_TIME" && Number(formData.tenure) > effectiveMaxTenureOneTime) {
-            newErrors.tenure = `Maximum tenure is ${effectiveMaxTenureOneTime} months`;
+            newErrors.tenure = "Tenure must be greater than 0 months";
         }
         if (canApprove && !formData.employeeId) newErrors.employeeId = "Employee is required";
         setErrors(newErrors);
@@ -454,8 +472,9 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
         onSubmit({
             ...formData,
             amount: Number(formData.amount),
-            totalInstallments: Number(formData.totalInstallments) || 0,
+            totalInstallments: formData.repaymentOption === "MONTHLY_INSTALLMENTS" ? (derivedMonths || 0) : (Number(formData.totalInstallments) || 0),
             tenure: Number(formData.tenure) || 0,
+            repaymentAmount: Number(formData.repaymentAmount) || 0,
         });
     };
 
@@ -553,10 +572,12 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                         <div className="form-group">
                             <label>Repayment Option *</label>
                             <div className="radio-group">
-                                <label className="radio-label">
-                                    <input type="radio" value="ONE_TIME" checked={formData.repaymentOption === "ONE_TIME"} onChange={handleChange("repaymentOption")} />
-                                    One Time Payment
-                                </label>
+                                {!isLoan && (
+                                    <label className="radio-label">
+                                        <input type="radio" value="ONE_TIME" checked={formData.repaymentOption === "ONE_TIME"} onChange={handleChange("repaymentOption")} />
+                                        One Time Payment
+                                    </label>
+                                )}
                                 <label className="radio-label">
                                     <input type="radio" value="MONTHLY_INSTALLMENTS" checked={formData.repaymentOption === "MONTHLY_INSTALLMENTS"} onChange={handleChange("repaymentOption")} />
                                     Monthly Installments
@@ -571,35 +592,38 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                 <input
                                     type="number"
                                     className={`form-control ${errors.tenure ? "error" : ""}`}
-                                    placeholder={`Number of months (max ${effectiveMaxTenureOneTime})`}
+                                    placeholder="Number of months"
                                     value={formData.tenure}
                                     onChange={handleChange("tenure")}
                                     min="1"
-                                    max={effectiveMaxTenureOneTime}
                                 />
                                 {errors.tenure && <span className="form-error">{errors.tenure}</span>}
-                                <span className="form-hint">Maximum {effectiveMaxTenureOneTime} months{isLoan ? " (Max Tenure for Loan)" : " (Max Tenure for One-Time)"}</span>
+                                <span className="form-hint">Due after this many months. Manual repayment - not deducted from salary.</span>
                             </div>
                         )}
 
                         {showMonthlyInstallments && (
                             <div className="form-group">
-                                <label>Total Installments *</label>
+                                <label>Monthly Installment Amount (₹) *</label>
                                 <input
                                     type="number"
-                                    className={`form-control ${errors.totalInstallments ? "error" : ""}`}
-                                    placeholder={`Number of months (max ${isLoan ? maxLoanTenure : maxTenure})`}
-                                    value={formData.totalInstallments}
-                                    onChange={handleChange("totalInstallments")}
-                                    min="1"
-                                    max={isLoan ? maxLoanTenure : maxTenure}
+                                    className={`form-control ${errors.repaymentAmount ? "error" : ""}`}
+                                    placeholder="How much you can pay each month"
+                                    value={formData.repaymentAmount}
+                                    onChange={handleChange("repaymentAmount")}
+                                    min="0"
+                                    step="0.01"
                                 />
-                                {errors.totalInstallments && <span className="form-error">{errors.totalInstallments}</span>}
-                                <span className="form-hint">Maximum {isLoan ? maxLoanTenure : maxTenure} months{isLoan ? " (Max Tenure for Loan)" : ""}</span>
+                                {errors.repaymentAmount && <span className="form-error">{errors.repaymentAmount}</span>}
+                                <span className="form-hint">This amount is deducted from your salary each month. {formData.repaymentAmount > 0 && Number(formData.amount) > 0 && (
+                                    <button type="button" className="view-breakup-btn-inline" onClick={() => { if (showBreakdown) { setShowBreakdown(false); } else { handleViewBreakup(); } }}>
+                                        {showBreakdown ? "Hide Breakup" : "View Breakup"}
+                                    </button>
+                                )}</span>
                             </div>
                         )}
 
-                        {monthlyBreakdown.length > 0 && (
+                        {showBreakdown && monthlyBreakdown.length > 0 && (
                             <div className="breakdown-preview">
                                 <h4>{isOneTime ? "Due Preview (Manual Repayment - Not auto deducted from salary)" : "Monthly Breakdown Preview (Salary Deduction)"}</h4>
                                 {isOneTime && <p className="form-hint" style={{ marginBottom: "8px", color: "#dc2626" }}>One-time payment is manual - you can repay anytime within the tenure. {isLoan ? "Total amount with interest is due in the due month." : "Full amount is due in the due month (no interest)."}</p>}
@@ -607,8 +631,9 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                     <thead>
                                         <tr>
                                             <th>Month</th>
-                                            <th>Amount (₹)</th>
-                                            {showInterestInfo && <th>Interest (₹)</th>}
+                                            <th>Principal (₹)</th>
+                                            <th>Interest (₹)</th>
+                                            <th>Total (₹)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -616,13 +641,14 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                                             <tr key={idx}>
                                                 <td>{item.month} {item.year}</td>
                                                 <td className="amount-cell">{formatCurrency(item.amount)}</td>
-                                                {showInterestInfo && <td className="amount-cell">{formatCurrency(item.interestAmount)}</td>}
+                                                <td className="amount-cell">{formatCurrency(item.interestAmount)}</td>
+                                                <td className="amount-cell">{formatCurrency((item.amount || 0) + (item.interestAmount || 0))}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                                 <div className="breakdown-total">
-                                    <strong>Total Payable: {formatCurrency(monthlyBreakdown.reduce((s, i) => s + i.amount + (showInterestInfo ? i.interestAmount : 0), 0))}</strong>
+                                    <strong>Total Payable: {formatCurrency(monthlyBreakdown.reduce((s, i) => s + i.amount + (i.interestAmount || 0), 0))}</strong>
                                 </div>
                             </div>
                         )}
@@ -668,26 +694,60 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
         referenceNumber: "",
         remarks: "",
     });
+    const [selectedEmiIndex, setSelectedEmiIndex] = useState(null);
 
     useEffect(() => {
         if (request) {
-            let amount = "";
-            if (request.repaymentOption === "MONTHLY_INSTALLMENTS" && request.totalInstallments > 0) {
-                const totalPayable = request.totalPayableAmount || request.amount;
-                const monthlyAmount = totalPayable / request.totalInstallments;
-                if (Math.abs(request.remainingAmount - monthlyAmount) < 0.01 || request.remainingAmount >= monthlyAmount) {
-                    amount = monthlyAmount.toFixed(2);
-                }
-            }
-            setFormData((prev) => ({ ...prev, amount }));
+            // For monthly installments, we show upcoming EMIs to mark as paid
+            // rather than a free amount input. Reset the selection on open.
+            setSelectedEmiIndex(null);
+            setFormData((prev) => ({
+                ...prev,
+                amount: "",
+                paymentDate: new Date().toISOString().split("T")[0],
+                paymentMethod: "SALARY_DEDUCTION",
+                referenceNumber: "",
+                remarks: "",
+            }));
         }
     }, [request]);
+
+    const isMonthly = request?.repaymentOption === "MONTHLY_INSTALLMENTS";
+    const upcomingEmis = (request?.monthlyBreakdown || [])
+        .map((emi, idx) => ({ ...emi, idx }))
+        .filter((emi) => emi.status === "UPCOMING" || emi.status === "OVERDUE");
 
     const handleChange = (field) => (e) => {
         setFormData((prev) => ({ ...prev, [field]: e.target.value }));
     };
 
+    const selectEmi = (idx) => {
+        const emi = upcomingEmis.find((e) => e.idx === idx);
+        if (emi) {
+            const dueAmt = (emi.amount || 0) + (emi.interestAmount || 0);
+            setSelectedEmiIndex(idx);
+            setFormData((prev) => ({ ...prev, amount: dueAmt.toFixed(2) }));
+        }
+    };
+
     const handleSubmit = () => {
+        if (isMonthly) {
+            if (selectedEmiIndex === null) { alert("Please select an EMI to mark as paid"); return; }
+            const selected = upcomingEmis.find((e) => e.idx === selectedEmiIndex);
+            const amount = selected ? Number(((selected.amount || 0) + (selected.interestAmount || 0)).toFixed(2)) : 0;
+            if (!amount || amount <= 0) { alert("Please select a valid EMI"); return; }
+            onSubmit({
+                ...formData,
+                amount,
+                emiIndex: selectedEmiIndex,
+                paymentDate: formData.paymentDate,
+                paymentMethod: formData.paymentMethod,
+                referenceNumber: formData.referenceNumber || "",
+                remarks: formData.remarks || "",
+            });
+            return;
+        }
+
         const amount = Number(formData.amount);
         if (!amount || amount <= 0) { alert("Please enter a valid payment amount"); return; }
         if (request && amount > request.remainingAmount) {
@@ -711,35 +771,61 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
                 </div>
                 <div className="advance-modal-body">
                     <div className="payment-request-info">
-                        <div className="info-row">
-                            <span className="info-label">Employee - </span>
+                        <div className="info-item">
+                            <span className="info-label">Employee</span>
                             <span className="info-value">{request.employeeId?.name || "-"}</span>
                         </div>
-                        <div className="info-row">
-                            <span className="info-label">Type - </span>
+                        <div className="info-item">
+                            <span className="info-label">Type</span>
                             <span className="info-value">{getTypeLabel(request.requestType)}</span>
                         </div>
-                        <div className="info-row">
-                            <span className="info-label">Repayment - </span>
-                            <span className="info-value">{request.repaymentOption === "ONE_TIME" ? "One Time" : request.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${request.totalInstallments} Months` : "Custom"}</span>
+                        <div className="info-item">
+                            <span className="info-label">Repayment</span>
+                            <span className="info-value">{request.repaymentOption === "ONE_TIME" ? "One Time" : request.repaymentOption === "MONTHLY_INSTALLMENTS" ? `${request.totalInstallments} Months Installment` : "Custom"}</span>
                         </div>
-                        <div className="info-row">
-                            <span className="info-label">Remaining Amount - </span>
+                        <div className="info-item info-item-remaining">
+                            <span className="info-label">Remaining Amount</span>
                             <span className="info-value highlight">{formatCurrency(request.remainingAmount)}</span>
                         </div>
-                        {request.deductionMonth && (
-                            <div className="info-row">
-                                <span className="info-label">Next Deduction - </span>
-                                <span className="info-value">{formatDeductionMonth(request.deductionMonth)}</span>
-                            </div>
-                        )}
                     </div>
 
                     <div className="advance-form">
-                        <div className="form-group">
-                            <label>Amount *</label>
-                            <input type="number" className="form-control" placeholder="Enter payment amount" value={formData.amount} onChange={handleChange("amount")} min="0" step="0.01" />
-                        </div>
+                        {isMonthly ? (
+                            <div className="form-group">
+                                <label>Select Upcoming EMI to Mark as Paid *</label>
+                                {upcomingEmis.length === 0 ? (
+                                    <p className="form-hint">No upcoming EMIs to mark as paid.</p>
+                                ) : (
+                                    <div className="emi-list">
+                                        {upcomingEmis.map((emi) => {
+                                            const dueAmt = (emi.amount || 0) + (emi.interestAmount || 0);
+                                            const active = selectedEmiIndex === emi.idx;
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={emi.idx}
+                                                    className={`emi-item ${active ? "selected" : ""}`}
+                                                    onClick={() => selectEmi(emi.idx)}
+                                                >
+                                                    <span className="emi-month">{emi.month} {emi.year}</span>
+                                                    <span className="emi-amount">{formatCurrency(dueAmt)}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {formData.amount ? (
+                                    <span className="form-hint" style={{ display: "block", marginTop: "6px", fontWeight: 600, color: "#2563eb" }}>
+                                        Marking this EMI as paid for {formatCurrency(formData.amount)}
+                                    </span>
+                                ) : null}
+                            </div>
+                        ) : (
+                            <div className="form-group">
+                                <label>Amount *</label>
+                                <input type="number" className="form-control" placeholder="Enter payment amount" value={formData.amount} onChange={handleChange("amount")} min="0" step="0.01" />
+                            </div>
+                        )}
                         <div className="form-group">
                             <label>Payment Date *</label>
                             <input type="date" className="form-control" value={formData.paymentDate} onChange={handleChange("paymentDate")} max={new Date().toISOString().split("T")[0]} />
@@ -762,12 +848,13 @@ function PaymentModal({ open, onClose, request, onSubmit }) {
                 </div>
                 <div className="advance-modal-footer">
                     <button className="btn-secondary" onClick={onClose}>Cancel</button>
-                    <button className="btn-primary" onClick={handleSubmit}><Banknote size={16} /> Record Payment</button>
+                    <button className="btn-primary" onClick={handleSubmit}><Banknote size={16} /> {isMonthly ? "Mark as Paid" : "Record Payment"}</button>
                 </div>
             </div>
         </div>
     );
 }
+
 
 /* ===========================
     DETAIL MODAL
@@ -988,6 +1075,47 @@ function DetailModal({ open, onClose, request }) {
                             </div>
                         </div>
                     )}
+
+                    {/* Approved Repayment Plan (for employee to see what admin approved) */}
+                    {request.status !== "PENDING" && request.repaymentOption === "MONTHLY_INSTALLMENTS" && request.approvedRepayment && request.approvedRepayment.monthlyAmount > 0 && (
+                        <div className="detail-section">
+                            <h4>Approved Repayment Plan</h4>
+                            <div className="detail-info-grid">
+                                <div className="detail-info-row">
+                                    <span className="detail-info-label">Monthly Deduction</span>
+                                    <span className="detail-info-value">{formatCurrency(request.approvedRepayment.monthlyAmount)} / month</span>
+                                </div>
+                                <div className="detail-info-row">
+                                    <span className="detail-info-label">Number of Months</span>
+                                    <span className="detail-info-value">{request.approvedRepayment.totalInstallments} months</span>
+                                </div>
+                                {request.approvedRepayment.updatedAt && request.approvedRepayment.updatedAt !== request.approvedAt && (
+                                    <div className="detail-info-row">
+                                        <span className="detail-info-label">Last Updated By</span>
+                                        <span className="detail-info-value">{request.approvedRepayment.updatedBy?.name || "Admin"}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modification Log — shows admin changes to repayment so employee sees what changed */}
+                    {request.modificationLog && request.modificationLog.length > 0 && (
+                        <div className="detail-section">
+                            <h4>Repayment Changes</h4>
+                            <div className="detail-comments">
+                                {request.modificationLog.map((log, idx) => (
+                                    <div key={idx} className="detail-comment" style={{ borderLeft: "3px solid #f59e0b", paddingLeft: "12px" }}>
+                                        <div className="detail-comment-header">
+                                            <span className="detail-comment-author">{log.changedBy?.name || "Admin"}</span>
+                                            <span className="detail-comment-date">{formatDate(log.changedAt)}</span>
+                                        </div>
+                                        <div className="detail-comment-text">{log.note}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="advance-modal-footer">
                     <button className="btn-primary" onClick={onClose}>Close</button>
@@ -1011,7 +1139,7 @@ function AdvanceLoanInner() {
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [, setError] = useState("");
     const [showRequestForm, setShowRequestForm] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -1022,6 +1150,14 @@ function AdvanceLoanInner() {
     const [loanConfig, setLoanConfig] = useState(null);
     const [payrollWarning, setPayrollWarning] = useState("");
     const [formApiError, setFormApiError] = useState("");
+    const [openMenuId, setOpenMenuId] = useState(null);
+
+    // Close the row action dropdown when clicking anywhere outside it.
+    useEffect(() => {
+        const closeMenu = () => setOpenMenuId(null);
+        document.addEventListener("click", closeMenu);
+        return () => document.removeEventListener("click", closeMenu);
+    }, []);
 
     const [modal, setModal] = useState({
         open: false, title: "", message: "", confirmLabel: "Confirm", variant: "danger",
@@ -1290,7 +1426,7 @@ function AdvanceLoanInner() {
     const renderRequestTable = ({ title, items, showEmployee = false, showActions = false, actionMode = "owner" }) => (
         <section className="advance-card">
             <h3>{title}</h3>
-            <div style={{ overflowX: "auto" }}>
+            <div style={{ overflow: "visible" }}>
                 <table className="advance-table">
                     <thead><tr>
                         {showEmployee ? <th>Employee</th> : null}
@@ -1322,29 +1458,52 @@ function AdvanceLoanInner() {
                                     <td className="amount-cell">{formatCurrency(req.amount)}</td>
                                     <td>{getRepaymentLabel(req)}</td>
                                     <td>{formatDate(req.createdAt)}</td>
-                                    <td><span className={STATUS_CLASS[req.status] || "advance-status"}>{STATUS_LABELS[req.status] || req.status}</span></td>
+                                    <td>
+                                        <span className={STATUS_CLASS[req.status] || "advance-status"}>{STATUS_LABELS[req.status] || req.status}</span>
+                                        {req.status === "REJECTED" && (req.rejectionReason || req.reasonForRejection) && (
+                                            <span className="rejection-reason" title={(req.rejectionReason || req.reasonForRejection)}>Reason: {req.rejectionReason || req.reasonForRejection}</span>
+                                        )}
+                                    </td>
                                     <td><span className={getPriorityBadge(req.priority, req.status)}>{req.priority}</span></td>
                                     {showActions ? (
                                         <td>
-                                            <div className="advance-actions">
-                                                {canCancel && (
-                                                    <button className="action-btn cancel-btn" onClick={() => handleCancelRequest(req._id)}><X size={14} />Cancel</button>
-                                                )}
-                                                {canApproveAction && (actionMode === "approve" || actionMode === "full") && (
-                                                    <>
-                                                        <button className="action-btn approve-btn" onClick={() => handleApprove(req)}><Check size={14} />Approve</button>
-                                                        <button className="action-btn reject-btn" onClick={() => handleReject(req)}><X size={14} />Reject</button>
-                                                    </>
-                                                )}
-                                                {canRecordPayment && actionMode === "payment" && (
-                                                    <button className="action-btn payment-btn" onClick={() => { setSelectedRequest(req); setShowPaymentModal(true); }}><Banknote size={14} />Record Payment</button>
-                                                )}
-                                                {canView && (
-                                                    <button className="action-btn view-btn" onClick={() => handleViewDetails(req._id)}><Clock3 size={14} />View</button>
-                                                )}
+                                            <div className="advance-actions-cell">
                                                 {req.status === "PENDING" && isOwner && canCreate && (
                                                     <span className="awaiting-text">Awaiting approval</span>
                                                 )}
+                                                {(() => {
+                                                    const items = [];
+                                                    if (canCancel) {
+                                                        items.push({ key: "cancel", label: "Cancel", icon: <Ban size={14} />, cls: "menu-cancel", onClick: () => handleCancelRequest(req._id) });
+                                                    }
+                                                    if (canApproveAction && (actionMode === "approve" || actionMode === "full")) {
+                                                        items.push({ key: "approve", label: "Approve", icon: <CheckCircle2 size={14} />, cls: "menu-approve", onClick: () => handleApprove(req) });
+                                                        items.push({ key: "reject", label: "Reject", icon: <XCircle size={14} />, cls: "menu-reject", onClick: () => handleReject(req) });
+                                                    }
+                                                    if (canRecordPayment && actionMode === "payment") {
+                                                        items.push({ key: "payment", label: "Record Payment", icon: <Banknote size={14} />, cls: "", onClick: () => { setSelectedRequest(req); setShowPaymentModal(true); } });
+                                                    }
+                                                    if (canView) {
+                                                        items.push({ key: "view", label: "View", icon: <Eye size={14} />, cls: "menu-view", onClick: () => handleViewDetails(req._id) });
+                                                    }
+                                                    return (
+                                                        <div className={`advance-menu-wrap${openMenuId === req._id ? " open" : ""}`} onClick={(e) => e.stopPropagation()}>
+                                                            <button className="advance-menu-trigger" onClick={(e) => { e.stopPropagation(); setOpenMenuId((cur) => (cur === req._id ? null : req._id)); }} title="Actions" aria-label="Actions">
+                                                                <MoreVertical size={17} />
+                                                            </button>
+                                                            {openMenuId === req._id && items.length > 0 && (
+                                                                <div className="advance-dropdown">
+                                                                    {items.map((item) => (
+                                                                        <button key={item.key} className={`advance-dropdown-item ${item.cls}`} onClick={() => { setOpenMenuId(null); item.onClick(); }}>
+                                                                            {item.icon}
+                                                                            <span>{item.label}</span>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </td>
                                     ) : null}
@@ -1481,7 +1640,7 @@ function AdvanceLoanInner() {
         <MainLayout>
             <div className="advance-page">
                 {renderTabs()}
-                {error ? <p className="advance-error">{error}</p> : null}
+                {/* {error ? <p className="advance-error">{error}</p> : null} */}
                 {loading && !dashboard ? <p className="advance-empty">Loading data...</p> : (
                     activeTab === "config" ? (
                         <LoanConfiguration initialConfig={loanConfig} onConfigUpdate={(cfg) => setLoanConfig(cfg)} />

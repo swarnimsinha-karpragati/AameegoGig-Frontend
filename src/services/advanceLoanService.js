@@ -35,6 +35,11 @@ export const rejectRequest = async (id, body) => {
     return response.data;
 };
 
+export const updateRepayment = async (id, data) => {
+    const response = await API.put(`/advance-loan/requests/${id}/repayment`, data);
+    return response.data;
+};
+
 export const recordPayment = async (id, paymentData) => {
     const response = await API.post(`/advance-loan/requests/${id}/payments`, paymentData);
     return response.data;

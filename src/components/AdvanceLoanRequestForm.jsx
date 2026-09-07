@@ -12,6 +12,7 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
         repaymentOption: 'MONTHLY_INSTALLMENTS',
         totalInstallments: 0,
         tenure: 0,
+        repaymentAmount: '',
         isEmergency: false,
         priority: 'MEDIUM',
         employeeId: '',
@@ -20,14 +21,13 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
     const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({});
     const [monthlyBreakdown, setMonthlyBreakdown] = useState([]);
+    const [derivedMonths, setDerivedMonths] = useState(0);
+    const [showBreakdown, setShowBreakdown] = useState(false);
 
-    const maxTenure = loanConfig?.maxTenureMonths || 6;
-    const maxLoanTenure = loanConfig?.maxLoanTenureMonths || 12;
     const maxAdvanceAmount = loanConfig?.maxAdvanceAmount || 0;
     const maxLoanAmount = loanConfig?.maxLoanAmount || 0;
     const loanInterestRate = loanConfig?.loanInterestRate || 0;
     const isLoanInterestEnabled = loanConfig?.isLoanInterestEnabled !== false;
-    const effectiveMaxTenureOneTime = formData.requestType === 'LOAN' ? maxLoanTenure : maxTenure;
 
     useEffect(() => {
         if (!open) {
@@ -38,6 +38,7 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
                 repaymentOption: 'MONTHLY_INSTALLMENTS',
                 totalInstallments: 0,
                 tenure: 0,
+                repaymentAmount: '',
                 isEmergency: false,
                 priority: 'MEDIUM',
                 employeeId: '',
@@ -45,6 +46,7 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
             setErrors({});
             setTouched({});
             setMonthlyBreakdown([]);
+            setDerivedMonths(0);
         }
     }, [open]);
 
@@ -61,61 +63,79 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
             const dueMonth = months[dueDate.getMonth()];
             const dueYear = dueDate.getFullYear();
             setMonthlyBreakdown([{ month: dueMonth, year: dueYear, amount: Math.round(amount * 100) / 100, interestAmount: Math.round(totalInterest * 100) / 100, isOneTimeDue: true }]);
-        } else if (!isOneTime && formData.totalInstallments > 0 && isLoan && isLoanInterestEnabled && loanInterestRate > 0) {
-            const monthlyAmount = amount / (formData.totalInstallments || 6);
-            const totalInterest = (amount * loanInterestRate) / 100;
-            const interestPerMonth = totalInterest / (formData.totalInstallments || 6);
-            let currentMonth = new Date().getMonth() + 1;
-            let currentYear = new Date().getFullYear();
-            const breakdown = [];
-            for (let i = 1; i <= (formData.totalInstallments || 6); i++) {
-                if (currentMonth > 12) { currentMonth = 1; currentYear += 1; }
-                breakdown.push({ month: months[currentMonth - 1], year: currentYear, amount: Math.round(monthlyAmount * 100) / 100, interestAmount: Math.round(interestPerMonth * 100) / 100 });
-                currentMonth += 1;
-            }
-            setMonthlyBreakdown(breakdown);
+            setShowBreakdown(true);
         } else {
             setMonthlyBreakdown([]);
+            setDerivedMonths(0);
+            setShowBreakdown(false);
         }
-    }, [formData.amount, formData.totalInstallments, formData.tenure, formData.requestType, formData.repaymentOption, isLoanInterestEnabled, loanInterestRate]);
+    }, [formData.amount, formData.tenure, formData.requestType, formData.repaymentOption, formData.repaymentAmount, isLoanInterestEnabled, loanInterestRate]);
+
+    const handleViewBreakup = () => {
+        const amount = Number(formData.amount) || 0;
+        if (amount <= 0 || !formData.repaymentAmount || Number(formData.repaymentAmount) <= 0) return;
+        const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+        const totalInterest = isLoan && isLoanInterestEnabled ? (amount * loanInterestRate) / 100 : 0;
+        const totalPayable = amount + totalInterest;
+        const monthlyAmount = Number(formData.repaymentAmount);
+        const numMonths = Math.max(1, Math.ceil(totalPayable / monthlyAmount));
+        const monthlyInterest = numMonths > 0 ? Math.round((totalInterest / numMonths) * 100) / 100 : 0;
+        let currentMonth = new Date().getMonth() + 1;
+        let currentYear = new Date().getFullYear();
+        if (currentMonth === 12) { currentMonth = 1; currentYear += 1; } else { currentMonth += 1; }
+        const breakdown = [];
+        for (let i = 1; i <= numMonths; i++) {
+            if (currentMonth > 12) { currentMonth = 1; currentYear += 1; }
+            const isLast = i === numMonths;
+            let totalM = Math.round(monthlyAmount * 100) / 100;
+            if (isLast) {
+                const accounted = totalM * (numMonths - 1);
+                totalM = Math.max(0, Math.round((totalPayable - accounted) * 100) / 100);
+            }
+            let interest_i = monthlyInterest;
+            if (isLast) {
+                interest_i = Math.max(0, Math.round((totalInterest - monthlyInterest * (numMonths - 1)) * 100) / 100);
+            }
+            const principal_i = Math.max(0, Math.round((totalM - interest_i) * 100) / 100);
+            breakdown.push({ month: months[currentMonth - 1], year: currentYear, amount: principal_i, interestAmount: interest_i });
+            currentMonth += 1;
+        }
+        setMonthlyBreakdown(breakdown);
+        setDerivedMonths(numMonths);
+        setShowBreakdown(true);
+    };
 
     const handleChange = (field) => (e) => {
         const rawValue = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-        const nextForm = { ...formData, [field]: rawValue };
-        const nextMaxTenure = loanConfig?.maxTenureMonths || 6;
-        const nextMaxLoanTenure = loanConfig?.maxLoanTenureMonths || 12;
-        const nextEffectiveOneTime = nextForm.requestType === 'LOAN' ? nextMaxLoanTenure : nextMaxTenure;
-        setFormData((prev) => ({
-            ...prev,
+        const nextForm = {
+            ...formData,
             [field]: rawValue,
-        }));
-        // live validation - show red error immediately when month selected exceeds admin limit
+            // Loans are always repaid via monthly installments (no one-time option).
+            ...(field === 'requestType' && rawValue === 'LOAN' ? { repaymentOption: 'MONTHLY_INSTALLMENTS' } : {}),
+        };
+        setFormData(nextForm);
         setErrors((prev) => {
             const next = { ...prev };
             if (next[field]) delete next[field];
-            if (field === 'tenure' || field === 'requestType' || field === 'repaymentOption') {
-                const t = Number(nextForm.tenure);
-                if (nextForm.repaymentOption === 'ONE_TIME' && t > 0) {
-                    if (t > nextEffectiveOneTime) next.tenure = `Maximum tenure is ${nextEffectiveOneTime} months ( ${nextEffectiveOneTime})`;
-                    else delete next.tenure;
+            // Live validation: monthly installment cannot exceed total payable.
+            if (nextForm.repaymentOption === 'MONTHLY_INSTALLMENTS' && Number(nextForm.repaymentAmount) > 0) {
+                const totalInterest = nextForm.requestType === 'LOAN' && isLoanInterestEnabled ? (Number(nextForm.amount || 0) * loanInterestRate) / 100 : 0;
+                const totalPayable = Number(nextForm.amount || 0) + totalInterest;
+                if (Number(nextForm.repaymentAmount) > totalPayable) {
+                    next.repaymentAmount = `Monthly amount cannot exceed total payable of ₹${totalPayable.toLocaleString()}`;
+                } else {
+                    delete next.repaymentAmount;
                 }
             }
-            if (field === 'totalInstallments' || field === 'requestType' || field === 'repaymentOption') {
-                const ti = Number(nextForm.totalInstallments);
-                if (nextForm.repaymentOption === 'MONTHLY_INSTALLMENTS' && ti > 0) {
-                    if (nextForm.requestType === 'LOAN' && ti > nextMaxLoanTenure) next.totalInstallments = `Maximum tenure for Loan is ${nextMaxLoanTenure} months ( ${nextMaxLoanTenure})`;
-                    else if (nextForm.requestType === 'ADVANCE' && ti > nextMaxTenure) next.totalInstallments = `Maximum tenure is ${nextMaxTenure} months ( ${nextMaxTenure})`;
-                    else if (next.totalInstallments?.includes('Maximum tenure')) delete next.totalInstallments;
+            // Live validation: amount must be positive / within caps.
+            if (nextForm.requestType && Number(nextForm.amount) > 0) {
+                if (nextForm.requestType === 'ADVANCE' && maxAdvanceAmount > 0 && Number(nextForm.amount) > maxAdvanceAmount) {
+                    next.amount = `Advance cannot exceed ₹${maxAdvanceAmount.toLocaleString()}`;
+                } else if (nextForm.requestType === 'LOAN' && maxLoanAmount > 0 && Number(nextForm.amount) > maxLoanAmount) {
+                    next.amount = `Loan cannot exceed ₹${maxLoanAmount.toLocaleString()}`;
+                } else {
+                    delete next.amount;
                 }
-            }
-            if (field === 'requestType') {
-                const ti = Number(nextForm.totalInstallments);
-                const t = Number(nextForm.tenure);
-                if (nextForm.repaymentOption === 'MONTHLY_INSTALLMENTS' && ti > 0) {
-                    const limit = nextForm.requestType === 'LOAN' ? nextMaxLoanTenure : nextMaxTenure;
-                    if (ti > limit) next.totalInstallments = nextForm.requestType === 'LOAN' ? `Maximum tenure for Loan is ${limit} months ( ${limit})` : `Maximum tenure is ${limit} months ( ${limit})`;
-                }
-                if (nextForm.repaymentOption === 'ONE_TIME' && t > 0 && t > nextEffectiveOneTime) next.tenure = `Maximum tenure is ${nextEffectiveOneTime} months ( ${nextEffectiveOneTime})`;
             }
             return next;
         });
@@ -149,24 +169,22 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
             case 'repaymentOption':
                 if (!value) newErrors.repaymentOption = 'Repayment option is required';
                 break;
-            case 'totalInstallments':
+            case 'repaymentAmount':
                 if (formData.repaymentOption === 'MONTHLY_INSTALLMENTS' && (!value || Number(value) <= 0)) {
-                    newErrors.totalInstallments = 'Total installments must be greater than 0';
+                    newErrors.repaymentAmount = 'Monthly installment amount must be greater than 0';
                 } else if (formData.repaymentOption === 'MONTHLY_INSTALLMENTS' && Number(value) > 0) {
-                    if (formData.requestType === 'LOAN' && Number(value) > maxLoanTenure) {
-                        newErrors.totalInstallments = `Maximum tenure for Loan is ${maxLoanTenure} months`;
-                    } else if (formData.requestType === 'ADVANCE' && Number(value) > maxTenure) {
-                        newErrors.totalInstallments = `Maximum tenure is ${maxTenure} months`;
+                    const totalInterest = formData.requestType === 'LOAN' && isLoanInterestEnabled ? (formData.amount * loanInterestRate) / 100 : 0;
+                    const totalPayable = Number(formData.amount || 0) + totalInterest;
+                    if (Number(value) > totalPayable) {
+                        newErrors.repaymentAmount = `Monthly amount cannot exceed total payable of ₹${totalPayable.toLocaleString()}`;
                     } else {
-                        delete newErrors.totalInstallments;
+                        delete newErrors.repaymentAmount;
                     }
                 }
                 break;
             case 'tenure':
                 if (formData.repaymentOption === 'ONE_TIME' && (!value || Number(value) <= 0)) {
-                    newErrors.tenure = `Tenure must be between 1 and ${effectiveMaxTenureOneTime} months`;
-                } else if (formData.repaymentOption === 'ONE_TIME' && Number(value) > effectiveMaxTenureOneTime) {
-                    newErrors.tenure = `Maximum tenure is ${effectiveMaxTenureOneTime} months`;
+                    newErrors.tenure = 'Tenure must be greater than 0 months';
                 }
                 break;
             case 'employeeId':
@@ -187,21 +205,17 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
         if (!formData.amount || Number(formData.amount) <= 0) newErrors.amount = 'Amount must be greater than 0';
         if (!formData.reason || !formData.reason.trim()) newErrors.reason = 'Reason is required';
         if (!formData.repaymentOption) newErrors.repaymentOption = 'Repayment option is required';
-        if (formData.repaymentOption === 'MONTHLY_INSTALLMENTS' && (!formData.totalInstallments || Number(formData.totalInstallments) <= 0)) {
-            newErrors.totalInstallments = 'Total installments must be greater than 0';
-        }
-        if (formData.repaymentOption === 'MONTHLY_INSTALLMENTS' && Number(formData.totalInstallments) > 0) {
-            if (formData.requestType === 'LOAN' && Number(formData.totalInstallments) > maxLoanTenure) {
-                newErrors.totalInstallments = `Maximum tenure for Loan is ${maxLoanTenure} months`;
-            } else if (formData.requestType === 'ADVANCE' && Number(formData.totalInstallments) > maxTenure) {
-                newErrors.totalInstallments = `Maximum tenure is ${maxTenure} months`;
+        if (formData.repaymentOption === 'MONTHLY_INSTALLMENTS' && (!formData.repaymentAmount || Number(formData.repaymentAmount) <= 0)) {
+            newErrors.repaymentAmount = 'Monthly installment amount must be greater than 0';
+        } else if (formData.repaymentOption === 'MONTHLY_INSTALLMENTS' && Number(formData.repaymentAmount) > 0) {
+            const totalInterest = formData.requestType === 'LOAN' && isLoanInterestEnabled ? (formData.amount * loanInterestRate) / 100 : 0;
+            const totalPayable = Number(formData.amount) + totalInterest;
+            if (Number(formData.repaymentAmount) > totalPayable) {
+                newErrors.repaymentAmount = `Monthly amount cannot exceed total payable of ₹${totalPayable.toLocaleString()}`;
             }
         }
         if (formData.repaymentOption === 'ONE_TIME' && (!formData.tenure || Number(formData.tenure) <= 0)) {
-            newErrors.tenure = `Tenure must be between 1 and ${effectiveMaxTenureOneTime} months`;
-        }
-        if (formData.repaymentOption === 'ONE_TIME' && Number(formData.tenure) > effectiveMaxTenureOneTime) {
-            newErrors.tenure = `Maximum tenure is ${effectiveMaxTenureOneTime} months`;
+            newErrors.tenure = 'Tenure must be greater than 0 months';
         }
         if (canApprove && !formData.employeeId) newErrors.employeeId = 'Employee is required';
 
@@ -215,8 +229,9 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
         const submitData = {
             ...formData,
             amount: Number(formData.amount),
-            totalInstallments: Number(formData.totalInstallments) || 0,
+            totalInstallments: formData.repaymentOption === 'MONTHLY_INSTALLMENTS' ? (derivedMonths || 0) : (Number(formData.totalInstallments) || 0),
             tenure: Number(formData.tenure) || 0,
+            repaymentAmount: Number(formData.repaymentAmount) || 0,
         };
 
         onSubmit(submitData);
@@ -258,7 +273,7 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
 
                 <div className="alf-modal-body">
                     {apiError && (
-                        <div style={{display:"flex", alignItems:"center", gap:"8px", background:"#fef2f2", border:"1px solid #fecaca", borderLeft:"4px solid #dc2626", color:"#dc2626", padding:"12px 16px", borderRadius:"10px", marginBottom:"16px", fontSize:"0.875rem", fontWeight:600}}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#fef2f2", border: "1px solid #fecaca", borderLeft: "4px solid #dc2626", color: "#dc2626", padding: "12px 16px", borderRadius: "10px", marginBottom: "16px", fontSize: "0.875rem", fontWeight: 600 }}>
                             <AlertCircle size={16} />
                             <span>{apiError}</span>
                         </div>
@@ -367,15 +382,17 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
                         <div className="alf-form-group">
                             <label className="alf-label">Repayment Option *</label>
                             <div className="alf-radio-options">
-                                <label className="alf-radio-option">
-                                    <input
-                                        type="radio"
-                                        value="ONE_TIME"
-                                        checked={formData.repaymentOption === 'ONE_TIME'}
-                                        onChange={handleChange('repaymentOption')}
-                                    />
-                                    <span>One Time Payment</span>
-                                </label>
+                                {!isLoan && (
+                                    <label className="alf-radio-option">
+                                        <input
+                                            type="radio"
+                                            value="ONE_TIME"
+                                            checked={formData.repaymentOption === 'ONE_TIME'}
+                                            onChange={handleChange('repaymentOption')}
+                                        />
+                                        <span>One Time Payment</span>
+                                    </label>
+                                )}
                                 <label className="alf-radio-option">
                                     <input
                                         type="radio"
@@ -397,51 +414,58 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
                                 <input
                                     type="number"
                                     className={`alf-input ${errors.tenure ? 'alf-error' : ''}`}
-                                    placeholder={`Number of months (max ${effectiveMaxTenureOneTime})`}
+                                    placeholder="Number of months"
                                     value={formData.tenure}
                                     onChange={handleChange('tenure')}
                                     onBlur={handleBlur('tenure')}
                                     min="1"
-                                    max={effectiveMaxTenureOneTime}
                                 />
                                 {errors.tenure && (
                                     <span className="alf-error-text">{errors.tenure}</span>
                                 )}
-                                <span className="alf-hint-text">Maximum {effectiveMaxTenureOneTime} months allowed{isLoan ? " (Max Tenure for Loan)" : ""}</span>
+                                <span className="alf-hint-text">Due after this many months. Manual repayment - not deducted from salary.</span>
                             </div>
                         )}
 
                         {showMonthlyInstallments && (
                             <div className="alf-form-group">
-                                <label className="alf-label">Total Installments *</label>
-                                <input
-                                    type="number"
-                                    className={`alf-input ${errors.totalInstallments ? 'alf-error' : ''}`}
-                                    placeholder={`Number of months (max ${isLoan ? maxLoanTenure : maxTenure})`}
-                                    value={formData.totalInstallments}
-                                    onChange={handleChange('totalInstallments')}
-                                    onBlur={handleBlur('totalInstallments')}
-                                    min="1"
-                                    max={isLoan ? maxLoanTenure : maxTenure}
-                                />
-                                {errors.totalInstallments && (
-                                    <span className="alf-error-text">{errors.totalInstallments}</span>
+                                <label className="alf-label">Monthly Installment Amount (₹) *</label>
+                                <div className="alf-input-wrapper">
+                                    <span className="alf-input-prefix">₹</span>
+                                    <input
+                                        type="number"
+                                        className={`alf-input alf-input-with-prefix ${errors.repaymentAmount ? 'alf-error' : ''}`}
+                                        placeholder="How much you can pay each month"
+                                        value={formData.repaymentAmount}
+                                        onChange={handleChange('repaymentAmount')}
+                                        onBlur={handleBlur('repaymentAmount')}
+                                        min="0"
+                                        step="0.01"
+                                    />
+                                </div>
+                                {errors.repaymentAmount && (
+                                    <span className="alf-error-text">{errors.repaymentAmount}</span>
                                 )}
-                                <span className="alf-hint-text">Maximum {isLoan ? maxLoanTenure : maxTenure} months{isLoan ? " (Max Tenure for Loan)" : ""}</span>
+                                <span className="alf-hint-text">This amount will be deducted from your salary each month. {formData.repaymentAmount > 0 && Number(formData.amount) > 0 && (
+                                    <button type="button" className="view-breakup-btn-inline" onClick={() => { if (showBreakdown) { setShowBreakdown(false); } else { handleViewBreakup(); } }}>
+                                        {showBreakdown ? "Hide Breakup" : "View Breakup"}
+                                    </button>
+                                )}</span>
                             </div>
                         )}
 
-                        {monthlyBreakdown.length > 0 && (
+                        {showBreakdown && monthlyBreakdown.length > 0 && (
                             <div className="alf-breakdown-preview">
                                 <h4>{isOneTime ? "Due Preview (Manual Repayment - Not auto deducted)" : "Monthly Breakdown Preview (Salary Deduction)"}</h4>
-                                {isOneTime && <p className="alf-hint-text" style={{marginBottom:"8px", color:"#dc2626"}}>One-time payment is manual - you can repay anytime within the tenure. {isLoan ? "Total amount with interest is due in the due month." : "Full amount is due in the due month (no interest)."}</p>}
+                                {isOneTime && <p className="alf-hint-text" style={{ marginBottom: "8px", color: "#dc2626" }}>One-time payment is manual - you can repay anytime within the tenure. {isLoan ? "Total amount with interest is due in the due month." : "Full amount is due in the due month (no interest)."}</p>}
                                 <div className="alf-breakdown-table">
                                     <table>
                                         <thead>
                                             <tr>
                                                 <th>Month</th>
-                                                <th>Amount (₹)</th>
-                                                {isLoan && showInterestInfo && <th>Interest (₹)</th>}
+                                                <th>Principal (₹)</th>
+                                                <th>Interest (₹)</th>
+                                                <th>Total (₹)</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -449,16 +473,15 @@ const AdvanceLoanRequestForm = ({ open, onClose, onSubmit, employees = [], canAp
                                                 <tr key={idx}>
                                                     <td>{item.month} {item.year}</td>
                                                     <td className="amount-cell">₹{item.amount.toLocaleString()}</td>
-                                                    {isLoan && showInterestInfo && (
-                                                        <td className="amount-cell">₹{item.interestAmount.toLocaleString()}</td>
-                                                    )}
+                                                    <td className="amount-cell">₹{(item.interestAmount || 0).toLocaleString()}</td>
+                                                    <td className="amount-cell">₹{((item.amount || 0) + (item.interestAmount || 0)).toLocaleString()}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
                                 <div className="alf-breakdown-total">
-                                    <strong>Total Payable: ₹{monthlyBreakdown.reduce((sum, item) => sum + item.amount + (isLoan ? item.interestAmount : 0), 0).toLocaleString()}</strong>
+                                    <strong>Total Payable: ₹{monthlyBreakdown.reduce((sum, item) => sum + item.amount + (item.interestAmount || 0), 0).toLocaleString()}</strong>
                                 </div>
                             </div>
                         )}

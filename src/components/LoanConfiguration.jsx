@@ -1,16 +1,23 @@
 import { useState, useEffect, useRef } from "react";
-import { Save, IndianRupee, Clock, AlertTriangle } from "lucide-react";
+import { Save, IndianRupee, Clock, AlertTriangle, Wallet, Percent, ToggleRight } from "lucide-react";
 import { getLoanConfig, updateLoanConfig } from "../services/advanceLoanService";
 import { ToastProvider, useToast } from "../components/Toast";
-import Card from "../components/Card";
 
 function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
     const toast = useToast();
     const hasFetched = useRef(false);
+    const successTimer = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (successTimer.current) clearTimeout(successTimer.current);
+        };
+    }, []);
     const [config, setConfig] = useState(initialConfig || null);
     const [loading, setLoading] = useState(!initialConfig);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [success, setSuccess] = useState(false);
     const [formData, setFormData] = useState(initialConfig ? {
         loanInterestRate: initialConfig.loanInterestRate || 0,
         maxAdvanceAmount: initialConfig.maxAdvanceAmount || 0,
@@ -100,11 +107,16 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
         const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
         setFormData((prev) => ({ ...prev, [field]: value }));
         if (error) setError("");
+        if (success) {
+            setSuccess(false);
+            if (successTimer.current) clearTimeout(successTimer.current);
+        }
     };
 
     const handleSave = async () => {
         setSaving(true);
         setError("");
+        setSuccess(false);
         try {
             const payload = {
                 ...formData,
@@ -134,6 +146,9 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
                 });
                 if (onConfigUpdate) onConfigUpdate(res.config);
                 toast.success("Loan configuration updated successfully");
+                setSuccess(true);
+                if (successTimer.current) clearTimeout(successTimer.current);
+                successTimer.current = setTimeout(() => setSuccess(false), 3500);
                 setError("");
             }
         } catch (err) {
@@ -167,7 +182,10 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
                     <p className="loan-config-subtitle">Configure interest rates, limits, and advance/loan settings</p>
                 </div>
                 <div className="loan-config-header-actions">
-                    <button className="btn-secondary" onClick={handleSave} disabled={saving}><Save size={16} />{saving ? "Saving..." : "Save Configuration"}</button>
+                    <button className="btn-secondary loan-save-btn" onClick={handleSave} disabled={saving}>
+                        {saving ? <span className="loan-save-spinner"></span> : <Save size={16} />}
+                        {saving ? "Saving..." : "Save Configuration"}
+                    </button>
                 </div>
             </div>
             {error && (
@@ -179,9 +197,15 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
 
             {config && (
                 <div className="loan-config-grid">
-                    <Card icon={<IndianRupee size={22} />} iconClassName="blue">
-                        <Card.Header>Loan Settings</Card.Header>
-                        <Card.Body>
+                    <div className="lcfg-card">
+                        <div className="lcfg-card-head">
+                            <div className="lcfg-card-icon blue"><IndianRupee size={20} /></div>
+                            <div className="lcfg-card-head-text">
+                                <h3 className="lcfg-card-title">Loan Settings</h3>
+                                <p className="lcfg-card-sub">Interest rate and loan repayment limits</p>
+                            </div>
+                        </div>
+                        <div className="lcfg-card-body">
                             <div className="loan-config-section">
                                 <div className="loan-config-group">
                                     <label>Max Loan Amount (₹)</label>
@@ -217,30 +241,31 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
                                     <span className="loan-hint">Label shown as deduction in salary slip for loan repayments (default: Loan Deduction)</span>
                                 </div>
                             </div>
-                        </Card.Body>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <Card icon={<IndianRupee size={22} />} iconClassName="green">
-                        <Card.Header>Advance Settings</Card.Header>
-                        <Card.Body>
+                    <div className="lcfg-card">
+                        <div className="lcfg-card-head">
+                            <div className="lcfg-card-icon green"><Wallet size={20} /></div>
+                            <div className="lcfg-card-head-text">
+                                <h3 className="lcfg-card-title">Advance Settings</h3>
+                                <p className="lcfg-card-sub">Advance amount and monthly CTC limits</p>
+                            </div>
+                        </div>
+                        <div className="lcfg-card-body">
                             <div className="loan-config-section">
                                 <div className="loan-config-group">
                                     <label>Max Advance Amount (₹)</label>
                                     <input type="number" className="loan-input" value={formData.maxAdvanceAmount} onChange={handleChange("maxAdvanceAmount")} min="0" placeholder="0 = No limit" />
-                                    <span className="loan-hint">{maxAdvanceDisplay}</span>
+                                    <span className="loan-hint">{maxAdvanceDisplay} — fixed cap on advance amount</span>
                                 </div>
                                 <div className="loan-config-group">
                                     <label>Advance Limit (% of Monthly CTC)</label>
-                                    <input type="number" className="loan-input" value={formData.maxAdvancePercentOfCTC} onChange={handleChange("maxAdvancePercentOfCTC")} min="0" max="100" />
-                                    <span className="loan-hint">Advance amount cannot exceed this % of employee monthly CTC</span>
-                                </div>
-                                <div className="loan-config-group">
-                                    <label>Max Tenure for One-Time (Months)</label>
                                     <div className="loan-input-wrapper">
-                                        <input type="number" className="loan-input" value={formData.maxTenureMonths} onChange={handleChange("maxTenureMonths")} min="1" placeholder="Default 6" />
-                                        <span className="loan-input-suffix"><Clock size={16} /></span>
+                                        <input type="number" className="loan-input" value={formData.maxAdvancePercentOfCTC} onChange={handleChange("maxAdvancePercentOfCTC")} min="0" max="100" />
+                                        <span className="loan-input-suffix"><Percent size={16} /></span>
                                     </div>
-                                    <span className="loan-hint">Maximum months for One Time repayment option (default 6)</span>
+                                    <span className="loan-hint">Advance cannot exceed this % of the employee's MONTHLY salary. If both a fixed cap and % are set, the lower of the two applies.</span>
                                 </div>
                                 <div className="loan-config-group">
                                     <label>Salary Earnings Label (Advance)</label>
@@ -248,28 +273,33 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
                                     <span className="loan-hint">Label shown as deduction in salary slip for advance repayments (default: Advance Deduction)</span>
                                 </div>
                             </div>
-                        </Card.Body>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <Card icon={<AlertTriangle size={22} />} iconClassName="orange">
-                        <Card.Header>Module Toggles</Card.Header>
-                        <Card.Body>
+                    <div className="lcfg-card">
+                        <div className="lcfg-card-head">
+                            <div className="lcfg-card-icon orange"><ToggleRight size={20} /></div>
+                            <div className="lcfg-card-head-text">
+                                <h3 className="lcfg-card-title">Module Toggles</h3>
+                                <p className="lcfg-card-sub">Enable or disable advance / loan requests</p>
+                            </div>
+                        </div>
+                        <div className="lcfg-card-body">
                             <div className="loan-config-section">
                                 <div className="loan-config-group">
+                                    <label>Requests</label>
                                     <label className="loan-checkbox">
                                         <input type="checkbox" checked={formData.isAdvanceAllowed} onChange={handleChange("isAdvanceAllowed")} />
                                         <span>Advance Requests Allowed</span>
                                     </label>
-                                </div>
-                                <div className="loan-config-group">
                                     <label className="loan-checkbox">
                                         <input type="checkbox" checked={formData.isLoanAllowed} onChange={handleChange("isLoanAllowed")} />
                                         <span>Loan Requests Allowed</span>
                                     </label>
                                 </div>
                             </div>
-                        </Card.Body>
-                    </Card>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
