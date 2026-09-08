@@ -47,7 +47,7 @@ function AttendanceCalendar({
               onClick={() => onDaySelect(cell.day)}
               aria-label={`Day ${cell.day}${cell.holiday ? `, ${cell.holiday.name}` : ""}${
                 cell.weekOff ? `, ${cell.weekOff.dayName} week off` : ""
-              }${cell.status === "leave" ? ", Leave" : ""}${
+              }${cell.status === "leave" ? `, ${cell.leaveLabel || "Leave"}` : ""}${
                 cell.status === "wfh" ? ", Work From Home" : ""
               }`}
               title={
@@ -56,7 +56,7 @@ function AttendanceCalendar({
                   : cell.weekOff
                   ? `${cell.weekOff.dayName} — Weekly Off`
                   : cell.status === "leave"
-                  ? "Leave"
+                  ? cell.leaveLabel || "Leave"
                   : cell.status === "wfh"
                   ? "Work From Home"
                   : undefined
@@ -71,7 +71,7 @@ function AttendanceCalendar({
                 ) : cell.weekOff && !cell.hasSessions ? (
                   <small className="calendar-day-weekoff">Off</small>
                 ) : cell.status === "leave" ? (
-                  <small className="calendar-day-leave">Leave</small>
+                  <small className="calendar-day-leave">{cell.leaveLabel || "Leave"}</small>
                 ) : cell.status === "wfh" ? (
                   <small className="calendar-day-wfh">WFH</small>
                 ) : null}

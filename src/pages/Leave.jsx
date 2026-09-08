@@ -104,6 +104,9 @@ function LeaveSummaryCards({ summary, labels }) {
   );
 }
 
+const getRequestKind = (leaveType, requestType) =>
+  leaveType === "WFH" || requestType === "WFH" ? "WFH" : "Leave";
+
 /* ===========================
    INNER COMPONENT (uses useToast)
 =========================== */
@@ -430,7 +433,7 @@ function LeaveInner() {
         await createLeaveRequest(payload);
       }
 
-      toast.success("Leave request submitted successfully");
+      toast.success(`${getRequestKind(payload.leaveType, payload.requestType)} request submitted successfully`);
       setLeaveForm((prev) => ({
         ...prev,
         leaveType:
@@ -450,13 +453,14 @@ function LeaveInner() {
     }
   };
 
-  const handleDecision = (id, action, employeeName) => {
+  const handleDecision = (id, action, employeeName, leaveType, requestType) => {
     const isApprove = action === "approve";
+    const kind = getRequestKind(leaveType, requestType);
     openModal({
-      title: isApprove ? "Approve Leave Request" : "Reject Leave Request",
+      title: `${isApprove ? "Approve" : "Reject"} ${kind} Request`,
       message: isApprove
-        ? `Are you sure you want to approve${employeeName ? ` ${employeeName}'s` : " this"} leave request?`
-        : `Are you sure you want to reject${employeeName ? ` ${employeeName}'s` : " this"} leave request?`,
+        ? `Are you sure you want to approve${employeeName ? ` ${employeeName}'s` : " this"} ${kind} request?`
+        : `Are you sure you want to reject${employeeName ? ` ${employeeName}'s` : " this"} ${kind} request?`,
       confirmLabel: isApprove ? "Approve" : "Reject",
       variant: isApprove ? "success" : "danger",
       onConfirm: async () => {
@@ -464,10 +468,10 @@ function LeaveInner() {
         try {
           if (isApprove) {
             await approveLeaveRequest(id);
-            toast.success("Leave request approved");
+            toast.success(`${kind} request approved`);
           } else {
             await rejectLeaveRequest(id);
-            toast.warning("Leave request rejected");
+            toast.warning(`${kind} request rejected`);
           }
           loadData();
         } catch (err) {
@@ -482,13 +486,14 @@ function LeaveInner() {
 
   const handleCancel = (item) => {
     let cancelReasonInput = "";
+    const kind = getRequestKind(item.leaveType, item.requestType);
 
     openModal({
-      title: "Cancel Leave Request",
+      title: `Cancel ${kind} Request`,
       message: (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <p>
-            Are you sure you want to cancel this leave request? This action cannot be undone.
+            Are you sure you want to cancel this {kind} request? This action cannot be undone.
           </p>
           {item.status === "Approved" && (
             <div style={{ marginTop: "10px" }}>
@@ -519,7 +524,7 @@ function LeaveInner() {
         setActionLoading(true);
         try {
           await cancelLeaveRequest(item._id, { cancelReason: cancelReasonInput.trim() });
-          toast.success("Leave request cancelled successfully");
+          toast.success(`${kind} request cancelled successfully`);
           loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Cancel failed");
@@ -848,7 +853,7 @@ function LeaveInner() {
                             icon={<Check size={14} />}
                             aria-label="Approve"
                             onClick={() =>
-                              handleDecision(item._id, "approve", empName)
+                              handleDecision(item._id, "approve", empName, item.leaveType, item.requestType)
                             }
                           />
                           <Button
@@ -857,7 +862,7 @@ function LeaveInner() {
                             icon={<X size={14} />}
                             aria-label="Reject"
                             onClick={() =>
-                              handleDecision(item._id, "reject", empName)
+                              handleDecision(item._id, "reject", empName, item.leaveType, item.requestType)
                             }
                           />
                         </div>

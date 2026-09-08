@@ -388,6 +388,7 @@ function Attendance() {
         hasSessions: sessionCount > 0,
         sessionCount,
         leave: leaveEntry ? leaveEntry.leaveType || "Leave" : null,
+        leaveLabel: leaveEntry ? leaveEntry.leaveLabel || leaveEntry.leaveType || "Leave" : null,
         wfh: wfhEntry ? true : null,
       });
     }
