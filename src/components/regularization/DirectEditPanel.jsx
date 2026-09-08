@@ -13,6 +13,7 @@ import { getLeaveRequests } from "../../services/leaveService";
 import {
   directEditAttendance,
   directEditLeave,
+  listRegularizationRequests,
 } from "../../services/regularizationService";
 import { validateFields } from "../../utils/inputValidation";
 import {
@@ -183,6 +184,55 @@ export const validateDirectEdit = (kind, form) => {
   return errors;
 };
 
+const requestEmployeeId = (request) =>
+  String(request?.employeeId?._id || request?.employeeId || "");
+
+const requestLeaveRequestId = (request) =>
+  String(
+    request?.requested?.leaveRequestId?._id ||
+      request?.requested?.leaveRequestId ||
+      ""
+  );
+
+const datesOverlap = (startA, endA, startB, endB) => {
+  if (!startA || !endA || !startB || !endB) return false;
+  return startA <= endB && endA >= startB;
+};
+
+export const findPendingRegularizationConflict = (
+  pendingRequests,
+  { kind, employeeId, date, leaveRequestId }
+) => {
+  if (!employeeId) return null;
+  const employeeKey = String(employeeId);
+
+  return (
+    pendingRequests.find((request) => {
+      if (requestEmployeeId(request) !== employeeKey) return false;
+
+      if (kind === "attendance") {
+        if (!date) return false;
+        if (request.kind === "attendance") {
+          return toDateInput(request.requested?.date) === date;
+        }
+        if (request.kind === "leave") {
+          return datesOverlap(
+            date,
+            date,
+            toDateInput(request.requested?.startDate),
+            toDateInput(request.requested?.endDate)
+          );
+        }
+        return false;
+      }
+
+      if (!leaveRequestId) return false;
+      if (request.kind !== "leave") return false;
+      return requestLeaveRequestId(request) === String(leaveRequestId);
+    }) || null
+  );
+};
+
 export const buildDirectEditPayload = (kind, form) => {
   if (kind === "attendance") {
     const stripsTimes = ["Absent", "Leave"].includes(form.status);
@@ -216,6 +266,8 @@ export default function DirectEditPanel({ toast, onChanged }) {
   const [touched, setTouched] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -237,6 +289,39 @@ export default function DirectEditPanel({ toast, onChanged }) {
     };
   }, [toastError]);
 
+  const selectedEmployeeId =
+    kind === "attendance" ? attendance.employeeId : leave.employeeId;
+
+  useEffect(() => {
+    if (!selectedEmployeeId) {
+      setPendingRequests([]);
+      setPendingLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    setPendingLoading(true);
+    listRegularizationRequests({ status: "Pending", limit: 100 })
+      .then((response) => {
+        if (active) setPendingRequests(response?.requests || []);
+      })
+      .catch((error) => {
+        if (active) {
+          setPendingRequests([]);
+          toastError(
+            buildApiErrorMessage(error, "Failed to load pending regularizations")
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setPendingLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedEmployeeId, toastError]);
+
   const activeForm = kind === "attendance" ? attendance : leave;
   const errors = useMemo(
     () => validateDirectEdit(kind, activeForm),
@@ -256,6 +341,26 @@ export default function DirectEditPanel({ toast, onChanged }) {
     () => countWeekdaysInclusive(leave.startDate, leave.endDate),
     [leave.startDate, leave.endDate]
   );
+  const pendingConflict = useMemo(
+    () =>
+      findPendingRegularizationConflict(pendingRequests, {
+        kind,
+        employeeId: selectedEmployeeId,
+        date: attendance.date,
+        leaveRequestId: leave.leaveRequestId,
+      }),
+    [
+      pendingRequests,
+      kind,
+      selectedEmployeeId,
+      attendance.date,
+      leave.leaveRequestId,
+    ]
+  );
+  const showPendingConflict =
+    Boolean(pendingConflict) &&
+    !pendingLoading &&
+    (kind === "attendance" ? Boolean(attendance.date) : Boolean(leave.leaveRequestId));
 
   const selectLeaveRequest = (id) => {
     const selected = employeeLeaves.find((request) => request._id === id);
@@ -587,6 +692,21 @@ export default function DirectEditPanel({ toast, onChanged }) {
             </div>
           </>
         )}
+
+        {showPendingConflict ? (
+          <div
+            className="regularization-date-feedback regularization-date-feedback--error regularization-field--full"
+            role="alert"
+          >
+            <Info size={18} />
+            <div>
+              <strong>
+                This employee already has a pending regularization for this day/leave.
+                Direct edit will not cancel it.
+              </strong>
+            </div>
+          </div>
+        ) : null}
 
         <div className="regularization-field regularization-field--full">
           <label htmlFor="direct-audit-note">Audit note *</label>

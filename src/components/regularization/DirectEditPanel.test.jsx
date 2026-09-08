@@ -1,5 +1,6 @@
 import {
   buildDirectEditPayload,
+  findPendingRegularizationConflict,
   validateDirectEdit,
 } from "./DirectEditPanel";
 
@@ -53,5 +54,43 @@ describe("regularization direct edit helpers", () => {
       requestType: "WFH",
       leaveType: "WFH",
     });
+  });
+
+  test("finds a pending attendance conflict for the same day", () => {
+    const conflict = findPendingRegularizationConflict(
+      [
+        {
+          employeeId: "employee-1",
+          kind: "attendance",
+          requested: { date: "2026-09-08T00:00:00.000Z" },
+        },
+      ],
+      {
+        kind: "attendance",
+        employeeId: "employee-1",
+        date: "2026-09-08",
+      }
+    );
+
+    expect(conflict).toBeTruthy();
+  });
+
+  test("finds a pending leave conflict for the same leave request", () => {
+    const conflict = findPendingRegularizationConflict(
+      [
+        {
+          employeeId: "employee-1",
+          kind: "leave",
+          requested: { leaveRequestId: "leave-1" },
+        },
+      ],
+      {
+        kind: "leave",
+        employeeId: "employee-1",
+        leaveRequestId: "leave-1",
+      }
+    );
+
+    expect(conflict).toBeTruthy();
   });
 });
