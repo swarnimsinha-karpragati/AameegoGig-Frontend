@@ -1,0 +1,160 @@
+.record-edit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.record-edit-modal {
+  width: min(560px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+.record-edit-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.record-edit-modal__eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.record-edit-modal__head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.record-edit-modal__close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.record-edit-modal__close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.record-edit-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 1.25rem;
+}
+
+.record-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.record-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.record-edit-field--full {
+  grid-column: 1 / -1;
+}
+
+.record-edit-field span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.record-edit-field input,
+.record-edit-field select,
+.record-edit-field textarea {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.925rem;
+  color: #0f172a;
+  background: #fff;
+}
+
+.record-edit-field textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+
+.record-edit-field input:disabled,
+.record-edit-field select:disabled,
+.record-edit-field textarea:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.record-edit-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.875rem;
+}
+
+.record-edit-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.attendance-edit-btn,
+.leave-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.attendance-edit-btn:hover,
+.leave-edit-btn:hover {
+  background: #dbeafe;
+}
+
+@media (max-width: 640px) {
+  .record-edit-grid {
+    grid-template-columns: 1fr;
+  }
+}
