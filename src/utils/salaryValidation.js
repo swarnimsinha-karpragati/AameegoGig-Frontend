@@ -143,6 +143,46 @@ export const validateComponentsMatchDailyWage = ({ dailyWage, components = [] })
     : `Total Earnings (₹${fmt(earnings)}/day) is ₹${fmt(difference)} less than Daily Wage (₹${fmt(wage)}/day). Please adjust.`;
 };
 
+/** Calendar daily: earnings (+ employer) should match dailyWage × daysInMonth (monthly CTC-style). */
+export const validateComponentsMatchCalendarDaily = ({
+  dailyWage,
+  components = [],
+  daysInMonth,
+} = {}) => {
+  const wage = Number(dailyWage) || 0;
+  if (wage <= 0) return "";
+  let days = Number(daysInMonth);
+  if (!Number.isFinite(days) || days < 28 || days > 31) {
+    const now = new Date();
+    days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  }
+  const target = Math.floor(wage * days);
+  const lines = (components || []).filter((comp) => comp && comp.enabled !== false);
+  if (!lines.length) return "At least one salary component is required";
+
+  const basic = lines.find((c) => String(c.code || "").toUpperCase() === "BASIC");
+  if (!basic) return "BASIC is required for Calendar Daily wage type";
+  const basicAmt = Number(basic.monthlyAmount) || 0;
+  if (basicAmt <= 0) return "BASIC fixed amount must be greater than 0 for Calendar Daily wage type";
+  if (basicAmt > target) {
+    return `BASIC (₹${basicAmt.toLocaleString("en-IN")}) cannot exceed monthly gross (₹${target.toLocaleString("en-IN")})`;
+  }
+
+  const earnings = lines
+    .filter((comp) => comp.category === "Earning")
+    .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
+  const employerContributions = lines
+    .filter((comp) => comp.isEmployerContribution)
+    .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
+  const monthlyTotal = earnings + employerContributions;
+  const difference = Math.abs(target - monthlyTotal);
+  if (difference <= CTC_MATCH_ROUNDING_TOLERANCE) return "";
+  const fmt = (n) => Math.round(n).toLocaleString("en-IN");
+  return monthlyTotal > target
+    ? `Total Earnings + Employer (₹${fmt(monthlyTotal)}) exceeds daily × ${days} days (₹${fmt(target)}) by ₹${fmt(difference)}.`
+    : `Total Earnings + Employer (₹${fmt(monthlyTotal)}) is ₹${fmt(difference)} less than daily × ${days} days (₹${fmt(target)}).`;
+};
+
 /** Validate only the earning lines shown in the appointment letter salary table. */
 export const validateLetterSalaryStructure = ({ annualCTC, salaryComponents = [] }) => {
   const errors = [];
@@ -177,8 +217,17 @@ export const validateLetterSalaryStructure = ({ annualCTC, salaryComponents = []
   return errors;
 };
 
-export const validateStructureDraft = ({ ctcAnnual, dailyWage, wageType, components = [] }) => {
-  const isDaily = String(wageType || "").toUpperCase() === "DAILY" || (dailyWage != null && dailyWage !== "" && (ctcAnnual == null || ctcAnnual === "" || Number(ctcAnnual) === 0));
+export const validateStructureDraft = ({ ctcAnnual, dailyWage, wageType, components = [], daysInMonth } = {}) => {
+  const wt = String(wageType || "").toUpperCase();
+  if (wt === "CALENDAR_DAILY") {
+    const errors = [];
+    const wageErr = validateDailyWage(dailyWage);
+    if (wageErr) errors.push(wageErr);
+    const matchErr = validateComponentsMatchCalendarDaily({ dailyWage, components, daysInMonth });
+    if (matchErr) errors.push(matchErr);
+    return errors;
+  }
+  const isDaily = wt === "DAILY" || (dailyWage != null && dailyWage !== "" && (ctcAnnual == null || ctcAnnual === "" || Number(ctcAnnual) === 0) && wt !== "MONTHLY");
   if (isDaily) {
     const errors = [];
     const wageErr = validateDailyWage(dailyWage);

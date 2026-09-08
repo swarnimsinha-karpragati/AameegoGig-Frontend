@@ -5,10 +5,17 @@ import {
   saveEmployeeStructure,
   getStructure,
   calculateStructureSplit,
+  calculateCalendarDailySplit,
   getSalaryComponents,
 } from "../services/salaryComponentService";
 import { getStoredUser } from "../utils/roles";
-import { validateAnnualCtc, validateDailyWage, validateComponentsMatchCtc, validateComponentsMatchDailyWage } from "../utils/salaryValidation";
+import {
+  validateAnnualCtc,
+  validateDailyWage,
+  validateComponentsMatchCtc,
+  validateComponentsMatchDailyWage,
+  validateComponentsMatchCalendarDaily,
+} from "../utils/salaryValidation";
 import "./EmployeeSalaryStructureEditor.css";
 import Button from "./Button";
 
@@ -19,6 +26,16 @@ export const hasSalaryData = (draft) => {
   return (Array.isArray(draft.components) ? draft.components : []).some(
     (c) => c.enabled !== false && (Number(c.monthlyAmount) > 0 || Number(c.dailyAmount) > 0) && (c.category === "Earning" || !c.category)
   );
+};
+
+const resolveWageType = (payType, draftValue) => {
+  if (payType) {
+    const p = String(payType).toUpperCase();
+    if (p === "DAILY" || p === "CALENDAR_DAILY" || p === "MONTHLY") return p;
+  }
+  if (draftValue?.wageType) return String(draftValue.wageType).toUpperCase();
+  if (draftValue?.dailyWage) return "DAILY";
+  return "MONTHLY";
 };
 
 export default forwardRef(function EmployeeSalaryStructureEditor({
@@ -33,14 +50,6 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
   const isDraftMode = !employeeId;
   const isMounted = useRef(true);
 
-  // Determine wage type from payType prop or draft
-  const getInitialWageType = () => {
-    if (payType) return String(payType).toUpperCase() === "DAILY" ? "DAILY" : "MONTHLY";
-    if (draftValue?.wageType) return String(draftValue.wageType).toUpperCase();
-    if (draftValue?.dailyWage) return "DAILY";
-    return "MONTHLY";
-  };
-
   // Core Data
   const [availableStructures, setAvailableStructures] = useState([]);
   const [libraryComponents, setLibraryComponents] = useState([]);
@@ -49,7 +58,8 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
   const [components, setComponents] = useState([]); // ALWAYS keep this an array
   const [ctcAnnual, setCtcAnnual] = useState("");
   const [dailyWage, setDailyWage] = useState("");
-  const [wageType, setWageType] = useState(getInitialWageType());
+  const [basicFixed, setBasicFixed] = useState("");
+  const [wageType, setWageType] = useState(() => resolveWageType(payType, draftValue));
   
   // Modes & Revision State
   const [hasExistingSalary, setHasExistingSalary] = useState(false);
@@ -68,6 +78,9 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
   const [error, setError] = useState("");
 
   const isDaily = wageType === "DAILY";
+  const isCalendarDaily = wageType === "CALENDAR_DAILY";
+  const usesDailyWageInput = isDaily || isCalendarDaily;
+  const previewDaysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
 
   useEffect(() => {
     isMounted.current = true;
@@ -77,13 +90,8 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
   // sync wageType when payType prop changes (edit employee payType dropdown)
   useEffect(() => {
     if (payType) {
-      const next = String(payType).toUpperCase() === "DAILY" ? "DAILY" : "MONTHLY";
+      const next = resolveWageType(payType, null);
       if (next !== wageType) {
-        // If components already exist, confirm clearing
-        if (components.length > 0) {
-          // Don't auto clear, but update wageType and keep components? Better to clear with confirm
-          // We'll just update wageType; user can switch mode manually
-        }
         setWageType(next);
       }
     }
@@ -122,7 +130,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
       if (isMounted.current) setLibraryComponents(libData);
 
       if (isDraftMode) {
-        const draftWageType = draftValue?.wageType ? String(draftValue.wageType).toUpperCase() : (payType ? String(payType).toUpperCase() : "MONTHLY");
+        const draftWageType = resolveWageType(payType, draftValue);
         if (isMounted.current) setWageType(draftWageType);
         if (draftValue?.ctcAnnual) {
             setCtcAnnual(draftValue.ctcAnnual);
@@ -155,13 +163,23 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
         const empRes = await getEmployeeStructure(employeeId);
         const empData = empRes.data?.data || {};
         
-        const savedWageType = empData.wageType ? String(empData.wageType).toUpperCase() : (empData.dailyWage ? "DAILY" : "MONTHLY");
+        const savedWageType = empData.wageType
+          ? String(empData.wageType).toUpperCase()
+          : (empData.dailyWage ? "DAILY" : "MONTHLY");
         if (isMounted.current) setWageType(savedWageType);
 
-        if (savedWageType === "DAILY" && empData.dailyWage) {
+        if ((savedWageType === "DAILY" || savedWageType === "CALENDAR_DAILY") && empData.dailyWage) {
             setDailyWage(empData.dailyWage);
             setHasExistingSalary(true);
-            setIsRevising(false); 
+            setIsRevising(false);
+            if (savedWageType === "CALENDAR_DAILY") {
+              const basicComp = (empData.components || []).find(
+                (c) => String(c.code || "").toUpperCase() === "BASIC"
+              );
+              if (basicComp && Number(basicComp.monthlyAmount) > 0) {
+                setBasicFixed(String(basicComp.monthlyAmount));
+              }
+            }
         } else if (empData.ctcAnnual) {
             setCtcAnnual(empData.ctcAnnual);
             setHasExistingSalary(true);
@@ -215,6 +233,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     setError("");
     setMsg("");
     if (isDaily) syncDraft("", dailyWage, wageType, "", []);
+    else if (isCalendarDaily) syncDraft("", dailyWage, wageType, "", []);
     else syncDraft(ctcAnnual, "", wageType, "", []);
   };
 
@@ -232,7 +251,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     setMsg("");
     setMonthlyGross(0);
     setDailyGross(0);
-    if (nextType === "DAILY") {
+    if (nextType === "DAILY" || nextType === "CALENDAR_DAILY") {
       setCtcAnnual("");
       syncDraft("", dailyWage, nextType, "", []);
     } else {
@@ -243,7 +262,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
 
     const handleCalculateSplit = async () => {
         if (!selectedStructureId) return setError("Please select a Salary Structure template.");
-        if (isDaily) {
+        if (usesDailyWageInput) {
           const wageErr = validateDailyWage(dailyWage);
           if (wageErr) return setError(wageErr);
         } else {
@@ -254,12 +273,34 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
         try {
             setCalculating(true);
             setError("");
-            const payload = isDaily
-              ? { dailyWage: Number(dailyWage), structureId: selectedStructureId, wageType: "DAILY" }
-              : { ctcAnnual: Number(ctcAnnual), structureId: selectedStructureId, wageType: "MONTHLY" };
-            const res = await calculateStructureSplit(user.vendorId, payload);
+            let res;
+            if (isCalendarDaily) {
+              const basicAmt = Number(basicFixed);
+              if (!basicAmt || basicAmt <= 0) {
+                setError("Enter Fixed Basic amount (required for Calendar Daily).");
+                setCalculating(false);
+                return;
+              }
+              res = await calculateCalendarDailySplit(user.vendorId, {
+                dailyWage: Number(dailyWage),
+                structureId: selectedStructureId,
+                daysInMonth: previewDaysInMonth,
+                basicFixedAmount: basicAmt,
+              });
+            } else if (isDaily) {
+              res = await calculateStructureSplit(user.vendorId, {
+                dailyWage: Number(dailyWage),
+                structureId: selectedStructureId,
+                wageType: "DAILY",
+              });
+            } else {
+              res = await calculateStructureSplit(user.vendorId, {
+                ctcAnnual: Number(ctcAnnual),
+                structureId: selectedStructureId,
+                wageType: "MONTHLY",
+              });
+            }
       
-      // FIX: Robustly target the new nested "components" array from the backend JSON response
       let parsedComponents = [];
       if (res.data?.data?.components && Array.isArray(res.data.data.components)) {
         parsedComponents = res.data.data.components;
@@ -281,8 +322,14 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
         setDailyGross(res.data.data?.summary?.totalEarnings || 0);
         syncDraft("", dailyWage, wageType, selectedStructureId, parsedComponents);
       } else {
-        setMonthlyGross(res.data.data?.summary?.totalEarnings)
-        syncDraft(ctcAnnual, "", wageType, selectedStructureId, parsedComponents);
+        setMonthlyGross(res.data.data?.summary?.totalEarnings || 0);
+        syncDraft(
+          isCalendarDaily ? "" : ctcAnnual,
+          isCalendarDaily ? dailyWage : "",
+          wageType,
+          selectedStructureId,
+          parsedComponents
+        );
       }
       
       setMsg("Salary structure calculated successfully.");
@@ -319,6 +366,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
       
     setComponents(newComponents);
     if (isDaily) syncDraft("", dailyWage, wageType, "", newComponents);
+    else if (isCalendarDaily) syncDraft("", dailyWage, wageType, "", newComponents);
     else syncDraft(ctcAnnual, "", wageType, "", newComponents);
     setMsg(`${newComponents.length} components added. Enter amounts below.`);
     setTimeout(() => setMsg(""), 3000);
@@ -345,7 +393,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
         }
       }
 
-      if (isDaily) syncDraft("", dailyWage, wageType, selectedStructureId, next);
+      if (isDaily || isCalendarDaily) syncDraft("", dailyWage, wageType, selectedStructureId, next);
       else syncDraft(ctcAnnual, "", wageType, selectedStructureId, next);
       return next;
     });
@@ -365,7 +413,16 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
 
     if (inputMode === "template" && !selectedStructureId) { setError("Salary structure is missing."); setSaving(false); return; }
     if (safeComponents.length === 0) { setError("Please configure components before saving."); setSaving(false); return; }
-    if (isDaily) {
+    if (isCalendarDaily) {
+      const wageErr = validateDailyWage(dailyWage);
+      if (wageErr) { setError(wageErr); setSaving(false); return; }
+      const matchErr = validateComponentsMatchCalendarDaily({
+        dailyWage,
+        components: safeComponents,
+        daysInMonth: previewDaysInMonth,
+      });
+      if (matchErr) { setError(matchErr); setSaving(false); return; }
+    } else if (isDaily) {
       const wageErr = validateDailyWage(dailyWage);
       if (wageErr) { setError(wageErr); setSaving(false); return; }
       const matchErr = validateComponentsMatchDailyWage({ dailyWage, components: safeComponents });
@@ -378,23 +435,39 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     }
 
     try {
-      const payload = isDaily ? {
-        wageType: "DAILY",
-        dailyWage: Number(dailyWage),
-        dailyGross,
-        structureId: inputMode === "template" ? selectedStructureId : undefined,
-        components: safeComponents,
-        revisionType: hasExistingSalary ? revisionType : "Initial",
-        revisionReason: hasExistingSalary ? revisionReason : "Initial setup",
-      } : {
-        wageType: "MONTHLY",
-        ctcAnnual: Number(ctcAnnual),
-        structureId: inputMode === "template" ? selectedStructureId : undefined,
-        monthlyGross,
-        components: safeComponents,
-        revisionType: hasExistingSalary ? revisionType : "Initial",
-        revisionReason: hasExistingSalary ? revisionReason : "Initial setup",
-      };
+      let payload;
+      if (isCalendarDaily) {
+        payload = {
+          wageType: "CALENDAR_DAILY",
+          dailyWage: Number(dailyWage),
+          monthlyGross,
+          daysInMonth: previewDaysInMonth,
+          structureId: inputMode === "template" ? selectedStructureId : undefined,
+          components: safeComponents,
+          revisionType: hasExistingSalary ? revisionType : "Initial",
+          revisionReason: hasExistingSalary ? revisionReason : "Initial setup",
+        };
+      } else if (isDaily) {
+        payload = {
+          wageType: "DAILY",
+          dailyWage: Number(dailyWage),
+          dailyGross,
+          structureId: inputMode === "template" ? selectedStructureId : undefined,
+          components: safeComponents,
+          revisionType: hasExistingSalary ? revisionType : "Initial",
+          revisionReason: hasExistingSalary ? revisionReason : "Initial setup",
+        };
+      } else {
+        payload = {
+          wageType: "MONTHLY",
+          ctcAnnual: Number(ctcAnnual),
+          structureId: inputMode === "template" ? selectedStructureId : undefined,
+          monthlyGross,
+          components: safeComponents,
+          revisionType: hasExistingSalary ? revisionType : "Initial",
+          revisionReason: hasExistingSalary ? revisionReason : "Initial setup",
+        };
+      }
       await saveEmployeeStructure(employeeId, payload);
       setMsg("Employee salary saved successfully.");
       setHasExistingSalary(true);
@@ -410,9 +483,19 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
   useImperativeHandle(ref, () => ({
     saveStructure: handleSave,
     hasUnsavedChanges: isRevising,
-    // Returns an error message when the wage is invalid or components don't add up
     validateStructure: () => {
       if (!isRevising) return "";
+      if (isCalendarDaily) {
+        const wageErr = validateDailyWage(dailyWage);
+        if (wageErr) { setError(wageErr); return wageErr; }
+        const matchErr = validateComponentsMatchCalendarDaily({
+          dailyWage,
+          components: safeComponents,
+          daysInMonth: previewDaysInMonth,
+        });
+        if (matchErr) setError(matchErr);
+        return matchErr;
+      }
       if (isDaily) {
         const wageErr = validateDailyWage(dailyWage);
         if (wageErr) { setError(wageErr); return wageErr; }
@@ -482,9 +565,19 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
       {hasExistingSalary && !isRevising && (
         <div className="emp-struct-view-header">
           <div className="emp-struct-view-header__ctc">
-            <span className="emp-struct-view-header__label">{isDaily ? "Current Daily Wage" : "Current Annual CTC"}</span>
-            <span className="emp-struct-view-header__value">{isDaily ? `₹${(Number(dailyWage) || 0).toLocaleString("en-IN")}/day` : `₹${(Number(ctcAnnual) || 0).toLocaleString("en-IN")}`}</span>
-            {isDaily && <span style={{fontSize:11, color:"#64748b", marginTop:4, display:"block"}}>Monthly varies: 28×₹{Number(dailyWage)}=₹{(Number(dailyWage)*28).toLocaleString("en-IN")} • 30×=₹{(Number(dailyWage)*30).toLocaleString("en-IN")} • 31×=₹{(Number(dailyWage)*31).toLocaleString("en-IN")}</span>}
+            <span className="emp-struct-view-header__label">
+              {isCalendarDaily ? "Current Per Day Pay" : isDaily ? "Current Daily Wage" : "Current Annual CTC"}
+            </span>
+            <span className="emp-struct-view-header__value">
+              {usesDailyWageInput
+                ? `₹${(Number(dailyWage) || 0).toLocaleString("en-IN")}/day`
+                : `₹${(Number(ctcAnnual) || 0).toLocaleString("en-IN")}`}
+            </span>
+            {usesDailyWageInput && (
+              <span style={{fontSize:11, color:"#64748b", marginTop:4, display:"block"}}>
+                Monthly gross = per day × days in month: 28×₹{Number(dailyWage)}=₹{(Number(dailyWage)*28).toLocaleString("en-IN")} • 30×=₹{(Number(dailyWage)*30).toLocaleString("en-IN")} • 31×=₹{(Number(dailyWage)*31).toLocaleString("en-IN")}
+              </span>
+            )}
           </div>
           {!hideActions && (
             <Button type="button" onClick={() => setIsRevising(true)} icon={<Edit3 size={16}/>}>
@@ -497,14 +590,17 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
       {error && <div className="emp-struct-editor__msg emp-struct-editor__msg--error"><AlertCircle size={18} /> {error}</div>}
       {msg && <div className="emp-struct-editor__msg emp-struct-editor__msg--success">{msg}</div>}
 
-      {/* Wage Type Switch (only when revising and no existing salary or payType allows switch) */}
+      {/* Wage Type Switch */}
       {isRevising && (
         <div className="emp-struct-mode-switcher" style={{marginBottom:12}}>
-          <span className={`emp-struct-mode-pill ${!isDaily ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchWageType("MONTHLY")}>
+          <span className={`emp-struct-mode-pill ${wageType === "MONTHLY" ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchWageType("MONTHLY")}>
             Monthly CTC
           </span>
-          <span className={`emp-struct-mode-pill ${isDaily ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchWageType("DAILY")}>
+          <span className={`emp-struct-mode-pill ${wageType === "DAILY" ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchWageType("DAILY")}>
             Daily Wage
+          </span>
+          <span className={`emp-struct-mode-pill ${wageType === "CALENDAR_DAILY" ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchWageType("CALENDAR_DAILY")}>
+            Calendar Daily
           </span>
         </div>
       )}
@@ -536,7 +632,13 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             <button type="button" className="emp-struct-mode-card" onClick={() => handleSwitchMode("template")} disabled={calculating || saving}>
               <Layers size={28} color="#3b82f6" />
               <span className="emp-struct-mode-card__title">Use Structure Template</span>
-              <span className="emp-struct-mode-card__desc">{isDaily ? "Pick a template and auto-split daily wage across components" : "Pick a predefined template and auto-split CTC across components"}</span>
+              <span className="emp-struct-mode-card__desc">
+                {isCalendarDaily
+                  ? "Pick a template; monthly gross = per day × days in month (BASIC required fixed)"
+                  : isDaily
+                    ? "Pick a template and auto-split daily wage across components"
+                    : "Pick a predefined template and auto-split CTC across components"}
+              </span>
             </button>
             <button type="button" className="emp-struct-mode-card" onClick={() => handleSwitchMode("manual")} disabled={calculating || saving}>
               <ListChecks size={28} color="#8b5cf6" />
@@ -570,15 +672,41 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             </select>
           </div>
           <div className="emp-struct-editor__field">
-            <label>{isDaily ? "2. Daily Wage (₹/day)" : "2. Annual CTC (₹)"}</label>
-            {isDaily ? (
+            <label>
+              {isCalendarDaily
+                ? "2. Per Day Pay (₹/day)"
+                : isDaily
+                  ? "2. Daily Wage (₹/day)"
+                  : "2. Annual CTC (₹)"}
+            </label>
+            {usesDailyWageInput ? (
               <input type="number" min="0" value={dailyWage} onChange={(e) => setDailyWage(e.target.value)} placeholder="e.g. 500" disabled={calculating || saving} />
             ) : (
               <input type="number" min="0" value={ctcAnnual} onChange={(e) => setCtcAnnual(e.target.value)} placeholder="e.g. 600000" disabled={calculating || saving} />
             )}
+            {isCalendarDaily && (
+              <>
+                <span style={{fontSize:11, color:"#64748b", marginTop:4, display:"block"}}>
+                  Preview month: {previewDaysInMonth} days → gross ₹{((Number(dailyWage)||0)*previewDaysInMonth).toLocaleString("en-IN")} (payroll rebuilds each month)
+                </span>
+              </>
+            )}
           </div>
+          {isCalendarDaily && (
+            <div className="emp-struct-editor__field">
+              <label>3. Fixed Basic (₹)</label>
+              <input
+                type="number"
+                min="0"
+                value={basicFixed}
+                onChange={(e) => setBasicFixed(e.target.value)}
+                placeholder="e.g. 9000"
+                disabled={calculating || saving}
+              />
+            </div>
+          )}
           <div>
-            <Button type="button" onClick={handleCalculateSplit} disabled={calculating || saving || !selectedStructureId || (isDaily ? !dailyWage : !ctcAnnual)}>
+            <Button type="button" onClick={handleCalculateSplit} disabled={calculating || saving || !selectedStructureId || (usesDailyWageInput ? !dailyWage : !ctcAnnual) || (isCalendarDaily && !basicFixed)}>
               {calculating ? <RefreshCw size={16} className="spin" /> : "Calculate Breakdown"}
             </Button>
           </div>
@@ -590,8 +718,10 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
         <div className="emp-struct-manual">
           <div className="emp-struct-manual__header">
             <div className="emp-struct-editor__field">
-              <label>{isDaily ? "Daily Wage (₹/day)" : "Annual CTC (₹)"}</label>
-              {isDaily ? (
+              <label>
+                {isCalendarDaily ? "Per Day Pay (₹/day)" : isDaily ? "Daily Wage (₹/day)" : "Annual CTC (₹)"}
+              </label>
+              {usesDailyWageInput ? (
                 <input type="number" min="0" value={dailyWage} onChange={(e) => setDailyWage(e.target.value)} placeholder="e.g. 500" disabled={calculating || saving} />
               ) : (
                 <input type="number" min="0" value={ctcAnnual} onChange={(e) => setCtcAnnual(e.target.value)} placeholder="e.g. 600000" disabled={calculating || saving} />
@@ -647,7 +777,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             {renderPanel("Earnings", earnings, "earning")}
             {renderPanel("Deductions", deductions, "deduction")}
           </div>
-          {isDaily && earnings.length > 0 && (
+          {usesDailyWageInput && earnings.length > 0 && (
             <div style={{marginTop:8, fontSize:12, color:"#64748b", textAlign:"center"}}>
               Full month estimate @ ₹{Number(dailyWage)||0}/day: 28 days = ₹{((Number(dailyWage)||0)*28).toLocaleString("en-IN")} • 30 days = ₹{((Number(dailyWage)||0)*30).toLocaleString("en-IN")} • 31 days = ₹{((Number(dailyWage)||0)*31).toLocaleString("en-IN")}
             </div>

@@ -143,7 +143,68 @@ export default function EmployeeSalaryStructureView({ employeeId }) {
 
   if (error) return <div className="emp-salary-view emp-salary-view__state--error"><AlertCircle size={18} /> {error}</div>;
 
-  const isDaily = String(structure?.wageType || "").toUpperCase() === "DAILY" || Number(structure?.dailyWage) > 0;
+  const wageType = String(structure?.wageType || "").toUpperCase();
+  const isDaily = wageType === "DAILY";
+  const isCalendarDaily = wageType === "CALENDAR_DAILY";
+
+  if (isCalendarDaily) {
+    const fallback = groupStructureComponents(structure?.components || []);
+    const dailyWage = Number(structure?.dailyWage || 0);
+    const monthlyGross = Number(
+      structure?.monthlyGross ||
+        fallback.earnings.reduce((s, c) => s + (Number(c.monthlyAmount) || 0), 0)
+    );
+    const earnings = fallback.earnings.map((c) => ({ ...c, amount: c.monthlyAmount || 0 }));
+    const deductions = fallback.deductions.map((c) => ({ ...c, amount: c.monthlyAmount || 0 }));
+    const employerContributions = fallback.employerContributions.map((c) => ({
+      ...c,
+      amount: c.monthlyAmount || 0,
+    }));
+    const totalDeduction = deductions.reduce((s, d) => s + (d.amount ?? 0), 0);
+    const netMonthly = Math.max(0, monthlyGross - totalDeduction);
+    const ctcTarget = monthlyGross || 1;
+
+    return (
+      <div className="emp-salary-view">
+        <div className="emp-salary-view__header">
+          <div className="emp-salary-view__metrics">
+            <div className="emp-salary-view__metric">
+              <span className="emp-salary-view__metric-label">Per Day Pay</span>
+              <strong className="emp-salary-view__metric-value">{formatInr(dailyWage)}/day</strong>
+            </div>
+            <div className="emp-salary-view__metric">
+              <span className="emp-salary-view__metric-label">Preview Monthly Gross</span>
+              <strong className="emp-salary-view__metric-value">{formatInr(monthlyGross)}</strong>
+            </div>
+            <div className="emp-salary-view__metric">
+              <span className="emp-salary-view__metric-label">Est. In-Hand</span>
+              <strong className="emp-salary-view__metric-value highlight">{formatInr(netMonthly)}</strong>
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginTop: 6 }}>
+          Payroll rebuilds monthly gross as per day × calendar days each month. Preview snapshot may be for one month only.
+        </div>
+        {previewWarning && (
+          <div className="emp-salary-view__state--warn">
+            <AlertCircle size={16} /> {previewWarning}. Showing stored component amounts.
+          </div>
+        )}
+        <CtcBreakdownBar earnings={earnings} ctcTarget={ctcTarget} />
+        <div className="emp-salary-view__panels">
+          <ViewPanel title="Earnings (monthly preview)" items={earnings} emptyText="No earnings configured." ctcTarget={ctcTarget} />
+          <div className="emp-salary-view__panel-col">
+            <ViewPanel title="Deductions" items={deductions} emptyText="No deductions configured." ctcTarget={ctcTarget} />
+            {employerContributions.length > 0 && (
+              <div style={{ marginTop: "32px" }}>
+                <ViewPanel title="Employer Contributions" items={employerContributions} emptyText="" ctcTarget={ctcTarget} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isDaily) {
     const fallback = groupStructureComponents(structure?.components || []);
