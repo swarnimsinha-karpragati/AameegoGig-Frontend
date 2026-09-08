@@ -174,6 +174,45 @@
   color: #1d4ed8;
 }
 
+.payroll-breakdown__advloan {
+  border-color: #e2e8f0;
+  background: #fbfdff;
+}
+
+.payroll-breakdown__advloan .payroll-breakdown__employer-head {
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.payroll-breakdown__advloan .payroll-breakdown__employer-head h4 {
+  color: #475569;
+}
+
+.payroll-breakdown__advloan-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.payroll-breakdown__advloan-row:last-child {
+  border-bottom: none;
+}
+
+.payroll-breakdown__advloan-date {
+  display: block;
+  font-size: 0.6875rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.payroll-breakdown__advloan-amount {
+  color: #475569;
+  font-weight: 600;
+}
+
 /* Validation */
 .payroll-breakdown__validation {
   border: 1px solid #fde68a;

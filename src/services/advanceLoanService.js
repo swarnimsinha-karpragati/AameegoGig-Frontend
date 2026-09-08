@@ -25,13 +25,23 @@ export const cancelRequest = async (id) => {
     return response.data;
 };
 
-export const approveRequest = async (id, comments = '') => {
-    const response = await API.put(`/advance-loan/requests/${id}/approve`, { comments });
+export const approveRequest = async (id, body = {}) => {
+    const response = await API.put(`/advance-loan/requests/${id}/approve`, body);
+    return response.data;
+};
+
+export const deferDeduction = async (id, body = {}) => {
+    const response = await API.put(`/advance-loan/requests/${id}/defer-deduction`, body);
     return response.data;
 };
 
 export const rejectRequest = async (id, body) => {
     const response = await API.put(`/advance-loan/requests/${id}/reject`, body);
+    return response.data;
+};
+
+export const updateRepayment = async (id, data) => {
+    const response = await API.put(`/advance-loan/requests/${id}/repayment`, data);
     return response.data;
 };
 

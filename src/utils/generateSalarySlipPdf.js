@@ -6,6 +6,15 @@ import { resolvePayrollLines, buildPairedPdfRows } from "./payrollLines";
 import { convertNumberToWords } from "./currencyWords";
 import { MONTH_NAME_TO_NUMBER } from "./payrollConstants";
 
+function formatPdfDate(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}-${month}-${d.getFullYear()}`;
+}
+
 export function generateSalarySlipPdf(data) {
   const doc = new jsPDF("p", "mm", "a4");
   doc.addImage(kpLogo, "JPEG", 80, 5, 50, 25);
@@ -71,6 +80,32 @@ export function generateSalarySlipPdf(data) {
     headStyles: { fillColor: [30, 107, 214] },
     body: buildPairedPdfRows(data.earnings || [], data.deductions || []),
   });
+
+  const advanceLoanInfo = data.advanceLoanInfo || [];
+  if (advanceLoanInfo.length > 0) {
+    const infoY = doc.lastAutoTable.finalY + 6;
+    doc.setFontSize(10);
+    doc.setTextColor(30, 107, 214);
+    doc.text("ADVANCE / LOAN DISBURSEMENT (INFORMATIONAL)", 14, infoY + 4);
+
+    const infoRows = advanceLoanInfo.map((info) => [
+      info.label || "Advance / Loan Disbursement",
+      `Rs. ${Number(info.amount || 0).toLocaleString()}`,
+      info.disbursedDate ? formatPdfDate(info.disbursedDate) : "-",
+      "",
+    ]);
+    autoTable(doc, {
+      startY: infoY + 7,
+      theme: "grid",
+      head: [["Description", "Amount", "Disbursed Date", ""]],
+      headStyles: { fillColor: [100, 116, 139] },
+      styles: { fontSize: 8 },
+      body: infoRows,
+    });
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Not added to earnings or net pay - shown for information only.", 14, doc.lastAutoTable.finalY + 4);
+  }
 
   const netY = doc.lastAutoTable.finalY + 12;
   doc.setFillColor(30, 107, 214);
@@ -155,6 +190,7 @@ export async function downloadPayrollPdf(record, { isAdminOrHR = false } = {}) {
     holidays: details.holidays,
     earnings,
     deductions,
+    advanceLoanInfo: details.advanceLoanInfo || [],
     grossSalary: details.grossSalary + (details.overtimePay || 0),
     totalDeduction: details.totalDeduction,
     netSalary: details.netSalary,

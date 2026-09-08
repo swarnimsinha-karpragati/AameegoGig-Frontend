@@ -179,6 +179,17 @@
   line-height: 1.4;
 }
 
+.emp-transfer-notice {
+  color: #1a365d;
+  background: #eef4ff;
+  border-left: 3px solid #1a365d;
+  border-radius: 6px;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
 .emp-field input.emp-field-input--error,
 .emp-field select.emp-field-input--error {
   border-color: #b91c1c;
@@ -851,6 +862,30 @@
   height: 1px;
   background-color: #e2e8f0;
   margin: 6px 0;
+}
+
+/* Disabled action (inactive employee - cannot generate templates) */
+.action-dropdown-menu button.dropdown-item-disabled,
+.action-dropdown-menu button:disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.action-dropdown-menu button.dropdown-item-disabled svg,
+.action-dropdown-menu button:disabled svg {
+  color: #9ca3af;
+}
+
+.action-dropdown-menu button.dropdown-item-disabled:hover,
+.action-dropdown-menu button:disabled:hover {
+  background-color: transparent;
+  color: #9ca3af;
+}
+
+.action-dropdown-menu button.dropdown-item-disabled:hover svg,
+.action-dropdown-menu button:disabled:hover svg {
+  color: #9ca3af;
 }
 
 /* Danger Item Styling (Delete) */
