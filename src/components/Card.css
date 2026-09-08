@@ -112,3 +112,18 @@
   background-color: #fef3c7;
   color: #b45309;
 }
+
+.card-icon-sidebar.red {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.card-icon-sidebar.teal {
+  background-color: #ccfbf1;
+  color: #0f766e;
+}
+
+.card-icon-sidebar.gray {
+  background-color: #e2e8f0;
+  color: #475569;
+}

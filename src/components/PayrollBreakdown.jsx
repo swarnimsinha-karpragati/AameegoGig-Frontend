@@ -6,6 +6,13 @@ import "./PayrollBreakdown.css";
 
 const formatAmount = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
+const formatInfoDate = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
+
 function LineItem({ item, variant, record }) {
   const formula = item.formula || getFormulaForCode(record, item.code);
   return (
@@ -109,6 +116,35 @@ export default function PayrollBreakdown({
                 variant="employer"
                 record={record}
               />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {record.advanceLoanInfo && record.advanceLoanInfo.length > 0 ? (
+        <div className="payroll-breakdown__employer payroll-breakdown__advloan">
+          <div className="payroll-breakdown__employer-head payroll-breakdown__advloan-head">
+            <h4>Advance / Loan Disbursement</h4>
+            <p className="payroll-breakdown__employer-note">
+              Informational — the disbursed amount is not added to earnings or net pay
+            </p>
+          </div>
+          <div className="payroll-breakdown__employer-body">
+            {record.advanceLoanInfo.map((info) => (
+              <div className="payroll-breakdown__advloan-row" key={info.requestId || info.label}>
+                <div className="payroll-breakdown__line-label">
+                  <span className="payroll-breakdown__line-name">{info.label || "Advance / Loan Disbursement"}</span>
+                  <span className="payroll-breakdown__line-code">
+                    {info.requestType || "ADVANCE"}
+                  </span>
+                  <span className="payroll-breakdown__advloan-date">
+                    Disbursed {formatInfoDate(info.disbursedDate)}
+                  </span>
+                </div>
+                <span className="payroll-breakdown__line-amount payroll-breakdown__advloan-amount">
+                  {formatAmount(info.amount)}
+                </span>
+              </div>
             ))}
           </div>
         </div>

@@ -325,6 +325,32 @@ function Dashboard() {
               ) : null}
 
             </div>
+
+            {showLeave && (
+              <div className="holiday-card">
+                <div className="section-head">
+                  <h3>Upcoming Holidays</h3>
+                  <span className="section-count">Next 2 weeks</span>
+                </div>
+
+                {data.upcomingHolidays?.length === 0 ? (
+                  <p className="empty-hint">No upcoming holidays in the next 2 weeks.</p>
+                ) : (
+                  data.upcomingHolidays.map((holiday) => (
+                    <div className="holiday-item" key={holiday.id}>
+                      <div className="holiday-date-badge">
+                        <span className="holiday-date-label">{holiday.dateLabel}</span>
+                      </div>
+                      <div className="holiday-details">
+                        <h4>{holiday.name}</h4>
+                        <p>{holiday.type}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
             {showExpenses && data.expenseSummary ? (
               <div className="summary-card">
                 <h3>Expense Summary</h3>

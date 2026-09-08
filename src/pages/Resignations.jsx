@@ -90,6 +90,18 @@ function Resignations() {
   const [isLoading,setIsLoading] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
+
+  const formatDayAfterDispatch = (dateStr) => {
+    if (!dateStr) return "Pending selection";
+    const day = new Date(dateStr);
+    day.setDate(day.getDate() + 1);
+    const formatted = day.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    return `${formatted} at 10:00 AM`;
+  };
   
   const [checklistForm, setChecklistForm] = useState({
     isExitChecklistCleared: false,
@@ -277,12 +289,11 @@ function Resignations() {
                   id: currentUser?.employeeId || currentUser?.id,
                   refModel: currentUser?.employeeId ? "Employee" : "User" 
                 },
-                ...checklistForm,
-                fnfAmount: Number(checklistForm.fnfAmount)
+                isKnowledgeTransferDone: checklistForm.isKnowledgeTransferDone
             };
             await updateResignation(approvingRecordId, payload);
             fetchAllData();
-            alert(`Checklist metrics successfully saved with configuration status: ${payload.status}.`);
+            alert(`Knowledge Transfer handover confirmed. Resignation moved to Verified for HR sign-off.`);
             handleModalClose();
         }
         setIsLoading(false)
@@ -453,7 +464,7 @@ function Resignations() {
                                 <>
                                   <button 
                                     className="exit-mgmt-btn-approve" 
-                                    title="Process Checklist Fields" 
+                                    title="Confirm KT Handover & Approve" 
                                     onClick={() => handleApproveOrEditClick(res, false)}
                                   >
                                     <CheckCircle size={15} />
@@ -679,7 +690,7 @@ function Resignations() {
 
         {showApproveModal ? (
           <ResModal
-            title={isHrFinalizing ? "Execute Absolute Exit Sign-off" : "Update Exit Checklist Configuration"}
+            title={isHrFinalizing ? "Execute Absolute Exit Sign-off" : "Manager KT Handover Approval"}
             onClose={handleModalClose}
             size="lg"
             footer={
@@ -698,18 +709,8 @@ function Resignations() {
             }
           >
             <form onSubmit={(e) => e.preventDefault()}>
-              <FormSection title="Clearance Criteria Checkmarks" description="Review separation checklist flags before completing action processing profiles">
+              <FormSection title="Knowledge Transfer (KT) Handover" description="Confirm whether the resigning employee has completed the knowledge transfer of their responsibilities to a designated receiver.">
                 <div className="exit-mgmt-checkbox-list">
-                  <label className="exit-mgmt-checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      name="isAssetRecovered" 
-                      checked={checklistForm.isAssetRecovered} 
-                      onChange={handleChecklistChange} 
-                    />
-                    <strong>Company Assets Recovered</strong>
-                  </label>
-
                   <label className="exit-mgmt-checkbox-label">
                     <input 
                       type="checkbox" 
@@ -719,79 +720,113 @@ function Resignations() {
                     />
                     <strong>Knowledge Transfer (KT) Handover Complete</strong>
                   </label>
-
-                  <label className="exit-mgmt-checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      name="isExitChecklistCleared" 
-                      checked={checklistForm.isExitChecklistCleared} 
-                      onChange={handleChecklistChange} 
-                    />
-                    <strong>Overall Exit Checklist Master Flag Cleared</strong>
-                  </label>
                 </div>
               </FormSection>
 
-              <FormSection title="Financial Ledger & Certificate Settings">
-                <FormField label="Asset Recovery Logging Notes" htmlFor="assetNotes" fullWidth>
-                  <input 
-                    id="assetNotes"
-                    type="text" 
-                    name="assetRecoveryNotes" 
-                    value={checklistForm.assetRecoveryNotes} 
-                    onChange={handleChecklistChange} 
-                    placeholder="Outstanding property tokens or hardware metrics..."
-                  />
-                </FormField>
-
-                <FormField label="Full & Final Settlement Status">
-                  <label className="exit-mgmt-checkbox-label exit-mgmt-checkbox-label--mt">
-                    <input 
-                      type="checkbox" 
-                      name="isFullAndFinalSettled" 
-                      checked={checklistForm.isFullAndFinalSettled} 
-                      onChange={handleChecklistChange} 
-                    />
-                    Settled
-                  </label>
-                </FormField>
-
-                <FormField label="F&F Calculation Value ($)">
-                  <input 
-                    type="number" 
-                    name="fnfAmount" 
-                    value={checklistForm.fnfAmount} 
-                    onChange={handleChecklistChange} 
-                    min="0"
-                  />
-                </FormField>
-
-                <div className="exit-mgmt-checkbox-group">
-                  <label className="exit-mgmt-checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      name="isExperienceLetterIssued" 
-                      checked={checklistForm.isExperienceLetterIssued} 
-                      onChange={handleChecklistChange} 
-                    />
-                    <strong>Issue Experience Letter</strong>
-                  </label>
-
-                  <label className="exit-mgmt-checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      name="isRelievingLetterIssued" 
-                      checked={checklistForm.isRelievingLetterIssued} 
-                      onChange={handleChecklistChange} 
-                    />
-                    <strong>Issue Relieving Letter</strong>
-                  </label>
-                </div>
-              </FormSection>
-
-             
               {isHrFinalizing && (
                 <>
+                  <FormSection title="Automated Document Delivery Schedule" description="How the exit documentation and settlement will run automatically after this sign-off:">
+                    <div className="exit-mgmt-schedule-box">
+                      <div className="exit-mgmt-schedule-row">
+                        <span>Experience / Relieving Letters dispatched</span>
+                        <strong>{formatDayAfterDispatch(selectedResignation?.lastWorkingDay)}</strong>
+                      </div>
+                      <div className="exit-mgmt-schedule-row">
+                        <span>Final Salary Slips + F&amp;F Statement dispatched</span>
+                        <strong>{formatDayAfterDispatch(checklistForm.finalSettlementDate)}</strong>
+                      </div>
+                      <div className="exit-mgmt-schedule-row">
+                        <span>F&amp;F Status update</span>
+                        <strong>Auto-updates to "Settled" after dispatch</strong>
+                      </div>
+                      <div className="exit-mgmt-schedule-row">
+                        <span>Account Deletion</span>
+                        <strong>{checklistForm.deleteEmployeeAccount ? "After F&F dispatch" : "Not scheduled"}</strong>
+                      </div>
+                    </div>
+                  </FormSection>
+
+                  <FormSection title="Clearance Criteria Checkmarks" description="Review separation checklist flags before completing final settlement approval">
+                    <div className="exit-mgmt-checkbox-list">
+                      <label className="exit-mgmt-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          name="isAssetRecovered" 
+                          checked={checklistForm.isAssetRecovered} 
+                          onChange={handleChecklistChange} 
+                        />
+                        <strong>Company Assets Recovered</strong>
+                      </label>
+
+                      <label className="exit-mgmt-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          name="isExitChecklistCleared" 
+                          checked={checklistForm.isExitChecklistCleared} 
+                          onChange={handleChecklistChange} 
+                        />
+                        <strong>Overall Exit Checklist Master Flag Cleared</strong>
+                      </label>
+                    </div>
+                  </FormSection>
+
+                  <FormSection title="Financial Ledger & Certificate Settings">
+                    <FormField label="Asset Recovery Logging Notes" htmlFor="assetNotes" fullWidth>
+                      <input 
+                        id="assetNotes"
+                        type="text" 
+                        name="assetRecoveryNotes" 
+                        value={checklistForm.assetRecoveryNotes} 
+                        onChange={handleChecklistChange} 
+                        placeholder="Outstanding property tokens or hardware metrics..."
+                      />
+                    </FormField>
+
+                    <FormField label="Full & Final Settlement Status">
+                      <label className="exit-mgmt-checkbox-label exit-mgmt-checkbox-label--mt">
+                        <input 
+                          type="checkbox" 
+                          name="isFullAndFinalSettled" 
+                          checked={checklistForm.isFullAndFinalSettled} 
+                          onChange={handleChecklistChange} 
+                        />
+                        Settled
+                      </label>
+                    </FormField>
+
+                    <FormField label="F&F Calculation Value ($)">
+                      <input 
+                        type="number" 
+                        name="fnfAmount" 
+                        value={checklistForm.fnfAmount} 
+                        onChange={handleChecklistChange} 
+                        min="0"
+                      />
+                    </FormField>
+
+                    <div className="exit-mgmt-checkbox-group">
+                      <label className="exit-mgmt-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          name="isExperienceLetterIssued" 
+                          checked={checklistForm.isExperienceLetterIssued} 
+                          onChange={handleChecklistChange} 
+                        />
+                        <strong>Issue Experience Letter</strong>
+                      </label>
+
+                      <label className="exit-mgmt-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          name="isRelievingLetterIssued" 
+                          checked={checklistForm.isRelievingLetterIssued} 
+                          onChange={handleChecklistChange} 
+                        />
+                        <strong>Issue Relieving Letter</strong>
+                      </label>
+                    </div>
+                  </FormSection>
+
                   <FormField label="Final Settlement Date" htmlFor="finalSettlementDate" required fullWidth>
                     <input
                       id="finalSettlementDate"
@@ -858,8 +893,10 @@ function Resignations() {
                 <FormField label="Asset Recovery"><input type="text" value={selectedResignation.isAssetRecovered ? "✅ Recovered" : "❌ Pending"} disabled /></FormField>
                 <FormField label="Knowledge Transfer"><input type="text" value={selectedResignation.isKnowledgeTransferDone ? "✅ Completed" : "❌ Pending"} disabled /></FormField>
                 <FormField label="Overall Exit Checklist"><input type="text" value={selectedResignation.isExitChecklistCleared ? "✅ Cleared" : "❌ Not Cleared"} disabled /></FormField>
-                <FormField label="F&F Status"><input type="text" value={selectedResignation.isFullAndFinalSettled ? `✅ Settled ($${selectedResignation.fnfAmount})` : "❌ Processing"} disabled /></FormField>
+                <FormField label="F&F Status"><input type="text" value={selectedResignation.fnfSentAt ? `✅ Settled ($${selectedResignation.fnfAmount}) on ${new Date(selectedResignation.fnfSentAt).toLocaleDateString()}` : (selectedResignation.status === "Verified" ? "❌ Processing" : "⏳ Scheduled (day after settlement date @ 10:00 AM)")} disabled /></FormField>
                 <FormField label="Certificates Issued"><input type="text" value={`${selectedResignation.isExperienceLetterIssued ? "Experience" : ""} ${selectedResignation.isRelievingLetterIssued ? "Relieving" : ""}`.trim() || "None"} disabled /></FormField>
+                <FormField label="Letters Dispatch Date"><input type="text" value={selectedResignation.lettersSentAt ? new Date(selectedResignation.lettersSentAt).toLocaleDateString() : "Scheduled (day after LWD @ 10:00 AM)"} disabled /></FormField>
+                <FormField label="F&F Dispatch Date"><input type="text" value={selectedResignation.fnfSentAt ? new Date(selectedResignation.fnfSentAt).toLocaleDateString() : "Scheduled (day after settlement date @ 10:00 AM)"} disabled /></FormField>
                 <FormField label="Asset recovery notes"><input type="text" value={selectedResignation.assetRecoveryNotes ? selectedResignation.assetRecoveryNotes : "No Notes"} disabled /></FormField>
                 <FormField label="Approved Date"><input type="text" value={selectedResignation.approvedDate ? new Date(selectedResignation.approvedDate).toLocaleDateString() : "N/A"} disabled /></FormField>
                 <FormField label="Final Settlement Date"><input type="text" value={selectedResignation.finalSettlementDate ? new Date(selectedResignation.finalSettlementDate).toLocaleDateString() : "N/A"} disabled /></FormField>
@@ -912,6 +949,21 @@ function Resignations() {
                   </button>
                 ) : (
                   <span className="no-document-msg">Relieving Letter is not issued.</span>
+                )}
+              </FormField>
+
+              <FormField label=" F&F Statement" fullWidth>
+                {selectedResignation.fnfDocumentUrl ? (
+                  <button
+                    type="button"
+                    className="document-download-link document-download-link--btn"
+                    onClick={() => viewLetter(selectedResignation._id,'fnfDocumentUrl')}
+                  >
+                    <FileText size={18} />
+                    <span>View Document Record</span>
+                  </button>
+                ) : (
+                  <span className="no-document-msg">F&F Statement is generated after dispatch.</span>
                 )}
               </FormField>
             </FormSection>

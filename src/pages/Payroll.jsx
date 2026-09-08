@@ -52,6 +52,8 @@ export default function Payroll() {
   const [downloadingId, setDownloadingId] = useState(null);
   const [downloadingWageSheet, setDownloadingWageSheet] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
+  const [bulkResult, setBulkResult] = useState(null);
+  const [showAllSkipped, setShowAllSkipped] = useState(false);
 
   const [confirmModal, setConfirmModal] = useState({ open: false, title: "", message: "", onConfirm: null });
   const [deleteModal, setDeleteModal] = useState({ open: false, payrollId: null });
@@ -72,7 +74,10 @@ export default function Payroll() {
 
   const loadData = async (clearMessage = true) => {
     if (!user) return;
-    if (clearMessage) setStatusMessage({ type: "", text: "" });
+    if (clearMessage) {
+      setStatusMessage({ type: "", text: "" });
+      setBulkResult(null);
+    }
 
     try {
       if (isAdminOrHR) {
@@ -116,6 +121,20 @@ export default function Payroll() {
   useEffect(() => {
     if (tabFromUrl && isAdminOrHR) setActiveTab(tabFromUrl);
   }, [tabFromUrl, isAdminOrHR]);
+
+  // Clear banners when switching tabs (Payroll ↔ Payslips etc.)
+  useEffect(() => {
+    setStatusMessage({ type: "", text: "" });
+    setBulkResult(null);
+    setShowAllSkipped(false);
+  }, [activeTab]);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    setStatusMessage({ type: "", text: "" });
+    setBulkResult(null);
+    setShowAllSkipped(false);
+  };
 
   const handlePreview = async (params) => {
     setActionLoading(true);
@@ -203,12 +222,36 @@ export default function Payroll() {
             payrollDate: params.payrollDate,
           });
           const data = res.data?.data;
-          const skippedCount = data?.skipped?.length || 0;
+          const skipped = data?.skipped || [];
+          const skippedCount = skipped.length;
+          const successCount = data?.success?.length || 0;
+          const failedCount = data?.failed?.length || 0;
           const skipNote = skippedCount > 0 ? `, ${skippedCount} skipped` : "";
-          setStatusMessage({
-            type: "success",
-            text: res.data?.message || `Payroll calculated: ${data?.success?.length || 0} succeeded, ${data?.failed?.length || 0} failed${skipNote}.`,
+          let messageText = res.data?.message || `Payroll calculated: ${successCount} succeeded, ${failedCount} failed${skipNote}.`;
+          const missingCTC = skipped.filter((s) => /CTC\/Salary Structure|salary structure/i.test(s.reason || ""));
+          const otherSkipped = skipped.filter((s) => !/CTC\/Salary Structure|salary structure/i.test(s.reason || ""));
+          // Short status message — detailed list shown in formatted panel below
+          if (skippedCount > 0 && missingCTC.length > 0) {
+            messageText = `Payroll calculated: ${successCount} succeeded, ${failedCount} failed, ${skippedCount} skipped. CTC/Salary Structure not assigned for ${missingCTC.length} employee(s) — details below.`;
+          } else if (skippedCount > 0) {
+            messageText = `Payroll calculated: ${successCount} succeeded, ${failedCount} failed, ${skippedCount} skipped — details below.`;
+          }
+          const hasOnlySkipped = successCount === 0 && failedCount === 0 && skippedCount > 0;
+          const msgType = hasOnlySkipped || (missingCTC.length > 0 && successCount === 0) ? "error" : "success";
+          setStatusMessage({ type: msgType, text: messageText });
+          // Store structured result for formatted display (only after bulk calculate)
+          setBulkResult({
+            successCount,
+            failedCount,
+            skippedCount,
+            missingCTC,
+            otherSkipped,
+            skipped,
+            success: data?.success || [],
+            failed: data?.failed || [],
+            period: { month: params.month, year: params.year, payrollType: params.payrollType },
           });
+          setShowAllSkipped(false);
           loadData(false);
         } catch (error) {
           setStatusMessage({
@@ -322,6 +365,19 @@ export default function Payroll() {
   };
 
   const handleDownloadWageSheet = async () => {
+    const monthName = MONTH_NUMBER_TO_NAME[selectedMonth];
+    // Frontend guard: disable/toast when payroll is Pending or Gross/Net is ₹0
+    const hasProcessedPayroll = payrolls.some(
+      (p) => (p.status === "Processed" || p.approvalStatus === "Approved") && (Number(p.netSalary) > 0 || Number(p.totalEarnings) > 0)
+    );
+    const hasAnyPayroll = payrolls.length > 0 && payrolls.some((p) => Number(p.netSalary) > 0 || Number(p.totalEarnings) > 0);
+    if (!payrolls.length || !hasAnyPayroll || !hasProcessedPayroll) {
+      setStatusMessage({
+        type: "error",
+        text: `Payroll for ${monthName} ${selectedYear} is not yet processed. Cannot download Wage Sheet.`,
+      });
+      return;
+    }
     setDownloadingWageSheet(true);
     try {
       const res = await downloadWageSheet(selectedMonth, selectedYear);
@@ -474,7 +530,96 @@ export default function Payroll() {
           onDismiss={() => setStatusMessage({ type: "", text: "" })}
         />
 
-        <PayrollTabs isAdminOrHR={isAdminOrHR} activeTab={activeTab} onTabChange={setActiveTab} />
+        {bulkResult && (
+          <div className="bulk-result-panel glass-morphism">
+            <div className="bulk-result-header">
+              <div>
+                <h3 className="bulk-result-title">
+                  Bulk Calculation Result — {MONTH_NUMBER_TO_NAME[bulkResult.period.month]} {bulkResult.period.year}
+                  <span className="bulk-result-type"> {bulkResult.period.payrollType === "daily" ? "Daily" : "Monthly"}</span>
+                </h3>
+                <p className="bulk-result-subtitle">
+                  {bulkResult.successCount} succeeded · {bulkResult.failedCount} failed · {bulkResult.skippedCount} skipped out of{" "}
+                  {bulkResult.successCount + bulkResult.failedCount + bulkResult.skippedCount} employees
+                </p>
+              </div>
+              <button className="bulk-result-close" onClick={() => setBulkResult(null)} type="button" aria-label="Close">
+                ×
+              </button>
+            </div>
+
+            <div className="bulk-result-stats">
+              <span className="bulk-stat bulk-stat--success">
+                <strong>{bulkResult.successCount}</strong> Succeeded
+              </span>
+              <span className="bulk-stat bulk-stat--failed">
+                <strong>{bulkResult.failedCount}</strong> Failed
+              </span>
+              <span className="bulk-stat bulk-stat--skipped">
+                <strong>{bulkResult.skippedCount}</strong> Skipped
+              </span>
+            </div>
+
+            {bulkResult.missingCTC.length > 0 && (
+              <div className="bulk-result-section">
+                <h4 className="bulk-result-section-title">
+                  CTC/Salary Structure not assigned <span className="bulk-result-count">({bulkResult.missingCTC.length})</span>
+                </h4>
+                <p className="bulk-result-hint">
+                  These employees were skipped. Please assign their salary structure before payroll calculation.
+                </p>
+                <div className="bulk-skipped-list">
+                  {(showAllSkipped ? bulkResult.missingCTC : bulkResult.missingCTC.slice(0, 20)).map((s) => (
+                    <span key={s.employeeCode} className="bulk-skipped-chip" title={`${s.name} (${s.employeeCode}) — ${s.reason}`}>
+                      {s.name} <em>({s.employeeCode})</em>
+                    </span>
+                  ))}
+                </div>
+                {bulkResult.missingCTC.length > 20 && (
+                  <button
+                    className="bulk-result-toggle"
+                    onClick={() => setShowAllSkipped((v) => !v)}
+                    type="button"
+                  >
+                    {showAllSkipped ? "Show less" : `Show all ${bulkResult.missingCTC.length} employees`}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {bulkResult.otherSkipped.length > 0 && (
+              <div className="bulk-result-section">
+                <h4 className="bulk-result-section-title">
+                  Other skipped <span className="bulk-result-count">({bulkResult.otherSkipped.length})</span>
+                </h4>
+                <div className="bulk-skipped-list">
+                  {(showAllSkipped ? bulkResult.otherSkipped : bulkResult.otherSkipped.slice(0, 20)).map((s) => (
+                    <span key={s.employeeCode} className="bulk-skipped-chip" title={`${s.reason}`}>
+                      {s.name} ({s.employeeCode}) — {s.reason}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {bulkResult.failed.length > 0 && (
+              <div className="bulk-result-section">
+                <h4 className="bulk-result-section-title">
+                  Failed <span className="bulk-result-count">({bulkResult.failed.length})</span>
+                </h4>
+                <div className="bulk-skipped-list">
+                  {bulkResult.failed.map((f) => (
+                    <span key={f.employeeCode} className="bulk-skipped-chip bulk-skipped-chip--failed" title={f.error}>
+                      {f.name} ({f.employeeCode}) — {f.error}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <PayrollTabs isAdminOrHR={isAdminOrHR} activeTab={activeTab} onTabChange={handleTabChange} />
 
         {isAdminOrHR && activeTab === "payroll" && (
           <PayrollManager
@@ -505,6 +650,7 @@ export default function Payroll() {
             selectedYear={selectedYear}
             searchQuery={searchQuery}
             filteredHistory={filteredHistory}
+            payrolls={payrolls}
             actionLoading={actionLoading}
             downloadingId={downloadingId}
             onMonthChange={setSelectedMonth}

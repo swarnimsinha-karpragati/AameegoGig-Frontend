@@ -71,6 +71,7 @@ export default function ProfileCard() {
   const [location, setLocation] = useState("");
   const [department, setDepartment] = useState("");
   const [role, setRole] = useState("");
+  const [reportingManager, setReportingManager] = useState(null);
   const [isFormDisabled, setIsFormDisabled] = useState(true);
   const [showOptions, setShowOptions] = useState(false);
   const galleryInputRef = useRef(null);
@@ -104,6 +105,7 @@ export default function ProfileCard() {
     setLocation(data.location || "");
     setDepartment(data.department || "");
     setRole(data.role || "");
+    setReportingManager(data.reportingManager || null);
     setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
   };
 
@@ -421,6 +423,17 @@ export default function ProfileCard() {
             error={errors.role}
             isFormDisabled
           />
+
+          {role !== "Admin" ? (
+            <InputField
+              label="Reporting Manager"
+              icon={<User size={15} color="#2563eb" />}
+              value={reportingManager?.name || "Not assigned"}
+              onChange={() => { }}
+              placeholder="Not assigned"
+              isFormDisabled
+            />
+          ) : null}
 
         </div>
       </div>

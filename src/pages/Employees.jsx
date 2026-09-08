@@ -27,12 +27,16 @@ import {
   FileText,
   FolderOpen,
   Download,
-  MoreVertical
+  MoreVertical,
+  TriangleAlert,
+  OctagonX
 } from "lucide-react";
 
 
 import {
   generateAppointmentLetter,
+  generateWarningLetter,
+  generateTerminationLetter,
 } from "../services/letterService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
 import Pagination from "../components/Pagination";
@@ -54,7 +58,7 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft, validateComponentsMatchCtc, sumLetterMonthlyGross } from "../utils/salaryValidation";
+import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
@@ -62,26 +66,6 @@ import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles"
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
-
-const EMPLOYEES_LIST_STATE_KEY = "employees-list-state";
-
-const readPersistedListState = () => {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(EMPLOYEES_LIST_STATE_KEY));
-    if (!saved || typeof saved !== "object") return null;
-    return saved;
-  } catch {
-    return null;
-  }
-};
-
-const persistListState = (state) => {
-  try {
-    sessionStorage.setItem(EMPLOYEES_LIST_STATE_KEY, JSON.stringify(state));
-  } catch {
-    // ignore quota / private mode errors
-  }
-};
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -97,6 +81,7 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "departmentId", label: name, required: true },
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
+      { key: "peopleManagerId", label: "People Manager", type: "people-manager" },
       { key: "dateOfJoining", label: "Date of Joining", type: "date" },
       { key: "dob", label: "Date of Birth", type: "date" },
     ],
@@ -232,7 +217,8 @@ function EmployeeFormFields({
   onFieldChange,
   emailRequired,
   department,
-  errors
+  errors,
+  showTransferNotice
 }) {
   const fieldError = (key) => errors?.[key];
   const inputClassName = (key) =>
@@ -262,19 +248,27 @@ function EmployeeFormFields({
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}
+          {showTransferNotice ? (
+            <p className="emp-transfer-notice">
+              Transfer letter will be created and sent to the employee when saved.
+            </p>
+          ) : null}
         </>
       );
     }
 
-    if (field.type === "manager") {
+    if (field.type === "manager" || field.type === "people-manager") {
+      const excludedManagerId =
+        field.type === "manager" ? values.peopleManagerId : values.managerId;
       return (
         <>
           <SearchableEmployeeSelectServer
-            value={values.managerId}
+            value={values[field.key]}
             onChange={(empId) => onFieldChange({ target: { name: field.key, value: empId } })}
+            excludeIds={[excludedManagerId]}
             hasError={!!fieldError(field.key)}
             controlClassName="emp-field-input form-control"
-            placeholder="Select manager (optional)"
+            placeholder={`Select ${field.label.toLowerCase()} (optional)`}
           />
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
@@ -550,7 +544,7 @@ function Employees() {
     uan: "", pfNumber: "", esicNumber: "",
     bankName: "", accountHolderName: "", accountNumber: "", ifscCode: "",
     highestQualification: "",
-    dateOfJoining: "", relievingDate: "", managerId: "",
+    dateOfJoining: "", relievingDate: "", managerId: "", peopleManagerId: "",
     basicSalary: "", hra: "", conveyanceAllowance: "", incentive: "", otherAllowance: "", professionalTax: "",
     createAppLogin: false, userRole: "Employee", userPassword: "",
     allowedModules: defaultSelectedModules("Employee"),
@@ -558,26 +552,19 @@ function Employees() {
 
   const [form, setForm] = useState(initialForm);
 
-  const persistedListState = readPersistedListState();
-
   const [employees, setEmployees] = useState([]);
-  const [search, setSearch] = useState(persistedListState?.search ?? "");
-  const [page, setPage] = useState(
-    Number.isFinite(persistedListState?.page) ? persistedListState.page : 1
-  );
-  const [limit, setLimit] = useState(
-    Number.isFinite(persistedListState?.limit) ? persistedListState.limit : 10
-  );
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [department, setDepartment] = useState([]);
-  const [departmentFilter, setDepartmentFilter] = useState(
-    persistedListState?.departmentFilter ?? ""
-  );
+  const [departmentFilter, setDepartmentFilter] = useState("");
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
@@ -622,6 +609,9 @@ function Employees() {
   const [selectedEmployee, setSelectedEmployee] =
     useState(null);
 
+  const [originalDepartmentId, setOriginalDepartmentId] =
+    useState("");
+
   const [isEditing, setIsEditing] =
     useState(false);
 
@@ -634,7 +624,7 @@ function Employees() {
   const [showAddModal, setShowAddModal] =
     useState(false);
 
-  const initialSalaryDraft = { ctcAnnual: 0, components: [] };
+  const initialSalaryDraft = { wageType: "MONTHLY", ctcAnnual: 0, dailyWage: 0, components: [] };
   const [salaryDraft, setSalaryDraft] = useState(initialSalaryDraft);
 
   const [showUploadModal, setShowUploadModal] =
@@ -658,6 +648,46 @@ function Employees() {
     });
 
   const [letterEmployeeId, setLetterEmployeeId] = useState(null);
+
+  const [
+    showWarningModal,
+    setShowWarningModal,
+  ] = useState(false);
+
+  const [warningData, setWarningData] =
+    useState({
+      employeeId: "",
+      employeeName: "",
+      employeeCode: "",
+      designation: "",
+      department: "",
+      incidentDate: "",
+      reason: "",
+      severity: "First",
+      actionTaken: "",
+      responsePeriod: "5",
+    });
+
+  const [
+    showTerminationModal,
+    setShowTerminationModal,
+  ] = useState(false);
+
+  const [terminationData, setTerminationData] =
+    useState({
+      employeeId: "",
+      employeeName: "",
+      employeeCode: "",
+      designation: "",
+      department: "",
+      terminationDate: "",
+      reason: "",
+      noticePeriod: "",
+      workLocation: "",
+      client: "",
+      settlementDate: "",
+      noticeClause: "7(B)",
+    });
 
   const salaryEditorRef = useRef(null);
 
@@ -685,10 +715,6 @@ function Employees() {
       console.error("Error fetching employees:", error);
     }
   }, [departmentFilter, page, limit, search]);
-
-  useEffect(() => {
-    persistListState({ search, page, limit, departmentFilter });
-  }, [search, page, limit, departmentFilter]);
 
   useEffect(() => {
     fetchEmployees();
@@ -837,6 +863,7 @@ function Employees() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
 
     if (
       form.createAppLogin &&
@@ -868,9 +895,12 @@ function Employees() {
           return;
         }
 
-        // Manual component entry (no template) must add up to the Annual CTC.
+        // Manual component entry must add up to CTC / daily wage when no template used
         if (!salaryDraft.structureId) {
-          const matchError = validateComponentsMatchCtc(salaryDraft);
+          const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || (Number(salaryDraft.dailyWage) > 0);
+          const matchError = isDailyDraft
+            ? validateComponentsMatchDailyWage(salaryDraft)
+            : validateComponentsMatchCtc(salaryDraft);
           if (matchError) {
             setErrors({ salaryStructure: matchError });
             return;
@@ -879,13 +909,20 @@ function Employees() {
       }
 
       setErrors({});
+      setSubmitting(true);
       const res = await addEmployee(payload);
       const data = res.data;
       const newEmployeeId = data.employee?._id;
 
       if (newEmployeeId && hasSalaryData(salaryDraft)) {
         try {
-          await saveEmployeeStructure(newEmployeeId, {
+          const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || Number(salaryDraft.dailyWage) > 0;
+          await saveEmployeeStructure(newEmployeeId, isDailyDraft ? {
+            wageType: "DAILY",
+            dailyWage: Number(salaryDraft.dailyWage) || 0,
+            components: salaryDraft.components,
+          } : {
+            wageType: "MONTHLY",
             ctcAnnual: Number(salaryDraft.ctcAnnual) || 0,
             components: salaryDraft.components,
           });
@@ -918,6 +955,8 @@ function Employees() {
 
       const serverMessage = error.response?.data?.message || "Failed to add employee";
       alert(serverMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1079,6 +1118,7 @@ function Employees() {
     departmentId: emp.departmentId || emp.department || "",
     departmentName: emp.departmentName || "",
     managerId: emp.managerId?._id || emp.managerId || "",
+    peopleManagerId: emp.peopleManagerId?._id || emp.peopleManagerId || "",
     dob: emp.dob ? emp.dob.split("T")[0] : "",
     dateOfJoining:
       emp.dateOfJoining
@@ -1129,6 +1169,7 @@ function Employees() {
 
   const handleEdit = (emp) => {
     setErrors({});
+    setOriginalDepartmentId(String(emp.departmentId || emp.department || ""));
     setSelectedEmployee(normalizeEmployeeForForm(emp));
 
     setEnableLoginOnUpdate(false);
@@ -1136,6 +1177,7 @@ function Employees() {
   };
 
   const handleUpdate = async () => {
+    if (submitting) return;
     try {
       if (
         enableLoginOnUpdate &&
@@ -1165,6 +1207,7 @@ function Employees() {
       }
 
       setErrors({});
+      setSubmitting(true);
 
       const res = await updateEmployee(
         selectedEmployee._id,
@@ -1204,6 +1247,8 @@ function Employees() {
 
       const serverMessage = error.response?.data?.message || "Failed to update employee";
       alert(serverMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1286,6 +1331,108 @@ function Employees() {
         );
 
         setShowLetterModal(false);
+
+      } catch (error) {
+        alert(
+          error.response?.data
+            ?.message ||
+          "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* =========================
+       GENERATE WARNING LETTER
+     ========================= */
+
+  const handleGenerateWarning =
+    async () => {
+      if (
+        !warningData.employeeName ||
+        !warningData.designation ||
+        !warningData.incidentDate ||
+        !warningData.reason?.trim()
+      ) {
+        alert(
+          "Please fill all mandatory fields (employee, designation, incident date, and reason)"
+        );
+        return;
+      }
+
+      try {
+        setLoading(true);
+        await generateWarningLetter({
+          employeeId: warningData.employeeId,
+          employeeName: warningData.employeeName,
+          employeeCode: warningData.employeeCode,
+          designation: warningData.designation,
+          department: warningData.department,
+          incidentDate: warningData.incidentDate,
+          reason: warningData.reason,
+          severity: warningData.severity,
+          actionTaken: warningData.actionTaken,
+          responsePeriod: warningData.responsePeriod,
+        });
+
+        alert(
+          "Warning Letter Generated Successfully"
+        );
+
+        setShowWarningModal(false);
+
+      } catch (error) {
+        alert(
+          error.response?.data
+            ?.message ||
+          "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* =========================
+       GENERATE TERMINATION LETTER
+     ========================= */
+
+  const handleGenerateTermination =
+    async () => {
+      if (
+        !terminationData.employeeName ||
+        !terminationData.designation ||
+        !terminationData.terminationDate ||
+        !terminationData.reason?.trim()
+      ) {
+        alert(
+          "Please fill all mandatory fields (employee, designation, termination date, and reason)"
+        );
+        return;
+      }
+
+      try {
+        setLoading(true);
+        await generateTerminationLetter({
+          employeeId: terminationData.employeeId,
+          employeeName: terminationData.employeeName,
+          employeeCode: terminationData.employeeCode,
+          designation: terminationData.designation,
+          department: terminationData.department,
+          terminationDate: terminationData.terminationDate,
+          reason: terminationData.reason,
+          noticePeriod: terminationData.noticePeriod,
+          workLocation: terminationData.workLocation,
+          client: terminationData.client,
+          settlementDate: terminationData.settlementDate,
+          noticeClause: terminationData.noticeClause,
+        });
+
+        alert(
+          "Termination Letter Generated Successfully"
+        );
+
+        setShowTerminationModal(false);
 
       } catch (error) {
         alert(
@@ -1446,6 +1593,7 @@ function Employees() {
                   <th>Phone</th>
                   <th>Designation</th>
                   <th>{name} name</th>
+                  <th>Reporting Manager</th>
                   <th>State name</th>
                   <th>App Login</th>
                   <th>Status</th>
@@ -1459,21 +1607,25 @@ function Employees() {
                     <tr key={emp._id}>
                       <td>{emp.employeeCode}</td>
 
-                      <td>{emp.name}</td>
+                      <td title={emp.name}>{emp.name}</td>
 
                       <td>
                         {emp.phone || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.designation}>
                         {emp.designation || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.department}>
                         {emp.department || "-"}
                       </td>
 
-                      <td>
+                      <td title={emp.managerId?.name}>
+                        {emp.managerId?.name || "-"}
+                      </td>
+
+                      <td title={emp.stateName}>
                         {emp.stateName || "-"}
                       </td>
 
@@ -1537,7 +1689,10 @@ function Employees() {
 
                               <button
                                 type="button"
+                                disabled={!emp.isActive}
+                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
                                 onClick={() => {
+                                  if (!emp.isActive) return;
                                   setOpenDropdownId(null);
                                   setLetterEmployeeId(emp._id);
                                   setLetterData({
@@ -1554,6 +1709,58 @@ function Employees() {
                                 }}
                               >
                                 <FileText size={16} /> Appointment Letter
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={!emp.isActive}
+                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                onClick={() => {
+                                  if (!emp.isActive) return;
+                                  setOpenDropdownId(null);
+                                  setWarningData({
+                                    employeeId: emp._id,
+                                    employeeName: emp.name || "",
+                                    employeeCode: emp.employeeCode || "",
+                                    designation: emp.designation || "",
+                                    department: emp.department || "",
+                                    incidentDate: new Date().toISOString().split("T")[0],
+                                    reason: "",
+                                    severity: "First",
+                                    actionTaken: "",
+                                    responsePeriod: "5",
+                                  });
+                                  setShowWarningModal(true);
+                                }}
+                              >
+                                <TriangleAlert size={16} /> Warning Letter
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={!emp.isActive}
+                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                onClick={() => {
+                                  if (!emp.isActive) return;
+                                  setOpenDropdownId(null);
+                                  setTerminationData({
+                                    employeeId: emp._id,
+                                    employeeName: emp.name || "",
+                                    employeeCode: emp.employeeCode || "",
+                                    designation: emp.designation || "",
+                                    department: emp.department || "",
+                                    terminationDate: new Date().toISOString().split("T")[0],
+                                    reason: "",
+                                    noticePeriod: "",
+                                    workLocation: emp.location || "",
+                                    client: emp.client || "",
+                                    settlementDate: new Date().toISOString().split("T")[0],
+                                    noticeClause: "7(B)",
+                                  });
+                                  setShowTerminationModal(true);
+                                }}
+                              >
+                                <OctagonX size={16} /> Termination Letter
                               </button>
 
                               <button
@@ -1642,9 +1849,9 @@ function Employees() {
                 <Button
                   type="submit"
                   form="add-employee-form"
-                  disabled={hasFormErrors}
+                  disabled={hasFormErrors || submitting}
                 >
-                  Save Employee
+                  {submitting ? "Creating..." : "Save Employee"}
                 </Button>
               </>
             }
@@ -1701,6 +1908,7 @@ function Employees() {
                 ) : null}
                 <EmployeeSalaryStructureEditor
                   key="add-employee-salary-structure"
+                  payType={form.payType}
                   draftValue={salaryDraft}
                   onDraftChange={setSalaryDraft}
                   hideActions
@@ -1790,9 +1998,9 @@ function Employees() {
                   <Button
                     type="button"
                     onClick={handleUpdate}
-                    disabled={hasFormErrors}
+                    disabled={hasFormErrors || submitting}
                   >
-                    Save Changes
+                    {submitting ? "Saving..." : "Save Changes"}
                   </Button>
                 </>
               ) : null
@@ -1809,6 +2017,13 @@ function Employees() {
                   emailRequired={enableLoginOnUpdate}
                   department={department}
                   errors={errors}
+                  showTransferNotice={
+                    isEditing &&
+                    !!selectedEmployee?.departmentId &&
+                    !!originalDepartmentId &&
+                    String(selectedEmployee.departmentId) !==
+                      String(originalDepartmentId)
+                  }
                 />
                 <FormSection title="App Access">
                   <AppLoginSection
@@ -1852,7 +2067,7 @@ function Employees() {
                   description="Dynamic earnings and deductions from your organization library"
                   fullWidth
                 >
-                  <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} />
+                  <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} payType={selectedEmployee.payType} />
                 </FormSection>
               </>
             ) : (
@@ -1890,6 +2105,15 @@ function Employees() {
                     <div>
                       <label>Designation</label>
                       <span>{selectedEmployee.designation || "-"}</span>
+                    </div>
+
+                    <div>
+                      <label>Reporting Manager</label>
+                      <span>
+                        {selectedEmployee.managerId?.name ||
+                          selectedEmployee.managerName ||
+                          "-"}
+                      </span>
                     </div>
 
                     <div>
@@ -2225,6 +2449,291 @@ function Employees() {
                 letterData={letterData}
                 onChange={patchLetterData}
               />
+            </FormSection>
+          </EmpModal>
+        ) : null}
+
+        {showWarningModal ? (
+          <EmpModal
+            title="Generate Warning Letter"
+            onClose={() => setShowWarningModal(false)}
+            size="md"
+            footer={
+              <Button
+                type="button"
+                icon={<TriangleAlert size={16} />}
+                onClick={handleGenerateWarning}
+                disabled={loading}
+                style={{ flex: 1 }}
+              >
+                {loading ? "Generating…" : "Generate Warning Letter"}
+              </Button>
+            }
+          >
+            <FormSection
+              title="Employee Details"
+              description="Auto-filled from the selected employee"
+            >
+              <FormField label="Employee Name" htmlFor="warn-name" required>
+                <input
+                  id="warn-name"
+                  required
+                  value={warningData.employeeName}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Employee Code" htmlFor="warn-code">
+                <input
+                  id="warn-code"
+                  value={warningData.employeeCode}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Designation" htmlFor="warn-designation" required>
+                <input
+                  id="warn-designation"
+                  required
+                  value={warningData.designation}
+                  readOnly
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Incident Details"
+              description="Provide details regarding the incident and action"
+            >
+              <FormField label="Incident Date" htmlFor="warn-incident-date" required>
+                <input
+                  id="warn-incident-date"
+                  required
+                  type="date"
+                  value={warningData.incidentDate}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      incidentDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              <FormField label="Warning Severity" htmlFor="warn-severity">
+                <select
+                  id="warn-severity"
+                  value={warningData.severity}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      severity: e.target.value,
+                    })
+                  }
+                >
+                  <option value="First">First</option>
+                  <option value="Second">Second</option>
+                  <option value="Final">Final</option>
+                </select>
+              </FormField>
+
+              <FormField label="Reason / Description" htmlFor="warn-reason" fullWidth required>
+                <textarea
+                  id="warn-reason"
+                  required
+                  rows={4}
+                  value={warningData.reason}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      reason: e.target.value,
+                    })
+                  }
+                  placeholder="Describe the incident / violation in detail"
+                />
+              </FormField>
+
+              <FormField label="Action Taken" htmlFor="warn-action" fullWidth>
+                <textarea
+                  id="warn-action"
+                  rows={2}
+                  value={warningData.actionTaken}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      actionTaken: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. deduction, suspension, coaching, etc."
+                />
+              </FormField>
+
+              <FormField label="Response Period (days)" htmlFor="warn-response">
+                <input
+                  id="warn-response"
+                  type="number"
+                  min="1"
+                  value={warningData.responsePeriod}
+                  onChange={(e) =>
+                    setWarningData({
+                      ...warningData,
+                      responsePeriod: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+            </FormSection>
+          </EmpModal>
+        ) : null}
+
+        {showTerminationModal ? (
+          <EmpModal
+            title="Generate Termination Letter"
+            onClose={() => setShowTerminationModal(false)}
+            size="md"
+            footer={
+              <Button
+                type="button"
+                icon={<OctagonX size={16} />}
+                onClick={handleGenerateTermination}
+                disabled={loading}
+                style={{ flex: 1 }}
+              >
+                {loading ? "Generating…" : "Generate Termination Letter"}
+              </Button>
+            }
+          >
+            <FormSection
+              title="Employee Details"
+              description="Auto-filled from the selected employee"
+            >
+              <FormField label="Employee Name" htmlFor="term-name" required>
+                <input
+                  id="term-name"
+                  required
+                  value={terminationData.employeeName}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Employee Code" htmlFor="term-code">
+                <input
+                  id="term-code"
+                  value={terminationData.employeeCode}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Designation" htmlFor="term-designation" required>
+                <input
+                  id="term-designation"
+                  required
+                  value={terminationData.designation}
+                  readOnly
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Termination Details"
+              description="Provide details regarding the termination"
+            >
+              <FormField label="Termination / Last Working Day" htmlFor="term-date" required>
+                <input
+                  id="term-date"
+                  required
+                  type="date"
+                  value={terminationData.terminationDate}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      terminationDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              <FormField label="Reason for Termination" htmlFor="term-reason" fullWidth required>
+                <textarea
+                  id="term-reason"
+                  required
+                  rows={4}
+                  value={terminationData.reason}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      reason: e.target.value,
+                    })
+                  }
+                  placeholder="Describe the reason for termination"
+                />
+              </FormField>
+
+              <FormField label="Notice Period (payment in lieu)" htmlFor="term-notice" fullWidth>
+                <input
+                  id="term-notice"
+                  value={terminationData.noticePeriod}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      noticePeriod: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 1 month salary or leave blank"
+                />
+              </FormField>
+
+              <FormField label="Work Location / Site" htmlFor="term-location" fullWidth>
+                <input
+                  id="term-location"
+                  value={terminationData.workLocation}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      workLocation: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Gurgaon"
+                />
+              </FormField>
+
+              <FormField label="Client / Site Name" htmlFor="term-client" fullWidth>
+                <input
+                  id="term-client"
+                  value={terminationData.client}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      client: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. ABC Towers"
+                />
+              </FormField>
+
+              <FormField label="Settlement / F&F Reporting Date" htmlFor="term-settlement">
+                <input
+                  id="term-settlement"
+                  type="date"
+                  value={terminationData.settlementDate}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      settlementDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              <FormField label="Appointment Letter Clause No." htmlFor="term-clause">
+                <input
+                  id="term-clause"
+                  value={terminationData.noticeClause}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      noticeClause: e.target.value,
+                    })
+                  }
+                  placeholder='e.g. 7(B)'
+                />
+              </FormField>
             </FormSection>
           </EmpModal>
         ) : null}

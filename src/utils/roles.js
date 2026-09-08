@@ -35,6 +35,7 @@ export const ROUTE_ACCESS = {
   "/expenses": ["Admin", "HR", "Manager", "Employee"],
   "/resignation": ["Admin", "HR", "Manager", "Employee"],
   "/advance-loan": ["Admin", "HR", "Manager", "Employee"],
+  "/loan-config": ["Admin", "HR"],
   "/settings": ["Admin", "HR", "Manager", "Employee"],
 };
 
@@ -46,6 +47,7 @@ export const GRANTABLE_MODULES = [
   { key: "documents", label: "Documents", path: "/documents" },
   { key: "resignation", label: "Resignation", path: "/resignation" },
   { key: "advance-loan", label: "Advance Loan", path: "/advance-loan" },
+  { key: "loan-config", label: "Loan Configuration", path: "/loan-config" },
   { key: "employees", label: "Employees", path: "/employees" },
   { key: "departments", label: "Departments / Sites", path: "/departments" },
 ];
@@ -64,6 +66,7 @@ const MODULE_BY_PATH = {
   "/expenses": "expenses",
   "/resignation": "resignation",
   "/advance-loan": "advance-loan",
+  "/loan-config": "loan-config",
   "/settings": "settings",
 };
 
@@ -197,4 +200,7 @@ export const getExpenseViewKey = (role) => {
 };
 
 export const canApproveAdvanceLoan = (role) =>
+  role === "Admin" || role === "HR";
+
+export const canViewAllAdvanceLoan = (role) =>
   role === "Admin" || role === "HR" || role === "Manager";

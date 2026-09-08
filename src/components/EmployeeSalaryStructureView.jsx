@@ -34,8 +34,8 @@ const ViewPanel = ({ title, items, emptyText, ctcTarget, suffix }) => (
         items.map((item) => (
           <AmountRow
             key={item.code || item.name}
-            name={item.name}
-            amount={item.amount ?? item.monthlyAmount}
+            name={item.name || item.code}
+            amount={item.amount ?? item.monthlyAmount ?? item.dailyAmount}
             suffix={suffix}
           />
         ))
@@ -48,7 +48,7 @@ const ViewPanel = ({ title, items, emptyText, ctcTarget, suffix }) => (
 
 const CtcBreakdownBar = ({ earnings, ctcTarget }) => {
   if (!earnings.length || ctcTarget <= 0) return null;
-  const activeEarnings = earnings.filter(e => (e.amount ?? e.monthlyAmount ?? 0) > 0);
+  const activeEarnings = earnings.filter(e => (e.amount ?? e.monthlyAmount ?? e.dailyAmount ?? 0) > 0);
   if (!activeEarnings.length) return null;
 
   const validCodes = ['basic', 'hra', 'special', 'conveyance', 'medical', 'lta', 'incentive'];
@@ -60,7 +60,7 @@ const CtcBreakdownBar = ({ earnings, ctcTarget }) => {
       </div>
       <div className="emp-salary-view__ctc-bar-visual">
         {activeEarnings.map((item) => {
-          const amt = item.amount ?? item.monthlyAmount ?? 0;
+          const amt = item.amount ?? item.monthlyAmount ?? item.dailyAmount ?? 0;
           const pct = (amt / ctcTarget) * 100;
           let code = (item.code || "").toLowerCase();
           if (!validCodes.includes(code)) code = "default";
@@ -77,7 +77,7 @@ const CtcBreakdownBar = ({ earnings, ctcTarget }) => {
       </div>
       <div className="emp-salary-view__ctc-legend">
         {activeEarnings.map((item) => {
-          const amt = item.amount ?? item.monthlyAmount ?? 0;
+          const amt = item.amount ?? item.monthlyAmount ?? item.dailyAmount ?? 0;
           const pct = (amt / ctcTarget) * 100;
           let code = (item.code || "").toLowerCase();
           if (!validCodes.includes(code)) code = "default";
@@ -143,6 +143,80 @@ export default function EmployeeSalaryStructureView({ employeeId }) {
 
   if (error) return <div className="emp-salary-view emp-salary-view__state--error"><AlertCircle size={18} /> {error}</div>;
 
+  const isDaily = String(structure?.wageType || "").toUpperCase() === "DAILY" || Number(structure?.dailyWage) > 0;
+
+  if (isDaily) {
+    const fallback = groupStructureComponents(structure?.components || []);
+    const dailyWage = Number(structure?.dailyWage || 0);
+    const dailyGross = Number(structure?.dailyGross || fallback.earnings.reduce((s,c)=>s+(c.dailyAmount??c.monthlyAmount??0),0));
+    const earnings = fallback.earnings.map((c) => ({ ...c, amount: c.dailyAmount ?? c.monthlyAmount ?? 0 }));
+    const deductions = fallback.deductions.map((c) => ({ ...c, amount: c.dailyAmount ?? c.monthlyAmount ?? 0 }));
+    const employerContributions = fallback.employerContributions.map((c) => ({ ...c, amount: c.dailyAmount ?? c.monthlyAmount ?? 0 }));
+    const totalDeduction = deductions.reduce((s, d) => s + (d.amount ?? 0), 0);
+    const netDaily = Math.max(0, dailyGross - totalDeduction);
+    const ctcTarget = dailyWage || dailyGross || 1;
+
+    return (
+      <div className="emp-salary-view">
+        <div className="emp-salary-view__header">
+          <div className="emp-salary-view__metrics">
+            <div className="emp-salary-view__metric">
+              <span className="emp-salary-view__metric-label">Daily Wage</span>
+              <strong className="emp-salary-view__metric-value">{formatInr(dailyWage)}/day</strong>
+            </div>
+            <div className="emp-salary-view__metric">
+              <span className="emp-salary-view__metric-label">Daily Gross</span>
+              <strong className="emp-salary-view__metric-value">{formatInr(dailyGross)}/day</strong>
+            </div>
+            <div className="emp-salary-view__metric">
+              <span className="emp-salary-view__metric-label">Est. In-Hand /day</span>
+              <strong className="emp-salary-view__metric-value highlight">{formatInr(netDaily)}/day</strong>
+            </div>
+          </div>
+        </div>
+        <div style={{fontSize:11, color:"#64748b", textAlign:"center", marginTop:6}}>
+          Monthly estimate: 28 days = {formatInr(netDaily*28)} • 30 days = {formatInr(netDaily*30)} • 31 days = {formatInr(netDaily*31)}
+        </div>
+        {previewWarning && (
+          <div className="emp-salary-view__state--warn">
+            <AlertCircle size={16} /> {previewWarning}. Showing stored component amounts.
+          </div>
+        )}
+        <CtcBreakdownBar earnings={earnings} ctcTarget={ctcTarget} />
+        <div className="emp-salary-view__panels">
+          <ViewPanel title="Earnings (per day)" items={earnings} emptyText="No earnings configured." ctcTarget={ctcTarget} suffix="/day" />
+          <div className="emp-salary-view__panel-col">
+            <ViewPanel title="Deductions (per day)" items={deductions} emptyText="No deductions configured." ctcTarget={ctcTarget} suffix="/day" />
+            {employerContributions.length > 0 && (
+              <div style={{marginTop: '32px'}}>
+                <ViewPanel title="Employer Contributions (per day)" items={employerContributions} emptyText="" ctcTarget={ctcTarget} suffix="/day" />
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="emp-salary-view__summary">
+          <div className="emp-salary-view__summary-row">
+            <span className="emp-salary-view__summary-label">Daily Gross</span>
+            <strong className="emp-salary-view__summary-value">{formatInr(dailyGross)}/day</strong>
+          </div>
+          <div className="emp-salary-view__summary-row">
+            <span className="emp-salary-view__summary-label">Daily Deductions</span>
+            <strong className="emp-salary-view__summary-value" style={{color: '#dc2626'}}>-{formatInr(totalDeduction)}/day</strong>
+          </div>
+          <div className="emp-salary-view__summary-row emp-salary-view__summary-row--net">
+            <span className="emp-salary-view__summary-label">Est. Net /day <em className="emp-salary-view__badge">Est.</em></span>
+            <strong className="emp-salary-view__summary-value">{formatInr(netDaily)}/day</strong>
+          </div>
+          <div className="emp-salary-view__summary-row">
+            <span className="emp-salary-view__summary-label">Est. Net @ 30 days</span>
+            <strong className="emp-salary-view__summary-value">{formatInr(netDaily*30)}</strong>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // MONTHLY view (original)
   const fallback = groupStructureComponents(structure?.components || []);
   
   const mult = showAnnual ? 12 : 1;

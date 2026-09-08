@@ -315,7 +315,7 @@ export default function LeavePolicyManager() {
       setSelectedTemplate("custom");
       setStatus({
         type: "success",
-        message: formatSyncMessage("Policy saved.", res),
+        message: formatSyncMessage("Leave policy saved successfully.", res),
       });
     } catch (e) {
       setStatus({
