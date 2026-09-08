@@ -10,11 +10,13 @@ import {
   Download,
   Users,
   ShieldCheck,
-  Info
+  Info,
+  Pencil,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
+import LeaveEditModal from "../components/leave/LeaveEditModal";
 import { ToastProvider, useToast } from "../components/Toast";
 import { getEmployees } from "../services/employeeService";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
@@ -38,6 +40,7 @@ import {
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import "./Leave.css";
+import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
 
@@ -143,6 +146,7 @@ function LeaveInner() {
   });
 
   const [medicalDocFile, setMedicalDocFile] = useState(null);
+  const [editLeaveRecord, setEditLeaveRecord] = useState(null);
 
   const countWeekdaysInclusiveClient = (startStr, endStr) => {
     if (!startStr || !endStr) return null;
@@ -192,6 +196,7 @@ function LeaveInner() {
     roleCanManageLeaveRequests(user?.role) || dashboard?.scope === "team";
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
+  const canDirectEditLeave = user?.role === "Admin" || user?.role === "HR";
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
   const canConfigurePolicy = user?.role === "Admin" || user?.role === "HR";
 
@@ -960,45 +965,84 @@ function LeaveInner() {
                     <td>{item.status === "Pending" ? (item.employeeId?.managerId?.name || "-") : (item.approverId?.name || "-")}</td>
 
                     <td>
-                      {mode === "approve" &&
-                        canApprove &&
-                        item.status === "Pending" ? (
-                        <div className="leave-actions">
-                          <Button
-                            type="button"
-                            className="approve-btn"
-                            icon={<Check size={14} />}
-                            aria-label="Approve"
-                            onClick={() =>
-                              handleDecision(item._id, "approve", empName, item.leaveType, item.requestType)
-                            }
-                          />
-                          <Button
-                            type="button"
-                            className="reject-btn"
-                            icon={<X size={14} />}
-                            aria-label="Reject"
-                            onClick={() =>
-                              handleDecision(item._id, "reject", empName, item.leaveType, item.requestType)
-                            }
-                          />
-                        </div>
-                      ) : mode === "employee" &&
-                        (item.status === "Pending" ||
-                          item.status === "Approved") &&
-                        new Date(item.startDate).setHours(0, 0, 0, 0) >=
-                        new Date().setHours(0, 0, 0, 0) ? (
-                        <Button
-                          type="button"
-                          id="leave-cancel-btn"
-                          className="action-btn-delete"
-                          onClick={() => handleCancel(item)}
-                        >
-                          Cancel
-                        </Button>
-                      ) : (
-                        "-"
-                      )}
+                      {(() => {
+                        const showApprove =
+                          mode === "approve" &&
+                          canApprove &&
+                          item.status === "Pending";
+                        const showCancel =
+                          mode === "employee" &&
+                          (item.status === "Pending" ||
+                            item.status === "Approved") &&
+                          new Date(item.startDate).setHours(0, 0, 0, 0) >=
+                            new Date().setHours(0, 0, 0, 0);
+                        const showEdit =
+                          canDirectEditLeave && item.status !== "Cancelled";
+
+                        if (!showApprove && !showCancel && !showEdit) {
+                          return "-";
+                        }
+
+                        return (
+                          <div className="leave-actions">
+                            {showApprove ? (
+                              <>
+                                <Button
+                                  type="button"
+                                  className="approve-btn"
+                                  icon={<Check size={14} />}
+                                  aria-label="Approve"
+                                  onClick={() =>
+                                    handleDecision(
+                                      item._id,
+                                      "approve",
+                                      empName,
+                                      item.leaveType,
+                                      item.requestType
+                                    )
+                                  }
+                                />
+                                <Button
+                                  type="button"
+                                  className="reject-btn"
+                                  icon={<X size={14} />}
+                                  aria-label="Reject"
+                                  onClick={() =>
+                                    handleDecision(
+                                      item._id,
+                                      "reject",
+                                      empName,
+                                      item.leaveType,
+                                      item.requestType
+                                    )
+                                  }
+                                />
+                              </>
+                            ) : null}
+                            {showCancel ? (
+                              <Button
+                                type="button"
+                                id="leave-cancel-btn"
+                                className="action-btn-delete"
+                                onClick={() => handleCancel(item)}
+                              >
+                                Cancel
+                              </Button>
+                            ) : null}
+                            {showEdit ? (
+                              <button
+                                type="button"
+                                className="leave-edit-btn"
+                                onClick={() => setEditLeaveRecord(item)}
+                                title="Edit leave"
+                              >
+                                <Pencil size={13} />
+                                Edit
+                              </button>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );
@@ -1170,12 +1214,13 @@ function LeaveInner() {
               <th>Days</th>
               <th>Status</th>
               <th>Approve By (RM)</th>
+              {canDirectEditLeave ? <th>Action</th> : null}
             </tr>
           </thead>
           <tbody>
             {!loading && items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="leave-empty">
+                <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
                   No requests found
                 </td>
               </tr>
@@ -1224,6 +1269,23 @@ function LeaveInner() {
                   </div>
                 </td>
                 <td>{item.status === "Pending" ? (item.employeeId?.managerId?.name || "-") : (item.approverId?.name || "-")}</td>
+                {canDirectEditLeave ? (
+                  <td>
+                    {item.status === "Cancelled" ? (
+                      "-"
+                    ) : (
+                      <button
+                        type="button"
+                        className="leave-edit-btn"
+                        onClick={() => setEditLeaveRecord(item)}
+                        title="Edit leave"
+                      >
+                        <Pencil size={13} />
+                        Edit
+                      </button>
+                    )}
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -1413,6 +1475,13 @@ function LeaveInner() {
           loading={actionLoading}
           onConfirm={modal.onConfirm}
           onCancel={closeModal}
+        />
+
+        <LeaveEditModal
+          open={Boolean(editLeaveRecord)}
+          record={editLeaveRecord}
+          onClose={() => setEditLeaveRecord(null)}
+          onSaved={loadData}
         />
 
       </div>
