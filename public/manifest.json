@@ -1,6 +1,7 @@
 {
   "short_name": "Workza",
   "name": "Workza — One Workforce. One Platform.",
+  "description": "HRMS software for employee management, payroll, attendance, and leave — built for office and field workforces.",
   "icons": [
     {
       "src": "favicon.ico",
