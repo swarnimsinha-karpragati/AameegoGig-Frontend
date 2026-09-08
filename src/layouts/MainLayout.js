@@ -11,7 +11,8 @@ import {
   Settings,
   Building2,
   ReceiptText,
-  FileSignature
+  FileSignature,
+  ClipboardPen
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
@@ -93,6 +94,10 @@ function MainLayout({ children }) {
     "/employees": { title: "Employees", subtitle: "Manage your organization workforce" },
     "/attendance": { title: "Attendance", subtitle: "Track and manage employee attendance" },
     "/leave": { title: "Leave", subtitle: "Review and approve employee leave requests" },
+    "/regularization": {
+      title: "Regularization",
+      subtitle: "Request and approve attendance and leave corrections",
+    },
     "/payroll": { title: "Payroll", subtitle: "Manage salaries and payroll processing" },
     "/expenses": { title: "Expenses", subtitle: "Submit and manage expense claims" },
     "/advance-loan": { title: "Advance Loan", subtitle: "Submit and manage Advance Loan claims" },
@@ -109,6 +114,7 @@ function MainLayout({ children }) {
     { label: "Employees", path: "/employees", icon: Users },
     { label: "Attendance", path: "/attendance", icon: Clock3 },
     { label: "Leave", path: "/leave", icon: CalendarDays },
+    { label: "Regularization", path: "/regularization", icon: ClipboardPen },
     { label: "Payroll", path: "/payroll", icon: Wallet },
     { label: "Expenses", path: "/expenses", icon: ReceiptText },
     { label: "Advance Loan", path: "/advance-loan", icon: Wallet },

@@ -30,6 +30,7 @@ export const ROUTE_ACCESS = {
   "/employees": ["Admin", "HR"],
   "/attendance": ["Admin", "HR", "Manager", "Employee"],
   "/leave": ["Admin", "HR", "Manager", "Employee"],
+  "/regularization": ["Admin", "HR", "Manager", "Employee"],
   "/payroll": ["Admin", "HR", "Manager", "Employee"],
   "/documents": ["Admin", "HR", "Manager", "Employee"],
   "/expenses": ["Admin", "HR", "Manager", "Employee"],
@@ -96,6 +97,14 @@ export const canAccessRoute = (role, path, allowedModules) => {
   const allowedRoles = ROUTE_ACCESS[appPath];
   if (allowedRoles && !allowedRoles.includes(role)) return false;
 
+  if (appPath === "/regularization") {
+    if (role === "Admin" || allowedModules == null) return true;
+    if (!Array.isArray(allowedModules)) return true;
+    return (
+      allowedModules.includes("attendance") || allowedModules.includes("leave")
+    );
+  }
+
   const moduleKey = MODULE_BY_PATH[appPath];
   if (!moduleKey || ALWAYS_ON_MODULES.includes(moduleKey)) return true;
   if (!Array.isArray(allowedModules)) return true;
@@ -110,6 +119,9 @@ export const DASHBOARD_STAT_MODULE = {
   expense: "expenses",
   advanceLoan: "advance-loan",
 };
+
+export const canAccessRegularization = (role, allowedModules) =>
+  canAccessRoute(role, "/regularization", allowedModules);
 
 export const userHasModule = (userOrRole, moduleKey, allowedModules) => {
   const role = typeof userOrRole === "string" ? userOrRole : userOrRole?.role;
