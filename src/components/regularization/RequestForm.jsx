@@ -23,6 +23,7 @@ const ATTENDANCE_STATUSES = [
   "WFH",
 ];
 const LEAVE_TYPES = ["CL", "SL", "EL", "CO", "WFH", "LOP", "LWP"];
+const STATUSES_REQUIRING_TIMES = ["Present", "Late", "Half Day", "WFH"];
 
 const emptyAttendance = {
   date: "",
@@ -75,6 +76,63 @@ const getDateBounds = () => {
   const minimum = new Date(today);
   minimum.setDate(minimum.getDate() - 60);
   return { min: toDateInput(minimum), max: toDateInput(today) };
+};
+
+export const validateAttendanceRequest = (attendance, bounds) => {
+  const requiresTimes = STATUSES_REQUIRING_TIMES.includes(attendance.status);
+  const { errors } = validateFields([
+    {
+      name: "date",
+      label: "Attendance date",
+      value: attendance.date,
+      kind: "date",
+      required: true,
+    },
+    {
+      name: "status",
+      label: "Attendance status",
+      value: attendance.status,
+      kind: "text",
+      required: true,
+      maxLength: 20,
+    },
+    {
+      name: "reason",
+      label: "Reason",
+      value: attendance.reason,
+      kind: "text",
+      required: true,
+      minLength: 3,
+      maxLength: 500,
+    },
+    {
+      name: "checkIn",
+      label: "Check-in",
+      value: attendance.checkIn,
+      kind: "text",
+      required: requiresTimes,
+      maxLength: 5,
+    },
+    {
+      name: "checkOut",
+      label: "Check-out",
+      value: attendance.checkOut,
+      kind: "text",
+      required: requiresTimes,
+      maxLength: 5,
+    },
+  ]);
+  if (attendance.date && (attendance.date < bounds.min || attendance.date > bounds.max)) {
+    errors.date = "Choose a date within the last 60 days";
+  }
+  if (
+    attendance.checkIn &&
+    attendance.checkOut &&
+    attendance.checkOut < attendance.checkIn
+  ) {
+    errors.checkOut = "Check-out must be on or after check-in";
+  }
+  return errors;
 };
 
 const SnapshotCard = ({ title, tone, children }) => (
@@ -152,59 +210,7 @@ export default function RequestForm({ toast, onSubmitted }) {
   }, [attendance.date]);
 
   const attendanceErrors = useMemo(() => {
-    const { errors } = validateFields([
-      {
-        name: "date",
-        label: "Attendance date",
-        value: attendance.date,
-        kind: "date",
-        required: true,
-      },
-      {
-        name: "status",
-        label: "Attendance status",
-        value: attendance.status,
-        kind: "text",
-        required: true,
-        maxLength: 20,
-      },
-      {
-        name: "reason",
-        label: "Reason",
-        value: attendance.reason,
-        kind: "text",
-        required: true,
-        minLength: 3,
-        maxLength: 500,
-      },
-      {
-        name: "checkIn",
-        label: "Check-in",
-        value: attendance.checkIn,
-        kind: "text",
-        required: false,
-        maxLength: 5,
-      },
-      {
-        name: "checkOut",
-        label: "Check-out",
-        value: attendance.checkOut,
-        kind: "text",
-        required: false,
-        maxLength: 5,
-      },
-    ]);
-    if (attendance.date && (attendance.date < bounds.min || attendance.date > bounds.max)) {
-      errors.date = "Choose a date within the last 60 days";
-    }
-    if (
-      attendance.checkIn &&
-      attendance.checkOut &&
-      attendance.checkOut < attendance.checkIn
-    ) {
-      errors.checkOut = "Check-out must be after check-in";
-    }
-    return errors;
+    return validateAttendanceRequest(attendance, bounds);
   }, [attendance, bounds]);
 
   const leaveErrors = useMemo(() => {
@@ -393,7 +399,7 @@ export default function RequestForm({ toast, onSubmitted }) {
             {!["Absent", "Leave"].includes(attendance.status) ? (
               <>
                 <div className="regularization-field">
-                  <label htmlFor="reg-check-in">Check-in</label>
+                  <label htmlFor="reg-check-in">Check-in *</label>
                   <input
                     id="reg-check-in"
                     type="time"
@@ -402,7 +408,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                   />
                 </div>
                 <div className="regularization-field">
-                  <label htmlFor="reg-check-out">Check-out</label>
+                  <label htmlFor="reg-check-out">Check-out *</label>
                   <input
                     id="reg-check-out"
                     type="time"

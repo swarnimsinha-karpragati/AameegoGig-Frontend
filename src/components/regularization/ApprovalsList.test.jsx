@@ -1,6 +1,7 @@
 import {
   approvalPeriod,
   describeApprovalChange,
+  formatTime,
 } from "./ApprovalsList";
 
 describe("regularization approval helpers", () => {
@@ -36,5 +37,10 @@ describe("regularization approval helpers", () => {
     expect(describeApprovalChange(request).previous).toContain("CL");
     expect(describeApprovalChange(request).requested).toContain("SL");
     expect(approvalPeriod(request)).toContain("10");
+  });
+
+  test("formats stored attendance timestamps as HH:mm", () => {
+    expect(formatTime("09:30")).toBe("09:30");
+    expect(formatTime("2026-09-08T09:30:00.000Z")).toMatch(/^\d{2}:\d{2}$/);
   });
 });

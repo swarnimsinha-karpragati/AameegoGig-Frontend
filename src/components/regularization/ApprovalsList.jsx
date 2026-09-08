@@ -35,6 +35,19 @@ const leaveRange = (value = {}) => {
   return start === end ? start : `${start} – ${end}`;
 };
 
+export const formatTime = (value) => {
+  if (!value) return "—";
+  const text = String(value);
+  if (/^([01]\d|2[0-3]):[0-5]\d$/.test(text)) return text;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+};
+
 export const approvalPeriod = (request) =>
   request.kind === "attendance"
     ? formatDate(request.requested?.date)
@@ -43,7 +56,9 @@ export const approvalPeriod = (request) =>
 export const describeApprovalChange = (request) => {
   if (request.kind === "attendance") {
     const describe = (value = {}) =>
-      `${value.status || "No record"} · ${value.checkIn || "—"} / ${value.checkOut || "—"}`;
+      `${value.status || "No record"} · ${formatTime(value.checkIn)} / ${formatTime(
+        value.checkOut
+      )}`;
     return {
       previous: describe(request.previous),
       requested: describe(request.requested),

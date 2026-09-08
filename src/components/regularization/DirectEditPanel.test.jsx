@@ -20,6 +20,20 @@ describe("regularization direct edit helpers", () => {
     expect(errors.auditNote).toMatch(/Audit note/);
   });
 
+  test("requires times for a worked attendance direct edit", () => {
+    const errors = validateDirectEdit("attendance", {
+      employeeId: "employee-1",
+      date: "2026-06-01",
+      status: "Present",
+      checkIn: "",
+      checkOut: "",
+      auditNote: "Correcting an old attendance record",
+    });
+
+    expect(errors.checkIn).toMatch(/required/i);
+    expect(errors.checkOut).toMatch(/required/i);
+  });
+
   test("strips times for an absent attendance update", () => {
     expect(
       buildDirectEditPayload("attendance", {

@@ -2,9 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Clock3,
-  FileEdit,
-  Inbox,
-  PlusCircle,
   ShieldCheck,
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
@@ -22,6 +19,7 @@ import {
 } from "../services/regularizationService";
 import { validateField } from "../utils/inputValidation";
 import { getStoredUser, hasLinkedEmployeeProfile } from "../utils/roles";
+import { buildRegularizationTabs } from "./regularizationTabs";
 import "./Regularization.css";
 
 const ROLE_SUBTITLES = {
@@ -38,16 +36,12 @@ function RegularizationInner() {
   const toastError = toast.error;
   const toastSuccess = toast.success;
   const user = getStoredUser();
-  const canApprove = ["Admin", "HR", "Manager"].includes(user?.role);
+  const roleCanApprove = ["Admin", "HR", "Manager"].includes(user?.role);
+  const [canApprove, setCanApprove] = useState(roleCanApprove);
   const canDirectEdit = ["Admin", "HR"].includes(user?.role);
   const canRequest = hasLinkedEmployeeProfile(user);
   const tabs = useMemo(
-    () => [
-      ...(canRequest ? [{ id: "request", label: "Request", icon: PlusCircle }] : []),
-      { id: "mine", label: "My requests", icon: Clock3 },
-      ...(canApprove ? [{ id: "approvals", label: "Approvals", icon: Inbox }] : []),
-      ...(canDirectEdit ? [{ id: "direct", label: "Direct edit", icon: FileEdit }] : []),
-    ],
+    () => buildRegularizationTabs({ canRequest, canApprove, canDirectEdit }),
     [canApprove, canDirectEdit, canRequest]
   );
   const [activeTab, setActiveTab] = useState(canRequest ? "request" : "mine");
@@ -64,10 +58,13 @@ function RegularizationInner() {
       if (!quiet) setLoading(true);
       const [dashboardResult, requestsResult] = await Promise.allSettled([
         getRegularizationDashboard(),
-        listRegularizationRequests({ mine: 1, limit: 100 }),
+        canRequest
+          ? listRegularizationRequests({ mine: 1, limit: 100 })
+          : Promise.resolve({ requests: [] }),
       ]);
       if (dashboardResult.status === "fulfilled") {
         setCounts(dashboardResult.value?.counts || {});
+        setCanApprove(Boolean(dashboardResult.value?.canApprove));
       } else if (!quiet) {
         toastError(apiError(dashboardResult.reason, "Failed to load regularization summary"));
       }
@@ -78,7 +75,7 @@ function RegularizationInner() {
       }
       setLoading(false);
     },
-    [toastError]
+    [canRequest, toastError]
   );
 
   useEffect(() => {

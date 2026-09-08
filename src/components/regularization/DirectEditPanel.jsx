@@ -30,6 +30,7 @@ const ATTENDANCE_STATUSES = [
   "WFH",
 ];
 const LEAVE_TYPES = ["CL", "SL", "EL", "CO", "WFH", "LOP", "LWP"];
+const STATUSES_REQUIRING_TIMES = ["Present", "Late", "Half Day", "WFH"];
 
 const emptyAttendance = {
   employeeId: "",
@@ -82,6 +83,7 @@ export const validateDirectEdit = (kind, form) => {
   ];
 
   if (kind === "attendance") {
+    const requiresTimes = STATUSES_REQUIRING_TIMES.includes(form.status);
     fields.push(
       {
         name: "date",
@@ -103,7 +105,7 @@ export const validateDirectEdit = (kind, form) => {
         label: "Check-in",
         value: form.checkIn,
         kind: "text",
-        required: false,
+        required: requiresTimes,
         maxLength: 5,
       },
       {
@@ -111,7 +113,7 @@ export const validateDirectEdit = (kind, form) => {
         label: "Check-out",
         value: form.checkOut,
         kind: "text",
-        required: false,
+        required: requiresTimes,
         maxLength: 5,
       }
     );
@@ -166,7 +168,7 @@ export const validateDirectEdit = (kind, form) => {
     form.checkOut &&
     form.checkOut < form.checkIn
   ) {
-    errors.checkOut = "Check-out must be after check-in";
+    errors.checkOut = "Check-out must be on or after check-in";
   }
   if (
     kind === "leave" &&
@@ -262,7 +264,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
   const [attendance, setAttendance] = useState(emptyAttendance);
   const [leave, setLeave] = useState(emptyLeave);
   const [leaveRequests, setLeaveRequests] = useState([]);
-  const [leavesLoading, setLeavesLoading] = useState(true);
+  const [leavesLoading, setLeavesLoading] = useState(false);
   const [touched, setTouched] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -270,8 +272,15 @@ export default function DirectEditPanel({ toast, onChanged }) {
   const [pendingLoading, setPendingLoading] = useState(false);
 
   useEffect(() => {
+    if (kind !== "leave" || !leave.employeeId) {
+      setLeaveRequests([]);
+      setLeavesLoading(false);
+      return undefined;
+    }
+
     let active = true;
-    getLeaveRequests()
+    setLeavesLoading(true);
+    getLeaveRequests({ employeeId: leave.employeeId, limit: 100 })
       .then((response) => {
         if (active) setLeaveRequests(response?.requests || []);
       })
@@ -287,7 +296,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
     return () => {
       active = false;
     };
-  }, [toastError]);
+  }, [kind, leave.employeeId, toastError]);
 
   const selectedEmployeeId =
     kind === "attendance" ? attendance.employeeId : leave.employeeId;
@@ -413,7 +422,10 @@ export default function DirectEditPanel({ toast, onChanged }) {
         setAttendance(emptyAttendance);
       } else {
         setLeave(emptyLeave);
-        const refreshed = await getLeaveRequests();
+        const refreshed = await getLeaveRequests({
+          employeeId: leave.employeeId,
+          limit: 100,
+        });
         setLeaveRequests(refreshed?.requests || []);
       }
       await onChanged?.();
@@ -533,7 +545,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
             {!["Absent", "Leave"].includes(attendance.status) ? (
               <>
                 <div className="regularization-field">
-                  <label htmlFor="direct-check-in">Check-in</label>
+                  <label htmlFor="direct-check-in">Check-in *</label>
                   <input
                     id="direct-check-in"
                     type="time"
@@ -547,7 +559,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
                   />
                 </div>
                 <div className="regularization-field">
-                  <label htmlFor="direct-check-out">Check-out</label>
+                  <label htmlFor="direct-check-out">Check-out *</label>
                   <input
                     id="direct-check-out"
                     type="time"
