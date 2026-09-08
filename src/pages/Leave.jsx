@@ -250,6 +250,11 @@ function LeaveInner() {
     return upcoming.filter(matchesUser);
   }, [upcoming, matchesUser]);
 
+  const wfhEnabled = useMemo(() => {
+    if (!leavePolicy?.types?.length) return true;
+    return leavePolicy.types.some((t) => t?.code === "WFH" && t?.enabled);
+  }, [leavePolicy]);
+
   const leaveTypeOptions = useMemo(() => {
     const fallback = [
       { code: "CL", label: "Casual Leave (CL)" },
@@ -261,14 +266,26 @@ function LeaveInner() {
       { code: "WFH", label: "WFH" },
     ];
 
-    if (!leavePolicy?.types?.length) return fallback;
-    const enabled = leavePolicy.types.filter((t) => t?.enabled);
-    if (!enabled.length) return fallback;
-    return enabled.map((t) => ({
-      code: t.code,
-      label: t.name || t.code,
-    }));
-  }, [leavePolicy]);
+    let options;
+    if (!leavePolicy?.types?.length) {
+      options = fallback;
+    } else {
+      const enabled = leavePolicy.types.filter((t) => t?.enabled);
+      options = enabled.length
+        ? enabled.map((t) => ({
+            code: t.code,
+            label: t.name || t.code,
+          }))
+        : fallback;
+    }
+
+    // Keep WFH selectable so Request Type → WFH can auto-select Leave Type.
+    if (wfhEnabled && !options.some((o) => o.code === "WFH")) {
+      options = [...options, { code: "WFH", label: "WFH" }];
+    }
+
+    return options;
+  }, [leavePolicy, wfhEnabled]);
 
   const leaveBalanceTypes = useMemo(() => {
     const enabled = leavePolicy?.types
@@ -395,6 +412,9 @@ function LeaveInner() {
       }
 
       const payload = { ...leaveForm };
+      if (payload.requestType === "WFH") {
+        payload.leaveType = "WFH";
+      }
       if (forSelf || !canManageLeave || user?.role === "Employee") {
         delete payload.employeeId;
       }
@@ -568,12 +588,28 @@ function LeaveInner() {
             id="leave-request-type"
             className="leave-control"
             value={leaveForm.requestType}
-            onChange={(e) =>
-              setLeaveForm((p) => ({ ...p, requestType: e.target.value }))
-            }
+            onChange={(e) => {
+              const next = e.target.value;
+              if (next === "WFH") {
+                setLeaveForm((p) => ({
+                  ...p,
+                  requestType: "WFH",
+                  leaveType: "WFH",
+                }));
+                setMedicalDocFile(null);
+                return;
+              }
+              const fallbackLeave =
+                leaveTypeOptions.find((o) => o.code !== "WFH")?.code || "CL";
+              setLeaveForm((p) => ({
+                ...p,
+                requestType: "Leave",
+                leaveType: p.leaveType === "WFH" ? fallbackLeave : p.leaveType,
+              }));
+            }}
           >
             <option value="Leave">Leave</option>
-            <option value="WFH">WFH</option>
+            {wfhEnabled ? <option value="WFH">WFH</option> : null}
           </select>
         </div>
         <div className="leave-field">
@@ -581,7 +617,10 @@ function LeaveInner() {
           <select
             id="leave-type"
             className="leave-control"
-            value={leaveForm.leaveType}
+            value={
+              leaveForm.requestType === "WFH" ? "WFH" : leaveForm.leaveType
+            }
+            disabled={leaveForm.requestType === "WFH"}
             onChange={(e) => {
               const next = e.target.value;
               setLeaveForm((p) => ({
@@ -592,7 +631,10 @@ function LeaveInner() {
               if (next !== "SL") setMedicalDocFile(null);
             }}
           >
-            {leaveTypeOptions.map((opt) => (
+            {(leaveForm.requestType === "WFH"
+              ? leaveTypeOptions.filter((o) => o.code === "WFH")
+              : leaveTypeOptions
+            ).map((opt) => (
               <option value={opt.code} key={opt.code}>
                 {opt.label}
               </option>
