@@ -12,6 +12,8 @@ import RequestForm, {
   buildApiErrorMessage,
 } from "../components/regularization/RequestForm";
 import MyRequestsList from "../components/regularization/MyRequestsList";
+import ApprovalsList from "../components/regularization/ApprovalsList";
+import DirectEditPanel from "../components/regularization/DirectEditPanel";
 import { ToastProvider, useToast } from "../components/Toast";
 import {
   cancelRegularizationRequest,
@@ -186,19 +188,16 @@ function RegularizationInner() {
           />
         ) : null}
         {activeTab === "approvals" ? (
-          <section className="regularization-panel regularization-glass regularization-placeholder">
-            <span><Inbox size={26} /></span>
-            <h2>Approval workspace</h2>
-            <p>The approval queue will be enabled in the next hub update.</p>
-            <div>{counts.awaitingApproval || 0} request(s) are currently awaiting review.</div>
-          </section>
+          <ApprovalsList
+            toast={toast}
+            onChanged={() => loadData({ quiet: true })}
+          />
         ) : null}
         {activeTab === "direct" ? (
-          <section className="regularization-panel regularization-glass regularization-placeholder">
-            <span><FileEdit size={26} /></span>
-            <h2>Direct record editing</h2>
-            <p>Admin and HR correction tools will be enabled in the next hub update.</p>
-          </section>
+          <DirectEditPanel
+            toast={toast}
+            onChanged={() => loadData({ quiet: true })}
+          />
         ) : null}
       </main>
     </div>

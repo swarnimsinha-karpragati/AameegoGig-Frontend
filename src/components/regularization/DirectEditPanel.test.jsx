@@ -1,0 +1,57 @@
+import {
+  buildDirectEditPayload,
+  validateDirectEdit,
+} from "./DirectEditPanel";
+
+describe("regularization direct edit helpers", () => {
+  test("requires an employee, attendance date, and audit note", () => {
+    const errors = validateDirectEdit("attendance", {
+      employeeId: "",
+      date: "",
+      status: "Present",
+      checkIn: "",
+      checkOut: "",
+      auditNote: "",
+    });
+
+    expect(errors.employeeId).toMatch(/Employee/);
+    expect(errors.date).toMatch(/Attendance date/);
+    expect(errors.auditNote).toMatch(/Audit note/);
+  });
+
+  test("strips times for an absent attendance update", () => {
+    expect(
+      buildDirectEditPayload("attendance", {
+        employeeId: "employee-1",
+        date: "2026-09-08",
+        status: "Absent",
+        checkIn: "09:00",
+        checkOut: "18:00",
+        auditNote: "Correcting the missed attendance import",
+      })
+    ).toEqual({
+      employeeId: "employee-1",
+      date: "2026-09-08",
+      status: "Absent",
+      checkIn: null,
+      checkOut: null,
+      auditNote: "Correcting the missed attendance import",
+    });
+  });
+
+  test("forces WFH request mode for WFH leave", () => {
+    expect(
+      buildDirectEditPayload("leave", {
+        leaveRequestId: "leave-1",
+        leaveType: "WFH",
+        startDate: "2026-09-08",
+        endDate: "2026-09-09",
+        reason: "Approved remote work",
+        auditNote: "Correcting leave type after manager confirmation",
+      })
+    ).toMatchObject({
+      requestType: "WFH",
+      leaveType: "WFH",
+    });
+  });
+});
