@@ -65,7 +65,7 @@ const TEMPLATES = [
   },
 ];
 
-const BALANCE_CODES = ["CL", "SL", "EL", "CO"];
+const BALANCE_CODES = ["CL", "SL", "EL", "CO", "WFH"];
 
 const asNumberOrNull = (v) => {
   if (v === "" || v === null || v === undefined) return null;
@@ -120,6 +120,10 @@ const describeType = (t) => {
 
   if (t.code === "EL" && t.encashment?.enabled) {
     parts.push("Remaining earned leave can be paid at full & final (gross ÷ 30).");
+  }
+
+  if (t.code === "WFH") {
+    parts.push("Used in daily WFH requests. HR and Admin can manage each employee's WFH day count.");
   }
 
   return parts.join(" ");

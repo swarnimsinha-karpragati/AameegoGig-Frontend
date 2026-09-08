@@ -204,6 +204,10 @@
   border-left-color: #d97706;
 }
 
+.lp-type-card[data-code="WFH"] {
+  border-left-color: #0891b2;
+}
+
 .lp-type-card.is-off {
   opacity: 0.72;
   background: #f8fafc;
@@ -251,6 +255,11 @@
 .lp-type-card[data-code="CO"] .lp-code {
   background: #fffbeb;
   color: #b45309;
+}
+
+.lp-type-card[data-code="WFH"] .lp-code {
+  background: #ecfeff;
+  color: #0e7490;
 }
 
 .lp-code-sm {

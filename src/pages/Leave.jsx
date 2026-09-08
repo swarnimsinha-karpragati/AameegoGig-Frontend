@@ -521,10 +521,10 @@ function LeaveInner() {
     if (!selectedBalanceEmployee) return;
     try {
       const payload = {};
-      // Backend currently understands legacy keys (CL/SL/EL/CO), but this
-      // UI now renders based on enabled policy balance types.
+      // Backend currently understands legacy keys (CL/SL/EL/CO) and the
+      // dynamic WFH bucket. This UI renders based on enabled policy balance types.
       leaveBalanceTypes.forEach((code) => {
-        if (!["CL", "SL", "EL", "CO"].includes(code)) return;
+        if (!["CL", "SL", "EL", "CO", "WFH"].includes(code)) return;
         if (!balanceForm?.[code]) return;
         payload[code] = {
           total: Number(balanceForm[code].total),
@@ -897,7 +897,7 @@ function LeaveInner() {
           </div>
           <div className="leave-balance-grid">
             {leaveBalanceTypes.map((type) => (
-              <div key={type} className="balance-row">
+              <div key={type} className="balance-row" data-code={type}>
                 <span className="balance-row__type">{type}</span>
                 <div className="leave-field balance-row__field">
                   <label htmlFor={`balance-${type}-total`}>Total</label>

@@ -318,6 +318,15 @@ select.leave-control {
   font-size: 10px;
 }
 
+.balance-row[data-code="WFH"] {
+  border-color: #cffafe;
+  background: #ecfeff;
+}
+
+.balance-row[data-code="WFH"] .balance-row__type {
+  color: #0e7490;
+}
+
 /* ─── Lists & balances ─── */
 
 .leave-list {
