@@ -353,7 +353,13 @@ function TodayAttendanceTable({
                             className={`status-text ${statusTextClass[row.status] || "status-text-late"
                               }`}
                           >
-                            {row.isCheckedIn ? "Checked In" : row.status}
+                            {row.isCheckedIn
+                              ? "Checked In"
+                              : row.status === "WFH"
+                              ? "WFH"
+                              : row.status === "Leave"
+                              ? row.leaveLabel || "Leave"
+                              : row.status}
                           </span>
                         </td>
                         <td>
