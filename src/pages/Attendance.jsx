@@ -1237,6 +1237,8 @@ function Attendance() {
         rows={displayedOrgRows}
         loading={loading}
         showActions
+        canEdit={canMarkForOthers}
+        onRecordEdited={loadOrgData}
         target="org"
         downloadParams={buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, { page: 1, limit: 10 })}
         filters={orgFilters}
@@ -1326,6 +1328,8 @@ function Attendance() {
         rows={displayedOrgRows}
         loading={loading}
         showActions
+        canEdit={canMarkForOthers}
+        onRecordEdited={loadOrgData}
         target="org"
         downloadParams={buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, { page: 1, limit: 10 })}
         filters={orgFilters}
