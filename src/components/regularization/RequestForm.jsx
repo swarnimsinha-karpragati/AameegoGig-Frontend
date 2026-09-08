@@ -478,6 +478,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                 id="reg-leave-start"
                 type="date"
                 min={bounds.min}
+                max={bounds.max}
                 value={leave.startDate}
                 onChange={(event) =>
                   setLeave((previous) => ({ ...previous, startDate: event.target.value }))
@@ -492,6 +493,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                 id="reg-leave-end"
                 type="date"
                 min={leave.startDate || bounds.min}
+                max={bounds.max}
                 value={leave.endDate}
                 onChange={(event) =>
                   setLeave((previous) => ({ ...previous, endDate: event.target.value }))
@@ -509,6 +511,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                     : "regularization-date-feedback--ok"
                 }`}
                 role={workingDays === 0 || leave.endDate < leave.startDate ? "alert" : "status"}
+                aria-live="polite"
               >
                 {workingDays === 0 || leave.endDate < leave.startDate ? (
                   <Info size={18} />
