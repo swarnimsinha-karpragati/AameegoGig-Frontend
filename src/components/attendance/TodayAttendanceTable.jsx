@@ -1,8 +1,9 @@
 import { Fragment, useState, useEffect } from "react";
-import { Calendar as CalendarIcon, RotateCcw, Download, Camera, ChevronUp, ChevronDown } from "lucide-react";
+import { Calendar as CalendarIcon, RotateCcw, Download, Camera, ChevronUp, ChevronDown, Pencil } from "lucide-react";
 import SessionList from "./SessionList";
 import SessionLocationLink from "./SessionLocationLink";
 import SelfieModal from "./SelfieModal";
+import AttendanceEditModal from "./AttendanceEditModal";
 import { getCheckInSelfieUrl, downloadAttendanceReport } from "../../services/attendanceService";
 import { normalizeRecord, statusTextClass } from "./attendanceUtils";
 import { useToast } from "../Toast";
@@ -13,6 +14,8 @@ function TodayAttendanceTable({
   rows,
   loading,
   showActions = false,
+  canEdit = false,
+  onRecordEdited,
   filters,
   onFilterChange,
   holiday = null,
@@ -24,10 +27,12 @@ function TodayAttendanceTable({
 }) {
   const [expandedRowId, setExpandedRowId] = useState(null);
   const [selfieModal, setSelfieModal] = useState({ open: false, imageUrl: "", title: "" });
+  const [editRecord, setEditRecord] = useState(null);
   const [localSearch, setLocalSearch] = useState(filters.search);
   const [isSearching, setIsSearching] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const toast = useToast();
+  const columnCount = canEdit ? 13 : 12;
 
   useEffect(() => {
     setLocalSearch(filters.search);
@@ -204,6 +209,7 @@ function TodayAttendanceTable({
                 <th>Hours</th>
                 <th>Status</th>
                 <th>Notes</th>
+                {canEdit ? <th>Action</th> : null}
               </tr>
             </thead>
 
@@ -211,24 +217,17 @@ function TodayAttendanceTable({
               {/* 2. Loading state check includes search progress */}
               {isTableLoading && Array.from({ length: 5 }).map((_, i) => (
                 <tr key={`skeleton-${i}`} className="attendance-skeleton-row">
-                  <td><div className="skeleton skeleton-avatar" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
-                  <td><div className="skeleton skeleton-text" /></td>
+                  {Array.from({ length: columnCount }).map((__, cellIdx) => (
+                    <td key={`skeleton-cell-${cellIdx}`}>
+                      <div className={`skeleton ${cellIdx === 0 ? "skeleton-avatar" : "skeleton-text"}`} />
+                    </td>
+                  ))}
                 </tr>
               ))}
 
               {!isTableLoading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={showActions ? 13 : 12} className="attendance-empty">
+                  <td colSpan={columnCount} className="attendance-empty">
                     {isCalendarSelection && holiday
                       ? "Paid holiday — no attendance recorded for this day."
                       : isCalendarSelection && weekOff
@@ -373,11 +372,24 @@ function TodayAttendanceTable({
                                 : row.notes
                               : "-"}
                         </td>
+                        {canEdit ? (
+                          <td>
+                            <button
+                              type="button"
+                              className="attendance-edit-btn"
+                              onClick={() => setEditRecord(row)}
+                              title="Edit attendance"
+                            >
+                              <Pencil size={13} />
+                              Edit
+                            </button>
+                          </td>
+                        ) : null}
                       </tr>
 
                       {isExpanded && (
                         <tr className="attendance-sessions-expand-row">
-                          <td colSpan={showActions ? 13 : 12}>
+                          <td colSpan={columnCount}>
                             <div className="attendance-inline-session-wrapper" style={{ padding: "1rem" }}>
                               <SessionList
                                 sessions={sessions}
@@ -402,6 +414,13 @@ function TodayAttendanceTable({
         imageUrl={selfieModal.imageUrl}
         title={selfieModal.title}
         onClose={() => setSelfieModal({ open: false, imageUrl: "", title: "" })}
+      />
+
+      <AttendanceEditModal
+        open={Boolean(editRecord)}
+        record={editRecord}
+        onClose={() => setEditRecord(null)}
+        onSaved={() => onRecordEdited?.()}
       />
     </>
   );

@@ -5,9 +5,13 @@ export const getLeaveDashboard = async () => {
   return res.data;
 };
 
-export const getLeaveRequests = async (status) => {
+export const getLeaveRequests = async (filters) => {
+  const params =
+    typeof filters === "string"
+      ? { status: filters }
+      : filters || {};
   const res = await API.get("/leave/requests", {
-    params: status ? { status } : {},
+    params,
   });
   return res.data;
 };
