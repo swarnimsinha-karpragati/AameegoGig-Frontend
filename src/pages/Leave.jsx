@@ -895,7 +895,7 @@ function LeaveInner() {
                 <th>Date / Duration</th>
                 <th>Reason</th>
                 <th>Status</th>
-                <th>Approved By</th>
+                <th>Approve By (RM)</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -957,7 +957,7 @@ function LeaveInner() {
                       </div>
                     </td>
 
-                    <td>{item.approverId?.name || "-"}</td>
+                    <td>{item.status === "Pending" ? (item.employeeId?.managerId?.name || "-") : (item.approverId?.name || "-")}</td>
 
                     <td>
                       {mode === "approve" &&
@@ -1169,7 +1169,7 @@ function LeaveInner() {
               <th>Dates</th>
               <th>Days</th>
               <th>Status</th>
-              <th>Approved By</th>
+              <th>Approve By (RM)</th>
             </tr>
           </thead>
           <tbody>
@@ -1223,7 +1223,7 @@ function LeaveInner() {
                     )}
                   </div>
                 </td>
-                <td>{item.approverId?.name || "-"}</td>
+                <td>{item.status === "Pending" ? (item.employeeId?.managerId?.name || "-") : (item.approverId?.name || "-")}</td>
               </tr>
             ))}
           </tbody>
