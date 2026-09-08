@@ -300,9 +300,44 @@ function LeaveInner() {
 
   const dateValidationError = useMemo(() => {
     if (!leaveForm.startDate || !leaveForm.endDate) return null;
-    if (computedLeaveDays == null) return "End date must be on or after start date";
+    if (computedLeaveDays == null) {
+      return {
+        code: "range",
+        message: "End date must be on or after start date",
+      };
+    }
+    if (computedLeaveDays < 1) {
+      const kind = leaveForm.requestType === "WFH" ? "WFH" : "leave";
+      return {
+        code: "weekend",
+        message: `Selected dates have no working days (weekends are excluded). Choose at least one weekday for this ${kind} request.`,
+      };
+    }
     return null;
-  }, [leaveForm.startDate, leaveForm.endDate, computedLeaveDays]);
+  }, [
+    leaveForm.startDate,
+    leaveForm.endDate,
+    leaveForm.requestType,
+    computedLeaveDays,
+  ]);
+
+  const leaveApiErrorMessage = (err, fallback) => {
+    const data = err?.response?.data;
+    if (!data) return err?.message || fallback;
+    if (typeof data.message === "string" && data.message.trim()) {
+      // Prefer specific validation message over generic wrapper text.
+      if (
+        data.message.startsWith("Error ") &&
+        typeof data.error === "string" &&
+        data.error.trim()
+      ) {
+        return data.error;
+      }
+      return data.message;
+    }
+    if (typeof data.error === "string" && data.error.trim()) return data.error;
+    return fallback;
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -407,6 +442,14 @@ function LeaveInner() {
   const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
     try {
+      if (dateValidationError) {
+        toast.error(dateValidationError.message);
+        return;
+      }
+      if (!leaveForm.reason?.trim()) {
+        toast.error("Please enter a reason for this request");
+        return;
+      }
       if (isMedicalDocRequired && !medicalDocFile) {
         toast.error(
           `Medical document is required for SL when days exceed ${slRequiredWhenDaysGt}`
@@ -449,7 +492,7 @@ function LeaveInner() {
       setMedicalDocFile(null);
       loadData();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to submit request");
+      toast.error(leaveApiErrorMessage(err, "Failed to submit request"));
     }
   };
 
@@ -475,7 +518,7 @@ function LeaveInner() {
           }
           loadData();
         } catch (err) {
-          toast.error(err.response?.data?.message || "Action failed");
+          toast.error(leaveApiErrorMessage(err, "Action failed"));
         } finally {
           setActionLoading(false);
           closeModal();
@@ -680,12 +723,14 @@ function LeaveInner() {
           <input
             id="leave-start"
             type="date"
-            className="leave-control"
+            className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.startDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, startDate: e.target.value }))
             }
             required
+            aria-invalid={Boolean(dateValidationError)}
+            aria-describedby="leave-date-feedback"
           />
         </div>
         <div className="leave-field">
@@ -693,14 +738,91 @@ function LeaveInner() {
           <input
             id="leave-end"
             type="date"
-            className="leave-control"
+            className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.endDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, endDate: e.target.value }))
             }
             required
+            aria-invalid={Boolean(dateValidationError)}
+            aria-describedby="leave-date-feedback"
           />
         </div>
+        {leaveForm.startDate && leaveForm.endDate ? (
+          <div
+            id="leave-date-feedback"
+            className={`leave-date-feedback leave-field--full${
+              dateValidationError
+                ? " leave-date-feedback--error"
+                : " leave-date-feedback--ok"
+            }`}
+            role={dateValidationError ? "alert" : "status"}
+            aria-live="polite"
+          >
+            <span className="leave-date-feedback__icon" aria-hidden="true">
+              {dateValidationError ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.75" />
+                  <path
+                    d="M12 7v6"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="12" cy="16.5" r="1" fill="currentColor" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.75" />
+                  <path
+                    d="M8 12.5l2.5 2.5L16 9.5"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </span>
+            <div className="leave-date-feedback__body">
+              {dateValidationError?.code === "range" ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    Invalid date range
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    End date must be on or after the start date. Adjust the
+                    dates to continue.
+                  </p>
+                </>
+              ) : dateValidationError ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    No working days in this range
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    Saturdays and Sundays are not counted for leave or WFH.
+                    Choose dates that include at least one weekday (Mon–Fri).
+                  </p>
+                  <p className="leave-date-feedback__meta">
+                    Working days selected: <strong>0</strong>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    {computedLeaveDays === 1
+                      ? "1 working day"
+                      : `${computedLeaveDays} working days`}
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    Weekends are excluded from the day count automatically.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        ) : null}
         <div className="leave-field leave-field--full">
           <label htmlFor="leave-reason">Reason <span style={{ color: "#e53e3e" }}>*</span></label>
           <input
@@ -715,11 +837,6 @@ function LeaveInner() {
             required
           />
         </div>
-        {dateValidationError ? (
-          <p className="leave-upload-hint" style={{ color: "#b42318" }}>
-            {dateValidationError}
-          </p>
-        ) : null}
         <div className="leave-form-actions">
           <Button
             type="submit"
