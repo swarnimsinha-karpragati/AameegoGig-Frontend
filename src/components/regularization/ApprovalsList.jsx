@@ -54,21 +54,25 @@ export const approvalPeriod = (request) =>
     : leaveRange(request.requested);
 
 export const describeApprovalChange = (request) => {
-  if (request.kind === "attendance") {
-    const describe = (value = {}) =>
-      `${value.status || "No record"} · ${formatTime(value.checkIn)} / ${formatTime(
-        value.checkOut
-      )}`;
+  if (request?.kind === "attendance") {
+    const describe = (value) => {
+      const snapshot = value && typeof value === "object" ? value : {};
+      return `${snapshot.status || "No record"} · ${formatTime(
+        snapshot.checkIn
+      )} / ${formatTime(snapshot.checkOut)}`;
+    };
     return {
       previous: describe(request.previous),
       requested: describe(request.requested),
     };
   }
-  const describe = (value = {}) =>
-    `${value.leaveType || "No leave"} · ${leaveRange(value)}`;
+  const describe = (value) => {
+    const snapshot = value && typeof value === "object" ? value : {};
+    return `${snapshot.leaveType || "No leave"} · ${leaveRange(snapshot)}`;
+  };
   return {
-    previous: describe(request.previous),
-    requested: describe(request.requested),
+    previous: describe(request?.previous),
+    requested: describe(request?.requested),
   };
 };
 

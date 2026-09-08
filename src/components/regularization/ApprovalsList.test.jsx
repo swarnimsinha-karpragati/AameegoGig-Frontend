@@ -43,4 +43,16 @@ describe("regularization approval helpers", () => {
     expect(formatTime("09:30")).toBe("09:30");
     expect(formatTime("2026-09-08T09:30:00.000Z")).toMatch(/^\d{2}:\d{2}$/);
   });
+
+  test("handles null previous attendance snapshot", () => {
+    const request = {
+      kind: "attendance",
+      previous: null,
+      requested: { date: "2026-09-08", status: "Present", checkIn: "09:30", checkOut: "18:00" },
+    };
+    expect(describeApprovalChange(request)).toEqual({
+      previous: "No record · — / —",
+      requested: "Present · 09:30 / 18:00",
+    });
+  });
 });
