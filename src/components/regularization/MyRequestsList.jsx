@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react";
 import Button from "../Button";
+import { getLeaveTypeLabel } from "../../utils/leaveLabels";
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -25,7 +26,18 @@ const requestPeriod = (request) => {
   return start === end ? start : `${start} – ${end}`;
 };
 
-export default function MyRequestsList({ requests, loading, onCancel }) {
+export default function MyRequestsList({
+  requests,
+  loading,
+  onCancel,
+  title = "My Requests",
+  eyebrow = "Your history",
+  emptyTitle = "No requests yet",
+  emptyText = "Your attendance and leave correction requests will appear here.",
+  allowCancel = true,
+  compact = false,
+  description = "Track decisions and withdraw requests that are still pending.",
+}) {
   const [cancelId, setCancelId] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState("");
@@ -44,12 +56,12 @@ export default function MyRequestsList({ requests, loading, onCancel }) {
   };
 
   return (
-    <section className="regularization-panel regularization-glass">
+    <section className={`regularization-panel regularization-glass ${compact ? "regularization-panel--compact" : ""}`}>
       <div className="regularization-panel__head regularization-panel__head--row">
         <div>
-          <span className="regularization-eyebrow">Your history</span>
-          <h2>My requests</h2>
-          <p>Track decisions and withdraw requests that are still pending.</p>
+          <span className="regularization-eyebrow">{eyebrow}</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
         </div>
         <span className="regularization-count">{requests.length} total</span>
       </div>
@@ -57,13 +69,13 @@ export default function MyRequestsList({ requests, loading, onCancel }) {
       {loading ? (
         <div className="regularization-state">
           <Loader2 size={24} className="spin" />
-          <p>Loading your requests…</p>
+          <p>Loading requests…</p>
         </div>
       ) : requests.length === 0 ? (
         <div className="regularization-state regularization-state--empty">
           <span><FileCheck2 size={26} /></span>
-          <h3>No requests yet</h3>
-          <p>Your attendance and leave correction requests will appear here.</p>
+          <h3>{emptyTitle}</h3>
+          <p>{emptyText}</p>
         </div>
       ) : (
         <div className="regularization-request-list">
@@ -81,7 +93,7 @@ export default function MyRequestsList({ requests, loading, onCancel }) {
                       <h3>
                         {isAttendance
                           ? `${request.requested?.status || "Attendance"} correction`
-                          : `${request.requested?.leaveType || "Leave"} correction`}
+                          : `${getLeaveTypeLabel(request.requested?.leaveType)} correction`}
                       </h3>
                       <p>{requestPeriod(request)}</p>
                     </div>
@@ -102,7 +114,7 @@ export default function MyRequestsList({ requests, loading, onCancel }) {
                       <span>{request.approverComment}</span>
                     </div>
                   ) : null}
-                  {cancelId === request._id ? (
+                  {allowCancel && cancelId === request._id ? (
                     <div className="regularization-cancel-box">
                       <div>
                         <strong>Cancel this request?</strong>
@@ -137,7 +149,7 @@ export default function MyRequestsList({ requests, loading, onCancel }) {
                         </Button>
                       </div>
                     </div>
-                  ) : request.status === "Pending" ? (
+                  ) : allowCancel && request.status === "Pending" ? (
                     <button
                       type="button"
                       className="regularization-cancel-trigger"

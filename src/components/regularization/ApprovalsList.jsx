@@ -17,6 +17,8 @@ import {
 } from "../../services/regularizationService";
 import { validateField } from "../../utils/inputValidation";
 import { buildApiErrorMessage } from "./RequestForm";
+import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { formatAttendanceHours } from "../../utils/regularizationFormatters";
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -59,7 +61,10 @@ export const describeApprovalChange = (request) => {
       const snapshot = value && typeof value === "object" ? value : {};
       return `${snapshot.status || "No record"} · ${formatTime(
         snapshot.checkIn
-      )} / ${formatTime(snapshot.checkOut)}`;
+      )} / ${formatTime(snapshot.checkOut)} · Total ${formatAttendanceHours(
+        snapshot.checkIn,
+        snapshot.checkOut
+      )}`;
     };
     return {
       previous: describe(request.previous),
@@ -68,7 +73,7 @@ export const describeApprovalChange = (request) => {
   }
   const describe = (value) => {
     const snapshot = value && typeof value === "object" ? value : {};
-    return `${snapshot.leaveType || "No leave"} · ${leaveRange(snapshot)}`;
+    return `${getLeaveTypeLabel(snapshot.leaveType)} · ${leaveRange(snapshot)}`;
   };
   return {
     previous: describe(request?.previous),
