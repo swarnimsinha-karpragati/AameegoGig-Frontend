@@ -906,3 +906,70 @@
 .employee-table-scroll {
   overflow: visible; 
 }
+
+/* =========================
+   TERMINATION MODAL — EXIT PROCESS SETUP
+========================= */
+
+.termination-schedule-box {
+  grid-column: span 2;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.termination-schedule-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.termination-schedule-row:last-child {
+  border-bottom: none;
+}
+
+.termination-schedule-row span {
+  color: #475569;
+}
+
+.termination-schedule-row strong {
+  color: #1a7f37;
+  font-size: 12px;
+  text-align: right;
+}
+
+.termination-exit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  grid-column: span 2;
+}
+
+.termination-exit-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #334155;
+}
+
+.termination-exit-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.termination-exit-label--danger {
+  color: #b91c1c;
+}
+
+.termination-exit-label--danger input[type="checkbox"] {
+  accent-color: #dc2626;
+}
