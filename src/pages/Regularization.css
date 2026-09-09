@@ -70,7 +70,7 @@
 
 .regularization-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -78,23 +78,51 @@
 .regularization-stat {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   padding: 15px 16px;
   border-radius: 16px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.regularization-stat:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 16px 34px -22px rgba(37, 99, 235, 0.5);
 }
 
 .regularization-stat__icon {
+  position: relative;
   display: inline-flex;
-  width: 40px;
-  height: 40px;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  line-height: 0;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 
-.regularization-stat__icon.amber { color: #b45309; background: #fffbeb; }
-.regularization-stat__icon.blue { color: #2563eb; background: #eff6ff; }
-.regularization-stat__icon.green { color: #15803d; background: #ecfdf5; }
+.regularization-stat__icon svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  transform: translate(-50%, -50%);
+}
+
+.regularization-stat__icon.amber {
+  color: #b45309;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+.regularization-stat__icon.blue {
+  color: #2563eb;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+}
+.regularization-stat__icon.green {
+  color: #15803d;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+}
 
 .regularization-stat strong,
 .regularization-stat span {
@@ -102,15 +130,17 @@
 }
 
 .regularization-stat strong {
-  font-size: 21px;
+  font-size: 23px;
   line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .regularization-stat div > span {
-  margin-top: 5px;
+  margin-top: 6px;
   color: var(--reg-muted);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 650;
+  line-height: 1.35;
 }
 
 .regularization-tabs {
@@ -148,6 +178,9 @@
   color: #1d4ed8;
   background: #fff;
   box-shadow: 0 3px 10px -5px rgba(15, 23, 42, 0.4);
+}
+.regularization-tabs button.is-active svg {
+  color: var(--reg-blue);
 }
 
 .regularization-tabs__count,
@@ -496,6 +529,90 @@
   line-height: 1.5;
 }
 .regularization-request-card__meta { display: flex; flex-wrap: wrap; gap: 12px; color: #94a3b8; font-size: 10.5px; }
+
+.regularization-panel--compact .regularization-request-list {
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.regularization-panel--compact .regularization-request-card {
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 11px;
+}
+
+.regularization-panel--compact .regularization-request-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.regularization-panel--compact .regularization-request-card__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.regularization-panel--compact .regularization-request-card h3 {
+  font-size: 12.5px;
+}
+
+.regularization-panel--compact .regularization-request-card__top p {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.regularization-panel--compact .regularization-request-card__reason {
+  margin: 6px 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.regularization-panel--compact .regularization-request-card__meta {
+  gap: 8px;
+  font-size: 9.5px;
+}
+
+.regularization-panel--compact .regularization-request-card__body {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.regularization-panel--compact .regularization-request-card__top {
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.regularization-panel--compact .regularization-request-card__top > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.regularization-panel--compact .regularization-request-card__top p {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.regularization-panel--compact .regularization-request-card__reason {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.regularization-panel--compact .regularization-cancel-trigger {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.regularization-panel--compact .regularization-cancel-box {
+  flex: 1 0 100%;
+}
 
 .regularization-approval-list {
   display: grid;

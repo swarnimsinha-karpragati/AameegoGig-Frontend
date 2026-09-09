@@ -54,6 +54,18 @@ describe("regularization direct edit helpers", () => {
     });
   });
 
+  test("rejects a direct edit shift longer than nine hours", () => {
+    const errors = validateDirectEdit("attendance", {
+      employeeId: "employee-1",
+      date: "2026-09-08",
+      status: "Present",
+      checkIn: "09:00",
+      checkOut: "18:01",
+      auditNote: "Correcting an attendance record",
+    });
+    expect(errors.checkOut).toMatch(/cannot exceed 9 hours/i);
+  });
+
   test("forces WFH request mode for WFH leave", () => {
     expect(
       buildDirectEditPayload("leave", {
