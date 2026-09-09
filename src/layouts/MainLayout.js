@@ -12,7 +12,8 @@ import {
   Building2,
   ReceiptText,
   FileSignature,
-  ClipboardPen
+  ClipboardPen,
+  ShieldCheck
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
@@ -104,6 +105,7 @@ function MainLayout({ children }) {
     "/resignation": { title: "Resignation", subtitle: "Submit and manage resignation" },
     "/documents": { title: "Documents", subtitle: "Store and manage company documents" },
     "/settings": { title: "Settings", subtitle: "Configure your HRMS preferences" },
+    "/roles": { title: "Roles & Access", subtitle: "Manage role-based access control" },
   };
 
   const currentPage = pageMeta[currentPath] || pageMeta["/dashboard"];
@@ -122,6 +124,10 @@ function MainLayout({ children }) {
     { label: "Resignation", path: "/resignation", icon: FileSignature },
     { label: "Settings", path: "/settings", icon: Settings },
   ].filter((item) => canAccessRoute(user?.role, item.path, user?.allowedModules));
+
+  if (user?.role === "Admin") {
+    menuItems.push({ label: "Roles & Access", path: "/roles", icon: ShieldCheck });
+  }
 
   const [logo, setLogo] = useState(() => {
     const storedUser = getStoredUser();
