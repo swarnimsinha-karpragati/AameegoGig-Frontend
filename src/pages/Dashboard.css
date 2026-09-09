@@ -1055,6 +1055,18 @@ body {
   color: #dc2626;
 }
 
+.status-badge.exited {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+}
+
+.status-badge.deleted {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px dashed #cbd5e1;
+}
+
 /* ACTION BUTTONS */
 
 .action-buttons {

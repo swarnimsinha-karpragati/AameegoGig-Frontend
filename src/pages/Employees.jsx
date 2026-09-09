@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import {
   addEmployee,
@@ -8,6 +9,7 @@ import {
   bulkUploadEmployees,
   updateEmployee,
   deleteEmployee,
+  toggleAppLogin,
 } from "../services/employeeService";
 
 import {
@@ -29,7 +31,9 @@ import {
   Download,
   MoreVertical,
   TriangleAlert,
-  OctagonX
+  OctagonX,
+  Lock,
+  LockOpen
 } from "lucide-react";
 
 
@@ -566,6 +570,10 @@ function Employees() {
   const [department, setDepartment] = useState([]);
   const [departmentFilter, setDepartmentFilter] = useState("");
 
+  const [searchParams] = useSearchParams();
+  const urlStatus = searchParams.get("status") || "";
+  const [statusFilter, setStatusFilter] = useState(urlStatus);
+
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
   useEffect(() => {
@@ -699,6 +707,7 @@ function Employees() {
     try {
       const res = await getEmployees({
         departmentId: departmentFilter || undefined,
+        status: statusFilter || undefined,
         page,
         limit,
         search,
@@ -714,11 +723,16 @@ function Employees() {
     } catch (error) {
       console.error("Error fetching employees:", error);
     }
-  }, [departmentFilter, page, limit, search]);
+  }, [departmentFilter, statusFilter, page, limit, search]);
 
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
+
+  useEffect(() => {
+    setStatusFilter(urlStatus);
+    setPage(1);
+  }, [urlStatus]);
 
   useEffect(() => {
     const loggedUser = localStorage.getItem("user");
@@ -1259,7 +1273,7 @@ function Employees() {
   const handleDelete = async (id) => {
     const confirmDelete =
       window.confirm(
-        "Are you sure you want to delete this employee?"
+        "Are you sure you want to delete this employee? This is a soft delete — their details will be archived and hidden from default views."
       );
 
     if (!confirmDelete) return;
@@ -1267,7 +1281,7 @@ function Employees() {
     try {
       await deleteEmployee(id);
 
-      alert("Employee deleted successfully");
+      alert("Employee soft deleted successfully. Their details are archived.");
 
       if (employees.length <= 1 && page > 1) {
         setPage(page - 1);
@@ -1279,6 +1293,32 @@ function Employees() {
         error.response?.data
           ?.message ||
         "Delete failed"
+      );
+    }
+  };
+
+  /* =====================================
+     Toggle App Login Access (Enable / Disable)
+  ======================================== */
+
+  const handleToggleAppLogin = async (emp) => {
+    const enable = !emp.hasLoginEnabled;
+    const confirmToggle = window.confirm(
+      enable
+        ? `Enable app login for ${emp.name}? They will be able to log in again.`
+        : `Disable app login for ${emp.name}? They will not be able to log in until re-enabled.`
+    );
+
+    if (!confirmToggle) return;
+
+    try {
+      await toggleAppLogin(emp._id, enable);
+      alert(enable ? "App login enabled." : "App login disabled.");
+      fetchEmployees();
+    } catch (error) {
+      alert(
+        error.response?.data?.message ||
+        "Failed to update app login access"
       );
     }
   };
@@ -1557,6 +1597,22 @@ function Employees() {
               </select>
             </div>
 
+            <div className="employee-filter">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">All Employees</option>
+                <option value="active">Active Employees</option>
+                <option value="inactive">Inactive Employees</option>
+                <option value="exited">Exited Employees</option>
+                <option value="deleted">Deleted Employees</option>
+              </select>
+            </div>
+
             <Button
               variant="secondary"
               icon={<Upload size={18} />}
@@ -1631,23 +1687,35 @@ function Employees() {
 
                       <td>
                         <span
-                          className={`status-badge ${emp.hasAppLogin ? "active" : "inactive"
+                          className={`status-badge ${emp.hasLoginEnabled ? "active" : "inactive"
                             }`}
                         >
-                          {emp.hasAppLogin ? "Login enabled" : "No login"}
+                          {emp.hasAppLogin
+                            ? emp.hasLoginEnabled
+                              ? "Login enabled"
+                              : "Login disabled"
+                            : "No login"}
                         </span>
                       </td>
 
                       <td>
                         <span
-                          className={`status-badge ${emp.isActive
-                            ? "active"
-                            : "inactive"
+                          className={`status-badge ${emp.isDeleted
+                            ? "deleted"
+                            : emp.isExited
+                              ? "exited"
+                              : emp.isActive
+                                ? "active"
+                                : "inactive"
                             }`}
                         >
-                          {emp.isActive
-                            ? "Active"
-                            : "Inactive"}
+                          {emp.isDeleted
+                            ? "Deleted"
+                            : emp.isExited
+                              ? "Exited"
+                              : emp.isActive
+                                ? "Active"
+                                : "Inactive"}
                         </span>
                       </td>
 
@@ -1774,6 +1842,26 @@ function Employees() {
                               >
                                 <FolderOpen size={16} /> Documents
                               </button>
+
+                              {emp.hasAppLogin && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    handleToggleAppLogin(emp);
+                                  }}
+                                >
+                                  {emp.hasLoginEnabled ? (
+                                    <>
+                                      <Lock size={16} /> Disable App Login
+                                    </>
+                                  ) : (
+                                    <>
+                                      <LockOpen size={16} /> Enable App Login
+                                    </>
+                                  )}
+                                </button>
+                              )}
 
                               <div className="dropdown-divider"></div>
 
