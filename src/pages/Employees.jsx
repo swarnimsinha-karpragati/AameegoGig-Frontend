@@ -570,7 +570,7 @@ function Employees() {
   const [department, setDepartment] = useState([]);
   const [departmentFilter, setDepartmentFilter] = useState("");
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "";
   const [statusFilter, setStatusFilter] = useState(urlStatus);
 
@@ -1694,6 +1694,15 @@ function Employees() {
                 onChange={(e) => {
                   setStatusFilter(e.target.value);
                   setPage(1);
+                  setSearchParams(
+                    (prev) => {
+                      const next = new URLSearchParams(prev);
+                      if (e.target.value) next.set("status", e.target.value);
+                      else next.delete("status");
+                      return next;
+                    },
+                    { replace: true }
+                  );
                 }}
               >
                 <option value="">All Employees</option>
