@@ -113,6 +113,8 @@ export const canAccessRoute = (role, path, allowedModules) => {
 
 export const DASHBOARD_STAT_MODULE = {
   employees: "employees",
+  activeEmployees: "employees",
+  exitEmployees: "employees",
   attendance: "attendance",
   leave: "leave",
   balance: "leave",

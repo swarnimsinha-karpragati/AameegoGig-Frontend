@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import {
   addEmployee,
@@ -8,6 +9,7 @@ import {
   bulkUploadEmployees,
   updateEmployee,
   deleteEmployee,
+  toggleAppLogin,
 } from "../services/employeeService";
 
 import {
@@ -29,15 +31,17 @@ import {
   Download,
   MoreVertical,
   TriangleAlert,
-  OctagonX
+  OctagonX,
+  Lock,
+  LockOpen
 } from "lucide-react";
 
 
 import {
   generateAppointmentLetter,
   generateWarningLetter,
-  generateTerminationLetter,
 } from "../services/letterService";
+import { createTermination } from "../services/terminationService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
 import Pagination from "../components/Pagination";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
@@ -566,6 +570,10 @@ function Employees() {
   const [department, setDepartment] = useState([]);
   const [departmentFilter, setDepartmentFilter] = useState("");
 
+  const [searchParams] = useSearchParams();
+  const urlStatus = searchParams.get("status") || "";
+  const [statusFilter, setStatusFilter] = useState(urlStatus);
+
   const [openDropdownId, setOpenDropdownId] = useState(null);
 
   useEffect(() => {
@@ -687,6 +695,10 @@ function Employees() {
       client: "",
       settlementDate: "",
       noticeClause: "7(B)",
+      isExperienceLetterIssued: false,
+      isRelievingLetterIssued: false,
+      deleteEmployeeAccount: false,
+      hrMail: "",
     });
 
   const salaryEditorRef = useRef(null);
@@ -699,6 +711,7 @@ function Employees() {
     try {
       const res = await getEmployees({
         departmentId: departmentFilter || undefined,
+        status: statusFilter || undefined,
         page,
         limit,
         search,
@@ -714,11 +727,16 @@ function Employees() {
     } catch (error) {
       console.error("Error fetching employees:", error);
     }
-  }, [departmentFilter, page, limit, search]);
+  }, [departmentFilter, statusFilter, page, limit, search]);
 
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
+
+  useEffect(() => {
+    setStatusFilter(urlStatus);
+    setPage(1);
+  }, [urlStatus]);
 
   useEffect(() => {
     const loggedUser = localStorage.getItem("user");
@@ -1259,7 +1277,7 @@ function Employees() {
   const handleDelete = async (id) => {
     const confirmDelete =
       window.confirm(
-        "Are you sure you want to delete this employee?"
+        "Are you sure you want to delete this employee? This is a soft delete — their details will be archived and hidden from default views."
       );
 
     if (!confirmDelete) return;
@@ -1267,7 +1285,7 @@ function Employees() {
     try {
       await deleteEmployee(id);
 
-      alert("Employee deleted successfully");
+      alert("Employee soft deleted successfully. Their details are archived.");
 
       if (employees.length <= 1 && page > 1) {
         setPage(page - 1);
@@ -1279,6 +1297,32 @@ function Employees() {
         error.response?.data
           ?.message ||
         "Delete failed"
+      );
+    }
+  };
+
+  /* =====================================
+     Toggle App Login Access (Enable / Disable)
+  ======================================== */
+
+  const handleToggleAppLogin = async (emp) => {
+    const enable = !emp.hasLoginEnabled;
+    const confirmToggle = window.confirm(
+      enable
+        ? `Enable app login for ${emp.name}? They will be able to log in again.`
+        : `Disable app login for ${emp.name}? They will not be able to log in until re-enabled.`
+    );
+
+    if (!confirmToggle) return;
+
+    try {
+      await toggleAppLogin(emp._id, enable);
+      alert(enable ? "App login enabled." : "App login disabled.");
+      fetchEmployees();
+    } catch (error) {
+      alert(
+        error.response?.data?.message ||
+        "Failed to update app login access"
       );
     }
   };
@@ -1397,23 +1441,45 @@ function Employees() {
        GENERATE TERMINATION LETTER
      ========================= */
 
+  /* =========================
+       TERMINATION FLOW
+  ========================= */
+
+  const formatDayAfterDate = (dateStr) => {
+    if (!dateStr) return "Not scheduled";
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + 1);
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
   const handleGenerateTermination =
     async () => {
-      if (
-        !terminationData.employeeName ||
-        !terminationData.designation ||
-        !terminationData.terminationDate ||
-        !terminationData.reason?.trim()
-      ) {
-        alert(
-          "Please fill all mandatory fields (employee, designation, termination date, and reason)"
-        );
+      const missingFields = [];
+      if (!terminationData.employeeId) missingFields.push("Employee");
+      if (!terminationData.designation) missingFields.push("Designation");
+      if (!terminationData.terminationDate) missingFields.push("Termination date");
+      if (!terminationData.reason?.trim()) missingFields.push("Reason");
+
+      if (missingFields.length > 0) {
+        alert(`Please fill mandatory fields: ${missingFields.join(", ")}`);
         return;
       }
 
+      const confirmGenerate = window.confirm(
+        `Are you sure you want to terminate ${terminationData.employeeName} effective ${terminationData.terminationDate}? The Termination Letter will be generated immediately, and the exit process (experience/relieving letters + F&F) will follow automatically.`
+      );
+
+      if (!confirmGenerate) return;
+
       try {
         setLoading(true);
-        await generateTerminationLetter({
+
+        await createTermination({
           employeeId: terminationData.employeeId,
           employeeName: terminationData.employeeName,
           employeeCode: terminationData.employeeCode,
@@ -1426,19 +1492,84 @@ function Employees() {
           client: terminationData.client,
           settlementDate: terminationData.settlementDate,
           noticeClause: terminationData.noticeClause,
+          isExperienceLetterIssued: terminationData.isExperienceLetterIssued,
+          isRelievingLetterIssued: terminationData.isRelievingLetterIssued,
+          deleteEmployeeAccount: terminationData.deleteEmployeeAccount,
+          hrMail: terminationData.hrMail,
+          generateAndSend: true,
         });
 
         alert(
-          "Termination Letter Generated Successfully"
+          "Termination recorded and letter generated successfully. Exit process will follow automatically."
         );
 
         setShowTerminationModal(false);
+        fetchEmployees();
 
       } catch (error) {
         alert(
           error.response?.data
             ?.message ||
           "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  const handleSaveTermination =
+    async () => {
+      const missingFields = [];
+      if (!terminationData.employeeId) missingFields.push("Employee");
+      if (!terminationData.terminationDate) missingFields.push("Termination date");
+      if (!terminationData.reason?.trim()) missingFields.push("Reason");
+
+      if (missingFields.length > 0) {
+        alert(`Please fill mandatory fields: ${missingFields.join(", ")}`);
+        return;
+      }
+
+      const confirmSave = window.confirm(
+        `Save termination details for ${terminationData.employeeName} without generating the letter yet? You can generate it later.`
+      );
+
+      if (!confirmSave) return;
+
+      try {
+        setLoading(true);
+
+        await createTermination({
+          employeeId: terminationData.employeeId,
+          employeeName: terminationData.employeeName,
+          employeeCode: terminationData.employeeCode,
+          designation: terminationData.designation,
+          department: terminationData.department,
+          terminationDate: terminationData.terminationDate,
+          reason: terminationData.reason,
+          noticePeriod: terminationData.noticePeriod,
+          workLocation: terminationData.workLocation,
+          client: terminationData.client,
+          settlementDate: terminationData.settlementDate,
+          noticeClause: terminationData.noticeClause,
+          isExperienceLetterIssued: terminationData.isExperienceLetterIssued,
+          isRelievingLetterIssued: terminationData.isRelievingLetterIssued,
+          deleteEmployeeAccount: terminationData.deleteEmployeeAccount,
+          hrMail: terminationData.hrMail,
+          generateAndSend: false,
+        });
+
+        alert(
+          "Termination details saved. Click Generate & Send when ready to start the exit process."
+        );
+
+        setShowTerminationModal(false);
+        fetchEmployees();
+
+      } catch (error) {
+        alert(
+          error.response?.data
+            ?.message ||
+          "Failed to save termination"
         );
       } finally {
         setLoading(false);
@@ -1557,6 +1688,22 @@ function Employees() {
               </select>
             </div>
 
+            <div className="employee-filter">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">All Employees</option>
+                <option value="active">Active Employees</option>
+                <option value="inactive">Inactive Employees</option>
+                <option value="exited">Exited Employees</option>
+                <option value="deleted">Deleted Employees</option>
+              </select>
+            </div>
+
             <Button
               variant="secondary"
               icon={<Upload size={18} />}
@@ -1631,23 +1778,35 @@ function Employees() {
 
                       <td>
                         <span
-                          className={`status-badge ${emp.hasAppLogin ? "active" : "inactive"
+                          className={`status-badge ${emp.hasLoginEnabled ? "active" : "inactive"
                             }`}
                         >
-                          {emp.hasAppLogin ? "Login enabled" : "No login"}
+                          {emp.hasAppLogin
+                            ? emp.hasLoginEnabled
+                              ? "Login enabled"
+                              : "Login disabled"
+                            : "No login"}
                         </span>
                       </td>
 
                       <td>
                         <span
-                          className={`status-badge ${emp.isActive
-                            ? "active"
-                            : "inactive"
+                          className={`status-badge ${emp.isDeleted
+                            ? "deleted"
+                            : emp.isExited
+                              ? "exited"
+                              : emp.isActive
+                                ? "active"
+                                : "inactive"
                             }`}
                         >
-                          {emp.isActive
-                            ? "Active"
-                            : "Inactive"}
+                          {emp.isDeleted
+                            ? "Deleted"
+                            : emp.isExited
+                              ? "Exited"
+                              : emp.isActive
+                                ? "Active"
+                                : "Inactive"}
                         </span>
                       </td>
 
@@ -1756,6 +1915,10 @@ function Employees() {
                                     client: emp.client || "",
                                     settlementDate: new Date().toISOString().split("T")[0],
                                     noticeClause: "7(B)",
+                                    isExperienceLetterIssued: false,
+                                    isRelievingLetterIssued: false,
+                                    deleteEmployeeAccount: false,
+                                    hrMail: "",
                                   });
                                   setShowTerminationModal(true);
                                 }}
@@ -1774,6 +1937,26 @@ function Employees() {
                               >
                                 <FolderOpen size={16} /> Documents
                               </button>
+
+                              {emp.hasAppLogin && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    handleToggleAppLogin(emp);
+                                  }}
+                                >
+                                  {emp.hasLoginEnabled ? (
+                                    <>
+                                      <Lock size={16} /> Disable App Login
+                                    </>
+                                  ) : (
+                                    <>
+                                      <LockOpen size={16} /> Enable App Login
+                                    </>
+                                  )}
+                                </button>
+                              )}
 
                               <div className="dropdown-divider"></div>
 
@@ -2590,15 +2773,26 @@ function Employees() {
             onClose={() => setShowTerminationModal(false)}
             size="md"
             footer={
-              <Button
-                type="button"
-                icon={<OctagonX size={16} />}
-                onClick={handleGenerateTermination}
-                disabled={loading}
-                style={{ flex: 1 }}
-              >
-                {loading ? "Generating…" : "Generate Termination Letter"}
-              </Button>
+              <div style={{ display: "flex", gap: 10, width: "100%" }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleSaveTermination}
+                  disabled={loading}
+                  style={{ flex: 1 }}
+                >
+                  Save Details
+                </Button>
+                <Button
+                  type="button"
+                  icon={<OctagonX size={16} />}
+                  onClick={handleGenerateTermination}
+                  disabled={loading}
+                  style={{ flex: 1 }}
+                >
+                  {loading ? "Processing…" : "Generate & Send"}
+                </Button>
+              </div>
             }
           >
             <FormSection
@@ -2733,6 +2927,98 @@ function Employees() {
                   }
                   placeholder='e.g. 7(B)'
                 />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Exit Process Setup"
+              description="Auto-run schedule after your sign-off — mirrors the resignation flow:"
+            >
+              <div className="termination-schedule-box">
+                <div className="termination-schedule-row">
+                  <span>Termination Letter</span>
+                  <strong>On "Generate &amp; Send"</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Employee deactivated (Exited)</span>
+                  <strong>{terminationData.terminationDate || "Not scheduled"}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Experience / Relieving Letters</span>
+                  <strong>{formatDayAfterDate(terminationData.terminationDate)}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Final Salary Slips + F&amp;F Statement</span>
+                  <strong>{formatDayAfterDate(terminationData.settlementDate)}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Status update</span>
+                  <strong>Auto-updates to "Released" after F&amp;F</strong>
+                </div>
+              </div>
+
+              <FormField label="Documents to auto-generate" fullWidth>
+                <div className="termination-exit-list">
+                  <label className="termination-exit-label">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.isExperienceLetterIssued}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          isExperienceLetterIssued: e.target.checked,
+                        })
+                      }
+                    />
+                    <strong>Experience Certificate</strong>
+                  </label>
+                  <label className="termination-exit-label">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.isRelievingLetterIssued}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          isRelievingLetterIssued: e.target.checked,
+                        })
+                      }
+                    />
+                    <strong>Relieving Letter</strong>
+                  </label>
+                </div>
+              </FormField>
+
+              <FormField label="HR Email (for exit/F&F notifications)" htmlFor="term-hrmail" fullWidth>
+                <input
+                  id="term-hrmail"
+                  type="email"
+                  value={terminationData.hrMail}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      hrMail: e.target.value,
+                    })
+                  }
+                  placeholder="hr@company.com (optional)"
+                />
+              </FormField>
+
+              <FormField label="Account after settlement" fullWidth>
+                <div className="termination-exit-list">
+                  <label className="termination-exit-label termination-exit-label--danger">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.deleteEmployeeAccount}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          deleteEmployeeAccount: e.target.checked,
+                        })
+                      }
+                    />
+                    Archive (soft-delete) employee after F&amp;F is dispatched
+                  </label>
+                </div>
               </FormField>
             </FormSection>
           </EmpModal>

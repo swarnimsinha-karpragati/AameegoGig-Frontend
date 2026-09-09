@@ -174,3 +174,10 @@ export const getVendorName = async (vendorId) => {
   return API.get(`/employees/get-vendor-name/${vendorId}`);
 };
 
+/* =========================
+   TOGGLE APP LOGIN ACCESS (ENABLE / DISABLE)
+========================= */
+export const toggleAppLogin = async (id, enable) => {
+  return API.patch(`/employees/${id}/app-login`, { isActive: enable });
+};
+
