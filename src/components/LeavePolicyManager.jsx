@@ -174,11 +174,17 @@ export default function LeavePolicyManager() {
   const isCustomMode = selectedTemplate === "custom";
 
   const balanceTypes = useMemo(
-    () => types.filter((t) => BALANCE_CODES.includes(t.code) || t.hasBalance),
+    () =>
+      types.filter(
+        (t) => BALANCE_CODES.includes(t.code) || t.hasBalance || t.enabled
+      ),
     [types]
   );
   const otherTypes = useMemo(
-    () => types.filter((t) => !BALANCE_CODES.includes(t.code) && !t.hasBalance),
+    () =>
+      types.filter(
+        (t) => !BALANCE_CODES.includes(t.code) && !t.hasBalance && !t.enabled
+      ),
     [types]
   );
 
