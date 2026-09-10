@@ -67,6 +67,8 @@ import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
 import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles";
+import ConsultancyPayments from "../components/consultancy/ConsultancyPayments";
+import "../components/consultancy/ConsultancyPayments.css";
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
@@ -189,6 +191,13 @@ function EmpModal({ title, onClose, size = "lg", children, footer }) {
     </div>
   );
 }
+
+const calculateNetConsultancy = (gross, tdsPercent) => {
+  const amount = Number(gross) || 0;
+  const tdsRate = Math.min(100, Math.max(0, Number(tdsPercent) || 0));
+  const tds = Math.round((amount * tdsRate) / 100);
+  return { gross: amount, tds, net: amount - tds };
+};
 
 function FormSection({ title, description, children, fullWidth = false }) {
   return (
@@ -531,6 +540,7 @@ function Employees() {
   const initialForm = {
     name: "", email: "", phone: "",
     designation: "", departmentId: "", location: "",
+    isConsultancy: false, monthlyConsultancyPay: "", tdsPercent: "",
     dob: "", bloodGroup: "", emergencyContact: "",
 
     gender: "",
@@ -557,10 +567,12 @@ function Employees() {
   const [form, setForm] = useState(initialForm);
 
   const [employees, setEmployees] = useState([]);
+  const [directoryType, setDirectoryType] = useState("employee");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
+  const [consultancyRefreshKey, setConsultancyRefreshKey] = useState(0);
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
@@ -715,6 +727,7 @@ function Employees() {
         page,
         limit,
         search,
+        isConsultancy: directoryType === "consultancy",
         isPagination: "true",
       });
       setEmployees(res.data.employees || []);
@@ -724,10 +737,11 @@ function Employees() {
           pages: res.data.pagination.pages,
         });
       }
+      setConsultancyRefreshKey((value) => value + 1);
     } catch (error) {
       console.error("Error fetching employees:", error);
     }
-  }, [departmentFilter, statusFilter, page, limit, search]);
+  }, [departmentFilter, statusFilter, page, limit, search, directoryType]);
 
   useEffect(() => {
     fetchEmployees();
@@ -1179,6 +1193,9 @@ function Employees() {
     esicNumber: emp.esicNumber || "",
     userRole: emp.linkedUser?.role || emp.userRole || "Employee",
     payType: emp.payType || "MONTHLY",
+    isConsultancy: Boolean(emp.isConsultancy),
+    monthlyConsultancyPay: emp.monthlyConsultancyPay ?? "",
+    tdsPercent: emp.tdsPercent ?? "",
     allowedModules: defaultSelectedModules(
       emp.linkedUser?.role || emp.userRole || "Employee",
       emp.linkedUser?.allowedModules
@@ -1645,9 +1662,20 @@ function Employees() {
     <MainLayout>
       <div className="employee-page">
 
-        <p className="employee-page__count">
-          Total employees: <strong>{pagination?.total || 0}</strong>
-        </p>
+        <div className="employee-directory-tabs" role="tablist" aria-label="People directory">
+          <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => { setDirectoryType("employee"); setPage(1); }}>
+            Employees
+            {directoryType === "employee" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
+          </button>
+          <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => { setDirectoryType("consultancy"); setPage(1); }}>
+            Consultancy
+            {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
+          </button>
+        </div>
+
+        {/* <p className="employee-page__count">
+          Total {directoryType === "consultancy" ? "consultants" : "employees"}: <strong>{pagination?.total || 0}</strong>
+        </p> */}
 
         <div className="employee-toolbar">
 
@@ -1728,16 +1756,18 @@ function Employees() {
             <Button
               icon={<Plus size={18} />}
               onClick={() => {
-                setForm({ ...initialForm });
+                setForm({ ...initialForm, isConsultancy: directoryType === "consultancy" });
                 setSalaryDraft(initialSalaryDraft);
                 setErrors({});
                 setShowAddModal(true);
               }}
             >
-              Add Employee
+              Add {directoryType === "consultancy" ? "Consultant" : "Employee"}
             </Button>
           </div>
         </div>
+
+        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} /> : null}
 
         <div className="employee-table-card">
           <div className="employee-table-scroll">
@@ -1787,13 +1817,25 @@ function Employees() {
 
                       <td>
                         <span
-                          className={`status-badge ${emp.hasLoginEnabled ? "active" : "inactive"
-                            }`}
+                          className={`login-chip ${
+                            emp.hasAppLogin
+                              ? emp.hasLoginEnabled
+                                ? "login-chip--on"
+                                : "login-chip--off"
+                              : "login-chip--none"
+                          }`}
+                          title={
+                            emp.hasAppLogin
+                              ? emp.hasLoginEnabled
+                                ? "App login enabled"
+                                : "App login disabled"
+                              : "No app login"
+                          }
                         >
                           {emp.hasAppLogin
                             ? emp.hasLoginEnabled
-                              ? "Login enabled"
-                              : "Login disabled"
+                              ? "Enabled"
+                              : "Disabled"
                             : "No login"}
                         </span>
                       </td>
@@ -2018,7 +2060,7 @@ function Employees() {
         {/* ================= ADD EMPLOYEE MODAL ================= */}
         {showAddModal ? (
           <EmpModal
-            title="Add Employee"
+            title={`Add ${form.isConsultancy ? "Consultant" : "Employee"}`}
             onClose={() => {
               setShowAddModal(false);
               setSalaryDraft(initialSalaryDraft);
@@ -2058,6 +2100,21 @@ function Employees() {
                 department={department}
                 errors={errors}
               />
+              {form.isConsultancy ? (
+                <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
+                  <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
+                    <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" />
+                  </FormField>
+                  <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
+                    <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" />
+                  </FormField>
+                  <div className="consultancy-net-summary">
+                    <span>Gross: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).gross.toLocaleString("en-IN")}</span>
+                    <span>TDS ({form.tdsPercent || 0}%): −₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).tds.toLocaleString("en-IN")}</span>
+                    <strong>Net Payable: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).net.toLocaleString("en-IN")}</strong>
+                  </div>
+                </FormSection>
+              ) : null}
               <FormSection title="App Access">
                 <AppLoginSection
                   enabled={form.createAppLogin}
@@ -2090,7 +2147,7 @@ function Employees() {
                   modulesIdPrefix="add-emp-mod"
                 />
               </FormSection>
-              <FormSection
+              {!form.isConsultancy ? <FormSection
                 title="Salary Structure"
                 description="Set earnings and deductions from your organization component library"
                 fullWidth
@@ -2105,7 +2162,7 @@ function Employees() {
                   onDraftChange={setSalaryDraft}
                   hideActions
                 />
-              </FormSection>
+              </FormSection> : null}
             </form>
           </EmpModal>
         ) : null}
@@ -2174,7 +2231,7 @@ function Employees() {
         {/* ================= VIEW / EDIT MODAL ================= */}
         {selectedEmployee ? (
           <EmpModal
-            title={isEditing ? "Edit Employee" : "Employee Details"}
+            title={isEditing ? `Edit ${selectedEmployee.isConsultancy ? "Consultant" : "Employee"}` : `${selectedEmployee.isConsultancy ? "Consultant" : "Employee"} Details`}
             onClose={() => setSelectedEmployee(null)}
             size="lg"
             footer={
@@ -2214,9 +2271,24 @@ function Employees() {
                     !!selectedEmployee?.departmentId &&
                     !!originalDepartmentId &&
                     String(selectedEmployee.departmentId) !==
-                      String(originalDepartmentId)
+                    String(originalDepartmentId)
                   }
                 />
+                {selectedEmployee.isConsultancy ? (
+                  <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
+                    <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
+                      <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" />
+                    </FormField>
+                    <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
+                      <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" />
+                    </FormField>
+                    <div className="consultancy-net-summary">
+                      <span>Gross: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).gross.toLocaleString("en-IN")}</span>
+                      <span>TDS ({selectedEmployee.tdsPercent || 0}%): −₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).tds.toLocaleString("en-IN")}</span>
+                      <strong>Net Payable: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).net.toLocaleString("en-IN")}</strong>
+                    </div>
+                  </FormSection>
+                ) : null}
                 <FormSection title="App Access">
                   <AppLoginSection
                     enabled={enableLoginOnUpdate}
@@ -2254,13 +2326,13 @@ function Employees() {
                     modulesIdPrefix="edit-emp-mod"
                   />
                 </FormSection>
-                <FormSection
+                {!selectedEmployee.isConsultancy ? <FormSection
                   title="Salary Structure"
                   description="Dynamic earnings and deductions from your organization library"
                   fullWidth
                 >
                   <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} payType={selectedEmployee.payType} />
-                </FormSection>
+                </FormSection> : null}
               </>
             ) : (
               <div className="emp-view-body">

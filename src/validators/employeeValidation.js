@@ -174,6 +174,19 @@ export const employeeValidationSchema = Yup.object().shape({
   // ---- Employment ----
   client: Yup.string().trim().default(""),
 
+  monthlyConsultancyPay: Yup.number()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .nullable()
+    .min(0, "Monthly consultancy pay cannot be negative")
+    .default(null),
+
+  tdsPercent: Yup.number()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .nullable()
+    .min(0, "TDS percentage cannot be negative")
+    .max(100, "TDS percentage cannot exceed 100")
+    .default(null),
+
   dateOfJoining: Yup.date().nullable().default(null),
 
   relievingDate: Yup.date()
