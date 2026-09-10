@@ -62,7 +62,6 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
 
   // On mount and whenever month/year/refresh key changes: materialise the month's
   // records (so every consultant gets an entry to pay against) and then reload.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const initializeAndLoad = async () => {
       setLoading(true);
@@ -77,7 +76,7 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
       }
     };
     initializeAndLoad();
-  }, [period.month, period.year, refreshKey]);
+  }, [period, refreshKey]);
 
   const onMonthChange = (month) => setPeriod({ ...period, month: Number(month) });
 
