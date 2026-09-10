@@ -13,6 +13,8 @@ import { getLeaveRequests } from "../../services/leaveService";
 import { createRegularizationRequest } from "../../services/regularizationService";
 import { validateFields } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
+import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { formatAttendanceHours } from "../../utils/regularizationFormatters";
 
 const ATTENDANCE_STATUSES = [
   "Present",
@@ -24,6 +26,12 @@ const ATTENDANCE_STATUSES = [
 ];
 const LEAVE_TYPES = ["CL", "SL", "EL", "CO", "WFH", "LOP", "LWP"];
 const STATUSES_REQUIRING_TIMES = ["Present", "Late", "Half Day", "WFH"];
+
+const minutesFromTime = (value) => {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+};
 
 const emptyAttendance = {
   date: "",
@@ -125,10 +133,12 @@ export const validateAttendanceRequest = (attendance, bounds) => {
   if (attendance.date && (attendance.date < bounds.min || attendance.date > bounds.max)) {
     errors.date = "Choose a date within the last 60 days";
   }
+  const checkInMinutes = minutesFromTime(attendance.checkIn);
+  const checkOutMinutes = minutesFromTime(attendance.checkOut);
   if (
-    attendance.checkIn &&
-    attendance.checkOut &&
-    attendance.checkOut < attendance.checkIn
+    checkInMinutes !== null &&
+    checkOutMinutes !== null &&
+    checkOutMinutes < checkInMinutes
   ) {
     errors.checkOut = "Check-out must be on or after check-in";
   }
@@ -427,6 +437,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                   <dl>
                     <div><dt>Status</dt><dd>{currentAttendance.status || "—"}</dd></div>
                     <div><dt>In / Out</dt><dd>{currentAttendance.checkIn || "—"} / {currentAttendance.checkOut || "—"}</dd></div>
+                    <div><dt>Total hours</dt><dd>{formatAttendanceHours(currentAttendance.checkIn, currentAttendance.checkOut)}</dd></div>
                   </dl>
                 ) : (
                   <p className="regularization-muted">
@@ -439,6 +450,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                 <dl>
                   <div><dt>Status</dt><dd>{attendance.status}</dd></div>
                   <div><dt>In / Out</dt><dd>{attendance.checkIn || "—"} / {attendance.checkOut || "—"}</dd></div>
+                  <div><dt>Total hours</dt><dd>{formatAttendanceHours(attendance.checkIn, attendance.checkOut)}</dd></div>
                 </dl>
               </SnapshotCard>
             </div>
@@ -455,7 +467,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                 <option value="">New leave correction</option>
                 {leaveRequests.map((item) => (
                   <option value={item._id} key={item._id}>
-                    {item.leaveType} · {toDateInput(item.startDate)} to {toDateInput(item.endDate)} · {item.status}
+                    {getLeaveTypeLabel(item.leaveType)} · {toDateInput(item.startDate)} to {toDateInput(item.endDate)} · {item.status}
                   </option>
                 ))}
               </select>
@@ -469,7 +481,9 @@ export default function RequestForm({ toast, onSubmitted }) {
                   setLeave((previous) => ({ ...previous, leaveType: event.target.value }))
                 }
               >
-                {LEAVE_TYPES.map((type) => <option key={type}>{type}</option>)}
+                {LEAVE_TYPES.map((type) => (
+                  <option key={type} value={type}>{getLeaveTypeLabel(type)}</option>
+                ))}
               </select>
             </div>
             <div className="regularization-field">
@@ -569,7 +583,7 @@ export default function RequestForm({ toast, onSubmitted }) {
 
         <div className="regularization-form__actions regularization-field--full">
           <span>Your manager or HR team will review this request.</span>
-          <Button type="submit" disabled={!isValid || submitting}>
+          <Button type="submit" disabled={submitting}>
             {submitting ? "Submitting…" : "Submit request"}
           </Button>
         </div>

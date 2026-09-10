@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
+  ClipboardList,
   Clock3,
   ShieldCheck,
 } from "lucide-react";
@@ -9,6 +10,7 @@ import RequestForm, {
   buildApiErrorMessage,
 } from "../components/regularization/RequestForm";
 import MyRequestsList from "../components/regularization/MyRequestsList";
+import ApprovedList from "../components/regularization/ApprovedList";
 import ApprovalsList from "../components/regularization/ApprovalsList";
 import DirectEditPanel from "../components/regularization/DirectEditPanel";
 import { ToastProvider, useToast } from "../components/Toast";
@@ -36,13 +38,19 @@ function RegularizationInner() {
   const toastError = toast.error;
   const toastSuccess = toast.success;
   const user = getStoredUser();
-  const roleCanApprove = ["Admin", "HR", "Manager"].includes(user?.role);
-  const [canApprove, setCanApprove] = useState(roleCanApprove);
-  const canDirectEdit = ["Admin", "HR"].includes(user?.role);
+  const isAdminOrHr = ["Admin", "HR"].includes(user?.role);
+  const canApprove = isAdminOrHr;
+  const canDirectEdit = isAdminOrHr;
   const canRequest = hasLinkedEmployeeProfile(user);
   const tabs = useMemo(
-    () => buildRegularizationTabs({ canRequest, canApprove, canDirectEdit }),
-    [canApprove, canDirectEdit, canRequest]
+    () =>
+      buildRegularizationTabs({
+        canRequest,
+        canApprove,
+        canDirectEdit,
+        isAdminOrHr,
+      }),
+    [canApprove, canDirectEdit, canRequest, isAdminOrHr]
   );
   const [activeTab, setActiveTab] = useState(canRequest ? "request" : "mine");
   const [counts, setCounts] = useState({
@@ -51,31 +59,51 @@ function RegularizationInner() {
     approvedThisMonth: 0,
   });
   const [requests, setRequests] = useState([]);
+  const [approved, setApproved] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const isApprovedThisMonth = (request) => {
+    const decided = new Date(request?.decidedAt);
+    if (Number.isNaN(decided.getTime())) return false;
+    const now = new Date();
+    return (
+      decided.getFullYear() === now.getFullYear() &&
+      decided.getMonth() === now.getMonth()
+    );
+  };
 
   const loadData = useCallback(
     async ({ quiet = false } = {}) => {
       if (!quiet) setLoading(true);
-      const [dashboardResult, requestsResult] = await Promise.allSettled([
-        getRegularizationDashboard(),
-        canRequest
-          ? listRegularizationRequests({ mine: 1, limit: 100 })
-          : Promise.resolve({ requests: [] }),
-      ]);
+      const [dashboardResult, requestsResult, approvedResult] =
+        await Promise.allSettled([
+          getRegularizationDashboard(),
+          listRegularizationRequests({
+            limit: 100,
+            ...(isAdminOrHr ? {} : { mine: 1 }),
+          }),
+          listRegularizationRequests({ status: "Approved", limit: 100 }),
+        ]);
       if (dashboardResult.status === "fulfilled") {
         setCounts(dashboardResult.value?.counts || {});
-        setCanApprove(Boolean(dashboardResult.value?.canApprove));
       } else if (!quiet) {
         toastError(apiError(dashboardResult.reason, "Failed to load regularization summary"));
       }
       if (requestsResult.status === "fulfilled") {
         setRequests(requestsResult.value?.requests || []);
       } else {
-        toastError(apiError(requestsResult.reason, "Failed to load your requests"));
+        toastError(apiError(requestsResult.reason, "Failed to load requests"));
+      }
+      if (approvedResult.status === "fulfilled") {
+        setApproved(
+          (approvedResult.value?.requests || []).filter(isApprovedThisMonth)
+        );
+      } else if (!quiet) {
+        toastError(apiError(approvedResult.reason, "Failed to load approved requests"));
       }
       setLoading(false);
     },
-    [canRequest, toastError]
+    [isAdminOrHr, toastError]
   );
 
   useEffect(() => {
@@ -106,26 +134,41 @@ function RegularizationInner() {
     }
   };
 
-  const stats = [
-    {
-      label: "My pending",
-      value: counts.myPending || 0,
-      icon: Clock3,
-      tone: "amber",
-    },
-    {
-      label: "Awaiting my approval",
-      value: counts.awaitingApproval || 0,
-      icon: ShieldCheck,
-      tone: "blue",
-    },
-    {
-      label: "Approved this month",
-      value: counts.approvedThisMonth || 0,
-      icon: CheckCircle2,
-      tone: "green",
-    },
-  ];
+  const stats = isAdminOrHr
+    ? [
+      {
+        label: "All requests",
+        value: counts.allRequests || 0,
+        icon: ClipboardList,
+        tone: "blue",
+      },
+      {
+        label: "All pending",
+        value: counts.awaitingApproval || 0,
+        icon: Clock3,
+        tone: "amber",
+      },
+      {
+        label: "Approved this month",
+        value: counts.approvedThisMonth || 0,
+        icon: CheckCircle2,
+        tone: "green",
+      },
+    ]
+    : [
+      {
+        label: "My pending",
+        value: counts.myPending || 0,
+        icon: Clock3,
+        tone: "amber",
+      },
+      {
+        label: "Approved this month",
+        value: counts.approvedThisMonth || 0,
+        icon: CheckCircle2,
+        tone: "green",
+      },
+    ];
 
   return (
     <div className="regularization-page">
@@ -179,6 +222,23 @@ function RegularizationInner() {
         ) : null}
         {activeTab === "mine" ? (
           <MyRequestsList
+            title={isAdminOrHr ? "All Requests" : "My Requests"}
+            eyebrow={isAdminOrHr ? "Organization requests" : "Your history"}
+            emptyTitle={
+              isAdminOrHr ? "No requests found" : "No requests yet"
+            }
+            emptyText={
+              isAdminOrHr
+                ? "Regularization requests submitted by employees will appear here."
+                : "Your attendance and leave correction requests will appear here."
+            }
+            allowCancel={!isAdminOrHr}
+            compact
+            description={
+              isAdminOrHr
+                ? "Review organization attendance and leave correction requests."
+                : undefined
+            }
             requests={requests}
             loading={loading}
             onCancel={handleCancel}
@@ -188,6 +248,13 @@ function RegularizationInner() {
           <ApprovalsList
             toast={toast}
             onChanged={() => loadData({ quiet: true })}
+          />
+        ) : null}
+        {activeTab === "approved" ? (
+          <ApprovedList
+            requests={approved}
+            loading={loading}
+            emptyText="No regularization requests approved this month."
           />
         ) : null}
         {activeTab === "direct" ? (

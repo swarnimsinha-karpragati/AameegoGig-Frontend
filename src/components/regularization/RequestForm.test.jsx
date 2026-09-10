@@ -61,4 +61,49 @@ describe("regularization request helpers", () => {
     expect(errors.checkIn).toBeUndefined();
     expect(errors.checkOut).toBeUndefined();
   });
+
+  test("leaves shift-duration validation to the backend department shift", () => {
+    const bounds = { min: "2026-07-10", max: "2026-09-08" };
+    const errors = validateAttendanceRequest(
+      {
+        date: "2026-09-08",
+        status: "Present",
+        checkIn: "09:00",
+        checkOut: "18:01",
+        reason: "Correcting attendance status",
+      },
+      bounds
+    );
+    expect(errors.checkOut).toBeUndefined();
+  });
+
+  test("allows an exact nine hour shift", () => {
+    const bounds = { min: "2026-07-10", max: "2026-09-08" };
+    const errors = validateAttendanceRequest(
+      {
+        date: "2026-09-08",
+        status: "Present",
+        checkIn: "09:00",
+        checkOut: "18:00",
+        reason: "Correcting attendance status",
+      },
+      bounds
+    );
+    expect(errors.checkOut).toBeUndefined();
+  });
+
+  test("flags check-out before check-in", () => {
+    const bounds = { min: "2026-07-10", max: "2026-09-08" };
+    const errors = validateAttendanceRequest(
+      {
+        date: "2026-09-08",
+        status: "Present",
+        checkIn: "18:00",
+        checkOut: "09:30",
+        reason: "Correcting attendance status",
+      },
+      bounds
+    );
+    expect(errors.checkOut).toMatch(/on or after check-in/i);
+  });
 });

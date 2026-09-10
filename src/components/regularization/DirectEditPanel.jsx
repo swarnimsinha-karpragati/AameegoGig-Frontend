@@ -20,6 +20,7 @@ import {
   buildApiErrorMessage,
   countWeekdaysInclusive,
 } from "./RequestForm";
+import { getLeaveTypeLabel } from "../../utils/leaveLabels";
 
 const ATTENDANCE_STATUSES = [
   "Present",
@@ -31,6 +32,14 @@ const ATTENDANCE_STATUSES = [
 ];
 const LEAVE_TYPES = ["CL", "SL", "EL", "CO", "WFH", "LOP", "LWP"];
 const STATUSES_REQUIRING_TIMES = ["Present", "Late", "Half Day", "WFH"];
+const MAX_WORKING_HOURS = 9;
+const MAX_WORKING_MINUTES = MAX_WORKING_HOURS * 60;
+
+const minutesFromTime = (value) => {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+};
 
 const emptyAttendance = {
   employeeId: "",
@@ -169,6 +178,17 @@ export const validateDirectEdit = (kind, form) => {
     form.checkOut < form.checkIn
   ) {
     errors.checkOut = "Check-out must be on or after check-in";
+  }
+  if (kind === "attendance") {
+    const startMinutes = minutesFromTime(form.checkIn);
+    const endMinutes = minutesFromTime(form.checkOut);
+    if (
+      startMinutes !== null &&
+      endMinutes !== null &&
+      endMinutes - startMinutes > MAX_WORKING_MINUTES
+    ) {
+      errors.checkOut = `Regularization hours cannot exceed ${MAX_WORKING_HOURS} hours`;
+    }
   }
   if (
     kind === "leave" &&
@@ -448,7 +468,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
             ? " and clear recorded times"
             : ` · ${attendance.checkIn || "—"} to ${attendance.checkOut || "—"}`
         }`
-      : `${leave.leaveType} · ${leave.startDate} to ${leave.endDate} · ${workingDays || 0} working day(s)`;
+      : `${getLeaveTypeLabel(leave.leaveType)} · ${leave.startDate} to ${leave.endDate} · ${workingDays || 0} working day(s)`;
 
   return (
     <section className="regularization-panel regularization-glass">
@@ -604,7 +624,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
                 </option>
                 {employeeLeaves.map((request) => (
                   <option key={request._id} value={request._id}>
-                    {request.leaveType} · {toDateInput(request.startDate)} to{" "}
+                    {getLeaveTypeLabel(request.leaveType)} · {toDateInput(request.startDate)} to{" "}
                     {toDateInput(request.endDate)} · {request.status}
                   </option>
                 ))}
@@ -626,7 +646,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
                 }
               >
                 {LEAVE_TYPES.map((type) => (
-                  <option key={type}>{type}</option>
+                  <option key={type} value={type}>{getLeaveTypeLabel(type)}</option>
                 ))}
               </select>
             </div>

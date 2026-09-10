@@ -19,8 +19,10 @@ export const updateResignation = async (id,data) => {
   return API.patch(`/resignation/updateStatus/${id}`,data);
 };
 
-export const rejectResignation = async (id,rejectedBy) => {
-  return API.patch(`/resignation/rejectResignation/?id=${id}&rejectedBy=${rejectedBy}`);
+export const rejectResignation = async (id, rejectedBy, reason = "") => {
+  const params = new URLSearchParams({ id, rejectedBy });
+  if (reason) params.set("reason", reason);
+  return API.patch(`/resignation/rejectResignation/?${params.toString()}`);
 };
 
 export const finalApproval = async (id,payload) => {

@@ -87,6 +87,10 @@ function Resignations() {
   const [approvingRecordId, setApprovingRecordId] = useState(null);
   const [isHrFinalizing, setIsHrFinalizing] = useState(false);
 
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingRecordId, setRejectingRecordId] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+
   const [isLoading,setIsLoading] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
@@ -195,6 +199,9 @@ function Resignations() {
     setShowAddModal(false);
     setIsViewing(false);
     setShowApproveModal(false);
+    setShowRejectModal(false);
+    setRejectingRecordId(null);
+    setRejectReason("");
     setSelectedResignation(null);
     setApprovingRecordId(null);
     setIsHrFinalizing(false);
@@ -242,6 +249,7 @@ function Resignations() {
   const handleApproveOrEditClick = (record, isHrAction = false) => {
     setApprovingRecordId(record._id);
     setIsHrFinalizing(isHrAction);
+    setSelectedResignation(record);
     setChecklistForm({
       isExitChecklistCleared: record.isExitChecklistCleared || false,
       isAssetRecovered: record.isAssetRecovered || false,
@@ -271,7 +279,7 @@ function Resignations() {
               isExitApproved: true,
               approvedBy: {
                 id: currentUser?.employeeId || currentUser?.id,
-                refModel: currentUser?.employeeId ? "Employee" : "User" 
+                approvedModel: currentUser?.employeeId ? "Employee" : "User" 
               },
               ...checklistForm,
               fnfAmount: Number(checklistForm.fnfAmount)
@@ -287,7 +295,7 @@ function Resignations() {
                 isExitApproved: false,
                 verifiedBy: {
                   id: currentUser?.employeeId || currentUser?.id,
-                  refModel: currentUser?.employeeId ? "Employee" : "User" 
+                  verifiedModel: currentUser?.employeeId ? "Employee" : "User" 
                 },
                 isKnowledgeTransferDone: checklistForm.isKnowledgeTransferDone
             };
@@ -303,16 +311,26 @@ function Resignations() {
     }
   };
 
-  const handleRejectStatus = async (id) => {
-    if (!window.confirm("Are you sure you want to reject this resignation request?")) return;
-    setIsLoading(true)
+  const handleRejectStatus = (id) => {
+    setRejectingRecordId(id);
+    setRejectReason("");
+    setShowRejectModal(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectReason.trim()) {
+      alert("Please provide a reason for rejecting this resignation request.");
+      return;
+    }
+    setIsLoading(true);
     try {
-      await rejectResignation(id, currentUser?.employeeId);
+      await rejectResignation(rejectingRecordId, currentUser?.employeeId, rejectReason.trim());
       fetchAllData();
-      setIsLoading(false)
+      setIsLoading(false);
       alert("Request marked as Rejected");
+      handleModalClose();
     } catch (error) {
-      setIsLoading(false)
+      setIsLoading(false);
       alert(error.response?.data?.message || "Status operation failed");
     }
   };
@@ -879,6 +897,43 @@ function Resignations() {
           </ResModal>
         ) : null}
 
+        {showRejectModal ? (
+          <ResModal
+            title="Reject Resignation Request"
+            onClose={handleModalClose}
+            size="md"
+            footer={
+              <div className="exit-mgmt-modal-actions">
+                <Button type="button" disabled={isLoading} onClick={handleModalClose} className="secondary-btn">
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={confirmReject}
+                  disabled={isLoading}
+                  style={{ backgroundColor: "#c53030", borderColor: "#c53030" }}
+                >
+                  {isLoading ? "Rejecting..." : "Reject"}
+                </Button>
+              </div>
+            }
+          >
+            <FormSection title="Rejection Details" description="Please provide a reason for rejecting this resignation request. The employee will be notified with this reason.">
+              <FormField label="Reason for Rejection" htmlFor="reject-reason" required fullWidth>
+                <textarea
+                  id="reject-reason"
+                  name="rejectReason"
+                  rows={4}
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Enter the reason for rejecting this request..."
+                  required
+                />
+              </FormField>
+            </FormSection>
+          </ResModal>
+        ) : null}
+
         {isViewing && selectedResignation ? (
           <ResModal title="Resignation Audit Metrics" onClose={handleModalClose} size="lg">
             <FormSection title="Employee & Timing Details">
@@ -907,6 +962,16 @@ function Resignations() {
               <FormField label="Reason for Resignation" fullWidth>
                 <textarea rows={3} value={selectedResignation.reasonForLeaving} disabled />
               </FormField>
+
+              {selectedResignation.status === "Rejected" && (
+                <FormField label="Rejection Reason" fullWidth>
+                  <textarea
+                    rows={3}
+                    value={selectedResignation.rejectionReason || "Not specified"}
+                    disabled
+                  />
+                </FormField>
+              )}
               <FormField label="Attached Notice File Artifact" fullWidth>
                 {selectedResignation.resignationLetterUrl ? (
                   <button

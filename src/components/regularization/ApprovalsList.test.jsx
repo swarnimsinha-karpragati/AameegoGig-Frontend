@@ -13,8 +13,8 @@ describe("regularization approval helpers", () => {
     };
 
     expect(describeApprovalChange(request)).toEqual({
-      previous: "Absent · — / —",
-      requested: "Present · 09:30 / 18:00",
+      previous: "Absent · — / — · Total —",
+      requested: "Present · 09:30 / 18:00 · Total 8h 30m",
     });
     expect(approvalPeriod(request)).toContain("08");
   });
@@ -34,8 +34,8 @@ describe("regularization approval helpers", () => {
       },
     };
 
-    expect(describeApprovalChange(request).previous).toContain("CL");
-    expect(describeApprovalChange(request).requested).toContain("SL");
+    expect(describeApprovalChange(request).previous).toContain("Casual Leave");
+    expect(describeApprovalChange(request).requested).toContain("Sick Leave");
     expect(approvalPeriod(request)).toContain("10");
   });
 
@@ -51,8 +51,8 @@ describe("regularization approval helpers", () => {
       requested: { date: "2026-09-08", status: "Present", checkIn: "09:30", checkOut: "18:00" },
     };
     expect(describeApprovalChange(request)).toEqual({
-      previous: "No record · — / —",
-      requested: "Present · 09:30 / 18:00",
+      previous: "No record · — / — · Total —",
+      requested: "Present · 09:30 / 18:00 · Total 8h 30m",
     });
   });
 });
