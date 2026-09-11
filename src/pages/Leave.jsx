@@ -35,7 +35,8 @@ import {
 import {
   getLeaveViewKey,
   getStoredUser,
-  canMarkAttendance as roleCanManageLeaveRequests,
+  canApproveLeave as roleCanManageLeaveRequests,
+  canViewOrgLeave,
   canEditLeaveBalances,
   roleHasPermission,
   hasLinkedEmployeeProfile,
@@ -120,6 +121,14 @@ function LeaveInner() {
   const { vendor } = useParams();
   const user = getStoredUser();
   const viewRole = getLeaveViewKey(user?.role);
+  // Top tabs like Employees (Employees/Consultancy): Employee tab shows self
+  // + team; Organization tab (org permission only) shows Organization Leave.
+  const showEmployeeTab = user?.role !== "Admin";
+  const showOrgTab = canViewOrgLeave(user?.role);
+  const [leaveTab, setLeaveTab] = useState(() =>
+    user?.role === "Admin" ? "organization" : "employee"
+  );
+  const activeTab = showEmployeeTab ? leaveTab : "organization";
 
   const [dashboard, setDashboard] = useState(null);
   const [requests, setRequests] = useState([]);
@@ -130,6 +139,9 @@ function LeaveInner() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedBalanceEmployee, setSelectedBalanceEmployee] = useState("");
+  // Team balance viewer (view-only): selected employee to look up, same
+  // layout as admin — but every field disabled, no save, nothing editable.
+  const [selectedTeamBalanceId, setSelectedTeamBalanceId] = useState("");
   const [balanceForm, setBalanceForm] = useState({
     CL: { total: "", used: "" },
     SL: { total: "", used: "" },
@@ -199,7 +211,7 @@ function LeaveInner() {
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canDirectEditLeave =
     roleHasPermission(user?.role, "leave:direct-edit") ||
-    roleHasPermission(user?.role, "leave:approve");
+    roleHasPermission(user?.role, "leave:approve-all");
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
   const canConfigurePolicy = roleHasPermission(user?.role, "leave:policy");
 
@@ -212,6 +224,14 @@ function LeaveInner() {
     [dashboard?.upcoming]
   );
   const pendingApprovals = dashboard?.pendingApprovals || [];
+  // Team visibility never depends on permission: backend reports reportees
+  // directly (hasTeam), so the block survives any role/permission combo.
+  const hasTeam = Boolean(dashboard?.hasTeam || dashboard?.scope === "team");
+  // Team-only pending list (reportee-based from server when present).
+  const teamPendingList =
+    hasTeam && Array.isArray(dashboard?.teamPendingApprovals)
+      ? dashboard.teamPendingApprovals
+      : pendingApprovals;
 
   const teamMembers = useMemo(() => {
     if (!user?.employeeId) return employees;
@@ -255,6 +275,27 @@ function LeaveInner() {
     return requests.filter((item) => !matchesUser(item));
   }, [requests, matchesUser]);
 
+  // True direct reportees (reporting manager = me), for org-wide views where
+  // teamRequests would otherwise mean "everyone else".
+  const isDirectReportee = useCallback(
+    (item) => {
+      const userEmpId =
+        typeof user?.employeeId === "object"
+          ? user?.employeeId?._id
+          : user?.employeeId;
+      const mgr = item.employeeId?.managerId;
+      const mgrId = mgr?._id || mgr;
+      return Boolean(
+        userEmpId && mgrId && String(mgrId) === String(userEmpId)
+      );
+    },
+    [user?.employeeId]
+  );
+
+  const teamOnlyRequests = useMemo(() => {
+    return requests.filter(isDirectReportee);
+  }, [requests, isDirectReportee]);
+
   const myRecentRequests = useMemo(() => myRequests.slice(0, 6), [myRequests]);
 
   const myUpcoming = useMemo(() => {
@@ -284,9 +325,9 @@ function LeaveInner() {
       const enabled = leavePolicy.types.filter((t) => t?.enabled);
       options = enabled.length
         ? enabled.map((t) => ({
-            code: t.code,
-            label: t.name || t.code,
-          }))
+          code: t.code,
+          label: t.name || t.code,
+        }))
         : fallback;
     }
 
@@ -759,11 +800,10 @@ function LeaveInner() {
         {leaveForm.startDate && leaveForm.endDate ? (
           <div
             id="leave-date-feedback"
-            className={`leave-date-feedback leave-field--full${
-              dateValidationError
-                ? " leave-date-feedback--error"
-                : " leave-date-feedback--ok"
-            }`}
+            className={`leave-date-feedback leave-field--full${dateValidationError
+              ? " leave-date-feedback--error"
+              : " leave-date-feedback--ok"
+              }`}
             role={dateValidationError ? "alert" : "status"}
             aria-live="polite"
           >
@@ -978,7 +1018,7 @@ function LeaveInner() {
                           (item.status === "Pending" ||
                             item.status === "Approved") &&
                           new Date(item.startDate).setHours(0, 0, 0, 0) >=
-                            new Date().setHours(0, 0, 0, 0);
+                          new Date().setHours(0, 0, 0, 0);
                         const showEdit =
                           canDirectEditLeave && item.status !== "Cancelled";
 
@@ -1057,96 +1097,134 @@ function LeaveInner() {
     );
   };
 
-  const renderBalanceEditor = (balanceList, readOnly = false) => (
-    <section className="leave-panel leave-glass">
-      <header className="leave-panel__head">
-        <h3>
-          {readOnly || !canEditBalances
-            ? "Team Leave Balances"
-            : "Manage Leave Balances"}
-        </h3>
-      </header>
-      {readOnly || !canEditBalances ? (
-        <div className="leave-balance-list">
-          {balanceList.length === 0 ? (
-            <p className="leave-empty">No balance records found</p>
-          ) : (
-            balanceList.map((b) => (
-              <div key={b.employeeId} className="leave-team-balance-group">
-                <strong className="leave-team-balance-name">
-                  {b.employeeCode} — {b.name}
-                </strong>
-                {(b.balances || []).map((item) => (
+  const renderBalanceEditor = (balanceList, readOnly = false) => {
+    // View-only (team): same layout as admin's Manage view — employee
+    // dropdown to look up anyone, per-type Total/Used rows — but everything
+    // disabled, no save button. Team leads can only view, never edit.
+    const viewOnly = readOnly || !canEditBalances;
+    // Explicit selection outside the visible (scoped) list shows nothing —
+    // team leads can only view balances inside their own scope.
+    const teamSelected = selectedTeamBalanceId
+      ? (balanceList || []).find(
+        (b) => String(b.employeeId) === String(selectedTeamBalanceId)
+      ) || null
+      : (balanceList || [])[0] || null;
+    return (
+      <section className="leave-panel leave-glass">
+        <header className="leave-panel__head">
+          <h3>
+            {viewOnly
+              ? "Team Leave Balances"
+              : "Manage Leave Balances"}
+          </h3>
+        </header>
+        {viewOnly ? (
+          <>
+            <div className="leave-field">
+              <label htmlFor="team-balance-employee">Employee</label>
+              <SearchableEmployeeSelectServer
+                value={selectedTeamBalanceId || teamSelected?.employeeId || ""}
+                onChange={setSelectedTeamBalanceId}
+                controlClassName="leave-control"
+              />
+            </div>
+            {!teamSelected || (teamSelected.balances || []).length === 0 ? (
+              <p className="leave-empty">
+                {selectedTeamBalanceId && teamSelected === null
+                  ? "No balance record found for the selected employee"
+                  : "No balance records found"}
+              </p>
+            ) : (
+              <div className="leave-balance-grid">
+                {(teamSelected.balances || []).map((item) => (
                   <div
-                    className="leave-balance-item"
-                    key={`${b.employeeId}-${item.type}`}
+                    className="balance-row"
+                    key={`${teamSelected.employeeId}-${item.type}`}
+                    data-code={item.type}
                   >
-                    <span>{item.type}</span>
-                    <strong>
-                      {item.total - item.used} / {item.total}
-                    </strong>
+                    <span className="balance-row__type">{item.type}</span>
+                    <div className="leave-field balance-row__field">
+                      <label>Total</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={item.total ?? ""}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                    <div className="leave-field balance-row__field">
+                      <label>Used</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={item.used ?? ""}
+                        disabled
+                        readOnly
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <form className="balance-editor" onSubmit={handleSaveBalances}>
-          <div className="leave-field">
-            <label htmlFor="balance-employee">Employee</label>
-            <SearchableEmployeeSelectServer
-              value={selectedBalanceEmployee}
-              onChange={setSelectedBalanceEmployee}
-              controlClassName="leave-control"
-            />
-          </div>
-          <div className="leave-balance-grid">
-            {leaveBalanceTypes.map((type) => (
-              <div key={type} className="balance-row" data-code={type}>
-                <span className="balance-row__type">{type}</span>
-                <div className="leave-field balance-row__field">
-                  <label htmlFor={`balance-${type}-total`}>Total</label>
-                  <input
-                    id={`balance-${type}-total`}
-                    type="number"
-                    className="leave-control"
-                    placeholder="0"
-                    value={balanceForm[type]?.total ?? ""}
-                    onChange={(e) =>
-                      setBalanceForm((prev) => ({
-                        ...prev,
-                        [type]: { ...prev[type], total: e.target.value },
-                      }))
-                    }
-                  />
+            )}
+          </>
+        ) : (
+          <form className="balance-editor" onSubmit={handleSaveBalances}>
+            <div className="leave-field">
+              <label htmlFor="balance-employee">Employee</label>
+              <SearchableEmployeeSelectServer
+                value={selectedBalanceEmployee}
+                onChange={setSelectedBalanceEmployee}
+                controlClassName="leave-control"
+              />
+            </div>
+            <div className="leave-balance-grid">
+              {leaveBalanceTypes.map((type) => (
+                <div key={type} className="balance-row" data-code={type}>
+                  <span className="balance-row__type">{type}</span>
+                  <div className="leave-field balance-row__field">
+                    <label htmlFor={`balance-${type}-total`}>Total</label>
+                    <input
+                      id={`balance-${type}-total`}
+                      type="number"
+                      className="leave-control"
+                      placeholder="0"
+                      value={balanceForm[type]?.total ?? ""}
+                      onChange={(e) =>
+                        setBalanceForm((prev) => ({
+                          ...prev,
+                          [type]: { ...prev[type], total: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="leave-field balance-row__field">
+                    <label htmlFor={`balance-${type}-used`}>Used</label>
+                    <input
+                      id={`balance-${type}-used`}
+                      type="number"
+                      className="leave-control"
+                      placeholder="0"
+                      value={balanceForm[type]?.used ?? ""}
+                      onChange={(e) =>
+                        setBalanceForm((prev) => ({
+                          ...prev,
+                          [type]: { ...prev[type], used: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="leave-field balance-row__field">
-                  <label htmlFor={`balance-${type}-used`}>Used</label>
-                  <input
-                    id={`balance-${type}-used`}
-                    type="number"
-                    className="leave-control"
-                    placeholder="0"
-                    value={balanceForm[type]?.used ?? ""}
-                    onChange={(e) =>
-                      setBalanceForm((prev) => ({
-                        ...prev,
-                        [type]: { ...prev[type], used: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="leave-form-actions">
-            <Button type="submit">Save Balances</Button>
-          </div>
-        </form>
-      )}
-    </section>
-  );
+              ))}
+            </div>
+            <div className="leave-form-actions">
+              <Button type="submit">Save Balances</Button>
+            </div>
+          </form>
+        )}
+      </section>
+    );
+  };
 
   const renderPersonalBalances = () => (
     <section className="leave-panel leave-glass">
@@ -1297,57 +1375,56 @@ function LeaveInner() {
     </section>
   );
 
-  const renderOrganizationView = () => (
-    <>
-      <LeaveSummaryCards summary={orgSummary} />
-      <div className="leave-layout-grid">
-        {renderCreateRequestForm(employees, true)}
-        {renderUpcomingList(upcoming)}
-      </div>
-      <div className="leave-layout-grid">
-        {renderRequestsTable({
-          title: "Pending Approvals",
-          items: pendingApprovals,
-          mode: "approve",
-        })}
-        {renderBalanceEditor(balances, false)}
-      </div>
-      {renderAllRequestsTable(requests)}
-    </>
-  );
-
-  const renderHRView = () => (
-    <>
-      {renderMyLeaveSection()}
-      <div className="leave-hr-actions">
-        <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
-          Export Leave Report
-        </Button>
-      </div>
-      <LeaveSummaryCards
-        summary={orgSummary}
-        labels={{
-          wfh: "WFH Days (Org)",
-          leave: "Leave Days (Org)",
-          pending: "Pending (Org)",
-          balance: "Total Balance (Org)",
-        }}
-      />
-      <div className="leave-layout-grid">
-        {renderCreateRequestForm(employees, true)}
-        {renderUpcomingList(upcoming, "No org-wide upcoming leave")}
-      </div>
-      <div className="leave-layout-grid">
-        {renderRequestsTable({
-          title: "Pending Approvals — All Employees",
-          items: pendingApprovals,
-          mode: "approve",
-        })}
-        {renderBalanceEditor(balances, false)}
-      </div>
-      {renderAllRequestsTable(requests, "All Requests — Organization")}
-    </>
-  );
+  // Organization tab: every admin-level (org-wide) thing lives in here.
+  // Admin sees the base version, HR-style roles the labeled version.
+  const renderOrganizationTab = () => {
+    const isAdminView = viewRole === "Organization";
+    return (
+      <>
+        {!isAdminView ? (
+          <div className="leave-hr-actions">
+            <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
+              Export Leave Report
+            </Button>
+          </div>
+        ) : null}
+        <LeaveSummaryCards
+          summary={orgSummary}
+          labels={
+            isAdminView
+              ? undefined
+              : {
+                wfh: "WFH Days (Org)",
+                leave: "Leave Days (Org)",
+                pending: "Pending (Org)",
+                balance: "Total Balance (Org)",
+              }
+          }
+        />
+        <div className="leave-layout-grid">
+          {renderCreateRequestForm(employees, true)}
+          {renderUpcomingList(
+            upcoming,
+            isAdminView ? undefined : "No org-wide upcoming leave"
+          )}
+        </div>
+        <div className="leave-layout-grid">
+          {renderRequestsTable({
+            title: isAdminView
+              ? "Pending Approvals"
+              : "Pending Approvals — All Employees",
+            items: pendingApprovals,
+            mode: "approve",
+          })}
+          {renderBalanceEditor(balances, false)}
+        </div>
+        {renderAllRequestsTable(
+          requests,
+          isAdminView ? "All Requests" : "All Requests — Organization"
+        )}
+      </>
+    );
+  };
 
   const renderManagerView = () => (
     <>
@@ -1377,7 +1454,7 @@ function LeaveInner() {
       <div className="leave-layout-grid">
         {renderRequestsTable({
           title: "Pending Approvals — My Team",
-          items: pendingApprovals,
+          items: teamPendingList,
           mode: "approve",
         })}
         {renderBalanceEditor(balances, true)}
@@ -1398,7 +1475,7 @@ function LeaveInner() {
         }}
       />
       {renderMyLeaveSection()}
-      {dashboard?.scope === "team" ? (
+      {hasTeam ? (
         <section className="leave-self-section" style={{ marginTop: "2.5rem" }}>
           <h2 className="leave-section-heading">My Team's Leaves</h2>
           {teamMembers.length > 0 ? (
@@ -1426,7 +1503,7 @@ function LeaveInner() {
           <div className="leave-layout-grid">
             {renderRequestsTable({
               title: "Pending Approvals — My Team",
-              items: pendingApprovals,
+              items: teamPendingList,
               mode: "approve",
             })}
             {renderBalanceEditor(balances, true)}
@@ -1437,12 +1514,16 @@ function LeaveInner() {
     </>
   );
 
-  const roleViews = {
-    Organization: renderOrganizationView,
-    HR: renderHRView,
-    Manager: renderManagerView,
-    Employee: renderEmployeeView,
-  };
+  // Employee tab: self + team (permission or not — team is reporting-driven).
+  const renderEmployeeTab = () =>
+    viewRole === "Manager" ? renderManagerView() : renderEmployeeView();
+
+  const tabSubtitle =
+    activeTab === "organization"
+      ? ROLE_DESCRIPTIONS.Organization
+      : viewRole === "Manager"
+        ? ROLE_DESCRIPTIONS.Manager
+        : ROLE_DESCRIPTIONS.Employee;
 
   return (
     <MainLayout>
@@ -1450,7 +1531,7 @@ function LeaveInner() {
         <div className="leave-header-banner">
           <div>
             <h1 className="leave-title">Leave</h1>
-            <p className="leave-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
+            <p className="leave-subtitle">{tabSubtitle}</p>
           </div>
           {canConfigurePolicy ? (
             <Button
@@ -1466,7 +1547,28 @@ function LeaveInner() {
 
         {error ? <p className="leave-alert leave-alert--error">{error}</p> : null}
 
-        {roleViews[viewRole]?.()}
+        {showEmployeeTab && showOrgTab ? (
+          <div className="leave-tabs" role="tablist" aria-label="Leave views">
+            <button
+              type="button"
+              className={`leave-tab ${activeTab === "employee" ? "active" : ""}`}
+              onClick={() => setLeaveTab("employee")}
+            >
+              Employee
+            </button>
+            <button
+              type="button"
+              className={`leave-tab ${activeTab === "organization" ? "active" : ""}`}
+              onClick={() => setLeaveTab("organization")}
+            >
+              Organization
+            </button>
+          </div>
+        ) : null}
+
+        {activeTab === "employee" && showEmployeeTab
+          ? renderEmployeeTab()
+          : renderOrganizationTab()}
 
         {/* Confirmation Modal */}
         <ConfirmModal

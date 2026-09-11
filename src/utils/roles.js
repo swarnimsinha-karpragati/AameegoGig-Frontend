@@ -308,9 +308,33 @@ export const canViewOrgAttendance = (role) =>
 export const getLeaveViewKey = (role) => {
   if (role === "Admin") return "Organization";
   if (roleHasPermission(role, "leave:policy") || roleHasPermission(role, "leave:balances")) return "HR";
-  if (roleHasPermission(role, "leave:approve")) return "Manager";
+  // approve-all (anyone's leave) gets the HR layout with org-wide approvals;
+  // policy/balances sections inside stay separately gated.
+  if (roleHasPermission(role, "leave:approve-all")) return "HR";
+  // No team permission exists: team approval is automatic via reporting
+  // structure (whoever works under you shows up). System Manager role by
+  // definition manages a team; everyone else with reportees gets the auto
+  // team block inside the Employee view via dashboard scope.
+  if (role === "Manager") return "Manager";
   return "Employee";
 };
+
+// Leave approval gating: no team permission exists. Team approvals are
+// automatic (reporting structure + dashboard team scope); approve-all is the
+// Admin/HR-level grant for anyone's leave.
+export const canApproveLeave = (role) =>
+  role === "Admin" || roleHasPermission(role, "leave:approve-all");
+
+export const canApproveAnyoneLeave = (role) =>
+  role === "Admin" || roleHasPermission(role, "leave:approve-all");
+
+// Organization Leave tab: Admin or any org-wide leave grant (anyone's
+// approvals, policy, or balances). Employee tab is always visible.
+export const canViewOrgLeave = (role) =>
+  role === "Admin" ||
+  roleHasPermission(role, "leave:approve-all") ||
+  roleHasPermission(role, "leave:policy") ||
+  roleHasPermission(role, "leave:balances");
 
 // Strict split: Mark / Correct Attendance needs attendance:mark only.
 // attendance:manage does NOT grant daily marking.

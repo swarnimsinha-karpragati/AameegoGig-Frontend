@@ -1317,6 +1317,35 @@ function Attendance() {
           onPageSizeChange={limit => setSelfPagination(p => ({ ...p, limit, page: 1 }))}
         />
       )}
+
+      {/* Whoever has reportees working under them always sees their team
+          (backend hasTeam flag), in every non-admin view. */}
+      {hasTeam ? (
+        <div>
+          <TodayAttendanceTable
+            key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}`}
+            title={`${getFilterDefaultTitle(teamFilters)} — My Team`}
+            rows={displayedTeamRows}
+            loading={loading}
+            target="team"
+            downloadParams={buildListParams("team", personalViewDate, null, teamFilters, { page: 1, limit: 10 })}
+            filters={teamFilters}
+            onFilterChange={handleTeamFilterChange}
+          />
+
+          {teamPagination.pages > 1 && (
+            <Pagination
+              currentPage={teamPagination.page}
+              totalPages={teamPagination.pages}
+              totalRecords={teamPagination.total}
+              limit={teamPagination.limit}
+              onPageChange={setPage => setTeamPagination(p => ({ ...p, page: setPage }))}
+              showPageSize
+              onPageSizeChange={limit => setTeamPagination(p => ({ ...p, limit, page: 1 }))}
+            />
+          )}
+        </div>
+      ) : null}
       {(canViewOrg || canMarkForOthers || canManageAttendance) ? (
         <>
           <h1 className="attendance-title">Organization Attendance</h1>

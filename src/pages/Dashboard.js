@@ -128,10 +128,12 @@ function Dashboard() {
   const isManager = data?.scope === "team";
   const showApprovals =
     data?.role !== "Employee" &&
-    (roleHasPermission(data?.role, "leave:approve") ||
+    (roleHasPermission(data?.role, "leave:approve-all") ||
       roleHasPermission(data?.role, "expenses:approve") ||
       roleHasPermission(data?.role, "regularization:approve") ||
-      roleHasPermission(data?.role, "advance-loan:approve"));
+      roleHasPermission(data?.role, "advance-loan:approve") ||
+      // No team permission exists: team-scope approvers see it automatically.
+      isManager);
   const modules = data?.allowedModules || user?.allowedModules;
   const hasModule = (key) => userHasModule(user, key, modules);
   const showAttendance = hasModule("attendance") && data?.attendanceToday;
