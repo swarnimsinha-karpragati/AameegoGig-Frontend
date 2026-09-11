@@ -15,6 +15,8 @@ function TodayAttendanceTable({
   loading,
   showActions = false,
   canEdit = false,
+  // Org-report download needs attendance:manage; self/team download stays open.
+  canDownload = true,
   onRecordEdited,
   filters,
   onFilterChange,
@@ -174,10 +176,12 @@ function TodayAttendanceTable({
                   30 Days
                 </button>
 
-                <button className="attendance-download-btn" onClick={downloadAttendance} disabled={downloading}>
-                  <Download size={16} />
-                  <span>{downloading ? "Downloading..." : "Download"}</span>
-                </button>
+                {canDownload ? (
+                  <button className="attendance-download-btn" onClick={downloadAttendance} disabled={downloading}>
+                    <Download size={16} />
+                    <span>{downloading ? "Downloading..." : "Download"}</span>
+                  </button>
+                ) : null}
               </div>
             </div>
           )}

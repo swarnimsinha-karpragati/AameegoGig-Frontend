@@ -120,10 +120,73 @@ const CUSTOM_ROLE_MODULE_PERMISSION = {
   "/sites": "departments:manage",
 };
 
+export const canViewConsultancy = (role) =>
+  role === "Admin" ||
+  roleHasPermission(role, "consultancy:view") ||
+  roleHasPermission(role, "consultancy:manage");
+
+export const canManageConsultancy = (role) =>
+  role === "Admin" || roleHasPermission(role, "consultancy:manage");
+
+export const canViewEmployees = (role) =>
+  role === "Admin" || roleHasPermission(role, "employees:view");
+
+export const canAccessEmployeesPage = (role) =>
+  canViewEmployees(role) || canViewConsultancy(role);
+
+export const canViewDepartments = (role) =>
+  role === "Admin" ||
+  roleHasPermission(role, "departments:view") ||
+  roleHasPermission(role, "departments:manage");
+
+export const canManageDepartments = (role) =>
+  role === "Admin" || roleHasPermission(role, "departments:manage");
+
+export const canAccessDepartmentsPage = (role) => canViewDepartments(role);
+
 export const canAccessRoute = (role, path, allowedModules) => {
   const appPath = normalizeAppPath(path);
 
-  // Elevated pages (employees, departments, loan-config, roles) are gated by
+  // Employees page hosts 2 tabs: Employees + Consultancy.
+  // Consultancy-only users (consultancy:view/manage without employees:view)
+  // must still see the Employees menu and land on the Consultancy tab.
+  if (appPath === "/employees") {
+    if (!canAccessEmployeesPage(role)) return false;
+    // Custom roles are permission-driven — stale allowedModules must not hide it.
+    if (!SYSTEM_ROLE_NAMES.includes(role)) return true;
+    if (role === "Admin" || role === "HR") {
+      if (!Array.isArray(allowedModules)) return true;
+      if (allowedModules.includes("employees")) return true;
+      // HR with only consultancy permission still gets in.
+      if (canViewConsultancy(role)) return true;
+      return false;
+    }
+    // Manager / Employee system roles are normally blocked from /employees,
+    // but consultancy permission explicitly grants access (Consultancy tab only).
+    if (canViewConsultancy(role)) return true;
+    return false;
+  }
+
+  // Departments / Sites pages support view + manage (like Consultancy).
+  // departments:view grants read access, departments:manage grants full access.
+  if (appPath === "/departments" || appPath === "/sites") {
+    if (!canAccessDepartmentsPage(role)) return false;
+    // Custom roles are permission-driven — stale allowedModules must not hide it.
+    if (!SYSTEM_ROLE_NAMES.includes(role)) return true;
+    if (role === "Admin" || role === "HR") {
+      if (!Array.isArray(allowedModules)) return true;
+      if (allowedModules.includes("departments")) return true;
+      // HR with departments permission but stale modules still gets in.
+      if (canViewDepartments(role)) return true;
+      return false;
+    }
+    // Manager / Employee system roles are normally blocked, but an explicit
+    // departments permission grants access (view-only hides Add/Edit/Delete).
+    if (canViewDepartments(role)) return true;
+    return false;
+  }
+
+  // Elevated pages (loan-config, roles) are gated by
   // RBAC permission so any custom role holding the permission gets access.
   const rbacPerm = RBAC_ROUTE_PERMISSION[appPath];
   if (rbacPerm && !roleHasPermission(role, rbacPerm)) return false;
@@ -224,8 +287,23 @@ export const getDefaultRouteForRole = (role, allowedModules) => {
 export const getAttendanceViewKey = (role) => {
   if (role === "Admin") return "Organization";
   if (roleHasPermission(role, "attendance:view-org")) return "HR";
+  // Markers (daily/monthly) get the HR layout too — org table inside it stays
+  // gated behind canViewOrgAttendance, but mark forms become reachable.
+  if (
+    roleHasPermission(role, "attendance:mark") ||
+    roleHasPermission(role, "attendance:manage")
+  )
+    return "HR";
   return "Employee";
 };
+
+// Organization-wide attendance read: attendance:view-org (view) or
+// attendance:manage (implies full org access). attendance:mark alone does NOT
+// grant org view — markers without view-org only see forms + self data.
+export const canViewOrgAttendance = (role) =>
+  role === "Admin" ||
+  roleHasPermission(role, "attendance:view-org") ||
+  roleHasPermission(role, "attendance:manage");
 
 export const getLeaveViewKey = (role) => {
   if (role === "Admin") return "Organization";
@@ -234,8 +312,10 @@ export const getLeaveViewKey = (role) => {
   return "Employee";
 };
 
+// Strict split: Mark / Correct Attendance needs attendance:mark only.
+// attendance:manage does NOT grant daily marking.
 export const canMarkAttendance = (role) =>
-  roleHasPermission(role, "attendance:mark");
+  role === "Admin" || roleHasPermission(role, "attendance:mark");
 
 export const canManageEmployees = (role) =>
   roleHasPermission(role, "employees:manage");
@@ -295,6 +375,8 @@ export const roleHasPermission = (role, permissionKey) => {
 
   // Implied / parent permission checks
   if (permissionKey === "employees:view" && perms.includes("employees:manage")) return true;
+  if (permissionKey === "consultancy:view" && perms.includes("consultancy:manage")) return true;
+  if (permissionKey === "departments:view" && perms.includes("departments:manage")) return true;
   if (
     permissionKey === "payroll:view" &&
     (perms.includes("payroll:manage") ||

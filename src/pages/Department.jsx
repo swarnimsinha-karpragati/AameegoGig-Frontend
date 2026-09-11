@@ -74,7 +74,14 @@ function FormField({ label, htmlFor, required, fullWidth, children }) {
 
 function Departments() {
   const [vendorId, setVendorId] = useState(null);
-  const canManage = roleHasPermission(getStoredUser()?.role, "departments:manage");
+  const userRole = getStoredUser()?.role;
+  // departments:view = read + stats, departments:manage = add/edit/delete.
+  // manage implies view via roleHasPermission.
+  const canView =
+    userRole === "Admin" ||
+    roleHasPermission(userRole, "departments:view") ||
+    roleHasPermission(userRole, "departments:manage");
+  const canManage = roleHasPermission(userRole, "departments:manage");
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -425,9 +432,11 @@ function Departments() {
                       <td>{dep.departmentHead ? dep.departmentHead.name : <span style={{ opacity: 0.5 }}>Unassigned</span>}</td>
                       <td>
                         <div className="manage-depts-row-buttons">
-                          <button className="manage-depts-btn-view" onClick={() => handleView(dep)}>
-                            <Eye size={15} />
-                          </button>
+                          {(canView || canManage) && (
+                            <button className="manage-depts-btn-view" onClick={() => handleView(dep)}>
+                              <Eye size={15} />
+                            </button>
+                          )}
                           {canManage && (
                             <button className="manage-depts-btn-edit" onClick={() => handleEdit(dep)}>
                               <Pencil size={15} />

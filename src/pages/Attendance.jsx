@@ -36,6 +36,7 @@ import {
   getStoredUser,
   hasLinkedEmployeeProfile,
   canMarkAttendance,
+  canViewOrgAttendance,
   roleHasPermission,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
@@ -138,6 +139,9 @@ function Attendance() {
   const canMarkForOthers = canMarkAttendance(user?.role);
   const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
   const canSelfCheckIn = hasLinkedEmployeeProfile(user);
+  // Org section (stats/table/calendar): attendance:view-org or manage.
+  // Mark permission alone does NOT unlock org data.
+  const canViewOrg = canViewOrgAttendance(user?.role);
 
   const personalMonthLabel = personalViewDate.toLocaleString("en-US", {
     month: "long",
@@ -218,7 +222,7 @@ function Attendance() {
   };
 
   const loadOrgData = async () => {
-    if (!canMarkForOthers) return;
+    if (!canViewOrg) return;
     try {
       const year = orgViewDate.getFullYear();
       const month = orgViewDate.getMonth() + 1;
@@ -1213,6 +1217,7 @@ function Attendance() {
   const renderOrganizationView = () => (
     <>
       <AttendanceStats stats={orgStats} />
+      <h1 className="attendance-title">Organization Attendance</h1>
       {canMarkForOthers ? renderMarkForm(employees, "Mark Attendance") : null}
       {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
       {renderCalendarSection({
@@ -1312,48 +1317,70 @@ function Attendance() {
           onPageSizeChange={limit => setSelfPagination(p => ({ ...p, limit, page: 1 }))}
         />
       )}
-      <h1 className="attendance-title">Organization Attendance</h1>
-      {canMarkForOthers ? renderMarkForm(employees, "Mark / Correct Attendance") : null}
-      {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
+      {(canViewOrg || canMarkForOthers || canManageAttendance) ? (
+        <>
+          <h1 className="attendance-title">Organization Attendance</h1>
+          {/* Separate permissions: Mark/Correct needs attendance:mark,
+              Mark/Month needs attendance:manage. Both live only in here. */}
+          {canMarkForOthers ? renderMarkForm(employees, "Mark / Correct Attendance") : null}
+          {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
 
-      <TodayAttendanceTable
-        key={
-          selectedOrgDay
-            ? `org-day-${selectedOrgDay}`
-            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}`
-        }
-        title={getTableTitle(
-          `${getFilterDefaultTitle(orgFilters)} — All Employees`,
-          selectedOrgDay,
-          orgViewDate,
-          orgFilters
-        )}
-        rows={displayedOrgRows}
-        loading={loading}
-        showActions
-        canEdit={canMarkForOthers}
-        onRecordEdited={loadOrgData}
-        target="org"
-        downloadParams={buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, { page: 1, limit: 10 })}
-        filters={orgFilters}
-        onFilterChange={handleOrgFilterChange}
-        holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
-        weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
-        isCalendarSelection={selectedOrgDay !== null}
-        onClearSelectedDay={() => setSelectedOrgDay(null)}
-      />
+          {/* Today's Attendance — All Employees (table + calendar) needs
+              attendance:view-org (manage also unlocks it). */}
+          {canViewOrg ? (
+            <>
+              {renderCalendarSection({
+                title: `${orgMonthLabel} — Organization`,
+                viewDateObj: orgViewDate,
+                calendarDays: orgCalendarDays,
+                selectedDay: selectedOrgDay,
+                onDaySelect: handleOrgDaySelect,
+                onPrev: () => shiftOrgMonth(-1),
+                onNext: () => shiftOrgMonth(1),
+                showLeaveWfh: false,
+              })}
+              <TodayAttendanceTable
+                key={
+                  selectedOrgDay
+                    ? `org-day-${selectedOrgDay}`
+                    : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}`
+                }
+                title={getTableTitle(
+                  `${getFilterDefaultTitle(orgFilters)} — All Employees`,
+                  selectedOrgDay,
+                  orgViewDate,
+                  orgFilters
+                )}
+                rows={displayedOrgRows}
+                loading={loading}
+                showActions
+                canEdit={canMarkForOthers}
+                onRecordEdited={loadOrgData}
+                target="org"
+                downloadParams={buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, { page: 1, limit: 10 })}
+                filters={orgFilters}
+                onFilterChange={handleOrgFilterChange}
+                holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
+                weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
+                isCalendarSelection={selectedOrgDay !== null}
+                onClearSelectedDay={() => setSelectedOrgDay(null)}
+              />
 
-      {orgPagination.pages > 1 && (
-        <Pagination
-          currentPage={orgPagination.page}
-          totalPages={orgPagination.pages}
-          totalRecords={orgPagination.total}
-          limit={orgPagination.limit}
-          onPageChange={setPage => setOrgPagination(p => ({ ...p, page: setPage }))}
-          showPageSize
-          onPageSizeChange={limit => setOrgPagination(p => ({ ...p, limit, page: 1 }))}
-        />
-      )}
+              {orgPagination.pages > 1 && (
+                <Pagination
+                  currentPage={orgPagination.page}
+                  totalPages={orgPagination.pages}
+                  totalRecords={orgPagination.total}
+                  limit={orgPagination.limit}
+                  onPageChange={setPage => setOrgPagination(p => ({ ...p, page: setPage }))}
+                  showPageSize
+                  onPageSizeChange={limit => setOrgPagination(p => ({ ...p, limit, page: 1 }))}
+                />
+              )}
+            </>
+          ) : null}
+        </>
+      ) : null}
     </>
   );
 

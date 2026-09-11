@@ -49,6 +49,7 @@ export const ELEVATED_PERMISSIONS = [
   "employees:letters",
   "consultancy:view",
   "consultancy:manage",
+  "departments:view",
   "departments:manage",
   "attendance:mark",
   "attendance:manage",
@@ -107,16 +108,17 @@ export const ELEVATED_GROUPS = [
     key: "departments",
     label: "Departments / Sites",
     perms: [
-      { key: "departments:manage", label: "Manage Departments, Sites, Shifts & OT Policies" },
+      { key: "departments:view", label: "View Departments / Sites" },
+      { key: "departments:manage", label: "Add / Edit / Delete Departments, Sites, Shifts & OT Policies" },
     ],
   },
   {
     key: "attendance",
     label: "Attendance",
     perms: [
-      { key: "attendance:mark", label: "Mark Attendance for Others" },
-      { key: "attendance:manage", label: "Mark Month / Bulk Upload / Download Report" },
-      { key: "attendance:view-org", label: "View Organization-wide Attendance" },
+      { key: "attendance:view-org", label: "View + Download Organization Attendance (Table + Calendar)" },
+      { key: "attendance:mark", label: "Mark / Correct Daily Attendance for Others" },
+      { key: "attendance:manage", label: "Mark Month Attendance + Bulk Upload + Download Reports" },
     ],
   },
   {

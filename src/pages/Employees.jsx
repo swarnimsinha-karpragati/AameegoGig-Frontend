@@ -515,11 +515,18 @@ function Employees() {
 
   const user = getStoredUser();
   const canManage = canManageEmployees(user?.role);
+  const canViewEmployees =
+    user?.role === "Admin" || roleHasPermission(user?.role, "employees:view");
   const canViewConsultancy =
-    user?.role === "Admin" || roleHasPermission(user?.role, "consultancy:view");
+    user?.role === "Admin" ||
+    roleHasPermission(user?.role, "consultancy:view") ||
+    roleHasPermission(user?.role, "consultancy:manage");
   const canManageConsultancy =
     user?.role === "Admin" || roleHasPermission(user?.role, "consultancy:manage");
   const canLetters = roleHasPermission(user?.role, "employees:letters");
+  // Consultancy lives inside Employees page: consultancy-only users get
+  // Employees menu access but must see only the Consultancy tab.
+  const isConsultancyOnly = !canViewEmployees && !canManage && canViewConsultancy;
 
   const initialForm = {
     name: "", email: "", phone: "",
@@ -553,7 +560,9 @@ function Employees() {
   const [availableRoles, setAvailableRoles] = useState(DEFAULT_ROLE_OPTIONS);
 
   const [employees, setEmployees] = useState([]);
-  const [directoryType, setDirectoryType] = useState("employee");
+  const [directoryType, setDirectoryType] = useState(() =>
+    isConsultancyOnly ? "consultancy" : "employee"
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -755,7 +764,11 @@ function Employees() {
       setDirectoryType("employee");
       setPage(1);
     }
-  }, [canViewConsultancy, directoryType]);
+    if (isConsultancyOnly && directoryType === "employee") {
+      setDirectoryType("consultancy");
+      setPage(1);
+    }
+  }, [canViewConsultancy, isConsultancyOnly, directoryType]);
 
   useEffect(() => {
     setStatusFilter(urlStatus);
@@ -1674,10 +1687,12 @@ function Employees() {
       <div className="employee-page">
 
         <div className="employee-directory-tabs" role="tablist" aria-label="People directory">
-          <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => { setDirectoryType("employee"); setPage(1); }}>
-            Employees
-            {directoryType === "employee" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
-          </button>
+          {canViewEmployees ? (
+            <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => { setDirectoryType("employee"); setPage(1); }}>
+              Employees
+              {directoryType === "employee" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
+            </button>
+          ) : null}
           {canViewConsultancy ? (
             <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => { setDirectoryType("consultancy"); setPage(1); }}>
               Consultancy
@@ -1754,7 +1769,7 @@ function Employees() {
               </select>
             </div>
 
-            {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+            {directoryType === "employee" && canManage && (
               <Button
                 variant="secondary"
                 icon={<Upload size={18} />}
@@ -1903,7 +1918,7 @@ function Employees() {
                                 <Eye size={16} /> View Profile
                               </button>
 
-                              {canManage && (
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2013,7 +2028,7 @@ function Employees() {
                                 <FolderOpen size={16} /> Documents
                               </button>
 
-                              {canManage && emp.hasAppLogin && (
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2035,7 +2050,7 @@ function Employees() {
 
                               <div className="dropdown-divider"></div>
 
-                              {canManage && (
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && (
                                 <button
                                   type="button"
                                   className="dropdown-item-danger"
@@ -2044,7 +2059,7 @@ function Employees() {
                                     handleDelete(emp._id);
                                   }}
                                 >
-                                  <Trash2 size={16} /> Delete Employee
+                                  <Trash2 size={16} /> Delete {directoryType === "consultancy" ? "Consultant" : "Employee"}
                                 </button>
                               )}
                             </div>
