@@ -233,16 +233,27 @@ function LeaveInner() {
       ? dashboard.teamPendingApprovals
       : pendingApprovals;
 
-  const teamMembers = useMemo(() => {
-    if (!user?.employeeId) return employees;
+  // Direct reportees only (reporting manager = me). The banner count must
+  // use this — the employee directory list is scoped (org-wide for
+  // HR/Admin), so "all minus self" over-counts. Backend teamCount is
+  // authoritative.
+  const directTeamMembers = useMemo(() => {
+    if (!user?.employeeId) return [];
     const userEmpId =
       typeof user?.employeeId === "object"
         ? user?.employeeId?._id
         : user?.employeeId;
-    return employees.filter(
-      (emp) => String(emp._id) !== String(userEmpId)
-    );
+    return employees.filter((emp) => {
+      const mgr = emp.managerId;
+      const mgrId = mgr?._id || mgr;
+      return mgrId && String(mgrId) === String(userEmpId);
+    });
   }, [employees, user?.employeeId]);
+
+  const displayTeamCount =
+    typeof dashboard?.teamCount === "number"
+      ? dashboard.teamCount
+      : directTeamMembers.length;
 
   const matchesUser = useCallback(
     (item) => {
@@ -295,6 +306,13 @@ function LeaveInner() {
   const teamOnlyRequests = useMemo(() => {
     return requests.filter(isDirectReportee);
   }, [requests, isDirectReportee]);
+
+  // Team tables must show direct reportees only. teamRequests (all non-self)
+  // over-counts for org-scoped viewers; teamOnlyRequests is exact. Fall back
+  // to teamRequests when the direct filter is empty (e.g. team-scoped list
+  // without populated managerId).
+  const teamRequestsForBlock =
+    hasTeam && teamOnlyRequests.length > 0 ? teamOnlyRequests : teamRequests;
 
   const myRecentRequests = useMemo(() => myRequests.slice(0, 6), [myRequests]);
 
@@ -1429,12 +1447,12 @@ function LeaveInner() {
   const renderManagerView = () => (
     <>
       {renderMyLeaveSection()}
-      {teamMembers.length > 0 ? (
+      {displayTeamCount > 0 ? (
         <div className="leave-role-banner manager">
           <Users size={18} />
           <span>
-            Team view — managing {teamMembers.length} team member
-            {teamMembers.length === 1 ? "" : "s"}
+            Team view — managing {displayTeamCount} team member
+            {displayTeamCount === 1 ? "" : "s"}
           </span>
         </div>
       ) : null}
@@ -1459,7 +1477,7 @@ function LeaveInner() {
         })}
         {renderBalanceEditor(balances, true)}
       </div>
-      {renderAllRequestsTable(teamRequests, "Team Requests")}
+      {renderAllRequestsTable(teamRequestsForBlock, "Team Requests")}
     </>
   );
 
@@ -1478,12 +1496,12 @@ function LeaveInner() {
       {hasTeam ? (
         <section className="leave-self-section" style={{ marginTop: "2.5rem" }}>
           <h2 className="leave-section-heading">My Team's Leaves</h2>
-          {teamMembers.length > 0 ? (
+          {displayTeamCount > 0 ? (
             <div className="leave-role-banner manager">
               <Users size={18} />
               <span>
-                Team view — managing {teamMembers.length} team member
-                {teamMembers.length === 1 ? "" : "s"}
+                Team view — managing {displayTeamCount} team member
+                {displayTeamCount === 1 ? "" : "s"}
               </span>
             </div>
           ) : null}
@@ -1508,7 +1526,7 @@ function LeaveInner() {
             })}
             {renderBalanceEditor(balances, true)}
           </div>
-          {renderAllRequestsTable(teamRequests, "Team Requests")}
+          {renderAllRequestsTable(teamRequestsForBlock, "Team Requests")}
         </section>
       ) : null}
     </>

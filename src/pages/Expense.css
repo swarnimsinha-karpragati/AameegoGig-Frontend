@@ -583,6 +583,11 @@ h1.expense-section-heading {
   border-bottom: 1px solid #e5e7eb;
 }
 
+/* Team block sits right below My Expenses — no extra top gap. */
+.expense-team-section {
+  margin-top: 0;
+}
+
 /* ── Reject Comment Modal ── */
 .reject-modal-overlay {
   position: fixed;
