@@ -184,3 +184,10 @@ export const toggleAppLogin = async (id, enable) => {
   return API.patch(`/employees/${id}/app-login`, { isActive: enable });
 };
 
+/* =========================
+   CONVERT CONSULTANT → EMPLOYEE (dedicated API)
+========================= */
+export const convertToEmployee = async (id) => {
+  return API.patch(`/employees/${id}/convert-to-employee`);
+};
+

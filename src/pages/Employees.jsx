@@ -10,6 +10,7 @@ import {
   updateEmployee,
   deleteEmployee,
   toggleAppLogin,
+  convertToEmployee,
 } from "../services/employeeService";
 
 import {
@@ -34,6 +35,7 @@ import {
   LockOpen,
   TriangleAlert,
   OctagonX,
+  UserCheck,
 } from "lucide-react";
 import { getStoredUser, canManageEmployees, roleHasPermission } from "../utils/roles";
 
@@ -65,6 +67,7 @@ import {
 } from "../validators/employeeValidation";
 import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
+import ConfirmModal from "../components/ConfirmModal";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
 import { defaultSelectedModules } from "../utils/roles";
@@ -582,6 +585,10 @@ function Employees() {
   const [statusFilter, setStatusFilter] = useState(urlStatus);
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  // Convert consultant → employee modal state
+  const [convertTarget, setConvertTarget] = useState(null);
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1308,6 +1315,28 @@ function Employees() {
       alert(serverMessage);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  /* =========================
+     CONVERT CONSULTANCY → EMPLOYEE (via info modal + dedicated API)
+  ========================= */
+
+  const handleConfirmConvertToEmployee = async () => {
+    if (!convertTarget) return;
+    setConverting(true);
+    try {
+      const res = await convertToEmployee(convertTarget._id);
+      alert(res.data?.message || `${convertTarget.name} is now an Employee.`);
+      setConvertTarget(null);
+      fetchEmployees();
+    } catch (error) {
+      alert(
+        error.response?.data?.message ||
+        "Conversion failed"
+      );
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -2049,6 +2078,18 @@ function Employees() {
                               )}
 
                               <div className="dropdown-divider"></div>
+
+                              {directoryType === "consultancy" && canManageConsultancy && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    setConvertTarget(emp);
+                                  }}
+                                >
+                                  <UserCheck size={16} /> Make it Employee
+                                </button>
+                              )}
 
                               {(directoryType === "employee" ? canManage : canManageConsultancy) && (
                                 <button
@@ -3304,6 +3345,52 @@ function Employees() {
         isOpen={!!docPreviewUrl}
         onClose={() => setDocPreviewUrl(null)}
         url={docPreviewUrl}
+      />
+
+      <ConfirmModal
+        open={!!convertTarget}
+        title="Make it Employee"
+        variant="success"
+        confirmLabel="Convert to Employee"
+        loading={converting}
+        onCancel={() => !converting && setConvertTarget(null)}
+        onConfirm={handleConfirmConvertToEmployee}
+        message={
+          convertTarget ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", textAlign: "left" }}>
+              <div className="credentials-body" style={{ margin: 0 }}>
+                <div className="credentials-row">
+                  <span>Name</span>
+                  <strong>{convertTarget.name || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Employee code</span>
+                  <strong>{convertTarget.employeeCode || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Designation</span>
+                  <strong>{convertTarget.designation || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Monthly consultancy pay</span>
+                  <strong>₹{Number(convertTarget.monthlyConsultancyPay || 0).toLocaleString("en-IN")}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>TDS</span>
+                  <strong>{convertTarget.tdsPercent || 0}%</strong>
+                </div>
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#475569", lineHeight: 1.6 }}>
+                <strong>After conversion:</strong>
+                <ul style={{ margin: "6px 0 0", paddingLeft: "18px" }}>
+                  <li>Moves to the Employees list</li>
+                  <li>Consultancy pay / TDS is cleared</li>
+                  <li>Becomes payroll-eligible — assign department + salary structure next</li>
+                </ul>
+              </div>
+            </div>
+          ) : null
+        }
       />
     </MainLayout>
   );
