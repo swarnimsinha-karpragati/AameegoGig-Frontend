@@ -393,6 +393,16 @@ export const getExpenseViewKey = (role) => {
   return "Employee";
 };
 
+// Organization Expenses tab: Admin or any org-wide expense grant (policy or
+// reimburse). My Expenses tab is always visible.
+export const canViewOrgExpenses = (role) =>
+  role === "Admin" ||
+  roleHasPermission(role, "expenses:policy") ||
+  roleHasPermission(role, "expenses:reimburse");
+
+export const canReimburseExpenses = (role) =>
+  role === "Admin" || roleHasPermission(role, "expenses:reimburse");
+
 export const canApproveAdvanceLoan = (role) =>
   roleHasPermission(role, "advance-loan:approve");
 

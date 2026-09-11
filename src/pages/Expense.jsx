@@ -33,6 +33,8 @@ import {
   getStoredUser,
   getExpenseViewKey,
   canApproveExpenses,
+  canReimburseExpenses,
+  canViewOrgExpenses,
   // canManageExpensePolicy,  // reserved for expense policy management feature
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
@@ -156,7 +158,16 @@ function ExpenseInner() {
   const user = getStoredUser();
   const viewRole = getExpenseViewKey(user?.role);
   const canApprove = canApproveExpenses(user?.role);
+  const canReimburse = canReimburseExpenses(user?.role);
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
+  // Top tabs like Leave (Employee/Organization): My Expenses tab shows self
+  // (+ team for approvers); Organization tab is org-permission only.
+  const showMyTab = user?.role !== "Admin";
+  const showOrgTab = canViewOrgExpenses(user?.role);
+  const [expenseTab, setExpenseTab] = useState(() =>
+    user?.role === "Admin" ? "organization" : "my"
+  );
+  const activeTab = showMyTab ? expenseTab : "organization";
 
   /* ── State ── */
   const [dashboard, setDashboard] = useState(null);
@@ -623,6 +634,7 @@ function ExpenseInner() {
               <th>Date</th>
               <th>Receipt</th>
               <th>Status</th>
+              {showEmployee ? <th>Approve By (RM)</th> : null}
               {showActions ? <th>Actions</th> : null}
             </tr>
           </thead>
@@ -632,7 +644,7 @@ function ExpenseInner() {
                 <td
                   colSpan={
                     showEmployee
-                      ? showActions ? 8 : 7
+                      ? showActions ? 9 : 8
                       : showActions ? 7 : 6
                   }
                   className="expense-empty"
@@ -880,90 +892,82 @@ function ExpenseInner() {
     </>
   );
 
-  const renderHRView = () => (
-    <>
-      {renderMySection()}
+  // Organization tab: every admin-level (org-wide) thing lives in here.
+  // Admin sees the base version, HR-style roles the labeled version.
+  const renderOrganizationTab = () => {
+    const isAdminView = viewRole === "Organization";
+    return (
+      <>
+        <h1 className="expense-section-heading">Organization Expenses</h1>
+        <ExpenseSummaryCards
+          summary={summary}
+          labels={
+            isAdminView
+              ? undefined
+              : {
+                  claimed: "Org Claimed",
+                  approved: "Org Approved",
+                  pending: "Org Pending",
+                  reimbursed: "Org Reimbursed",
+                }
+          }
+        />
 
-      <ExpenseSummaryCards
-        summary={summary}
-        labels={{
-          claimed: "Org Claimed",
-          approved: "Org Approved",
-          pending: "Org Pending",
-          reimbursed: "Org Reimbursed",
-        }}
-      />
+        <div className="expense-layout-grid">
+          {renderCreateForm(true)}
+          {renderCategoryBreakdown()}
+        </div>
 
-      <div className="expense-layout-grid">
-        {renderCreateForm(true)}
-        {renderCategoryBreakdown()}
-      </div>
-
-      <div className="expense-layout-grid-1">
-        {renderExpenseTable({
-          title: "Pending Approvals — All Employees",
-          items: pendingExpenses,
-          showEmployee: true,
-          showActions: true,
-          actionMode: "full",
-        })}
-        {renderExpenseTable({
-          title: "Approved — Awaiting Reimbursement",
-          items: expenses.filter((e) => e.status === "Approved"),
-          showEmployee: true,
-          showActions: true,
-          actionMode: "reimburse",
-        })}
-      </div>
+        <div className="expense-layout-grid-1">
+          {isAdminView || canApprove || canReimburse
+            ? renderExpenseTable({
+                title: isAdminView
+                  ? "Pending Approvals"
+                  : "Pending Approvals — All Employees",
+                items: pendingExpenses,
+                showEmployee: true,
+                showActions: true,
+                // Strict per-permission actions: approve and reimburse are
+                // separate keys, so the mode follows exactly what is held
+                // (Admin bypasses everything).
+                actionMode:
+                  isAdminView || (canApprove && canReimburse)
+                    ? "full"
+                    : canApprove
+                      ? "approve"
+                      : "reimburse",
+              })
+            : null}
+          {isAdminView || canReimburse
+            ? renderExpenseTable({
+                title: "Approved — Awaiting Reimbursement",
+                items: expenses.filter((e) => e.status === "Approved"),
+                showEmployee: true,
+                showActions: true,
+                actionMode: "reimburse",
+              })
+            : null}
+        </div>
 
       {renderExpenseTable({
-        title: "All Expenses — Organization",
+        title: isAdminView ? "All Expenses" : "All Expenses — Organization",
         items: expenses,
         showEmployee: true,
       })}
     </>
-  );
-
-  const renderOrganizationView = () => (
-    <>
-      <ExpenseSummaryCards summary={summary} />
-
-      <div className="expense-layout-grid">
-        {renderCreateForm(true)}
-        {renderCategoryBreakdown()}
-      </div>
-
-      <div className="expense-layout-grid-1">
-        {renderExpenseTable({
-          title: "Pending Approvals",
-          items: pendingExpenses,
-          showEmployee: true,
-          showActions: true,
-          actionMode: "full",
-        })}
-        {renderExpenseTable({
-          title: "Approved — Awaiting Reimbursement",
-          items: expenses.filter((e) => e.status === "Approved"),
-          showEmployee: true,
-          showActions: true,
-          actionMode: "reimburse",
-        })}
-      </div>
-
-      {renderExpenseTable({
-        title: "All Expenses",
-        items: expenses,
-        showEmployee: true,
-      })}
-    </>
-  );
-
-  const roleViews = {
-    Organization: renderOrganizationView,
-    HR: renderHRView,
-    Manager: renderManagerView,
-    Employee: renderEmployeeView,
+    );
   };
+
+  // My Expenses tab: self (+ team for approvers). No org permission needed.
+  const renderMyTab = () =>
+    viewRole === "Manager" ? renderManagerView() : renderEmployeeView();
+
+  const tabSubtitle =
+    activeTab === "organization"
+      ? ROLE_DESCRIPTIONS.Organization
+      : viewRole === "Manager"
+        ? ROLE_DESCRIPTIONS.Manager
+        : ROLE_DESCRIPTIONS.Employee;
 
   /* ===========================
      PAGE RENDER
@@ -971,14 +975,35 @@ function ExpenseInner() {
   return (
     <MainLayout>
       <div className="expense-page">
-        <p className="expense-context-line">{ROLE_DESCRIPTIONS[viewRole]}</p>
+        <p className="expense-context-line">{tabSubtitle}</p>
 
         {error ? <p className="expense-error">{error}</p> : null}
 
+        {showMyTab && showOrgTab ? (
+          <div className="expense-tabs" role="tablist" aria-label="Expense views">
+            <button
+              type="button"
+              className={`expense-tab ${activeTab === "my" ? "active" : ""}`}
+              onClick={() => setExpenseTab("my")}
+            >
+              My Expenses
+            </button>
+            <button
+              type="button"
+              className={`expense-tab ${activeTab === "organization" ? "active" : ""}`}
+              onClick={() => setExpenseTab("organization")}
+            >
+              Organization Expenses
+            </button>
+          </div>
+        ) : null}
+
         {loading && !dashboard ? (
           <p className="expense-empty">Loading expense data...</p>
+        ) : activeTab === "my" && showMyTab ? (
+          renderMyTab()
         ) : (
-          roleViews[viewRole]?.()
+          renderOrganizationTab()
         )}
 
         {/* Confirmation Modal */}
