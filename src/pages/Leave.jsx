@@ -37,6 +37,7 @@ import {
   getStoredUser,
   canMarkAttendance as roleCanManageLeaveRequests,
   canEditLeaveBalances,
+  roleHasPermission,
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
 import "./Leave.css";
@@ -196,9 +197,11 @@ function LeaveInner() {
     roleCanManageLeaveRequests(user?.role) || dashboard?.scope === "team";
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
-  const canDirectEditLeave = user?.role === "Admin" || user?.role === "HR";
+  const canDirectEditLeave =
+    roleHasPermission(user?.role, "leave:direct-edit") ||
+    roleHasPermission(user?.role, "leave:approve");
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
-  const canConfigurePolicy = user?.role === "Admin" || user?.role === "HR";
+  const canConfigurePolicy = roleHasPermission(user?.role, "leave:policy");
 
   const summary = dashboard?.summary || {};
   const selfSummary = dashboard?.selfSummary || summary;
@@ -466,7 +469,7 @@ function LeaveInner() {
       if (payload.requestType === "WFH") {
         payload.leaveType = "WFH";
       }
-      if (forSelf || !canManageLeave || user?.role === "Employee") {
+      if (forSelf || !canManageLeave) {
         delete payload.employeeId;
       }
 

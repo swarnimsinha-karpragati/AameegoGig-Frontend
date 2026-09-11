@@ -20,7 +20,7 @@ import {
   listRegularizationRequests,
 } from "../services/regularizationService";
 import { validateField } from "../utils/inputValidation";
-import { getStoredUser, hasLinkedEmployeeProfile } from "../utils/roles";
+import { getStoredUser, hasLinkedEmployeeProfile, roleHasPermission } from "../utils/roles";
 import { buildRegularizationTabs } from "./regularizationTabs";
 import "./Regularization.css";
 
@@ -38,9 +38,10 @@ function RegularizationInner() {
   const toastError = toast.error;
   const toastSuccess = toast.success;
   const user = getStoredUser();
-  const isAdminOrHr = ["Admin", "HR"].includes(user?.role);
-  const canApprove = isAdminOrHr;
-  const canDirectEdit = isAdminOrHr;
+  const canApprove = roleHasPermission(user?.role, "regularization:approve");
+  const isAdminOrHr = canApprove;
+  const canDirectEdit =
+    canApprove || roleHasPermission(user?.role, "regularization:direct-edit");
   const canRequest = hasLinkedEmployeeProfile(user);
   const tabs = useMemo(
     () =>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import MainLayout from "../layouts/MainLayout";
 import {
   ShieldCheck,
@@ -10,21 +10,25 @@ import {
   Users,
   Plus,
   Lock,
-  FolderPlus,
-  Layers,
-  Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import {
-  DEFAULT_ROLES,
-  getFullPermissionCatalog,
-  getPermissionCountForModule,
-  loadCustomModules,
-  saveCustomModules,
+  BASELINE_GROUPS,
+  BASELINE_PERMISSIONS,
+  ELEVATED_GROUPS,
+  loadRoles,
+  saveRoles,
 } from "../utils/permissions";
+import {
+  getRoles,
+  createRole,
+  updateRole,
+  deleteRole,
+} from "../services/roleService";
+import { roleHasPermission } from "../utils/roles";
 import "./Roles.css";
 
 const ROLE_ICON_COLORS = {
-  Admin: "admin",
   HR: "hr",
   Manager: "manager",
   Employee: "employee",
@@ -34,267 +38,23 @@ function getIconColor(roleName) {
   return ROLE_ICON_COLORS[roleName] || "custom";
 }
 
-const permKeyOf = (modKey, subKey, actionKey) =>
-  actionKey ? `${modKey}:${subKey}:${actionKey}` : null;
-
-// --------------------- Add Dynamic Menu Modal ---------------------
-
-function AddDynamicModal({ catalog, onAdd, onClose }) {
-  const [type, setType] = useState("module");
-  const [modKey, setModKey] = useState("");
-  const [modLabel, setModLabel] = useState("");
-  const [subKey, setSubKey] = useState("");
-  const [subLabel, setSubLabel] = useState("");
-  const [actionKey, setActionKey] = useState("");
-  const [actionLabel, setActionLabel] = useState("");
-
-  const usedModuleKeys = Object.keys(catalog);
-  const selectedMod = catalog[modKey];
-
-  const handleSubmit = () => {
-    if (type === "module") {
-      const key = modKey.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
-      if (!key || !modLabel.trim()) return;
-      onAdd({
-        type: "module",
-        key,
-        label: modLabel.trim(),
-      });
-    } else if (type === "subModule") {
-      const key = subKey.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
-      if (!modKey || !key || !subLabel.trim()) return;
-      onAdd({
-        type: "subModule",
-        moduleKey: modKey,
-        key,
-        label: subLabel.trim(),
-      });
-    } else {
-      const key = actionKey.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
-      if (!modKey || !subKey || !key || !actionLabel.trim()) return;
-      onAdd({
-        type: "action",
-        moduleKey: modKey,
-        subModuleKey: subKey,
-        key,
-        label: actionLabel.trim(),
-      });
-    }
-  };
-
-  return (
-    <div className="roles-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="roles-modal roles-modal--sm" role="dialog" aria-modal="true">
-        <div className="roles-modal-header">
-          <h3>Add New <span style={{ textTransform: "capitalize" }}>{type === "module" ? "Module" : type === "subModule" ? "Sub-Module / View" : "Action / View"}</span></h3>
-          <button type="button" className="roles-modal-close" onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="roles-modal-body">
-          <div className="dynamic-type-tabs">
-            {[
-              { value: "module", label: "Module", icon: <FolderPlus size={14} /> },
-              { value: "subModule", label: "Sub-Module / Tab", icon: <Layers size={14} /> },
-              { value: "action", label: "Action / Button", icon: <Sparkles size={14} /> },
-            ].map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                className={`dynamic-type-tab ${type === t.value ? "dynamic-type-tab--active" : ""}`}
-                onClick={() => setType(t.value)}
-              >
-                {t.icon}
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="dynamic-form">
-            {type === "module" ? (
-              <>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Module Key (unique id) *</label>
-                    <input
-                      type="text"
-                      value={modKey}
-                      onChange={(e) => setModKey(e.target.value)}
-                      placeholder="e.g. helpdesk"
-                      className="dynamic-input"
-                    />
-                    {usedModuleKeys.includes(modKey.trim().toLowerCase()) && (
-                      <span style={{ color: "#ef4444", fontSize: "12px" }}>This module already exists</span>
-                    )}
-                  </div>
-                </div>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Module Label (display name) *</label>
-                    <input
-                      type="text"
-                      value={modLabel}
-                      onChange={(e) => setModLabel(e.target.value)}
-                      placeholder="e.g. Help Desk"
-                      className="dynamic-input"
-                    />
-                  </div>
-                </div>
-              </>
-            ) : type === "subModule" ? (
-              <>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Parent Module *</label>
-                    <select
-                      value={modKey}
-                      onChange={(e) => setModKey(e.target.value)}
-                      className="dynamic-input"
-                    >
-                      <option value="">-- Select Module --</option>
-                      {usedModuleKeys.map((k) => (
-                        <option key={k} value={k}>{catalog[k]?.label || k}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Sub-Module / Tab Key *</label>
-                    <input
-                      type="text"
-                      value={subKey}
-                      onChange={(e) => setSubKey(e.target.value)}
-                      placeholder="e.g. tickets"
-                      className="dynamic-input"
-                    />
-                  </div>
-                </div>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Sub-Module Label *</label>
-                    <input
-                      type="text"
-                      value={subLabel}
-                      onChange={(e) => setSubLabel(e.target.value)}
-                      placeholder="e.g. Ticket List"
-                      className="dynamic-input"
-                    />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Parent Module *</label>
-                    <select
-                      value={modKey}
-                      onChange={(e) => { setModKey(e.target.value); setSubKey(""); }}
-                      className="dynamic-input"
-                    >
-                      <option value="">-- Select Module --</option>
-                      {usedModuleKeys.map((k) => (
-                        <option key={k} value={k}>{catalog[k]?.label || k}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Parent Sub-Module / Tab *</label>
-                    <select
-                      value={subKey}
-                      onChange={(e) => setSubKey(e.target.value)}
-                      className="dynamic-input"
-                      disabled={!modKey}
-                    >
-                      <option value="">-- Select Sub-Module --</option>
-                      {selectedMod &&
-                        Object.entries(selectedMod.subModules).map(([sk, sv]) => (
-                          <option key={sk} value={sk}>{sv.label || sk}</option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Action Key *</label>
-                    <input
-                      type="text"
-                      value={actionKey}
-                      onChange={(e) => setActionKey(e.target.value)}
-                      placeholder="e.g. open-ticket"
-                      className="dynamic-input"
-                    />
-                  </div>
-                </div>
-                <div className="roles-perm-item" style={{ padding: "6px 0" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Action Label *</label>
-                    <input
-                      type="text"
-                      value={actionLabel}
-                      onChange={(e) => setActionLabel(e.target.value)}
-                      placeholder="e.g. Open Ticket"
-                      className="dynamic-input"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="roles-modal-footer">
-          <button type="button" className="roles-modal-cancel-btn" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="button" className="roles-modal-save-btn" onClick={handleSubmit}>
-            Add
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --------------------- Permission Editor (nested module > sub-module > action) ---------------------
-
-function PermEditor({ catalog, perms, setPerms, viewOnly }) {
+// Permission editor: shows auto baseline + HR/Admin elevated checkboxes
+function PermEditor({ permissions, setPermissions, viewOnly }) {
   const [openModules, setOpenModules] = useState(() => {
     const initial = {};
-    Object.keys(catalog).forEach((k) => {
-      initial[k] = true;
-    });
-    return initial;
-  });
-  const [openSubs, setOpenSubs] = useState(() => {
-    const initial = {};
-    Object.keys(catalog).forEach((k) => {
-      initial[k] = {};
-      Object.keys(catalog[k].subModules).forEach((sk) => {
-        initial[k][sk] = true;
-      });
+    ELEVATED_GROUPS.forEach((g) => {
+      initial[g.key] = true;
     });
     return initial;
   });
 
-  const toggleModule = (modKey) => {
-    setOpenModules((prev) => ({ ...prev, [modKey]: !prev[modKey] }));
-  };
-
-  const toggleSub = (modKey, subKey) => {
-    setOpenSubs((prev) => ({
-      ...prev,
-      [modKey]: { ...prev[modKey], [subKey]: !prev[modKey]?.[subKey] },
-    }));
+  const toggleModule = (key) => {
+    setOpenModules((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const togglePerm = (permKey) => {
     if (viewOnly) return;
-    setPerms((prev) => {
+    setPermissions((prev) => {
       const next = new Set(prev);
       if (next.has(permKey)) next.delete(permKey);
       else next.add(permKey);
@@ -302,33 +62,15 @@ function PermEditor({ catalog, perms, setPerms, viewOnly }) {
     });
   };
 
-  const toggleSubAll = (modKey, subKey) => {
+  const toggleGroupAll = (group) => {
     if (viewOnly) return;
-    const sub = catalog[modKey].subModules[subKey];
-    const subPerms = sub.actions.map((a) => permKeyOf(modKey, subKey, a.key));
-    const allSelected = subPerms.every((p) => perms.has(p));
-    setPerms((prev) => {
+    const keys = group.perms.map((p) => p.key);
+    const allSelected = keys.every((k) => permissions.has(k));
+    setPermissions((prev) => {
       const next = new Set(prev);
-      subPerms.forEach((p) => {
-        if (allSelected) next.delete(p);
-        else next.add(p);
-      });
-      return next;
-    });
-  };
-
-  const toggleModuleAll = (modKey) => {
-    if (viewOnly) return;
-    const mod = catalog[modKey];
-    const modPerms = Object.entries(mod.subModules).flatMap(([sk, sv]) =>
-      sv.actions.map((a) => permKeyOf(modKey, sk, a.key))
-    );
-    const allSelected = modPerms.every((p) => perms.has(p));
-    setPerms((prev) => {
-      const next = new Set(prev);
-      modPerms.forEach((p) => {
-        if (allSelected) next.delete(p);
-        else next.add(p);
+      keys.forEach((k) => {
+        if (allSelected) next.delete(k);
+        else next.add(k);
       });
       return next;
     });
@@ -336,29 +78,55 @@ function PermEditor({ catalog, perms, setPerms, viewOnly }) {
 
   return (
     <>
-      {Object.entries(catalog).map(([modKey, mod]) => {
-        const totalModPerms = getPermissionCountForModule(modKey) || Object.values(mod.subModules).reduce((s, ss) => s + ss.actions.length, 0);
-        let selectedInMod = 0;
-        Object.values(mod.subModules).forEach((sv) => {
-          sv.actions.forEach((a) => {
-            if (perms.has(permKeyOf(modKey, Object.keys(mod.subModules).find((k) => mod.subModules[k] === sv), a.key))) selectedInMod++;
-          });
-        });
-        const modAllSelected = selectedInMod === totalModPerms;
-        const modSomeSelected = selectedInMod > 0 && !modAllSelected;
-        const isModOpen = openModules[modKey];
+      {/* Employee baseline (auto) */}
+      {BASELINE_GROUPS.map((group) => {
+        const selected = group.perms.filter((p) => permissions.has(p.key)).length;
+        return (
+          <div key={group.label} className="roles-perm-module">
+            <div className="roles-perm-module-header roles-perm-module-header--baseline">
+              <div className="roles-perm-module-left">
+                <CheckCircle2 size={16} color="#059669" />
+                <span className="roles-perm-module-name">{group.label}</span>
+                <span className="roles-perm-module-count">
+                  ({selected}/{group.perms.length})
+                </span>
+              </div>
+              <span className="roles-baseline-badge">Auto granted</span>
+            </div>
+            <div className="roles-perm-module-body">
+              {group.perms.map((p) => (
+                <div key={p.key} className="roles-perm-item">
+                  <Lock size={12} color="#94a3b8" />
+                  <label style={{ color: "#64748b" }}>{p.key}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* HR / Admin elevated features */}
+      <div style={{ fontSize: "13px", fontWeight: 700, color: "#334155", margin: "18px 0 8px" }}>
+        HR / Admin Features
+      </div>
+
+      {ELEVATED_GROUPS.map((group) => {
+        const selectedCount = group.perms.filter((p) => permissions.has(p.key)).length;
+        const allSelected = selectedCount === group.perms.length;
+        const someSelected = selectedCount > 0 && !allSelected;
+        const isOpen = openModules[group.key];
 
         return (
-          <div key={modKey} className="roles-perm-module">
-            <div className="roles-perm-module-header" onClick={() => toggleModule(modKey)}>
+          <div key={group.key} className="roles-perm-module">
+            <div className="roles-perm-module-header" onClick={() => toggleModule(group.key)}>
               <div className="roles-perm-module-left">
                 <ChevronRight
                   size={16}
-                  className={`roles-perm-module-chevron ${isModOpen ? "roles-perm-module-chevron--open" : ""}`}
+                  className={`roles-perm-module-chevron ${isOpen ? "roles-perm-module-chevron--open" : ""}`}
                 />
-                <span className="roles-perm-module-name">{mod.label}</span>
+                <span className="roles-perm-module-name">{group.label}</span>
                 <span className="roles-perm-module-count">
-                  ({selectedInMod}/{totalModPerms})
+                  ({selectedCount}/{group.perms.length})
                 </span>
               </div>
               {!viewOnly && (
@@ -366,90 +134,37 @@ function PermEditor({ catalog, perms, setPerms, viewOnly }) {
                   <label>
                     <input
                       type="checkbox"
-                      checked={modAllSelected}
-                      ref={(el) => { if (el) el.indeterminate = modSomeSelected; }}
-                      onChange={() => toggleModuleAll(modKey)}
+                      checked={allSelected}
+                      ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                      onChange={() => toggleGroupAll(group)}
                     />
-                    {" "}Module All
+                    {" "}All
                   </label>
                 </div>
               )}
             </div>
-
-            {isModOpen && (
-              <div className="roles-perm-module-body roles-perm-module-body--nested">
-                {Object.entries(mod.subModules).map(([subKey, sub]) => {
-                  const subPerms = sub.actions.map((a) => permKeyOf(modKey, subKey, a.key));
-                  const selCount = subPerms.filter((p) => perms.has(p)).length;
-                  const subAll = selCount === subPerms.length;
-                  const subSome = selCount > 0 && !subAll;
-                  const isSubOpen = openSubs[modKey]?.[subKey] !== false;
-
-                  return (
-                    <div key={subKey} className="roles-perm-sub">
-                      <div
-                        className="roles-perm-sub-header"
-                        onClick={() => toggleSub(modKey, subKey)}
-                      >
-                        <div className="roles-perm-module-left">
-                          <ChevronRight
-                            size={14}
-                            className={`roles-perm-module-chevron ${isSubOpen ? "roles-perm-module-chevron--open" : ""}`}
-                          />
-                          <span className="roles-perm-sub-name">{sub.label}</span>
-                          <span className="roles-perm-module-count">
-                            ({selCount}/{subPerms.length})
-                          </span>
-                        </div>
-                        {!viewOnly && (
-                          <div className="roles-perm-module-toggle" onClick={(e) => e.stopPropagation()}>
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={subAll}
-                                ref={(el) => { if (el) el.indeterminate = subSome; }}
-                                onChange={() => toggleSubAll(modKey, subKey)}
-                              />
-                              {" "}All
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                      {isSubOpen && (
-                        <div className="roles-perm-sub-body">
-                          {sub.actions.map((a) => {
-                            const pk = permKeyOf(modKey, subKey, a.key);
-                            const checked = perms.has(pk);
-                            return (
-                              <div
-                                key={pk}
-                                className={`roles-perm-item ${viewOnly ? "roles-perm-item--view" : ""}`}
-                              >
-                                {viewOnly ? (
-                                  <Lock size={12} color={checked ? "#3b82f6" : "#cbd5e1"} />
-                                ) : (
-                                  <input
-                                    type="checkbox"
-                                    id={`${modKey}-${subKey}-${a.key}`}
-                                    checked={checked}
-                                    onChange={() => togglePerm(pk)}
-                                  />
-                                )}
-                                <label
-                                  htmlFor={viewOnly ? undefined : `${modKey}-${subKey}-${a.key}`}
-                                  style={viewOnly && !checked ? { color: "#cbd5e1" } : undefined}
-                                >
-                                  {a.label}
-                                </label>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            {isOpen && (
+              <div className="roles-perm-module-body">
+                {group.perms.map((p) => (
+                  <div key={p.key} className="roles-perm-item">
+                    {viewOnly ? (
+                      <ShieldCheck size={12} color={permissions.has(p.key) ? "#3b82f6" : "#cbd5e1"} />
+                    ) : (
+                      <input
+                        type="checkbox"
+                        id={`${group.key}-${p.key}`}
+                        checked={permissions.has(p.key)}
+                        onChange={() => togglePerm(p.key)}
+                      />
+                    )}
+                    <label
+                      htmlFor={viewOnly ? undefined : `${group.key}-${p.key}`}
+                      style={viewOnly && !permissions.has(p.key) ? { color: "#cbd5e1" } : undefined}
+                    >
+                      {p.label}
+                    </label>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -459,10 +174,8 @@ function PermEditor({ catalog, perms, setPerms, viewOnly }) {
   );
 }
 
-// --------------------- View Modal ---------------------
-
-function ViewModal({ role, roleName, catalog, onClose }) {
-  const perms = useMemo(() => new Set(role.permissions), [role.permissions]);
+function ViewModal({ role, roleName, onClose }) {
+  const perms = useMemo(() => new Set(role.permissions || []), [role.permissions]);
   return (
     <div className="roles-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="roles-modal" role="dialog" aria-modal="true">
@@ -472,7 +185,6 @@ function ViewModal({ role, roleName, catalog, onClose }) {
             <X size={20} />
           </button>
         </div>
-
         <div className="roles-modal-body">
           <div className="roles-modal-role-info">
             <div className={`roles-modal-role-icon roles-card-icon--${getIconColor(roleName)}`}>
@@ -482,12 +194,10 @@ function ViewModal({ role, roleName, catalog, onClose }) {
               <h4 className="roles-modal-role-name">{role.displayName || roleName}</h4>
               <p className="roles-modal-role-desc">{role.description}</p>
             </div>
-            <span className="roles-modal-perm-count">{role.permissions.length} permissions</span>
+            <span className="roles-modal-perm-count">{role.permissions?.length || 0} permissions</span>
           </div>
-
-          <PermEditor catalog={catalog} perms={perms} setPerms={() => {}} viewOnly />
+          <PermEditor permissions={perms} setPermissions={() => { }} viewOnly />
         </div>
-
         <div className="roles-modal-footer">
           <button type="button" className="roles-modal-cancel-btn" onClick={onClose}>
             Close
@@ -498,10 +208,8 @@ function ViewModal({ role, roleName, catalog, onClose }) {
   );
 }
 
-// --------------------- Edit Modal ---------------------
-
-function EditModal({ role, roleName, catalog, onSave, onClose }) {
-  const [permissions, setPermissions] = useState(() => new Set(role.permissions));
+function EditModal({ role, roleName, onSave, onClose }) {
+  const [permissions, setPermissions] = useState(() => new Set(role.permissions || []));
 
   return (
     <div className="roles-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -512,7 +220,6 @@ function EditModal({ role, roleName, catalog, onSave, onClose }) {
             <X size={20} />
           </button>
         </div>
-
         <div className="roles-modal-body">
           <div className="roles-modal-role-info">
             <div className={`roles-modal-role-icon roles-card-icon--${getIconColor(roleName)}`}>
@@ -524,15 +231,8 @@ function EditModal({ role, roleName, catalog, onSave, onClose }) {
             </div>
             <span className="roles-modal-perm-count">{permissions.size} selected</span>
           </div>
-
-          <PermEditor
-            catalog={catalog}
-            perms={permissions}
-            setPerms={setPermissions}
-            viewOnly={roleName === "Admin" && false}
-          />
+          <PermEditor permissions={permissions} setPermissions={setPermissions} viewOnly={false} />
         </div>
-
         <div className="roles-modal-footer">
           <button type="button" className="roles-modal-cancel-btn" onClick={onClose}>
             Cancel
@@ -550,31 +250,23 @@ function EditModal({ role, roleName, catalog, onSave, onClose }) {
   );
 }
 
-// --------------------- Main Page ---------------------
-
 export default function Roles() {
-  const catalog = useMemo(() => getFullPermissionCatalog(), []);
+  const [roles, setRoles] = useState(() => loadRoles());
+  const [feedback, setFeedback] = useState(null);
 
-  const [roles, setRoles] = useState(() => {
-    const stored = localStorage.getItem("rbac_roles");
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return { ...DEFAULT_ROLES };
-      }
-    }
-    return { ...DEFAULT_ROLES };
-  });
+  useEffect(() => {
+    if (!feedback) return undefined;
+    const timer = setTimeout(() => setFeedback(null), 4000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
 
   const [viewRole, setViewRole] = useState(null);
   const [editRole, setEditRole] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [showDynamic, setShowDynamic] = useState(false);
 
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDesc, setNewRoleDesc] = useState("");
-  const [newRolePerms, setNewRolePerms] = useState(() => new Set());
+  const [newRolePerms, setNewRolePerms] = useState(() => new Set(BASELINE_PERMISSIONS));
 
   const user = useMemo(() => {
     try {
@@ -584,33 +276,100 @@ export default function Roles() {
     }
   }, []);
 
-  const isAdmin = user?.role === "Admin";
+  const isAdmin = roleHasPermission(user?.role, "roles:manage");
 
   const persistRoles = useCallback((updated) => {
     setRoles(updated);
-    localStorage.setItem("rbac_roles", JSON.stringify(updated));
+    saveRoles(updated);
   }, []);
 
-  const handleSavePermissions = (roleName, permissions) => {
+  useEffect(() => {
+    let mounted = true;
+    getRoles()
+      .then((backendRoles) => {
+        if (!mounted || !Array.isArray(backendRoles)) return;
+        const merged = { ...loadRoles() };
+        backendRoles.forEach((rb) => {
+          if (rb.isAdmin) return;
+          merged[rb.roleName] = {
+            displayName: rb.displayName || rb.roleName,
+            description: rb.description || "",
+            permissions: rb.permissions || [],
+            baselinePermissions: rb.baselinePermissions || BASELINE_PERMISSIONS,
+            isSystem: Boolean(rb.isSystem),
+            isAdmin: Boolean(rb.isAdmin),
+            _id: rb._id,
+          };
+        });
+        setRoles(merged);
+        saveRoles(merged);
+      })
+      .catch(() => {
+        /* backend unavailable — keep local roles */
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleSavePermissions = async (roleName, permissions) => {
+    const roleDef = roles[roleName];
     const updated = {
       ...roles,
       [roleName]: {
-        ...roles[roleName],
+        ...roleDef,
         permissions,
       },
     };
     persistRoles(updated);
+    if (roleDef?._id) {
+      try {
+        const response = await updateRole(roleDef._id, {
+          roleName,
+          displayName: roleDef.displayName || roleName,
+          description: roleDef.description || "",
+          permissions,
+        });
+        const savedRole = response.data?.role;
+        if (savedRole?.roleName) {
+          const refreshed = {
+            ...updated,
+            [savedRole.roleName]: {
+              ...updated[savedRole.roleName],
+              ...savedRole,
+            },
+          };
+          persistRoles(refreshed);
+        }
+        setFeedback({ type: "success", message: `${roleDef.displayName || roleName} permissions updated successfully.` });
+      } catch (error) {
+        console.error("Sync role permissions failed:", error);
+        setFeedback({ type: "error", message: error.response?.data?.message || "Permissions could not be saved to the server." });
+        alert(error.response?.data?.message || "Permissions updated locally, but could not be saved to the server.");
+      }
+    } else {
+      setFeedback({ type: "success", message: `${roleDef.displayName || roleName} permissions updated successfully.` });
+    }
     setEditRole(null);
   };
 
-  const handleDeleteRole = (roleName) => {
+  const handleDeleteRole = async (roleName) => {
     if (roles[roleName]?.isSystem) return;
     if (!window.confirm(`Delete role "${roles[roleName]?.displayName || roleName}"?`)) return;
+    const roleDef = roles[roleName];
     const { [roleName]: _, ...rest } = roles;
     persistRoles(rest);
+    if (roleDef?._id) {
+      try {
+        await deleteRole(roleDef._id);
+      } catch (error) {
+        console.error("Sync role delete failed:", error);
+        alert(error.response?.data?.message || "Role removed locally, but could not be deleted from the server.");
+      }
+    }
   };
 
-  const handleCreateRole = () => {
+  const handleCreateRole = async () => {
     const name = newRoleName.trim();
     if (!name) return;
     if (roles[name]) {
@@ -627,79 +386,32 @@ export default function Roles() {
       },
     };
     persistRoles(updated);
+    try {
+      const res = await createRole({
+        roleName: name,
+        displayName: name,
+        description: newRoleDesc.trim() || "Custom role",
+        permissions: [...newRolePerms],
+        baselinePermissions: BASELINE_PERMISSIONS,
+      });
+      const dbRole = res.data?.role;
+      if (dbRole?.roleName) {
+        persistRoles({
+          ...updated,
+          [dbRole.roleName]: {
+            ...updated[dbRole.roleName],
+            _id: dbRole._id,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Sync role create failed:", error);
+      alert(error.response?.data?.message || "Role saved locally, but could not be saved to the server.");
+    }
     setNewRoleName("");
     setNewRoleDesc("");
-    setNewRolePerms(new Set());
+    setNewRolePerms(new Set(BASELINE_PERMISSIONS));
     setShowCreate(false);
-  };
-
-  const handleAddDynamic = (item) => {
-    const custom = loadCustomModules();
-    if (item.type === "module") {
-      if (catalog[item.key] || custom.some((m) => m.key === item.key)) return;
-      custom.push({ key: item.key, label: item.label, subModules: [] });
-      saveCustomModules(custom);
-    } else if (item.type === "subModule") {
-      const mod = custom.find((m) => m.key === item.moduleKey);
-      if (catalog[item.moduleKey] && !mod) {
-        // adding to a built-in module: store as override
-        custom.push({
-          key: `${item.moduleKey}__extension`,
-          label: catalog[item.moduleKey].label,
-          baseModule: item.moduleKey,
-          subModules: [{ key: item.key, label: item.label, actions: [] }],
-          isExtension: true,
-        });
-        saveCustomModules(custom);
-        setShowDynamic(false);
-        window.location.reload();
-        return;
-      }
-      if (!mod) {
-        custom.push({
-          key: item.moduleKey,
-          label: item.label,
-          subModules: [{ key: item.key, label: item.label, actions: [] }],
-        });
-        saveCustomModules(custom);
-        setShowDynamic(false);
-        window.location.reload();
-        return;
-      }
-      if (!mod.subModules.some((s) => s.key === item.key)) {
-        mod.subModules.push({ key: item.key, label: item.label, actions: [] });
-      }
-      saveCustomModules(custom);
-    } else if (item.type === "action") {
-      const mod = custom.find((m) => m.key === item.moduleKey);
-      if (mod) {
-        const sub = mod.subModules.find((s) => s.key === item.subModuleKey);
-        if (sub && !sub.actions.some((a) => a.key === item.key)) {
-          sub.actions.push({ key: item.key, label: item.label });
-        }
-        saveCustomModules(custom);
-      } else {
-        // adding action to a built-in module => extension approach
-        const ext = custom.find((m) => m.baseModule === item.moduleKey);
-        if (ext) {
-          const sub = ext.subModules.find((s) => s.key === item.subModuleKey);
-          if (sub && !sub.actions.some((a) => a.key === item.key)) {
-            sub.actions.push({ key: item.key, label: item.label });
-          }
-        } else {
-          custom.push({
-            key: `${item.moduleKey}__extension`,
-            label: catalog[item.moduleKey]?.label || item.moduleKey,
-            baseModule: item.moduleKey,
-            subModules: [{ key: item.subModuleKey, label: item.subModuleKey, actions: [{ key: item.key, label: item.label }] }],
-            isExtension: true,
-          });
-        }
-        saveCustomModules(custom);
-      }
-    }
-    setShowDynamic(false);
-    window.location.reload();
   };
 
   if (!isAdmin) {
@@ -716,36 +428,45 @@ export default function Roles() {
     );
   }
 
+  // Admin role hidden from the list — full access by default
+  const visibleRoles = Object.entries(roles).filter(
+    ([roleName, role]) => !(role?.isAdmin || roleName === "Admin")
+  );
+
   return (
     <MainLayout>
       <div className="roles-page">
         <div className="roles-page-header">
           <div>
             <h1>Roles & Permissions</h1>
-            <p>Manage role-based access control for your organization</p>
+            <p>
+              HR/Admin features can be assigned to any role. Admin always has full access.
+            </p>
           </div>
-          <div className="roles-page-actions">
-            <button
-              type="button"
-              className="roles-page-add-module-btn"
-              onClick={() => setShowDynamic(true)}
-            >
-              <Plus size={16} />
-              Add Module / View
-            </button>
-            <button
-              type="button"
-              className="roles-page-add-btn"
-              onClick={() => setShowCreate(true)}
-            >
-              <Plus size={16} />
-              Create Role
-            </button>
-          </div>
+          <button type="button" className="roles-page-add-btn" onClick={() => setShowCreate(true)}>
+            <Plus size={16} />
+            Create Role
+          </button>
         </div>
 
+        {feedback ? (
+          <div
+            role="status"
+            style={{
+              marginBottom: "16px",
+              padding: "12px 14px",
+              borderRadius: "8px",
+              color: feedback.type === "success" ? "#166534" : "#991b1b",
+              background: feedback.type === "success" ? "#dcfce7" : "#fee2e2",
+              border: `1px solid ${feedback.type === "success" ? "#86efac" : "#fecaca"}`,
+            }}
+          >
+            {feedback.message}
+          </div>
+        ) : null}
+
         <div className="roles-card-grid">
-          {Object.entries(roles).map(([roleName, role]) => {
+          {visibleRoles.map(([roleName, role]) => {
             const permCount = role.permissions.length;
             const previewPerms = role.permissions.slice(0, 4);
             const remaining = permCount - previewPerms.length;
@@ -755,7 +476,7 @@ export default function Roles() {
                 <div className="roles-card-top">
                   <div className="roles-card-info">
                     <div className={`roles-card-icon roles-card-icon--${getIconColor(roleName)}`}>
-                      <ShieldCheck size={18} />
+                      {roleName === "Employee" ? <Users size={18} /> : <ShieldCheck size={18} />}
                     </div>
                     <div>
                       <h3 className="roles-card-name">{role.displayName || roleName}</h3>
@@ -781,28 +502,16 @@ export default function Roles() {
                 </div>
 
                 <div className="roles-card-actions">
-                  <button
-                    type="button"
-                    className="roles-card-view-btn"
-                    onClick={() => setViewRole({ roleName, role })}
-                  >
+                  <button type="button" className="roles-card-view-btn" onClick={() => setViewRole({ roleName, role })}>
                     <Eye size={14} />
                     View
                   </button>
-                  <button
-                    type="button"
-                    className="roles-card-edit-btn"
-                    onClick={() => setEditRole({ roleName, role })}
-                  >
+                  <button type="button" className="roles-card-edit-btn" onClick={() => setEditRole({ roleName, role })}>
                     <Pencil size={14} />
                     Edit
                   </button>
                   {!role.isSystem && (
-                    <button
-                      type="button"
-                      className="roles-card-delete-btn"
-                      onClick={() => handleDeleteRole(roleName)}
-                    >
+                    <button type="button" className="roles-card-delete-btn" onClick={() => handleDeleteRole(roleName)}>
                       <Trash2 size={14} />
                     </button>
                   )}
@@ -813,19 +522,13 @@ export default function Roles() {
         </div>
 
         {viewRole && (
-          <ViewModal
-            role={viewRole.role}
-            roleName={viewRole.roleName}
-            catalog={catalog}
-            onClose={() => setViewRole(null)}
-          />
+          <ViewModal role={viewRole.role} roleName={viewRole.roleName} onClose={() => setViewRole(null)} />
         )}
 
         {editRole && (
           <EditModal
             role={editRole.role}
             roleName={editRole.roleName}
-            catalog={catalog}
             onSave={handleSavePermissions}
             onClose={() => setEditRole(null)}
           />
@@ -856,7 +559,7 @@ export default function Roles() {
                         type="text"
                         value={newRoleName}
                         onChange={(e) => setNewRoleName(e.target.value)}
-                        placeholder="e.g. Payroll Officer"
+                        placeholder="e.g. Finance Team, Payroll Officer"
                         className="dynamic-input"
                       />
                     </div>
@@ -873,16 +576,14 @@ export default function Roles() {
                   </div>
                 </div>
 
-                <div style={{ fontSize: "14px", fontWeight: 600, color: "#1e293b", marginBottom: "10px" }}>
-                  Assign Permissions
+                <div style={{ fontSize: "14px", fontWeight: 700, color: "#1e293b", marginBottom: "8px" }}>
+                  Permissions
+                  <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: "12px", marginLeft: "8px" }}>
+                    (Employee access already pre-selected)
+                  </span>
                 </div>
 
-                <PermEditor
-                  catalog={catalog}
-                  perms={newRolePerms}
-                  setPerms={setNewRolePerms}
-                  viewOnly={false}
-                />
+                <PermEditor permissions={newRolePerms} setPermissions={setNewRolePerms} viewOnly={false} />
               </div>
 
               <div className="roles-modal-footer">
@@ -900,14 +601,6 @@ export default function Roles() {
               </div>
             </div>
           </div>
-        )}
-
-        {showDynamic && (
-          <AddDynamicModal
-            catalog={catalog}
-            onAdd={handleAddDynamic}
-            onClose={() => setShowDynamic(false)}
-          />
         )}
       </div>
     </MainLayout>

@@ -27,7 +27,7 @@ const netBreakdown = (gross, tdsPercent) => {
   return { gross: amount, tds, net: amount - tds };
 };
 
-export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
+export default function ConsultancyPayments({ refreshKey = 0, search = "", canManage = false }) {
   const today = new Date();
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
@@ -225,7 +225,9 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
                     <td><strong>{money(net)}</strong></td>
                     <td><span className={`status-badge ${row.payment.status === "Paid" ? "active" : "inactive"}`}>{row.payment.status}</span></td>
                     <td>
-                      {row.payment.status === "Paid" ? (
+                      {!canManage ? (
+                        <span className="consultancy-payment-readonly">View only</span>
+                      ) : row.payment.status === "Paid" ? (
                         <span className="consultancy-status-locked">Payment locked</span>
                       ) : (
                         <div className="consultancy-payments-actions">

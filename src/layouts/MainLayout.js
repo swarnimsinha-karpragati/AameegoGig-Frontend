@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
-import { canAccessRoute, getRoleLabel, getStoredUser } from "../utils/roles";
+import { canAccessRoute, getRoleLabel, getStoredUser, roleHasPermission, SYSTEM_ROLE_NAMES } from "../utils/roles";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
@@ -41,11 +41,13 @@ function MainLayout({ children }) {
 
     window.addEventListener("storage", refreshUser);
     window.addEventListener("user-updated", refreshUser);
+    window.addEventListener("roles-updated", refreshUser);
     refreshUser();
 
     return () => {
       window.removeEventListener("storage", refreshUser);
       window.removeEventListener("user-updated", refreshUser);
+      window.removeEventListener("roles-updated", refreshUser);
     };
   }, []);
 
@@ -56,7 +58,11 @@ function MainLayout({ children }) {
 
   // Dynamic Name Resolution
   const displayName = useMemo(() => {
-    if (user?.role === "HR" || user?.role === "Employee") {
+    if (
+      user?.role === "HR" ||
+      user?.role === "Employee" ||
+      !SYSTEM_ROLE_NAMES.includes(user?.role)
+    ) {
       return user?.name || user?.employeeName || user?.vendorName || "User";
     }
     return user?.vendorName || "User";
@@ -125,7 +131,7 @@ function MainLayout({ children }) {
     { label: "Settings", path: "/settings", icon: Settings },
   ].filter((item) => canAccessRoute(user?.role, item.path, user?.allowedModules));
 
-  if (user?.role === "Admin") {
+  if (roleHasPermission(user?.role, "roles:manage")) {
     menuItems.push({ label: "Roles & Access", path: "/roles", icon: ShieldCheck });
   }
 

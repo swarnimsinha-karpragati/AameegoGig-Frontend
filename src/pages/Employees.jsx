@@ -30,11 +30,12 @@ import {
   FolderOpen,
   Download,
   MoreVertical,
+  Lock,
+  LockOpen,
   TriangleAlert,
   OctagonX,
-  Lock,
-  LockOpen
 } from "lucide-react";
+import { getStoredUser, canManageEmployees, roleHasPermission } from "../utils/roles";
 
 
 import {
@@ -66,7 +67,8 @@ import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsM
 import Button from "../components/Button";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
-import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles";
+import { defaultSelectedModules } from "../utils/roles";
+import { getRoles } from "../services/roleService";
 import ConsultancyPayments from "../components/consultancy/ConsultancyPayments";
 import "../components/consultancy/ConsultancyPayments.css";
 
@@ -417,38 +419,11 @@ function EmployeeFormFields({
   ));
 }
 
-function ModuleAccessFields({ role, selected = [], onChange, idPrefix = "emp-mod" }) {
-  const options = grantableModulesForRole(role);
-
-  const toggle = (key) => {
-    const next = selected.includes(key)
-      ? selected.filter((item) => item !== key)
-      : [...selected, key];
-    onChange(next);
-  };
-
-  return (
-    <div className="emp-module-access">
-      <p className="emp-module-access__label">Module access</p>
-      <p className="emp-module-access__hint">
-        Uncheck a module to hide it for this login. Dashboard and Settings stay available.
-      </p>
-      <div className="emp-module-access__grid">
-        {options.map((item) => (
-          <label key={item.key} className="emp-module-access__item" htmlFor={`${idPrefix}-${item.key}`}>
-            <input
-              id={`${idPrefix}-${item.key}`}
-              type="checkbox"
-              checked={selected.includes(item.key)}
-              onChange={() => toggle(item.key)}
-            />
-            {item.label}
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
+const DEFAULT_ROLE_OPTIONS = [
+  { roleName: "Employee", displayName: "Employee" },
+  { roleName: "Manager", displayName: "Manager" },
+  { roleName: "HR", displayName: "HR Manager" },
+];
 
 function AppLoginSection({
   enabled,
@@ -459,23 +434,40 @@ function AppLoginSection({
   onPasswordChange,
   alreadyEnabled,
   linkedEmail,
-  allowedModules,
-  onModulesChange,
+  roles = DEFAULT_ROLE_OPTIONS,
   modulesIdPrefix,
 }) {
+  const currentRole = userRole || "Employee";
+  const hasRole = roles.some((role) => role.roleName === currentRole);
+  const roleOptions = hasRole
+    ? roles
+    : [{ roleName: currentRole, displayName: currentRole }, ...roles];
+
+  const renderRoleField = (
+    <FormField label="Login role" htmlFor={`${modulesIdPrefix}-user-role`}>
+      <select
+        id={`${modulesIdPrefix}-user-role`}
+        value={currentRole}
+        onChange={onRoleChange}
+      >
+        {roleOptions.map((role) => (
+          <option key={role._id || role.roleName} value={role.roleName}>
+            {role.displayName || role.roleName}
+          </option>
+        ))}
+      </select>
+    </FormField>
+  );
+
   if (alreadyEnabled) {
     return (
       <div className="emp-login-card emp-field--full">
         <p className="emp-field-hint" style={{ margin: 0 }}>
           App login is enabled
-          {linkedEmail ? ` for ${linkedEmail}` : ""}.
+          {linkedEmail ? ` for ${linkedEmail}` : ""}. Choose the role for this
+          login below.
         </p>
-        <ModuleAccessFields
-          role={userRole}
-          selected={allowedModules}
-          onChange={onModulesChange}
-          idPrefix={modulesIdPrefix}
-        />
+        <div className="emp-login-card__fields">{renderRoleField}</div>
       </div>
     );
   }
@@ -495,17 +487,7 @@ function AppLoginSection({
             Password is shown once after saving. Email must be filled above.
           </p>
           <div className="emp-login-card__fields">
-            <FormField label="Login role" htmlFor={`${modulesIdPrefix}-user-role`}>
-              <select
-                id={`${modulesIdPrefix}-user-role`}
-                value={userRole}
-                onChange={onRoleChange}
-              >
-                <option value="Employee">Employee</option>
-                <option value="Manager">Manager</option>
-                <option value="HR">HR</option>
-              </select>
-            </FormField>
+            {renderRoleField}
             <FormField
               label="Password"
               htmlFor={`${modulesIdPrefix}-user-password`}
@@ -520,12 +502,6 @@ function AppLoginSection({
               />
             </FormField>
           </div>
-          <ModuleAccessFields
-            role={userRole}
-            selected={allowedModules}
-            onChange={onModulesChange}
-            idPrefix={modulesIdPrefix}
-          />
         </>
       ) : null}
     </div>
@@ -536,6 +512,14 @@ function Employees() {
   /* =========================
      STATES
   ========================= */
+
+  const user = getStoredUser();
+  const canManage = canManageEmployees(user?.role);
+  const canViewConsultancy =
+    user?.role === "Admin" || roleHasPermission(user?.role, "consultancy:view");
+  const canManageConsultancy =
+    user?.role === "Admin" || roleHasPermission(user?.role, "consultancy:manage");
+  const canLetters = roleHasPermission(user?.role, "employees:letters");
 
   const initialForm = {
     name: "", email: "", phone: "",
@@ -565,6 +549,8 @@ function Employees() {
   };
 
   const [form, setForm] = useState(initialForm);
+
+  const [availableRoles, setAvailableRoles] = useState(DEFAULT_ROLE_OPTIONS);
 
   const [employees, setEmployees] = useState([]);
   const [directoryType, setDirectoryType] = useState("employee");
@@ -596,6 +582,23 @@ function Employees() {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    getRoles()
+      .then((roles) => {
+        if (mounted && Array.isArray(roles)) {
+          const selectable = roles.filter((role) => !role.isAdmin);
+          if (selectable.length) setAvailableRoles(selectable);
+        }
+      })
+      .catch(() => {
+        /* fall back to default role options */
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const [
@@ -746,6 +749,13 @@ function Employees() {
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
+
+  useEffect(() => {
+    if (!canViewConsultancy && directoryType === "consultancy") {
+      setDirectoryType("employee");
+      setPage(1);
+    }
+  }, [canViewConsultancy, directoryType]);
 
   useEffect(() => {
     setStatusFilter(urlStatus);
@@ -1223,7 +1233,8 @@ function Employees() {
         return;
       }
       const payload = buildEmployeePayload(selectedEmployee, {
-        createAppLogin: enableLoginOnUpdate,
+        createAppLogin:
+          enableLoginOnUpdate || Boolean(selectedEmployee.hasAppLogin),
       });
 
       const formErrors = await collectEmployeeFormErrors(payload);
@@ -1667,10 +1678,12 @@ function Employees() {
             Employees
             {directoryType === "employee" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
           </button>
-          <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => { setDirectoryType("consultancy"); setPage(1); }}>
-            Consultancy
-            {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
-          </button>
+          {canViewConsultancy ? (
+            <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => { setDirectoryType("consultancy"); setPage(1); }}>
+              Consultancy
+              {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
+            </button>
+          ) : null}
         </div>
 
         {/* <p className="employee-page__count">
@@ -1741,33 +1754,37 @@ function Employees() {
               </select>
             </div>
 
-            <Button
-              variant="secondary"
-              icon={<Upload size={18} />}
-              onClick={() => {
-                setShowUploadModal(true)
-                setUploadMessage("")
-                setUploadFile(null)
-              }}
-            >
-              Bulk Upload
-            </Button>
+            {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+              <Button
+                variant="secondary"
+                icon={<Upload size={18} />}
+                onClick={() => {
+                  setShowUploadModal(true)
+                  setUploadMessage("")
+                  setUploadFile(null)
+                }}
+              >
+                Bulk Upload
+              </Button>
+            )}
 
-            <Button
-              icon={<Plus size={18} />}
-              onClick={() => {
-                setForm({ ...initialForm, isConsultancy: directoryType === "consultancy" });
-                setSalaryDraft(initialSalaryDraft);
-                setErrors({});
-                setShowAddModal(true);
-              }}
-            >
-              Add {directoryType === "consultancy" ? "Consultant" : "Employee"}
-            </Button>
+            {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+              <Button
+                icon={<Plus size={18} />}
+                onClick={() => {
+                  setForm({ ...initialForm, isConsultancy: directoryType === "consultancy" });
+                  setSalaryDraft(initialSalaryDraft);
+                  setErrors({});
+                  setShowAddModal(true);
+                }}
+              >
+                Add {directoryType === "consultancy" ? "Consultant" : "Employee"}
+              </Button>
+            )}
           </div>
         </div>
 
-        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} /> : null}
+        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} canManage={canManageConsultancy} /> : null}
 
         <div className="employee-table-card">
           <div className="employee-table-scroll">
@@ -1817,13 +1834,12 @@ function Employees() {
 
                       <td>
                         <span
-                          className={`login-chip ${
-                            emp.hasAppLogin
+                          className={`login-chip ${emp.hasAppLogin
                               ? emp.hasLoginEnabled
                                 ? "login-chip--on"
                                 : "login-chip--off"
                               : "login-chip--none"
-                          }`}
+                            }`}
                           title={
                             emp.hasAppLogin
                               ? emp.hasLoginEnabled
@@ -1887,95 +1903,103 @@ function Employees() {
                                 <Eye size={16} /> View Profile
                               </button>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleEdit(emp);
-                                }}
-                              >
-                                <Pencil size={16} /> Edit Details
-                              </button>
+                              {canManage && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    handleEdit(emp);
+                                  }}
+                                >
+                                  <Pencil size={16} /> Edit Details
+                                </button>
+                              )}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setLetterEmployeeId(emp._id);
-                                  setLetterData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    designation: emp.designation || "",
-                                    joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                                    annualCTC: "",
-                                    monthlySalary: "",
-                                    workLocation: emp.location || "Gurgaon",
-                                    salaryComponents: [],
-                                  });
-                                  setShowLetterModal(true);
-                                }}
-                              >
-                                <FileText size={16} /> Appointment Letter
-                              </button>
+                              {canLetters && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setLetterEmployeeId(emp._id);
+                                    setLetterData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      designation: emp.designation || "",
+                                      joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                                      annualCTC: "",
+                                      monthlySalary: "",
+                                      workLocation: emp.location || "Gurgaon",
+                                      salaryComponents: [],
+                                    });
+                                    setShowLetterModal(true);
+                                  }}
+                                >
+                                  <FileText size={16} /> Appointment Letter
+                                </button>
+                              )}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setWarningData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    employeeCode: emp.employeeCode || "",
-                                    designation: emp.designation || "",
-                                    department: emp.department || "",
-                                    incidentDate: new Date().toISOString().split("T")[0],
-                                    reason: "",
-                                    severity: "First",
-                                    actionTaken: "",
-                                    responsePeriod: "5",
-                                  });
-                                  setShowWarningModal(true);
-                                }}
-                              >
-                                <TriangleAlert size={16} /> Warning Letter
-                              </button>
+                              {canLetters && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setWarningData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      incidentDate: new Date().toISOString().split("T")[0],
+                                      reason: "",
+                                      severity: "First",
+                                      actionTaken: "",
+                                      responsePeriod: "5",
+                                    });
+                                    setShowWarningModal(true);
+                                  }}
+                                >
+                                  <TriangleAlert size={16} /> Warning Letter
+                                </button>
+                              )}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setTerminationData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    employeeCode: emp.employeeCode || "",
-                                    designation: emp.designation || "",
-                                    department: emp.department || "",
-                                    terminationDate: new Date().toISOString().split("T")[0],
-                                    reason: "",
-                                    noticePeriod: "",
-                                    workLocation: emp.location || "",
-                                    client: emp.client || "",
-                                    settlementDate: new Date().toISOString().split("T")[0],
-                                    noticeClause: "7(B)",
-                                    isExperienceLetterIssued: false,
-                                    isRelievingLetterIssued: false,
-                                    deleteEmployeeAccount: false,
-                                    hrMail: "",
-                                  });
-                                  setShowTerminationModal(true);
-                                }}
-                              >
-                                <OctagonX size={16} /> Termination Letter
-                              </button>
+                              {canLetters && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setTerminationData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      terminationDate: new Date().toISOString().split("T")[0],
+                                      reason: "",
+                                      noticePeriod: "",
+                                      workLocation: emp.location || "",
+                                      client: emp.client || "",
+                                      settlementDate: new Date().toISOString().split("T")[0],
+                                      noticeClause: "7(B)",
+                                      isExperienceLetterIssued: false,
+                                      isRelievingLetterIssued: false,
+                                      deleteEmployeeAccount: false,
+                                      hrMail: "",
+                                    });
+                                    setShowTerminationModal(true);
+                                  }}
+                                >
+                                  <OctagonX size={16} /> Termination Letter
+                                </button>
+                              )}
 
                               <button
                                 type="button"
@@ -1989,7 +2013,7 @@ function Employees() {
                                 <FolderOpen size={16} /> Documents
                               </button>
 
-                              {emp.hasAppLogin && (
+                              {canManage && emp.hasAppLogin && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2011,16 +2035,18 @@ function Employees() {
 
                               <div className="dropdown-divider"></div>
 
-                              <button
-                                type="button"
-                                className="dropdown-item-danger"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleDelete(emp._id);
-                                }}
-                              >
-                                <Trash2 size={16} /> Delete Employee
-                              </button>
+                              {canManage && (
+                                <button
+                                  type="button"
+                                  className="dropdown-item-danger"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    handleDelete(emp._id);
+                                  }}
+                                >
+                                  <Trash2 size={16} /> Delete Employee
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2140,10 +2166,7 @@ function Employees() {
                   onPasswordChange={(e) =>
                     setForm({ ...form, userPassword: e.target.value })
                   }
-                  allowedModules={form.allowedModules}
-                  onModulesChange={(allowedModules) =>
-                    setForm({ ...form, allowedModules })
-                  }
+                  roles={availableRoles}
                   modulesIdPrefix="add-emp-mod"
                 />
               </FormSection>
@@ -2316,13 +2339,7 @@ function Employees() {
                     }
                     alreadyEnabled={selectedEmployee.hasAppLogin}
                     linkedEmail={selectedEmployee.linkedUser?.email}
-                    allowedModules={selectedEmployee.allowedModules}
-                    onModulesChange={(allowedModules) =>
-                      setSelectedEmployee({
-                        ...selectedEmployee,
-                        allowedModules,
-                      })
-                    }
+                    roles={availableRoles}
                     modulesIdPrefix="edit-emp-mod"
                   />
                 </FormSection>

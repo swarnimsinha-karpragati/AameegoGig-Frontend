@@ -35,6 +35,8 @@ import {
   getAttendanceViewKey,
   getStoredUser,
   hasLinkedEmployeeProfile,
+  canMarkAttendance,
+  roleHasPermission,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
@@ -133,7 +135,8 @@ function Attendance() {
   const toast = useToast();
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
-  const canMarkForOthers = user?.role === "Admin" || user?.role === "HR";
+  const canMarkForOthers = canMarkAttendance(user?.role);
+  const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
   const canSelfCheckIn = hasLinkedEmployeeProfile(user);
 
   const personalMonthLabel = personalViewDate.toLocaleString("en-US", {
@@ -1211,7 +1214,7 @@ function Attendance() {
     <>
       <AttendanceStats stats={orgStats} />
       {canMarkForOthers ? renderMarkForm(employees, "Mark Attendance") : null}
-      {renderMarkMonthForm(employees, "Mark / Month Attendance")}
+      {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
       {renderCalendarSection({
         title: `${orgMonthLabel} — Organization`,
         viewDateObj: orgViewDate,
@@ -1310,8 +1313,8 @@ function Attendance() {
         />
       )}
       <h1 className="attendance-title">Organization Attendance</h1>
-      {renderMarkForm(employees, "Mark / Correct Attendance")}
-      {renderMarkMonthForm(employees, "Mark / Month Attendance")}
+      {canMarkForOthers ? renderMarkForm(employees, "Mark / Correct Attendance") : null}
+      {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
 
       <TodayAttendanceTable
         key={

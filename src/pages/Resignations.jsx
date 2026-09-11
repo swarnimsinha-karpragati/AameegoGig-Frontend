@@ -18,6 +18,7 @@ import {
 
 import "./Resignation.css";
 import Button from "../components/Button";
+import { roleHasPermission } from "../utils/roles";
 
 function ResModal({ title, onClose, size = "md", children, footer }) {
   return (
@@ -354,7 +355,7 @@ function Resignations() {
       .includes(hrSearch.toLowerCase())
   );
 
-  const isHrOrAdmin = currentUser?.role === "HR" || currentUser?.role === "Admin";
+  const isHrOrAdmin = roleHasPermission(currentUser?.role, "resignation:manage");
 
   return (
     <MainLayout>

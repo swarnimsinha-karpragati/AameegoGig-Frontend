@@ -23,6 +23,7 @@ import {
 import "./Department.css";
 import Button from "../components/Button";
 import { isSiteVendor } from "../utils/vendorIdhelper";
+import { getStoredUser, roleHasPermission } from "../utils/roles";
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
@@ -73,6 +74,7 @@ function FormField({ label, htmlFor, required, fullWidth, children }) {
 
 function Departments() {
   const [vendorId, setVendorId] = useState(null);
+  const canManage = roleHasPermission(getStoredUser()?.role, "departments:manage");
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -375,9 +377,11 @@ function Departments() {
           </div>
 
           <div className="manage-depts-actions">
+            {canManage && (
             <Button icon={<Plus size={20} />} onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
               Add {name}
             </Button>
+            )}
           </div>
         </div>
 
@@ -424,12 +428,16 @@ function Departments() {
                           <button className="manage-depts-btn-view" onClick={() => handleView(dep)}>
                             <Eye size={15} />
                           </button>
-                          <button className="manage-depts-btn-edit" onClick={() => handleEdit(dep)}>
-                            <Pencil size={15} />
-                          </button>
-                          <button className="manage-depts-btn-delete" onClick={() => handleDeleteClick(dep._id)}>
-                            <Trash2 size={15} />
-                          </button>
+                          {canManage && (
+                            <button className="manage-depts-btn-edit" onClick={() => handleEdit(dep)}>
+                              <Pencil size={15} />
+                            </button>
+                          )}
+                          {canManage && (
+                            <button className="manage-depts-btn-delete" onClick={() => handleDeleteClick(dep._id)}>
+                              <Trash2 size={15} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

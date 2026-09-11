@@ -1,3 +1,5 @@
+import { loadRoles, saveRoles, BASELINE_PERMISSIONS } from "./permissions";
+
 export const ROLES = {
   ADMIN: "Admin",
   HR: "HR",
@@ -80,11 +82,15 @@ export const normalizeAppPath = (pathname = "") => {
   return pathname || "/";
 };
 
-export const grantableModulesForRole = (role) =>
-  GRANTABLE_MODULES.filter((item) => {
+export const SYSTEM_ROLE_NAMES = ["Admin", "HR", "Manager", "Employee"];
+
+export const grantableModulesForRole = (role) => {
+  if (!SYSTEM_ROLE_NAMES.includes(role)) return GRANTABLE_MODULES;
+  return GRANTABLE_MODULES.filter((item) => {
     const allowed = ROUTE_ACCESS[item.path];
     return !allowed || allowed.includes(role);
   });
+};
 
 export const defaultSelectedModules = (role, storedModules) => {
   const grantable = grantableModulesForRole(role).map((item) => item.key);
@@ -92,10 +98,50 @@ export const defaultSelectedModules = (role, storedModules) => {
   return grantable.filter((key) => storedModules.includes(key));
 };
 
+const RBAC_ROUTE_PERMISSION = {
+  "/departments": "departments:manage",
+  "/sites": "departments:manage",
+  "/employees": "employees:view",
+  "/loan-config": "loan-config:manage",
+  "/roles": "roles:manage",
+};
+
+const CUSTOM_ROLE_MODULE_PERMISSION = {
+  "/attendance": "attendance:view",
+  "/leave": "leave:view",
+  "/payroll": "payroll:view",
+  "/expenses": "expenses:view",
+  "/documents": "documents:view",
+  "/resignation": "resignation:view",
+  "/advance-loan": "advance-loan:view",
+  "/loan-config": "loan-config:manage",
+  "/employees": "employees:view",
+  "/departments": "departments:manage",
+  "/sites": "departments:manage",
+};
+
 export const canAccessRoute = (role, path, allowedModules) => {
   const appPath = normalizeAppPath(path);
+
+  // Elevated pages (employees, departments, loan-config, roles) are gated by
+  // RBAC permission so any custom role holding the permission gets access.
+  const rbacPerm = RBAC_ROUTE_PERMISSION[appPath];
+  if (rbacPerm && !roleHasPermission(role, rbacPerm)) return false;
+
+  // Custom roles are permission-driven. A stale allowedModules list must not
+  // hide a module explicitly granted by the RBAC catalog.
+  if (!SYSTEM_ROLE_NAMES.includes(role)) {
+    const modulePermission = CUSTOM_ROLE_MODULE_PERMISSION[appPath];
+    if (modulePermission && roleHasPermission(role, modulePermission)) return true;
+  }
+
   const allowedRoles = ROUTE_ACCESS[appPath];
-  if (allowedRoles && !allowedRoles.includes(role)) return false;
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    // Custom roles don't appear in the legacy whitelist. Every self-service
+    // route is baseline-granted to all roles, so only the system roles (which
+    // the whitelist actually describes) can be blocked here.
+    if (SYSTEM_ROLE_NAMES.includes(role)) return false;
+  }
 
   if (appPath === "/regularization") {
     if (role === "Admin" || allowedModules == null) return true;
@@ -177,44 +223,143 @@ export const getDefaultRouteForRole = (role, allowedModules) => {
 
 export const getAttendanceViewKey = (role) => {
   if (role === "Admin") return "Organization";
-  if (role === "HR") return "HR";
-  if (role === "Manager") return "Employee";
+  if (roleHasPermission(role, "attendance:view-org")) return "HR";
   return "Employee";
 };
 
 export const getLeaveViewKey = (role) => {
   if (role === "Admin") return "Organization";
-  if (role === "HR") return "HR";
-  if (role === "Manager") return "Manager";
+  if (roleHasPermission(role, "leave:policy") || roleHasPermission(role, "leave:balances")) return "HR";
+  if (roleHasPermission(role, "leave:approve")) return "Manager";
   return "Employee";
 };
 
 export const canMarkAttendance = (role) =>
-  role === "Admin" || role === "HR" || role === "Manager";
+  roleHasPermission(role, "attendance:mark");
 
 export const canManageEmployees = (role) =>
-  role === "Admin" || role === "HR";
+  roleHasPermission(role, "employees:manage");
 
 export const canEditLeaveBalances = (role) =>
-  role === "Admin" || role === "HR";
+  roleHasPermission(role, "leave:balances");
 
 export const hasLinkedEmployeeProfile = (user) => Boolean(user?.employeeId);
 
 export const canApproveExpenses = (role) =>
-  role === "Admin" || role === "HR" || role === "Manager";
+  roleHasPermission(role, "expenses:approve");
 
 export const canManageExpensePolicy = (role) =>
-  role === "Admin" || role === "HR";
+  roleHasPermission(role, "expenses:policy");
+
+export const PAYROLL_ADMIN_PERMISSIONS = [
+  "payroll:manage",
+  "payroll:config",
+  "payroll:components",
+  "payroll:structure",
+  "payroll:reports",
+  "payroll:payments",
+];
+
+export const canManagePayroll = (role) =>
+  PAYROLL_ADMIN_PERMISSIONS.some((key) => roleHasPermission(role, key));
 
 export const getExpenseViewKey = (role) => {
   if (role === "Admin") return "Organization";
-  if (role === "HR") return "HR";
-  if (role === "Manager") return "Manager";
+  if (roleHasPermission(role, "expenses:policy") || roleHasPermission(role, "expenses:reimburse")) return "HR";
+  if (roleHasPermission(role, "expenses:approve")) return "Manager";
   return "Employee";
 };
 
 export const canApproveAdvanceLoan = (role) =>
-  role === "Admin" || role === "HR";
+  roleHasPermission(role, "advance-loan:approve");
 
 export const canViewAllAdvanceLoan = (role) =>
-  role === "Admin" || role === "HR" || role === "Manager";
+  roleHasPermission(role, "advance-loan:view-all") || role === "Admin";
+
+// ============================================================
+// RBAC WIRING
+// ------------------------------------------------------------
+// Every helper & route check now consults the Roles & Permissions
+// config stored in localStorage (from the Roles page). Admin bypasses.
+// Employee baseline permissions are auto-granted to every role.
+// ============================================================
+
+export const roleHasPermission = (role, permissionKey) => {
+  if (role === "Admin") return true;
+  if (BASELINE_PERMISSIONS.includes(permissionKey)) return true;
+  const roles = loadRoles();
+  const roleCfg = roles[role];
+  if (!roleCfg || !Array.isArray(roleCfg.permissions)) return false;
+  const perms = roleCfg.permissions;
+  if (perms.includes(permissionKey)) return true;
+
+  // Implied / parent permission checks
+  if (permissionKey === "employees:view" && perms.includes("employees:manage")) return true;
+  if (
+    permissionKey === "payroll:view" &&
+    (perms.includes("payroll:manage") ||
+      perms.includes("payroll:config") ||
+      perms.includes("payroll:reports") ||
+      perms.includes("payroll:payments") ||
+      perms.includes("payroll:structure") ||
+      perms.includes("payroll:components"))
+  )
+    return true;
+  if (
+    permissionKey === "advance-loan:view" &&
+    (perms.includes("advance-loan:view-all") ||
+      perms.includes("advance-loan:approve") ||
+      perms.includes("advance-loan:statistics") ||
+      perms.includes("loan-config:manage"))
+  )
+    return true;
+  if (permissionKey === "documents:view" && perms.includes("documents:view-all")) return true;
+  if (
+    permissionKey === "attendance:view" &&
+    (perms.includes("attendance:view-org") || perms.includes("attendance:manage"))
+  )
+    return true;
+
+  return false;
+};
+
+export const rolePermissionList = (role) => {
+  if (role === "Admin") return "all";
+  const roles = loadRoles();
+  const roleCfg = roles[role];
+  if (!roleCfg || !Array.isArray(roleCfg.permissions)) return [...BASELINE_PERMISSIONS];
+  return roleCfg.permissions;
+};
+
+// ------------------------------------------------------------
+// Server sync — keeps the local RBAC catalog (used by roleHasPermission)
+// fresh so a custom role logged in on any browser gets its permissions.
+// ------------------------------------------------------------
+let rolesSyncPromise = null;
+
+export const syncRolesFromServer = () => {
+  if (rolesSyncPromise) return rolesSyncPromise;
+  rolesSyncPromise = (async () => {
+    try {
+      const { getRoles } = await import("../services/roleService");
+      const backendRoles = await getRoles();
+      if (!Array.isArray(backendRoles)) return;
+      const merged = { ...loadRoles() };
+      backendRoles.forEach((rb) => {
+        if (rb.isAdmin) return;
+        merged[rb.roleName] = {
+          displayName: rb.displayName || rb.roleName,
+          description: rb.description || "",
+          permissions: rb.permissions || [],
+          baselinePermissions: rb.baselinePermissions || BASELINE_PERMISSIONS,
+          isSystem: Boolean(rb.isSystem),
+          _id: rb._id,
+        };
+      });
+      saveRoles(merged);
+    } catch {
+      /* backend unavailable — local catalog stays in charge */
+    }
+  })();
+  return rolesSyncPromise;
+};

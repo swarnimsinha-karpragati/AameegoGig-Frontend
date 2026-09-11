@@ -17,6 +17,7 @@ import LeavePolicyManager from "../components/LeavePolicyManager";
 import OrgProfileCard from "../components/OrgProfileCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
 import SalaryStructure from "../components/SalaryStructure";
+import { roleHasPermission } from "../utils/roles";
 
 export default function Settings() {
   
@@ -77,44 +78,59 @@ export default function Settings() {
                 <NotificationsCard />
               </div>
             </div>
-          { user?.role === "Admin" || user?.role === "HR" ? (
-            <div className="settings-bottom-grid">
-              <ShiftManager vendorId={user?.vendorId} />
+          <div className="settings-bottom-grid">
+              {roleHasPermission(user?.role, "settings:shifts") && (
+                <>
+                  <ShiftManager vendorId={user?.vendorId} />
+                  <WeekOffManager vendorId={user?.vendorId} />
+                </>
+              )}
 
-              <WeekOffManager vendorId={user?.vendorId} />
+              {roleHasPermission(user?.role, "settings:holidays") && (
+                <HolidayManager vendorId={user?.vendorId} />
+              )}
 
-              <HolidayManager vendorId={user?.vendorId} />
+              {roleHasPermission(user?.role, "settings:leave-policy") && (
+                <LeavePolicyManager />
+              )}
 
-              <LeavePolicyManager />
+              {roleHasPermission(user?.role, "settings:org") && (
+                <OrgProfileCard />
+              )}
 
-              <OrgProfileCard />
+              {roleHasPermission(user?.role, "payroll:structure") && (
+                <SalaryStructure />
+              )}
 
-              {/* <PayrollConfigCard /> */}
-              <SalaryStructure/>
+              {roleHasPermission(user?.role, "payroll:components") && (
+                <SalaryComponentManager />
+              )}
 
-              <SalaryComponentManager />
-              
-              <div ref={listRef} className="ot-list-scroll-target">
-                <OverTimePolicyList 
-                  vendorId={user?.vendorId} 
-                  onEditPolicy={handleEditClick}
-                  refreshTrigger={refreshTrigger}
-                />
-              </div>
-              
-              <div ref={formRef} className="ot-form-scroll-target">
-                <OverTimePolicy 
-                  vendorId={user?.vendorId} 
-                  editingPolicy={editingPolicy}
-                  onSuccess={handleFormSuccess}
-                  onCancel={handleCancelEdit}
-                />
-              </div>
+              {roleHasPermission(user?.role, "settings:ot") && (
+                <>
+                  <div ref={listRef} className="ot-list-scroll-target">
+                    <OverTimePolicyList
+                      vendorId={user?.vendorId}
+                      onEditPolicy={handleEditClick}
+                      refreshTrigger={refreshTrigger}
+                    />
+                  </div>
 
-              <RolesCard />
-             
+                  <div ref={formRef} className="ot-form-scroll-target">
+                    <OverTimePolicy
+                      vendorId={user?.vendorId}
+                      editingPolicy={editingPolicy}
+                      onSuccess={handleFormSuccess}
+                      onCancel={handleCancelEdit}
+                    />
+                  </div>
+                </>
+              )}
+
+              {roleHasPermission(user?.role, "roles:manage") && (
+                <RolesCard />
+              )}
             </div>
-          ):null}
           </>
            <SecurityCard />
       </main>

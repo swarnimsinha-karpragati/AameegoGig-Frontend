@@ -22,6 +22,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import Resignations from './pages/Resignations';
 import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
+import { syncRolesFromServer } from './utils/roles';
 import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
 import AdvanceLoanRequest from './components/AdvanceLoan';
@@ -46,6 +47,7 @@ function App() {
     if (isSuccess && data?.user) {
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("user-updated"));
+      syncRolesFromServer();
     }
 
     const path = window.location.pathname;

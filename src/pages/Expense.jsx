@@ -899,7 +899,7 @@ function ExpenseInner() {
         {renderCategoryBreakdown()}
       </div>
 
-      <div className="expense-layout-grid">
+      <div className="expense-layout-grid-1">
         {renderExpenseTable({
           title: "Pending Approvals — All Employees",
           items: pendingExpenses,
