@@ -131,6 +131,7 @@ function Dashboard() {
     (roleHasPermission(data?.role, "leave:approve-all") ||
       roleHasPermission(data?.role, "expenses:approve") ||
       roleHasPermission(data?.role, "regularization:approve") ||
+      roleHasPermission(data?.role, "regularization:view-all") ||
       roleHasPermission(data?.role, "advance-loan:approve") ||
       // No team permission exists: team-scope approvers see it automatically.
       isManager);

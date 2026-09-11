@@ -58,6 +58,7 @@ export const ELEVATED_PERMISSIONS = [
   "leave:policy",
   "leave:balances",
   "leave:direct-edit",
+  "regularization:view-all",
   "regularization:approve",
   "regularization:direct-edit",
   "payroll:manage",
@@ -135,6 +136,7 @@ export const ELEVATED_GROUPS = [
     key: "regularization",
     label: "Regularization",
     perms: [
+      { key: "regularization:view-all", label: "View All Regularization Requests (Organization)" },
       { key: "regularization:approve", label: "Approve / Reject Regularization" },
       { key: "regularization:direct-edit", label: "Direct Edit Regularization" },
     ],

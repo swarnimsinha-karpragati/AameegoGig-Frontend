@@ -209,6 +209,9 @@ export const canAccessRoute = (role, path, allowedModules) => {
   if (appPath === "/regularization") {
     if (role === "Admin" || allowedModules == null) return true;
     if (!Array.isArray(allowedModules)) return true;
+    // Custom roles are permission-driven (regularization:view is baseline for
+    // all) — an assigned regularization permission always opens the hub.
+    if (!SYSTEM_ROLE_NAMES.includes(role)) return true;
     return (
       allowedModules.includes("attendance") || allowedModules.includes("leave")
     );
@@ -336,6 +339,22 @@ export const canViewOrgLeave = (role) =>
   roleHasPermission(role, "leave:policy") ||
   roleHasPermission(role, "leave:balances");
 
+// Regularization: view-all (org list + stats), approve/reject, direct edit.
+// approve and direct-edit imply view-all (you must see the queue to act).
+export const canViewAllRegularizations = (role) =>
+  role === "Admin" ||
+  roleHasPermission(role, "regularization:view-all") ||
+  roleHasPermission(role, "regularization:approve") ||
+  roleHasPermission(role, "regularization:direct-edit");
+
+export const canApproveRegularization = (role) =>
+  role === "Admin" || roleHasPermission(role, "regularization:approve");
+
+export const canDirectEditRegularization = (role) =>
+  role === "Admin" ||
+  roleHasPermission(role, "regularization:approve") ||
+  roleHasPermission(role, "regularization:direct-edit");
+
 // Strict split: Mark / Correct Attendance needs attendance:mark only.
 // attendance:manage does NOT grant daily marking.
 export const canMarkAttendance = (role) =>
@@ -401,6 +420,12 @@ export const roleHasPermission = (role, permissionKey) => {
   if (permissionKey === "employees:view" && perms.includes("employees:manage")) return true;
   if (permissionKey === "consultancy:view" && perms.includes("consultancy:manage")) return true;
   if (permissionKey === "departments:view" && perms.includes("departments:manage")) return true;
+  if (
+    permissionKey === "regularization:view-all" &&
+    (perms.includes("regularization:approve") ||
+      perms.includes("regularization:direct-edit"))
+  )
+    return true;
   if (
     permissionKey === "payroll:view" &&
     (perms.includes("payroll:manage") ||

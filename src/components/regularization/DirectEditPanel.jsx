@@ -16,6 +16,7 @@ import {
   listRegularizationRequests,
 } from "../../services/regularizationService";
 import { validateFields } from "../../utils/inputValidation";
+import { getStoredUser } from "../../utils/roles";
 import {
   buildApiErrorMessage,
   countWeekdaysInclusive,
@@ -321,6 +322,20 @@ export default function DirectEditPanel({ toast, onChanged }) {
   const selectedEmployeeId =
     kind === "attendance" ? attendance.employeeId : leave.employeeId;
 
+  // Nobody may directly edit their own record (backend 403s too).
+  const user = getStoredUser();
+  const isSelfSelected = (() => {
+    const userEmpId =
+      typeof user?.employeeId === "object"
+        ? user?.employeeId?._id
+        : user?.employeeId;
+    return Boolean(
+      userEmpId &&
+        selectedEmployeeId &&
+        String(userEmpId) === String(selectedEmployeeId)
+    );
+  })();
+
   useEffect(() => {
     if (!selectedEmployeeId) {
       setPendingRequests([]);
@@ -417,6 +432,10 @@ export default function DirectEditPanel({ toast, onChanged }) {
   const openConfirmation = (event) => {
     event.preventDefault();
     setTouched(true);
+    if (isSelfSelected) {
+      toastError("You cannot directly edit your own record");
+      return;
+    }
     if (!isValid) {
       toastError(Object.values(errors)[0] || "Please check the direct edit");
       return;
@@ -523,6 +542,15 @@ export default function DirectEditPanel({ toast, onChanged }) {
             controlClassName="regularization-employee-control"
             placeholder="Search employee by name or code"
           />
+          {isSelfSelected ? (
+            <p
+              className="regularization-inline-error regularization-field--full"
+              role="alert"
+            >
+              You cannot directly edit your own record — please choose another
+              employee.
+            </p>
+          ) : null}
         </div>
 
         {kind === "attendance" ? (

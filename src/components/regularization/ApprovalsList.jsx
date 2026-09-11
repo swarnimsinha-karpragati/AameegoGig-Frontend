@@ -16,6 +16,7 @@ import {
   rejectRegularizationRequest,
 } from "../../services/regularizationService";
 import { validateField } from "../../utils/inputValidation";
+import { getStoredUser } from "../../utils/roles";
 import { buildApiErrorMessage } from "./RequestForm";
 import { getLeaveTypeLabel } from "../../utils/leaveLabels";
 import { formatAttendanceHours } from "../../utils/regularizationFormatters";
@@ -84,6 +85,21 @@ export const describeApprovalChange = (request) => {
 export default function ApprovalsList({ toast, onChanged }) {
   const toastError = toast.error;
   const toastSuccess = toast.success;
+  const user = getStoredUser();
+  // Nobody may approve/reject their own correction (backend 403s too).
+  const isOwnRequest = (request) => {
+    const userEmpId =
+      typeof user?.employeeId === "object"
+        ? user?.employeeId?._id
+        : user?.employeeId;
+    const reqEmpId = request?.employeeId?._id || request?.employeeId;
+    if (userEmpId && reqEmpId && String(userEmpId) === String(reqEmpId))
+      return true;
+    const reqName = request?.employeeId?.name?.toLowerCase?.();
+    return Boolean(
+      reqName && user?.name && reqName === user.name.toLowerCase()
+    );
+  };
   const [filter, setFilter] = useState("all");
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -244,21 +260,32 @@ export default function ApprovalsList({ toast, onChanged }) {
 
                 <p className="regularization-request-card__reason">{request.reason}</p>
                 <div className="regularization-approval-card__actions">
-                  <Button
-                    type="button"
-                    variant="delete"
-                    icon={<X size={15} />}
-                    onClick={() => setDecision({ request, action: "reject" })}
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    type="button"
-                    icon={<Check size={15} />}
-                    onClick={() => setDecision({ request, action: "approve" })}
-                  >
-                    Approve
-                  </Button>
+                  {isOwnRequest(request) ? (
+                    <span
+                      className="regularization-self-blocked"
+                      title="You cannot approve or reject your own correction"
+                    >
+                      Your request — decision blocked
+                    </span>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        variant="delete"
+                        icon={<X size={15} />}
+                        onClick={() => setDecision({ request, action: "reject" })}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        type="button"
+                        icon={<Check size={15} />}
+                        onClick={() => setDecision({ request, action: "approve" })}
+                      >
+                        Approve
+                      </Button>
+                    </>
+                  )}
                 </div>
               </article>
             );
