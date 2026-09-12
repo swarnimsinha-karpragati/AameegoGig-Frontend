@@ -325,6 +325,26 @@ function LeaveInner() {
     return leavePolicy.types.some((t) => t?.code === "WFH" && t?.enabled);
   }, [leavePolicy]);
 
+  // WFH quota from dashboard (single monthly balance + usage).
+  // Monthly quota resets on the 1st, annual quota at leave-year start.
+  const wfhQuota = useMemo(() => {
+    return (
+      dashboard?.selfSummary?.wfhQuota ||
+      dashboard?.summary?.wfhQuota ||
+      null
+    );
+  }, [dashboard]);
+
+  const wfhQuotaText = useMemo(() => {
+    if (!wfhQuota || wfhQuota.total == null) return null;
+    // Single monthly balance (e.g. "1 of 2 WFH days left this month") —
+    // never mixed with the annual cap, so it always reads logically.
+    if (wfhQuota.monthlyLimit != null) {
+      return `${wfhQuota.remaining ?? 0} of ${wfhQuota.total} WFH days left this month`;
+    }
+    return `${wfhQuota.remaining ?? 0} of ${wfhQuota.total} WFH days left this year`;
+  }, [wfhQuota]);
+
   const leaveTypeOptions = useMemo(() => {
     const fallback = [
       { code: "CL", label: "Casual Leave (CL)" },
@@ -387,6 +407,26 @@ function LeaveInner() {
     leaveForm.requestType,
     computedLeaveDays,
   ]);
+
+  // Client-side WFH quota check (server re-validates on apply + approve).
+  const wfhLimitError = useMemo(() => {
+    if (leaveForm.requestType !== "WFH") return null;
+    if (computedLeaveDays == null || computedLeaveDays < 1) return null;
+    if (!wfhQuota) return null;
+    if (
+      wfhQuota.monthlyLimit != null &&
+      (wfhQuota.remainingThisMonth ?? 0) < computedLeaveDays
+    ) {
+      return `Monthly WFH limit exceeded. Only ${wfhQuota.remainingThisMonth ?? 0} of ${wfhQuota.monthlyLimit} days left this month.`;
+    }
+    if (
+      wfhQuota.annualLimit != null &&
+      (wfhQuota.remainingThisYear ?? 0) < computedLeaveDays
+    ) {
+      return `Annual WFH limit exceeded. Only ${wfhQuota.remainingThisYear ?? 0} of ${wfhQuota.annualLimit} days left this year.`;
+    }
+    return null;
+  }, [leaveForm.requestType, computedLeaveDays, wfhQuota]);
 
   const leaveApiErrorMessage = (err, fallback) => {
     const data = err?.response?.data;
@@ -511,6 +551,10 @@ function LeaveInner() {
     try {
       if (dateValidationError) {
         toast.error(dateValidationError.message);
+        return;
+      }
+      if (wfhLimitError) {
+        toast.error(wfhLimitError);
         return;
       }
       if (!leaveForm.reason?.trim()) {
@@ -756,6 +800,26 @@ function LeaveInner() {
             ))}
           </select>
         </div>
+
+        {leaveForm.requestType === "WFH" && wfhQuotaText ? (
+          <div className="leave-field leave-field--full">
+            <p className="leave-upload-hint">{wfhQuotaText}</p>
+          </div>
+        ) : null}
+        {wfhLimitError ? (
+          <div
+            className="leave-date-feedback leave-date-feedback--error leave-field--full"
+            role="alert"
+            aria-live="polite"
+          >
+            <div className="leave-date-feedback__body">
+              <strong className="leave-date-feedback__title">
+                WFH limit exceeded
+              </strong>
+              <p className="leave-date-feedback__text">{wfhLimitError}</p>
+            </div>
+          </div>
+        ) : null}
 
         {leaveForm.leaveType === "SL" ? (
           <div className="leave-field">
@@ -1250,17 +1314,27 @@ function LeaveInner() {
         <h3>My Leave Balances</h3>
       </header>
       <div className="leave-balance-list">
-        {(dashboard?.balances || []).length === 0 ? (
+        {(dashboard?.balances || []).length === 0 && !wfhQuota ? (
           <p className="leave-empty">No balance data available</p>
         ) : (
-          (dashboard?.balances || []).map((b) => (
-            <div className="leave-balance-item" key={b.type}>
-              <span>{b.label}</span>
-              <strong>
-                {b.remaining} / {b.total}
-              </strong>
-            </div>
-          ))
+          <>
+            {(dashboard?.balances || []).map((b) => (
+              <div className="leave-balance-item" key={b.type}>
+                <span>{b.label}</span>
+                <strong>
+                  {b.remaining} / {b.total}
+                </strong>
+              </div>
+            ))}
+            {wfhQuota && wfhQuota.total != null ? (
+              <div className="leave-balance-item" key="WFH">
+                <span>Work From Home (WFH)</span>
+                <strong>
+                  {wfhQuota.remaining} / {wfhQuota.total}
+                </strong>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </section>

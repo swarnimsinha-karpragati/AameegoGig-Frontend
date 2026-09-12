@@ -26,6 +26,7 @@ import {
   deleteRole,
 } from "../services/roleService";
 import { roleHasPermission } from "../utils/roles";
+import ConfirmModal from "../components/ConfirmModal";
 import "./Roles.css";
 
 const ROLE_ICON_COLORS = {
@@ -264,6 +265,10 @@ export default function Roles() {
   const [editRole, setEditRole] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
 
+  // Role delete confirmation modal state
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDesc, setNewRoleDesc] = useState("");
   const [newRolePerms, setNewRolePerms] = useState(() => new Set(BASELINE_PERMISSIONS));
@@ -353,24 +358,44 @@ export default function Roles() {
     setEditRole(null);
   };
 
-  const handleDeleteRole = async (roleName) => {
-    if (roles[roleName]?.isSystem) return;
-    if (!window.confirm(`Delete role "${roles[roleName]?.displayName || roleName}"?`)) return;
+  const handleConfirmDeleteRole = async () => {
+    if (!deleteTarget) return;
+    const roleName = deleteTarget;
+    if (roles[roleName]?.isSystem) {
+      setDeleteTarget(null);
+      return;
+    }
+    setDeleting(true);
     const roleDef = roles[roleName];
     const { [roleName]: _, ...rest } = roles;
     persistRoles(rest);
     if (roleDef?._id) {
       try {
-        await deleteRole(roleDef._id);
+        const res = await deleteRole(roleDef._id);
+        const reassigned = res.data?.reassignedCount;
+        setFeedback({
+          type: "success",
+          message:
+            res.data?.message ||
+            (reassigned > 0
+              ? `Role deleted. ${reassigned} user${reassigned === 1 ? "" : "s"} moved to the Employee role.`
+              : "Role deleted. Users on this role were moved to the Employee role."),
+        });
       } catch (error) {
         console.error("Sync role delete failed:", error);
         alert(error.response?.data?.message || "Role removed locally, but could not be deleted from the server.");
       }
+    } else {
+      setFeedback({ type: "success", message: "Role deleted. Users on this role were moved to the Employee role." });
     }
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   const handleCreateRole = async () => {
-    const name = newRoleName.trim();
+    // Role keys must not contain spaces — "Finance TEAM" becomes
+    // "Finance_TEAM" (mirrors backend normalizeRoleName).
+    const name = newRoleName.trim().replace(/\s+/g, "_");
     if (!name) return;
     if (roles[name]) {
       alert("A role with this name already exists");
@@ -511,7 +536,7 @@ export default function Roles() {
                     Edit
                   </button>
                   {!role.isSystem && (
-                    <button type="button" className="roles-card-delete-btn" onClick={() => handleDeleteRole(roleName)}>
+                    <button type="button" className="roles-card-delete-btn" onClick={() => setDeleteTarget(roleName)}>
                       <Trash2 size={14} />
                     </button>
                   )}
@@ -533,6 +558,22 @@ export default function Roles() {
             onClose={() => setEditRole(null)}
           />
         )}
+
+        <ConfirmModal
+          open={!!deleteTarget}
+          title={`Delete role "${(deleteTarget && roles[deleteTarget]?.displayName) || deleteTarget || ""}"?`}
+          variant="danger"
+          confirmLabel="Delete Role"
+          loading={deleting}
+          onCancel={() => !deleting && setDeleteTarget(null)}
+          onConfirm={handleConfirmDeleteRole}
+          message={
+            <span>
+              This role will be permanently deleted. Employees who were assigned
+              this role will automatically be moved to the <strong>Employee</strong> role.
+            </span>
+          }
+        />
 
         {showCreate && (
           <div className="roles-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowCreate(false)}>

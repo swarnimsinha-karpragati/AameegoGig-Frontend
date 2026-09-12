@@ -83,6 +83,23 @@ const needsMonthlyCredit = (method) =>
 
 const describeType = (t) => {
   if (!t?.enabled) return "Turned off — employees cannot apply for this type.";
+
+  if (t.code === "WFH") {
+    const ml = t.monthlyLimit ?? null;
+    const al = t.annualLimit ?? null;
+    const monthPart =
+      ml != null && ml !== ""
+        ? `${ml} days added to balance every month`
+        : "No monthly quota";
+    const yearPart =
+      al != null && al !== "" ? `max ${al} per year` : "no yearly cap";
+    const endPart =
+      t.monthEnd?.lapseUnused !== false
+        ? "unused days expire monthly"
+        : "leftover days carry forward";
+    return `${monthPart}, ${yearPart}, ${endPart}.`;
+  }
+
   if (!t.hasBalance) return "Employees can apply. Remaining days are not tracked.";
 
   const method = t.accrual?.method;
@@ -120,10 +137,6 @@ const describeType = (t) => {
 
   if (t.code === "EL" && t.encashment?.enabled) {
     parts.push("Remaining earned leave can be paid at full & final (gross ÷ 30).");
-  }
-
-  if (t.code === "WFH") {
-    parts.push("Used in daily WFH requests. HR and Admin can manage each employee's WFH day count.");
   }
 
   return parts.join(" ");
@@ -248,6 +261,18 @@ export default function LeavePolicyManager() {
     });
   };
 
+  const updateMonthEnd = (code, patch) => {
+    setPolicy((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        types: (prev.types || []).map((t) =>
+          t.code === code ? { ...t, monthEnd: { ...(t.monthEnd || {}), ...patch } } : t
+        ),
+      };
+    });
+  };
+
   const updateDocuments = (code, patch) => {
     setPolicy((prev) => {
       if (!prev) return prev;
@@ -313,8 +338,11 @@ export default function LeavePolicyManager() {
         yearStartDay: asNumberOrNull(yearStartDay) ?? 1,
         types: (policy.types || []).map((t) => ({
           ...t,
+          // WFH never uses balance tracking — quota runs on its two fields.
+          hasBalance: t.code === "WFH" ? false : t.hasBalance,
           accrual: { ...(t.accrual || {}) },
           yearEnd: { ...(t.yearEnd || {}) },
+          monthEnd: { ...(t.monthEnd || {}) },
           documents: { ...(t.documents || {}) },
           encashment: { ...(t.encashment || {}) },
         })),
@@ -532,33 +560,37 @@ export default function LeavePolicyManager() {
 
               {t.enabled ? (
                 <div className="lp-type-body">
-                  <Toggle
-                    checked={Boolean(t.hasBalance)}
-                    disabled={!isCustomMode}
-                    onChange={(hasBalance) => updateType(t.code, { hasBalance })}
-                    label="Track remaining days"
-                    hint="Turn off for types like work from home, where people apply but do not use a quota."
-                  />
+                  {t.code !== "WFH" ? (
+                    <Toggle
+                      checked={Boolean(t.hasBalance)}
+                      disabled={!isCustomMode}
+                      onChange={(hasBalance) => updateType(t.code, { hasBalance })}
+                      label="Track remaining days"
+                      hint="Turn off for types like work from home, where people apply but do not use a quota."
+                    />
+                  ) : null}
 
                   {t.hasBalance ? (
                     <>
-                      <Field label="How they earn days" hint={meta.hint}>
-                        <select
-                          className="lp-input"
-                          value={method}
-                          disabled={!isCustomMode}
-                          onChange={(e) => updateAccrual(t.code, { method: e.target.value })}
-                        >
-                          {ACCRUAL_OPTIONS.map((opt) => (
-                            <option value={opt.value} key={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
+                      {t.code !== "WFH" ? (
+                        <Field label="How they earn days" hint={meta.hint}>
+                          <select
+                            className="lp-input"
+                            value={method}
+                            disabled={!isCustomMode}
+                            onChange={(e) => updateAccrual(t.code, { method: e.target.value })}
+                          >
+                            {ACCRUAL_OPTIONS.map((opt) => (
+                              <option value={opt.value} key={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                      ) : null}
 
                       <div className="lp-field-row">
-                        {needsMonthlyCredit(method) ? (
+                        {needsMonthlyCredit(method) && t.code !== "WFH" ? (
                           <Field
                             label="Days each month"
                             hint="Added after each completed month."
@@ -576,22 +608,24 @@ export default function LeavePolicyManager() {
                             />
                           </Field>
                         ) : null}
-                        <Field
-                          label="Maximum per year"
-                          hint="Credits stop once this limit is reached."
-                        >
-                          <input
-                            className="lp-input lp-input-sm"
-                            type="number"
-                            min={0}
-                            step="0.5"
-                            value={t.accrual?.yearlyCap ?? 0}
-                            disabled={!isCustomMode}
-                            onChange={(e) =>
-                              updateAccrual(t.code, { yearlyCap: Number(e.target.value) })
-                            }
-                          />
-                        </Field>
+                        {t.code !== "WFH" ? (
+                          <Field
+                            label="Maximum per year"
+                            hint="Credits stop once this limit is reached."
+                          >
+                            <input
+                              className="lp-input lp-input-sm"
+                              type="number"
+                              min={0}
+                              step="0.5"
+                              value={t.accrual?.yearlyCap ?? 0}
+                              disabled={!isCustomMode}
+                              onChange={(e) =>
+                                updateAccrual(t.code, { yearlyCap: Number(e.target.value) })
+                              }
+                            />
+                          </Field>
+                        ) : null}
                         {method === "full_if_min_present" ? (
                           <Field label="Minimum paid days in the month">
                             <input
@@ -611,13 +645,7 @@ export default function LeavePolicyManager() {
                         ) : null}
                       </div>
 
-                      <Toggle
-                        checked={Boolean(t.yearEnd?.lapseUnused)}
-                        disabled={!isCustomMode}
-                        onChange={(lapseUnused) => updateYearEnd(t.code, { lapseUnused })}
-                        label="Unused days expire at year end"
-                        hint="If off, leftover days can be carried into the next leave year."
-                      />
+
 
                       {t.code === "EL" ? (
                         <div className="lp-field-row">
@@ -683,6 +711,66 @@ export default function LeavePolicyManager() {
                       ) : null}
                     </>
                   ) : null}
+
+
+                  {t.code === "WFH" ? (
+                    <>
+                      <div className="lp-field-row">
+                        <Field
+                          label="WFH days per month"
+                          hint="Added to balance every month. Blank = unlimited."
+                        >
+                          <input
+                            className="lp-input lp-input-sm"
+                            type="number"
+                            min={0}
+                            step="1"
+                            placeholder="No limit"
+                            value={t.monthlyLimit ?? ""}
+                            disabled={!isCustomMode}
+                            onChange={(e) =>
+                              updateType(t.code, {
+                                monthlyLimit: asNumberOrNull(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+                        <Field
+                          label="WFH days per year"
+                          hint="Max per leave year. Blank = unlimited."
+                        >
+                          <input
+                            className="lp-input lp-input-sm"
+                            type="number"
+                            min={0}
+                            step="1"
+                            placeholder="No limit"
+                            value={t.annualLimit ?? ""}
+                            disabled={!isCustomMode}
+                            onChange={(e) =>
+                              updateType(t.code, {
+                                annualLimit: asNumberOrNull(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <Toggle
+                        checked={t.monthEnd?.lapseUnused !== false}
+                        disabled={!isCustomMode}
+                        onChange={(lapseUnused) => updateMonthEnd(t.code, { lapseUnused })}
+                        label="Unused days expire at month end"
+                        hint="If off, leftover WFH days carry into next month (yearly cap still applies)."
+                      />
+                    </>
+                  ) : null}
+                  <Toggle
+                    checked={Boolean(t.yearEnd?.lapseUnused)}
+                    disabled={!isCustomMode}
+                    onChange={(lapseUnused) => updateYearEnd(t.code, { lapseUnused })}
+                    label="Unused days expire at year end"
+                    hint="If off, leftover days can be carried into the next leave year."
+                  />
                 </div>
               ) : null}
             </article>
