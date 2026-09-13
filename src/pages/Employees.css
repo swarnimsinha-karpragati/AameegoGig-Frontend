@@ -875,6 +875,80 @@
   position: relative;
 }
 
+/* Lambe text wale columns (Department / Manager / State) — fix width me
+   ellipsis, hover par full value title tooltip me. td par max-width table
+   auto-layout me ignore hota hai, isliye andar span wrapper par lagaya hai. */
+.emp-truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.emp-truncate--dept {
+  max-width: 150px;
+}
+
+.emp-truncate--manager {
+  max-width: 130px;
+}
+
+.emp-truncate--state {
+  max-width: 110px;
+}
+
+/* Contact column — email upar, phone niche, dono par copy button */
+.emp-contact-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 170px;
+  max-width: 240px;
+}
+
+.emp-contact-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.emp-contact-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  color: #0f172a;
+  min-width: 0;
+}
+
+.emp-contact-line--phone .emp-contact-text {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.emp-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.emp-copy-btn:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
 /* Base style for the wrapper */
 .action-dropdown-wrapper {
   position: relative;

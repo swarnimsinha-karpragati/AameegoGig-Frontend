@@ -185,6 +185,13 @@ export const toggleAppLogin = async (id, enable) => {
 };
 
 /* =========================
+   RESEND CREDENTIALS (naya password + email, ya Excel ke liye loginInfo)
+========================= */
+export const resendCredentials = async (id) => {
+  return API.post(`/employees/${id}/send-credentials`);
+};
+
+/* =========================
    CONVERT CONSULTANT → EMPLOYEE (dedicated API)
 ========================= */
 export const convertToEmployee = async (id) => {

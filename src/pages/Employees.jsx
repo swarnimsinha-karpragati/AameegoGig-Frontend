@@ -11,6 +11,7 @@ import {
   deleteEmployee,
   toggleAppLogin,
   convertToEmployee,
+  resendCredentials,
 } from "../services/employeeService";
 
 import {
@@ -33,6 +34,9 @@ import {
   MoreVertical,
   Lock,
   LockOpen,
+  Mail,
+  Copy,
+  Check,
   TriangleAlert,
   OctagonX,
   UserCheck,
@@ -71,6 +75,7 @@ import ConfirmModal from "../components/ConfirmModal";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
 import { defaultSelectedModules } from "../utils/roles";
+import { downloadCredentialExcel } from "../utils/credentialExcel";
 import { getRoles } from "../services/roleService";
 import ConsultancyPayments from "../components/consultancy/ConsultancyPayments";
 import "../components/consultancy/ConsultancyPayments.css";
@@ -660,6 +665,10 @@ function Employees() {
   const [loginCredentials, setLoginCredentials] =
     useState(null);
 
+  const [sendingCreds, setSendingCreds] = useState(false);
+
+  const [copiedKey, setCopiedKey] = useState(null);
+
   const [showAddModal, setShowAddModal] =
     useState(false);
 
@@ -905,14 +914,39 @@ function Employees() {
     );
   };
 
+  // Contact (email/phone) copy — inline tick feedback, no alert popup
+  const handleCopyContact = async (empId, field, value) => {
+    if (!value) return;
+    const key = `${empId}-${field}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = value;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedKey(key);
+      setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 1500);
+    } catch (error) {
+      console.error("Copy failed", error);
+    }
+  };
+
   /* =========================
      ADD EMPLOYEE
   ========================= */
 
-  const showLoginCredentials = (employeeName, loginInfo) => {
+  const showLoginCredentials = (employeeName, loginInfo, employeeId) => {
     if (!loginInfo) return;
 
     setLoginCredentials({
+      employeeId: employeeId || loginInfo.employeeId || null,
       employeeName,
       email: loginInfo.email,
       role: loginInfo.role,
@@ -921,6 +955,41 @@ function Employees() {
       linkedExisting: Boolean(loginInfo.linkedExisting),
       phone: loginInfo.phone,
     });
+  };
+
+  // Credentials dobara bhejo — naya password banega; email hai to email par
+  // jayega, warna Excel download ke liye loginInfo milega.
+  const handleResendCredentials = async (employeeId, employeeName) => {
+    if (!employeeId || sendingCreds) return;
+    setSendingCreds(true);
+    try {
+      const res = await resendCredentials(employeeId);
+      const data = res.data || {};
+      if (data.loginInfo) {
+        showLoginCredentials(
+          employeeName || data.loginInfo.name,
+          data.loginInfo,
+          employeeId
+        );
+      }
+      if (!data.emailSent && data.loginInfo?.temporaryPassword) {
+        downloadCredentialExcel({
+          employeeName: employeeName || data.loginInfo.name,
+          email: data.loginInfo.email,
+          phone: data.loginInfo.phone,
+          role: data.loginInfo.role,
+          organizationCode: data.loginInfo.organizationCode,
+          temporaryPassword: data.loginInfo.temporaryPassword,
+        });
+      }
+      alert(data.message || "Credentials sent.");
+    } catch (error) {
+      alert(
+        error.response?.data?.message || "Failed to send credentials"
+      );
+    } finally {
+      setSendingCreds(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -997,7 +1066,7 @@ function Employees() {
       }
 
       if (data.loginInfo) {
-        showLoginCredentials(form.name, data.loginInfo);
+        showLoginCredentials(form.name, data.loginInfo, newEmployeeId);
       } else if (form.createAppLogin) {
         alert(
           data.message ||
@@ -1253,9 +1322,22 @@ function Employees() {
         return;
       }
       const payload = buildEmployeePayload(selectedEmployee, {
-        createAppLogin:
-          enableLoginOnUpdate || Boolean(selectedEmployee.hasAppLogin),
+        // Sirf tabhi naya login banao jab user ne explicitly enable kiya ho.
+        // Pehle se login wale employee ki normal edit par dobara loginInfo
+        // aata tha jisse "App Login Details" modal har baar khul jata tha.
+        createAppLogin: enableLoginOnUpdate,
       });
+
+      // Pehle se login enabled hai to role/modules/password sync ke liye
+      // explicitly bhejo taaki backend bina loginInfo modal trigger kiye update kar de.
+      if (selectedEmployee.hasAppLogin && !enableLoginOnUpdate) {
+        if (selectedEmployee.userRole) {
+          payload.userRole = selectedEmployee.userRole;
+        }
+        if (selectedEmployee.userPassword?.trim()) {
+          payload.userPassword = selectedEmployee.userPassword.trim();
+        }
+      }
 
       const formErrors = await collectEmployeeFormErrors(payload);
       if (Object.keys(formErrors).length) {
@@ -1291,8 +1373,14 @@ function Employees() {
         }
       }
 
-      if (res.data?.loginInfo) {
-        showLoginCredentials(selectedEmployee.name, res.data.loginInfo);
+      // Modal sirf tabhi dikhao jab naya login bana ho ya password reset hua ho.
+      // Plain edit par backend loginInfo nahi bhejta / created+password empty hota hai.
+      if (res.data?.loginInfo?.created || res.data?.loginInfo?.temporaryPassword) {
+        showLoginCredentials(
+          selectedEmployee.name,
+          res.data.loginInfo,
+          selectedEmployee._id
+        );
       } else if (enableLoginOnUpdate) {
         alert(
           res.data?.message ||
@@ -1837,7 +1925,7 @@ function Employees() {
                 <tr>
                   <th>Code</th>
                   <th>Name</th>
-                  <th>Phone</th>
+                  <th>Contact</th>
                   <th>Designation</th>
                   <th>{name} name</th>
                   <th>Reporting Manager</th>
@@ -1857,7 +1945,56 @@ function Employees() {
                       <td title={emp.name}>{emp.name}</td>
 
                       <td>
-                        {emp.phone || "-"}
+                        <div className="emp-contact-cell">
+                          <div
+                            className="emp-contact-line"
+                            title={emp.email || ""}
+                          >
+                            <span className="emp-contact-text">
+                              {emp.email || "-"}
+                            </span>
+                            {emp.email ? (
+                              <button
+                                type="button"
+                                className="emp-copy-btn"
+                                title="Copy email"
+                                onClick={() =>
+                                  handleCopyContact(emp._id, "email", emp.email)
+                                }
+                              >
+                                {copiedKey === `${emp._id}-email` ? (
+                                  <Check size={12} />
+                                ) : (
+                                  <Copy size={12} />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                          <div
+                            className="emp-contact-line emp-contact-line--phone"
+                            title={emp.phone || ""}
+                          >
+                            <span className="emp-contact-text">
+                              {emp.phone || "-"}
+                            </span>
+                            {emp.phone ? (
+                              <button
+                                type="button"
+                                className="emp-copy-btn"
+                                title="Copy phone"
+                                onClick={() =>
+                                  handleCopyContact(emp._id, "phone", emp.phone)
+                                }
+                              >
+                                {copiedKey === `${emp._id}-phone` ? (
+                                  <Check size={12} />
+                                ) : (
+                                  <Copy size={12} />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
                       </td>
 
                       <td title={emp.designation}>
@@ -1865,15 +2002,21 @@ function Employees() {
                       </td>
 
                       <td title={emp.department}>
-                        {emp.department || "-"}
+                        <span className="emp-truncate emp-truncate--dept">
+                          {emp.department || "-"}
+                        </span>
                       </td>
 
                       <td title={emp.managerId?.name}>
-                        {emp.managerId?.name || "-"}
+                        <span className="emp-truncate emp-truncate--manager">
+                          {emp.managerId?.name || "-"}
+                        </span>
                       </td>
 
                       <td title={emp.stateName}>
-                        {emp.stateName || "-"}
+                        <span className="emp-truncate emp-truncate--state">
+                          {emp.stateName || "-"}
+                        </span>
                       </td>
 
                       <td>
@@ -2058,23 +2201,34 @@ function Employees() {
                               </button>
 
                               {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenDropdownId(null);
-                                    handleToggleAppLogin(emp);
-                                  }}
-                                >
-                                  {emp.hasLoginEnabled ? (
-                                    <>
-                                      <Lock size={16} /> Disable App Login
-                                    </>
-                                  ) : (
-                                    <>
-                                      <LockOpen size={16} /> Enable App Login
-                                    </>
-                                  )}
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleToggleAppLogin(emp);
+                                    }}
+                                  >
+                                    {emp.hasLoginEnabled ? (
+                                      <>
+                                        <Lock size={16} /> Disable App Login
+                                      </>
+                                    ) : (
+                                      <>
+                                        <LockOpen size={16} /> Enable App Login
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleResendCredentials(emp._id, emp.name);
+                                    }}
+                                  >
+                                    <Mail size={16} /> Send Credentials
+                                  </button>
+                                </>
                               )}
 
                               <div className="dropdown-divider"></div>
@@ -2112,7 +2266,7 @@ function Employees() {
                 ) : (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="10"
                       className="empty-row"
                     >
                       No employees found.
@@ -3289,13 +3443,41 @@ function Employees() {
           onClose={() => setLoginCredentials(null)}
           size="md"
           footer={
-            <button
-              type="button"
-              className="emp-btn emp-btn--primary emp-btn--block"
-              onClick={() => setLoginCredentials(null)}
-            >
-              Done
-            </button>
+            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+              {loginCredentials.email ? (
+                <button
+                  type="button"
+                  className="emp-btn emp-btn--secondary"
+                  style={{ flex: 1 }}
+                  disabled={sendingCreds}
+                  onClick={() =>
+                    handleResendCredentials(
+                      loginCredentials.employeeId,
+                      loginCredentials.employeeName
+                    )
+                  }
+                >
+                  <Mail size={14} />{" "}
+                  {sendingCreds ? "Sending..." : "Send on Email"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="emp-btn emp-btn--secondary"
+                style={{ flex: 1 }}
+                onClick={() => downloadCredentialExcel(loginCredentials)}
+              >
+                <Download size={14} /> Download Excel
+              </button>
+              <button
+                type="button"
+                className="emp-btn emp-btn--primary"
+                style={{ flex: 1 }}
+                onClick={() => setLoginCredentials(null)}
+              >
+                Done
+              </button>
+            </div>
           }
         >
           <div className="credentials-body">
