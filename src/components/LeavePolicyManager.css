@@ -220,6 +220,43 @@
   align-items: start;
 }
 
+/* Accordion header button (card title + chevron) */
+.lp-type-toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.lp-type-toggle .lp-type-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.lp-type-chevron {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #94a3b8;
+  transition: transform 0.15s ease;
+}
+
+.lp-type-chevron.open {
+  transform: rotate(180deg);
+}
+
+.lp-type-toggle:hover .lp-type-chevron {
+  color: #1e6bd6;
+}
+
 .lp-type-titles p {
   margin: 0;
   font-size: 0.84rem;

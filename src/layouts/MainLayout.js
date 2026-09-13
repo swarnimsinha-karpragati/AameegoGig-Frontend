@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
-import { canAccessRoute, getRoleLabel, getStoredUser, roleHasPermission, SYSTEM_ROLE_NAMES } from "../utils/roles";
+import { canAccessRoute, getRoleLabel, getStoredUser, roleHasPermission, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer } from "../utils/roles";
+import { loadRoles, saveRoles } from "../utils/permissions";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
@@ -31,25 +32,53 @@ function MainLayout({ children }) {
   const [user, setUser] = useState(() => getStoredUser());
   const [avatarBroken, setAvatarBroken] = useState(false);
 
-  // Sync state dynamically whenever local storage changes
+  // Sync state dynamically whenever local storage changes.
+  // roles-updated also triggers a (throttled) server re-fetch so a Roles-page
+  // save made elsewhere is picked up instead of trusting stale local data.
   useEffect(() => {
     const refreshUser = () => {
       const storedUser = getStoredUser();
       setUser(storedUser);
       setAvatarBroken(false);
     };
+    const refreshRoles = () => {
+      refreshUser();
+      syncRolesFromServer();
+    };
 
-    window.addEventListener("storage", refreshUser);
+    window.addEventListener("storage", refreshRoles);
     window.addEventListener("user-updated", refreshUser);
-    window.addEventListener("roles-updated", refreshUser);
+    window.addEventListener("roles-updated", refreshRoles);
     refreshUser();
+    syncRolesFromServer();
 
     return () => {
-      window.removeEventListener("storage", refreshUser);
+      window.removeEventListener("storage", refreshRoles);
       window.removeEventListener("user-updated", refreshUser);
-      window.removeEventListener("roles-updated", refreshUser);
+      window.removeEventListener("roles-updated", refreshRoles);
     };
   }, []);
+
+  // Route (component) change → ALWAYS re-fetch roles/permissions from the
+  // server and apply when changed, so a newly granted tab/permission shows
+  // up immediately without a page refresh. Compare-first keeps this
+  // loop-free: an unchanged catalog is never re-saved, so no extra
+  // "roles-updated" event fires.
+  useEffect(() => {
+    let cancelled = false;
+    fetchRolesCatalog().then((merged) => {
+      if (cancelled || !merged) return;
+      if (rolesCatalogKey(merged) !== rolesCatalogKey(loadRoles())) {
+        saveRoles(merged); // fires "roles-updated" → refreshUser above re-renders
+      } else {
+        setUser(getStoredUser());
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // Compute fresh Vendor Code slug whenever user vendorName changes
   const vendorCode = useMemo(() => {

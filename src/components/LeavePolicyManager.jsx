@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import Button from "./Button";
 import "./LeavePolicyManager.css";
 import { getLeavePolicy, updateLeavePolicy } from "../services/leaveService";
@@ -164,6 +165,8 @@ const Field = ({ label, hint, children }) => (
 
 export default function LeavePolicyManager() {
   const [policy, setPolicy] = useState(null);
+  // Accordion: kaunsa leave-type card khula hai (default sab band)
+  const [expandedType, setExpandedType] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState({ type: "", message: "" });
@@ -432,26 +435,40 @@ export default function LeavePolicyManager() {
         {balanceTypes.map((t) => {
           const method = t.accrual?.method || "none";
           const meta = accrualMeta(method);
+          const isOpen = expandedType === t.code;
           return (
             <article
-              className={`lp-type-card ${t.enabled ? "" : "is-off"}`}
+              className={`lp-type-card ${t.enabled ? "" : "is-off"} ${isOpen ? "is-open" : ""}`}
               key={t.code}
               data-code={t.code}
             >
               <header className="lp-type-head">
                 <span className="lp-code">{t.code}</span>
-                <div className="lp-type-titles">
-                  <h3>{t.name || t.code}</h3>
-                  <p>{describeType(t)}</p>
-                </div>
-                <Toggle
-                  checked={Boolean(t.enabled)}
-                  onChange={(enabled) => updateType(t.code, { enabled })}
-                  label={t.enabled ? "On" : "Off"}
-                />
+                <button
+                  type="button"
+                  className="lp-type-toggle"
+                  aria-expanded={isOpen}
+                  onClick={() => setExpandedType((prev) => (prev === t.code ? null : t.code))}
+                >
+                  <span className="lp-type-titles">
+                    <h3>{t.name || t.code}</h3>
+                    <p>{describeType(t)}</p>
+                  </span>
+                  <ChevronDown
+                    size={18}
+                    className={`lp-type-chevron ${isOpen ? "open" : ""}`}
+                  />
+                </button>
+                <span onClick={(e) => e.stopPropagation()}>
+                  <Toggle
+                    checked={Boolean(t.enabled)}
+                    onChange={(enabled) => updateType(t.code, { enabled })}
+                    label={t.enabled ? "On" : "Off"}
+                  />
+                </span>
               </header>
 
-              {t.enabled ? (
+              {t.enabled && isOpen ? (
                 <div className="lp-type-body">
                   {t.code !== "WFH" && t.code !== "CO" ? (
                     <Toggle

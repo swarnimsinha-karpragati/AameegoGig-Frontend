@@ -1,4 +1,4 @@
-import { loadRoles, saveRoles, BASELINE_PERMISSIONS } from "./permissions";
+import { loadRoles, BASELINE_PERMISSIONS } from "./permissions";
 
 export const ROLES = {
   ADMIN: "Admin",
@@ -486,32 +486,68 @@ export const rolePermissionList = (role) => {
 // ------------------------------------------------------------
 // Server sync — keeps the local RBAC catalog (used by roleHasPermission)
 // fresh so a custom role logged in on any browser gets its permissions.
+//
+// fetchRolesCatalog() only READS (no save, no event) so route-change
+// callers can compare first and save only when something actually
+// changed — that keeps the "roles-updated" event loop-free.
+// syncRolesFromServer() fetches + saves (fires the event); concurrent
+// callers share one in-flight request.
 // ------------------------------------------------------------
 let rolesSyncPromise = null;
 
-export const syncRolesFromServer = () => {
+const mergeBackendRoles = (backendRoles) => {
+  const merged = { ...loadRoles() };
+  backendRoles.forEach((rb) => {
+    if (rb.isAdmin) return;
+    merged[rb.roleName] = {
+      displayName: rb.displayName || rb.roleName,
+      description: rb.description || "",
+      permissions: rb.permissions || [],
+      baselinePermissions: rb.baselinePermissions || BASELINE_PERMISSIONS,
+      isSystem: Boolean(rb.isSystem),
+      _id: rb._id,
+    };
+  });
+  return merged;
+};
+
+// Order-independent fingerprint: backend row order must never count as
+// a "change", otherwise every fetch would re-save and re-fire events.
+export const rolesCatalogKey = (roles) => {
+  const obj = roles || {};
+  return JSON.stringify(
+    Object.keys(obj)
+      .sort()
+      .map((k) => [
+        k,
+        [...((obj[k] && obj[k].permissions) || [])].sort(),
+        (obj[k] && obj[k].displayName) || "",
+      ])
+  );
+};
+
+export const fetchRolesCatalog = () => {
   if (rolesSyncPromise) return rolesSyncPromise;
   rolesSyncPromise = (async () => {
     try {
       const { getRoles } = await import("../services/roleService");
       const backendRoles = await getRoles();
-      if (!Array.isArray(backendRoles)) return;
-      const merged = { ...loadRoles() };
-      backendRoles.forEach((rb) => {
-        if (rb.isAdmin) return;
-        merged[rb.roleName] = {
-          displayName: rb.displayName || rb.roleName,
-          description: rb.description || "",
-          permissions: rb.permissions || [],
-          baselinePermissions: rb.baselinePermissions || BASELINE_PERMISSIONS,
-          isSystem: Boolean(rb.isSystem),
-          _id: rb._id,
-        };
-      });
-      saveRoles(merged);
+      if (!Array.isArray(backendRoles)) return null;
+      return mergeBackendRoles(backendRoles);
     } catch {
       /* backend unavailable — local catalog stays in charge */
+      return null;
+    } finally {
+      rolesSyncPromise = null;
     }
   })();
   return rolesSyncPromise;
+};
+
+export const syncRolesFromServer = async (force = false) => {
+  const merged = await fetchRolesCatalog();
+  if (merged && (force || rolesCatalogKey(merged) !== rolesCatalogKey(loadRoles()))) {
+    const { saveRoles } = await import("./permissions");
+    saveRoles(merged);
+  }
 };

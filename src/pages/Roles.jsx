@@ -25,7 +25,7 @@ import {
   updateRole,
   deleteRole,
 } from "../services/roleService";
-import { roleHasPermission } from "../utils/roles";
+import { roleHasPermission, syncRolesFromServer } from "../utils/roles";
 import ConfirmModal from "../components/ConfirmModal";
 import "./Roles.css";
 
@@ -347,6 +347,8 @@ export default function Roles() {
           persistRoles(refreshed);
         }
         setFeedback({ type: "success", message: `${roleDef.displayName || roleName} permissions updated successfully.` });
+        // Push the fresh catalog to every component immediately.
+        syncRolesFromServer(true);
       } catch (error) {
         console.error("Sync role permissions failed:", error);
         setFeedback({ type: "error", message: error.response?.data?.message || "Permissions could not be saved to the server." });
@@ -381,6 +383,7 @@ export default function Roles() {
               ? `Role deleted. ${reassigned} user${reassigned === 1 ? "" : "s"} moved to the Employee role.`
               : "Role deleted. Users on this role were moved to the Employee role."),
         });
+        syncRolesFromServer(true);
       } catch (error) {
         console.error("Sync role delete failed:", error);
         alert(error.response?.data?.message || "Role removed locally, but could not be deleted from the server.");
@@ -428,6 +431,7 @@ export default function Roles() {
             _id: dbRole._id,
           },
         });
+        syncRolesFromServer(true);
       }
     } catch (error) {
       console.error("Sync role create failed:", error);
