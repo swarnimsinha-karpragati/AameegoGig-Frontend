@@ -147,7 +147,12 @@ function LeaveInner() {
     SL: { total: "", used: "" },
     EL: { total: "", used: "" },
     CO: { total: "", used: "" },
+    WFH: { total: "", used: "" },
   });
+  // Per-employee WFH quota (monthlyLimit/annualLimit based) for the employee
+  // currently selected in Manage Leave Balances. The org-wide balances list
+  // only carries CL/SL/EL/CO buckets, so this is fetched separately.
+  const [selectedWfhQuota, setSelectedWfhQuota] = useState(null);
 
   const [leaveForm, setLeaveForm] = useState({
     employeeId: "",
@@ -381,9 +386,14 @@ function LeaveInner() {
     const enabled = leavePolicy?.types
       ?.filter((t) => t?.enabled && t?.hasBalance)
       ?.map((t) => t.code);
-    if (!enabled || enabled.length === 0) return ["CL", "SL", "EL", "CO"];
-    return enabled;
-  }, [leavePolicy]);
+    const base =
+      !enabled || enabled.length === 0 ? ["CL", "SL", "EL", "CO"] : [...enabled];
+    // WFH never has hasBalance=true (quota runs on monthlyLimit/annualLimit),
+    // but HR/Admin still need a Manage row for it — otherwise an employee
+    // showing "WFH 1/2" has no editable row after selection.
+    if (wfhEnabled && !base.includes("WFH")) base.push("WFH");
+    return base;
+  }, [leavePolicy, wfhEnabled]);
 
   const dateValidationError = useMemo(() => {
     if (!leaveForm.startDate || !leaveForm.endDate) return null;
@@ -535,7 +545,7 @@ function LeaveInner() {
 
   useEffect(() => {
     const selected = balances.find(
-      (b) => b.employeeId === selectedBalanceEmployee
+      (b) => String(b.employeeId) === String(selectedBalanceEmployee)
     );
     if (!selected) return;
     const nextForm = {};
@@ -544,6 +554,36 @@ function LeaveInner() {
     });
     setBalanceForm((prev) => ({ ...prev, ...nextForm }));
   }, [balances, selectedBalanceEmployee]);
+
+  // WFH quota is NOT part of the org-wide balances list (hasBalance=false),
+  // so fetch the selected employee's quota separately. This is what the
+  // employee sees as "WFH 1/2" on their panel.
+  useEffect(() => {
+    if (!selectedBalanceEmployee || !canEditBalances) {
+      setSelectedWfhQuota(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getLeaveBalances(selectedBalanceEmployee);
+        if (cancelled) return;
+        const quota = res?.wfhQuota || null;
+        setSelectedWfhQuota(quota);
+        if (quota && quota.total != null) {
+          setBalanceForm((prev) => ({
+            ...prev,
+            WFH: { total: quota.total ?? "", used: quota.used ?? "" },
+          }));
+        }
+      } catch {
+        if (!cancelled) setSelectedWfhQuota(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBalanceEmployee, canEditBalances]);
 
   /* ── Handlers ── */
   const handleCreateRequest = async (e, forSelf = false) => {
@@ -700,6 +740,13 @@ function LeaveInner() {
       leaveBalanceTypes.forEach((code) => {
         if (!["CL", "SL", "EL", "CO", "WFH"].includes(code)) return;
         if (!balanceForm?.[code]) return;
+        // WFH Used is derived from Pending+Approved requests — only Total
+        // (current month grant) is editable. Sending Used would be ignored.
+        if (code === "WFH") {
+          if (balanceForm.WFH?.total === "" || balanceForm.WFH?.total == null) return;
+          payload.WFH = { total: Number(balanceForm.WFH.total) };
+          return;
+        }
         payload[code] = {
           total: Number(balanceForm[code].total),
           used: Number(balanceForm[code].used),
@@ -1260,12 +1307,23 @@ function LeaveInner() {
                 controlClassName="leave-control"
               />
             </div>
+            {selectedWfhQuota && selectedWfhQuota.total != null ? (
+              <p className="leave-upload-hint" style={{ marginBottom: "8px" }}>
+                {selectedWfhQuota.remaining ?? 0} of {selectedWfhQuota.total} WFH days left
+                {selectedWfhQuota.monthlyLimit != null ? " this month" : " this year"}
+                {" "}(used {selectedWfhQuota.used ?? 0} — auto-counted from requests).
+              </p>
+            ) : null}
             <div className="leave-balance-grid">
-              {leaveBalanceTypes.map((type) => (
+              {leaveBalanceTypes.map((type) => {
+                const isWfhRow = type === "WFH";
+                return (
                 <div key={type} className="balance-row" data-code={type}>
                   <span className="balance-row__type">{type}</span>
                   <div className="leave-field balance-row__field">
-                    <label htmlFor={`balance-${type}-total`}>Total</label>
+                    <label htmlFor={`balance-${type}-total`}>
+                      {isWfhRow ? "Total (this month)" : "Total"}
+                    </label>
                     <input
                       id={`balance-${type}-total`}
                       type="number"
@@ -1288,6 +1346,8 @@ function LeaveInner() {
                       className="leave-control"
                       placeholder="0"
                       value={balanceForm[type]?.used ?? ""}
+                      disabled={isWfhRow}
+                      title={isWfhRow ? "WFH used is auto-counted from Pending + Approved requests" : undefined}
                       onChange={(e) =>
                         setBalanceForm((prev) => ({
                           ...prev,
@@ -1297,7 +1357,8 @@ function LeaveInner() {
                     />
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <div className="leave-form-actions">
               <Button type="submit">Save Balances</Button>
