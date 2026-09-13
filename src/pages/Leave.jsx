@@ -109,8 +109,14 @@ function LeaveSummaryCards({ summary, labels }) {
   );
 }
 
-const getRequestKind = (leaveType, requestType) =>
-  leaveType === "WFH" || requestType === "WFH" ? "WFH" : "Leave";
+const getRequestKind = (leaveType, requestType, isCoCredit = false) => {
+  if (leaveType === "WFH" || requestType === "WFH") return "WFH";
+  if (isCoCredit || leaveType === "CO-Credit") return "CO Credit";
+  return "Leave";
+};
+
+const coTypeLabel = (item) =>
+  item?.isCoCredit ? "CO (Credit)" : item?.leaveType;
 
 /* ===========================
    INNER COMPONENT (uses useToast)
@@ -162,6 +168,9 @@ function LeaveInner() {
     endDate: "",
     reason: "",
   });
+  // CO purpose: "leave" (take comp-off) vs "credit" (worked on an off-day,
+  // earn comp-off on approval). Only used when leaveType === CO.
+  const [coPurpose, setCoPurpose] = useState("leave");
 
   const [medicalDocFile, setMedicalDocFile] = useState(null);
   const [editLeaveRecord, setEditLeaveRecord] = useState(null);
@@ -612,6 +621,11 @@ function LeaveInner() {
       if (payload.requestType === "WFH") {
         payload.leaveType = "WFH";
       }
+      const isCoCreditSubmit =
+        payload.leaveType === "CO" && payload.requestType !== "WFH" && coPurpose === "credit";
+      if (isCoCreditSubmit) {
+        payload.isCoCredit = true;
+      }
       if (forSelf || !canManageLeave) {
         delete payload.employeeId;
       }
@@ -627,7 +641,8 @@ function LeaveInner() {
         await createLeaveRequest(payload);
       }
 
-      toast.success(`${getRequestKind(payload.leaveType, payload.requestType)} request submitted successfully`);
+      toast.success(`${getRequestKind(payload.leaveType, payload.requestType, isCoCreditSubmit)} request submitted successfully`);
+      setCoPurpose("leave");
       setLeaveForm((prev) => ({
         ...prev,
         leaveType:
@@ -647,9 +662,9 @@ function LeaveInner() {
     }
   };
 
-  const handleDecision = (id, action, employeeName, leaveType, requestType) => {
+  const handleDecision = (id, action, employeeName, leaveType, requestType, isCoCredit = false) => {
     const isApprove = action === "approve";
-    const kind = getRequestKind(leaveType, requestType);
+    const kind = getRequestKind(leaveType, requestType, isCoCredit);
     openModal({
       title: `${isApprove ? "Approve" : "Reject"} ${kind} Request`,
       message: isApprove
@@ -680,7 +695,7 @@ function LeaveInner() {
 
   const handleCancel = (item) => {
     let cancelReasonInput = "";
-    const kind = getRequestKind(item.leaveType, item.requestType);
+    const kind = getRequestKind(item.leaveType, item.requestType, item.isCoCredit);
 
     openModal({
       title: `Cancel ${kind} Request`,
@@ -835,6 +850,7 @@ function LeaveInner() {
                 requestType: next === "WFH" ? "WFH" : "Leave",
               }));
               if (next !== "SL") setMedicalDocFile(null);
+              if (next !== "CO") setCoPurpose("leave");
             }}
           >
             {(leaveForm.requestType === "WFH"
@@ -847,6 +863,37 @@ function LeaveInner() {
             ))}
           </select>
         </div>
+
+        {leaveForm.leaveType === "CO" && leaveForm.requestType !== "WFH" ? (
+          <div className="leave-field leave-field--full">
+            <label>CO Purpose</label>
+            <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+              <label style={{ display: "flex", gap: "6px", alignItems: "center", fontWeight: 400 }}>
+                <input
+                  type="radio"
+                  name="co-purpose"
+                  checked={coPurpose === "leave"}
+                  onChange={() => setCoPurpose("leave")}
+                />
+                Take leave
+              </label>
+              <label style={{ display: "flex", gap: "6px", alignItems: "center", fontWeight: 400 }}>
+                <input
+                  type="radio"
+                  name="co-purpose"
+                  checked={coPurpose === "credit"}
+                  onChange={() => setCoPurpose("credit")}
+                />
+                Earn credit (worked on off-day)
+              </label>
+            </div>
+            {coPurpose === "credit" ? (
+              <p className="leave-upload-hint">
+                Approval will add these days to the CO balance.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {leaveForm.requestType === "WFH" && wfhQuotaText ? (
           <div className="leave-field leave-field--full">
@@ -1006,7 +1053,7 @@ function LeaveInner() {
             id="leave-reason"
             type="text"
             className="leave-control"
-            placeholder="Reason for leave"
+            placeholder={leaveForm.leaveType === "CO" && coPurpose === "credit" ? "Which off-day did you work?" : "Reason for leave"}
             value={leaveForm.reason}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, reason: e.target.value }))
@@ -1040,7 +1087,7 @@ function LeaveInner() {
             <div>
               <strong>{item.employeeId?.name}</strong>
               <p>
-                {item.leaveType} •{" "}
+                {coTypeLabel(item)} •{" "}
                 {new Date(item.startDate).toLocaleDateString()} -{" "}
                 {new Date(item.endDate).toLocaleDateString()}
               </p>
@@ -1091,7 +1138,7 @@ function LeaveInner() {
                     {mode === "all" || mode === "approve" ? (
                       <td>{empName || "-"}</td>
                     ) : null}
-                    <td>{item.leaveType}</td>
+                    <td>{coTypeLabel(item)}</td>
                     <td>
                       {new Date(item.startDate).toLocaleDateString()} -{" "}
                       {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
@@ -1170,7 +1217,8 @@ function LeaveInner() {
                                       "approve",
                                       empName,
                                       item.leaveType,
-                                      item.requestType
+                                      item.requestType,
+                                      item.isCoCredit
                                     )
                                   }
                                 />
@@ -1185,7 +1233,8 @@ function LeaveInner() {
                                       "reject",
                                       empName,
                                       item.leaveType,
-                                      item.requestType
+                                      item.requestType,
+                                      item.isCoCredit
                                     )
                                   }
                                 />
@@ -1309,54 +1358,54 @@ function LeaveInner() {
             </div>
             {selectedWfhQuota && selectedWfhQuota.total != null ? (
               <p className="leave-upload-hint" style={{ marginBottom: "8px" }}>
-                {selectedWfhQuota.remaining ?? 0} of {selectedWfhQuota.total} WFH days left
+                WFH: {selectedWfhQuota.remaining ?? 0} of {selectedWfhQuota.total} left
                 {selectedWfhQuota.monthlyLimit != null ? " this month" : " this year"}
-                {" "}(used {selectedWfhQuota.used ?? 0} — auto-counted from requests).
+                {" "}(used {selectedWfhQuota.used ?? 0}, counted from requests).
               </p>
             ) : null}
             <div className="leave-balance-grid">
               {leaveBalanceTypes.map((type) => {
                 const isWfhRow = type === "WFH";
                 return (
-                <div key={type} className="balance-row" data-code={type}>
-                  <span className="balance-row__type">{type}</span>
-                  <div className="leave-field balance-row__field">
-                    <label htmlFor={`balance-${type}-total`}>
-                      {isWfhRow ? "Total (this month)" : "Total"}
-                    </label>
-                    <input
-                      id={`balance-${type}-total`}
-                      type="number"
-                      className="leave-control"
-                      placeholder="0"
-                      value={balanceForm[type]?.total ?? ""}
-                      onChange={(e) =>
-                        setBalanceForm((prev) => ({
-                          ...prev,
-                          [type]: { ...prev[type], total: e.target.value },
-                        }))
-                      }
-                    />
+                  <div key={type} className="balance-row" data-code={type}>
+                    <span className="balance-row__type">{type}</span>
+                    <div className="leave-field balance-row__field">
+                      <label htmlFor={`balance-${type}-total`}>
+                        {isWfhRow ? "Total (this month)" : "Total"}
+                      </label>
+                      <input
+                        id={`balance-${type}-total`}
+                        type="number"
+                        className="leave-control"
+                        placeholder="0"
+                        value={balanceForm[type]?.total ?? ""}
+                        onChange={(e) =>
+                          setBalanceForm((prev) => ({
+                            ...prev,
+                            [type]: { ...prev[type], total: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="leave-field balance-row__field">
+                      <label htmlFor={`balance-${type}-used`}>Used</label>
+                      <input
+                        id={`balance-${type}-used`}
+                        type="number"
+                        className="leave-control"
+                        placeholder="0"
+                        value={balanceForm[type]?.used ?? ""}
+                        disabled={isWfhRow}
+                        title={isWfhRow ? "WFH used is auto-counted from Pending + Approved requests" : undefined}
+                        onChange={(e) =>
+                          setBalanceForm((prev) => ({
+                            ...prev,
+                            [type]: { ...prev[type], used: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
-                  <div className="leave-field balance-row__field">
-                    <label htmlFor={`balance-${type}-used`}>Used</label>
-                    <input
-                      id={`balance-${type}-used`}
-                      type="number"
-                      className="leave-control"
-                      placeholder="0"
-                      value={balanceForm[type]?.used ?? ""}
-                      disabled={isWfhRow}
-                      title={isWfhRow ? "WFH used is auto-counted from Pending + Approved requests" : undefined}
-                      onChange={(e) =>
-                        setBalanceForm((prev) => ({
-                          ...prev,
-                          [type]: { ...prev[type], used: e.target.value },
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
                 );
               })}
             </div>
@@ -1462,7 +1511,7 @@ function LeaveInner() {
             {items.map((item) => (
               <tr key={item._id}>
                 <td>{item.employeeId?.name || "-"}</td>
-                <td>{item.leaveType}</td>
+                <td>{coTypeLabel(item)}</td>
                 <td>
                   {new Date(item.startDate).toLocaleDateString()} -{" "}
                   {new Date(item.endDate).toLocaleDateString()}

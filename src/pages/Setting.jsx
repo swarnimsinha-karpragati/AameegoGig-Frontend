@@ -95,7 +95,11 @@ export default function Settings() {
 
   // URL (?tab=...) se active tab restore — refresh par wahi tab khula rahe.
   // Agar URL wala tab permission ki wajah se nahi hai to pehle available tab par le jao.
+  // NOTE: user (role) load hone se pehle tabs adhure hote hain (sirf profile/
+  // security), isliye tab tak fallback/URL-overwrite mat karo — warna refresh
+  // pe hamesha profile khul jayega.
   useEffect(() => {
+    if (!user) return;
     if (tabs.length === 0) return;
     if (tabFromUrl && tabs.some((t) => t.id === tabFromUrl)) {
       if (activeTab !== tabFromUrl) setActiveTab(tabFromUrl);
@@ -105,7 +109,7 @@ export default function Settings() {
       setSearchParams({ tab: fallback }, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs, tabFromUrl]);
+  }, [tabs, tabFromUrl, user]);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);

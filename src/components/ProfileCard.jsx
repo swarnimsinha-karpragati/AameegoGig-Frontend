@@ -574,19 +574,21 @@ export default function ProfileCard() {
         </div>
       </div>
 
-      <div className="button-row">
-        <Button
-          className="secondary-btn"
-          onClick={handleDiscard}
-          disabled={saving}
-        >
-          Discard
-        </Button>
+      {!isFormDisabled ? (
+        <div className="button-row">
+          <Button
+            className="secondary-btn"
+            onClick={handleDiscard}
+            disabled={saving}
+          >
+            Discard
+          </Button>
 
-        <Button onClick={handleSave} disabled={saving || isFormDisabled}>
-          {saving ? "Saving…" : "Save Changes"}
-        </Button>
-      </div>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        </div>
+      ) : null}
 
       {/* Popup */}
       {showOptions && (
