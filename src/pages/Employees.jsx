@@ -612,7 +612,7 @@ function Employees() {
   const [statusFilter, setStatusFilter] = useState(urlStatus);
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
-  // Accordion: kaunsi menu category khuli hai (ek time pe ek)
+  // Accordion: which menu category is open (one at a time)
   const [expandedMenuSection, setExpandedMenuSection] = useState("general");
 
   const toggleMenuSection = (key) => {
@@ -1049,8 +1049,8 @@ function Employees() {
     });
   };
 
-  // Credentials dobara bhejo — naya password banega; email hai to email par
-  // jayega, warna Excel download ke liye loginInfo milega.
+  // Resend credentials — a new password is generated; sent by email if present,
+  // otherwise loginInfo is provided for the Excel download.
   const handleResendCredentials = async (employeeId, employeeName) => {
     if (!employeeId || sendingCreds) return;
     setSendingCreds(true);
@@ -1310,7 +1310,7 @@ function Employees() {
       // Refresh table
       fetchEmployees();
 
-      // ❌ modal close mat karo
+      // ❌ do not close the modal
       // setShowUploadModal(false);
 
     } catch (error) {
@@ -1418,14 +1418,14 @@ function Employees() {
         return;
       }
       const payload = buildEmployeePayload(selectedEmployee, {
-        // Sirf tabhi naya login banao jab user ne explicitly enable kiya ho.
-        // Pehle se login wale employee ki normal edit par dobara loginInfo
-        // aata tha jisse "App Login Details" modal har baar khul jata tha.
+        // Only create a new login when the user explicitly enabled it.
+        // Normal edits of employees that already had login used to return loginInfo
+        // again, which reopened the "App Login Details" modal every time.
         createAppLogin: enableLoginOnUpdate,
       });
 
-      // Pehle se login enabled hai to role/modules/password sync ke liye
-      // explicitly bhejo taaki backend bina loginInfo modal trigger kiye update kar de.
+      // When login is already enabled, send role/modules/password explicitly for sync
+      // so the backend updates without triggering the loginInfo modal.
       if (selectedEmployee.hasAppLogin && !enableLoginOnUpdate) {
         if (selectedEmployee.userRole) {
           payload.userRole = selectedEmployee.userRole;
@@ -1469,8 +1469,8 @@ function Employees() {
         }
       }
 
-      // Modal sirf tabhi dikhao jab naya login bana ho ya password reset hua ho.
-      // Plain edit par backend loginInfo nahi bhejta / created+password empty hota hai.
+      // Show the modal only when a new login was created or the password was reset.
+      // Plain edits don't return loginInfo from the backend / created+password stays empty.
       if (res.data?.loginInfo?.created || res.data?.loginInfo?.temporaryPassword) {
         showLoginCredentials(
           selectedEmployee.name,

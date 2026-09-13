@@ -875,9 +875,9 @@
   position: relative;
 }
 
-/* Lambe text wale columns (Department / Manager / State) — fix width me
-   ellipsis, hover par full value title tooltip me. td par max-width table
-   auto-layout me ignore hota hai, isliye andar span wrapper par lagaya hai. */
+/* Long-text columns (Department / Manager / State) — ellipsis at a fixed width,
+   full value in the title tooltip on hover. max-width on td is ignored by table
+   auto-layout, so it is applied to the inner span wrapper instead. */
 .emp-truncate {
   display: block;
   overflow: hidden;

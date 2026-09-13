@@ -307,7 +307,7 @@ const HolidayManager = ({ vendorId }) => {
       { wch: 35 }  // Description
     ];
 
-    // Instructions ko 6 columns tak merge karna taaki text neat dikhe
+    // Merge the instructions across 6 columns so the text looks neat
     ws["!merges"] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // Row 1
       { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }, // Row 2

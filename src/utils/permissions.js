@@ -37,7 +37,7 @@ export const BASELINE_PERMISSIONS = [
 export const BASELINE_GROUPS = [
   {
     label: "Self-Service (Auto)",
-    note: "Har role ko default milta hai — change karna zaroori nahi",
+    note: "Included by default for every role — no changes needed",
     perms: BASELINE_PERMISSIONS.map((key) => ({ key })),
   },
 ];

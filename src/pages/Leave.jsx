@@ -1356,13 +1356,6 @@ function LeaveInner() {
                 controlClassName="leave-control"
               />
             </div>
-            {selectedWfhQuota && selectedWfhQuota.total != null ? (
-              <p className="leave-upload-hint" style={{ marginBottom: "8px" }}>
-                WFH: {selectedWfhQuota.remaining ?? 0} of {selectedWfhQuota.total} left
-                {selectedWfhQuota.monthlyLimit != null ? " this month" : " this year"}
-                {" "}(used {selectedWfhQuota.used ?? 0}, counted from requests).
-              </p>
-            ) : null}
             <div className="leave-balance-grid">
               {leaveBalanceTypes.map((type) => {
                 const isWfhRow = type === "WFH";
@@ -1431,17 +1424,13 @@ function LeaveInner() {
             {(dashboard?.balances || []).map((b) => (
               <div className="leave-balance-item" key={b.type}>
                 <span>{b.label}</span>
-                <strong>
-                  {b.remaining} / {b.total}
-                </strong>
+                <strong>{b.remaining}</strong>
               </div>
             ))}
             {wfhQuota && wfhQuota.total != null ? (
               <div className="leave-balance-item" key="WFH">
                 <span>Work From Home (WFH)</span>
-                <strong>
-                  {wfhQuota.remaining} / {wfhQuota.total}
-                </strong>
+                <strong>{wfhQuota.remaining}</strong>
               </div>
             ) : null}
           </>

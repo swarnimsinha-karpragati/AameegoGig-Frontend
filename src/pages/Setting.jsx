@@ -53,8 +53,8 @@ export default function Settings() {
     setUser(parsedUser);
   }, []);
 
-  // Permission-aware tabs — sirf wahi tab dikhega jiska permission user ke pass hai.
-  // Profile (Profile + Notifications side me) / Security hamesha visible.
+  // Permission-aware tabs — only tabs the user has permission for are shown.
+  // Profile (Profile + Notifications beside it) / Security are always visible.
   const tabs = useMemo(() => {
     const role = user?.role;
     const list = [{ id: "profile", label: "Profile", icon: User }];
@@ -93,11 +93,11 @@ export default function Settings() {
     return list;
   }, [user?.role]);
 
-  // URL (?tab=...) se active tab restore — refresh par wahi tab khula rahe.
-  // Agar URL wala tab permission ki wajah se nahi hai to pehle available tab par le jao.
-  // NOTE: user (role) load hone se pehle tabs adhure hote hain (sirf profile/
-  // security), isliye tab tak fallback/URL-overwrite mat karo — warna refresh
-  // pe hamesha profile khul jayega.
+  // Restore the active tab from the URL (?tab=...) — keep the same tab open on refresh.
+  // If the URL tab is unavailable due to permissions, go to the first available tab.
+  // NOTE: before the user (role) loads, tabs are incomplete (only profile/
+  // security), so don't apply fallback/URL-overwrite until then — otherwise refresh
+  // would always open profile.
   useEffect(() => {
     if (!user) return;
     if (tabs.length === 0) return;

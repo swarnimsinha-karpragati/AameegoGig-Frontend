@@ -189,7 +189,7 @@ export const toggleAppLogin = async (id, enable) => {
 };
 
 /* =========================
-   RESEND CREDENTIALS (naya password + email, ya Excel ke liye loginInfo)
+   RESEND CREDENTIALS (new password + email, or loginInfo for Excel download)
 ========================= */
 export const resendCredentials = async (id) => {
   return API.post(`/employees/${id}/send-credentials`);

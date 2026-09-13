@@ -20,34 +20,6 @@ const MONTHS = [
   { value: 12, label: "December" },
 ];
 
-const ACCRUAL_OPTIONS = [
-  {
-    value: "upfront_annual",
-    label: "Full quota on 1st day of the year",
-    hint: "Employees get the yearly limit immediately (e.g. 12 days on 1 Jan).",
-  },
-  {
-    value: "fixed_monthly",
-    label: "Fixed days every month",
-    hint: "The same number of days is added at the start of each month.",
-  },
-  {
-    value: "prorate_paid_days",
-    label: "Based on days present / paid",
-    hint: "Monthly credit is reduced if the employee was not paid for all working days.",
-  },
-  {
-    value: "full_if_min_present",
-    label: "Full month only if attendance is enough",
-    hint: "They get the full monthly credit only when they meet the minimum paid days.",
-  },
-  {
-    value: "none",
-    label: "No automatic credit",
-    hint: "Days are added only when HR credits them (typical for compensatory off).",
-  },
-];
-
 const BALANCE_CODES = ["CL", "SL", "EL", "CO", "WFH"];
 
 const asNumberOrNull = (v) => {
@@ -58,8 +30,7 @@ const asNumberOrNull = (v) => {
 
 const monthLabel = (month) => MONTHS.find((m) => m.value === Number(month))?.label || "January";
 
-const accrualMeta = (method) =>
-  ACCRUAL_OPTIONS.find((o) => o.value === method) || ACCRUAL_OPTIONS[ACCRUAL_OPTIONS.length - 1];
+const STANDARD_CODES = ["CL", "SL", "EL"];
 
 const needsMonthlyCredit = (method) =>
   ["fixed_monthly", "prorate_paid_days", "full_if_min_present"].includes(method);
@@ -93,6 +64,30 @@ const describeType = (t) => {
         : "No days granted upfront — employees earn CO through approved credit requests (worked on off-days).";
     if (t.yearEnd?.lapseUnused) return `${earnPart} Unused days expire at year end.`;
     return `${earnPart} Unused days can be carried forward.`;
+  }
+
+  // Standard 18-day policy: CL/SL/EL fixed 0.5/mo.
+  // "How they earn" is fixed — carry-forward (lapse vs carry) is configurable.
+  if (STANDARD_CODES.includes(t.code)) {
+    const monthly = t.accrual?.monthlyCredit ?? 0.5;
+    const cap = t.accrual?.yearlyCap ?? 6;
+    const parts = [
+      `${monthly} day${monthly === 1 ? "" : "s"} added each month, up to ${cap} per year.`,
+    ];
+    if (t.yearEnd?.lapseUnused !== false) {
+      parts.push("Unused days expire at year end.");
+    } else if (t.yearEnd?.carryForwardMax != null && t.yearEnd.carryForwardMax !== "") {
+      parts.push(`Up to ${t.yearEnd.carryForwardMax} unused days can be carried to next year.`);
+    } else {
+      parts.push("Unused days can be carried forward.");
+    }
+    if (t.code === "EL") {
+      parts.push("EL starts only after probation (probation: only CL + SL).");
+    }
+    if (t.code === "SL" && t.documents?.requiredWhenDaysGt != null) {
+      parts.push(`Medical document needed when sick leave is more than ${t.documents.requiredWhenDaysGt} day${t.documents.requiredWhenDaysGt === 1 ? "" : "s"}.`);
+    }
+    return parts.join(" ");
   }
 
   const method = t.accrual?.method;
@@ -165,7 +160,7 @@ const Field = ({ label, hint, children }) => (
 
 export default function LeavePolicyManager() {
   const [policy, setPolicy] = useState(null);
-  // Accordion: kaunsa leave-type card khula hai (default sab band)
+  // Accordion: which leave-type card is open (all closed by default)
   const [expandedType, setExpandedType] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -279,18 +274,6 @@ export default function LeavePolicyManager() {
     });
   };
 
-  const updateEncashment = (code, patch) => {
-    setPolicy((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        types: (prev.types || []).map((t) =>
-          t.code === code ? { ...t, encashment: { ...(t.encashment || {}), ...patch } } : t
-        ),
-      };
-    });
-  };
-
   const formatSyncMessage = (prefix, res) => {
     const n = res?.sync?.employeeCount;
     if (typeof n === "number") {
@@ -308,20 +291,49 @@ export default function LeavePolicyManager() {
         templateKey: "custom",
         yearStartMonth: asNumberOrNull(yearStartMonth) ?? 1,
         yearStartDay: asNumberOrNull(yearStartDay) ?? 1,
-        types: (policy.types || []).map((t) => ({
-          ...t,
-          // WFH never uses balance tracking — quota runs on its two fields.
-          hasBalance: t.code === "WFH" ? false : t.code === "CO" ? true : t.hasBalance,
-          // CO is earned-only: no upfront grant, no accrual method.
-          accrual:
-            t.code === "CO"
-              ? { ...(t.accrual || {}), method: "none", monthlyCredit: 0, minPresentDays: 0 }
-              : { ...(t.accrual || {}) },
-          yearEnd: { ...(t.yearEnd || {}) },
-          monthEnd: { ...(t.monthEnd || {}) },
-          documents: { ...(t.documents || {}) },
-          encashment: { ...(t.encashment || {}) },
-        })),
+        types: (policy.types || []).map((t) => {
+          // Standard CL/SL/EL: force fixed 0.5/mo, no encashment.
+          // Carry-forward (lapse vs carry + limit) passes through from UI.
+          if (STANDARD_CODES.includes(t.code)) {
+            return {
+              ...t,
+              hasBalance: true,
+              accrual: {
+                ...(t.accrual || {}),
+                method: "fixed_monthly",
+                monthlyCredit: Number(t.accrual?.monthlyCredit ?? 0.5),
+                yearlyCap: Number(t.accrual?.yearlyCap ?? 6),
+                minPresentDays: 0,
+              },
+              yearEnd: {
+                ...(t.yearEnd || {}),
+                lapseUnused: t.yearEnd?.lapseUnused !== false,
+                carryForwardMax: asNumberOrNull(t.yearEnd?.carryForwardMax),
+                lapseExcessCarry: false,
+              },
+              monthEnd: { ...(t.monthEnd || {}) },
+              documents:
+                t.code === "SL"
+                  ? { ...(t.documents || {}) }
+                  : { requiredWhenDaysGt: null },
+              encashment: { enabled: false, on: null, base: null },
+            };
+          }
+          return {
+            ...t,
+            // WFH never uses balance tracking — quota runs on its two fields.
+            hasBalance: t.code === "WFH" ? false : t.code === "CO" ? true : t.hasBalance,
+            // CO is earned-only: no upfront grant, no accrual method.
+            accrual:
+              t.code === "CO"
+                ? { ...(t.accrual || {}), method: "none", monthlyCredit: 0, minPresentDays: 0 }
+                : { ...(t.accrual || {}) },
+            yearEnd: { ...(t.yearEnd || {}) },
+            monthEnd: { ...(t.monthEnd || {}) },
+            documents: { ...(t.documents || {}) },
+            encashment: { ...(t.encashment || {}) },
+          };
+        }),
       };
 
       const res = await updateLeavePolicy(payload);
@@ -434,7 +446,7 @@ export default function LeavePolicyManager() {
       <div className="lp-types">
         {balanceTypes.map((t) => {
           const method = t.accrual?.method || "none";
-          const meta = accrualMeta(method);
+          const isStandard = STANDARD_CODES.includes(t.code);
           const isOpen = expandedType === t.code;
           return (
             <article
@@ -470,7 +482,7 @@ export default function LeavePolicyManager() {
 
               {t.enabled && isOpen ? (
                 <div className="lp-type-body">
-                  {t.code !== "WFH" && t.code !== "CO" ? (
+                  {!isStandard && t.code !== "WFH" && t.code !== "CO" ? (
                     <Toggle
                       checked={Boolean(t.hasBalance)}
                       onChange={(hasBalance) => updateType(t.code, { hasBalance })}
@@ -481,20 +493,11 @@ export default function LeavePolicyManager() {
 
                   {t.hasBalance ? (
                     <>
-                      {t.code !== "WFH" && t.code !== "CO" ? (
-                        <Field label="How they earn days" hint={meta.hint}>
-                          <select
-                            className="lp-input"
-                            value={method}
-                            onChange={(e) => updateAccrual(t.code, { method: e.target.value })}
-                          >
-                            {ACCRUAL_OPTIONS.map((opt) => (
-                              <option value={opt.value} key={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
+                      {isStandard ? (
+                        <p className="lp-field-hint" style={{ marginBottom: "8px" }}>
+                          Standard policy: 0.5 day added every month, up to 6 per year.
+                          {t.code === "EL" ? " EL starts only after probation." : ""}
+                        </p>
                       ) : null}
 
                       {t.code === "CO" ? (
@@ -505,7 +508,7 @@ export default function LeavePolicyManager() {
                       ) : null}
 
                       <div className="lp-field-row">
-                        {needsMonthlyCredit(method) && t.code !== "WFH" && t.code !== "CO" ? (
+                        {(isStandard || (needsMonthlyCredit(method) && t.code !== "WFH" && t.code !== "CO")) ? (
                           <Field
                             label="Days each month"
                             hint="Added after each completed month."
@@ -515,7 +518,7 @@ export default function LeavePolicyManager() {
                               type="number"
                               min={0}
                               step="0.5"
-                              value={t.accrual?.monthlyCredit ?? 0}
+                              value={t.accrual?.monthlyCredit ?? 0.5}
                               onChange={(e) =>
                                 updateAccrual(t.code, { monthlyCredit: Number(e.target.value) })
                               }
@@ -539,7 +542,7 @@ export default function LeavePolicyManager() {
                             />
                           </Field>
                         ) : null}
-                        {method === "full_if_min_present" && t.code !== "CO" ? (
+                        {!isStandard && method === "full_if_min_present" && t.code !== "CO" ? (
                           <Field label="Minimum paid days in the month">
                             <input
                               className="lp-input lp-input-sm"
@@ -557,13 +560,11 @@ export default function LeavePolicyManager() {
                         ) : null}
                       </div>
 
-
-
                       {t.code === "EL" ? (
                         <div className="lp-field-row">
                           <Field
                             label="Carry to next year, up to"
-                            hint="Days above this limit are lost."
+                            hint="Days above this limit are lost. Only used when unused days do NOT expire."
                           >
                             <input
                               className="lp-input lp-input-sm"
@@ -579,21 +580,6 @@ export default function LeavePolicyManager() {
                             />
                           </Field>
                         </div>
-                      ) : null}
-
-                      {t.code === "EL" ? (
-                        <Toggle
-                          checked={Boolean(t.encashment?.enabled)}
-                          onChange={(enabled) =>
-                            updateEncashment(t.code, {
-                              enabled,
-                              on: enabled ? "fnf" : null,
-                              base: enabled ? "gross" : null,
-                            })
-                          }
-                          label="Pay remaining earned leave at full & final"
-                          hint="Amount = leftover EL days × (monthly gross ÷ 30)."
-                        />
                       ) : null}
 
                       {t.code === "SL" ? (
@@ -670,12 +656,14 @@ export default function LeavePolicyManager() {
                       />
                     </>
                   ) : null}
-                  <Toggle
-                    checked={Boolean(t.yearEnd?.lapseUnused)}
-                    onChange={(lapseUnused) => updateYearEnd(t.code, { lapseUnused })}
-                    label="Unused days expire at year end"
-                    hint="If off, leftover days can be carried into the next leave year."
-                  />
+                  {t.code !== "WFH" ? (
+                    <Toggle
+                      checked={t.yearEnd?.lapseUnused !== false}
+                      onChange={(lapseUnused) => updateYearEnd(t.code, { lapseUnused })}
+                      label="Unused days expire at year end"
+                      hint="If off, leftover days can be carried into the next leave year."
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </article>
