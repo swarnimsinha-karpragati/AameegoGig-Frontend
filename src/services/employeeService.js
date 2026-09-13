@@ -49,6 +49,10 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "otherAllowance",
   "professionalTax",
   "payType",
+  "employmentStatus",
+  "probationStartDate",
+  "probationEndDate",
+  "confirmationDate",
 ];
 
 export const buildEmployeePayload = (data, extras = {}) => {

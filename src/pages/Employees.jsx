@@ -40,8 +40,14 @@ import {
   TriangleAlert,
   OctagonX,
   UserCheck,
+  Clock,
+  ChevronDown,
 } from "lucide-react";
-import { getStoredUser, canManageEmployees, roleHasPermission } from "../utils/roles";
+import { getStoredUser, canManageEmployees, canManageProbation, roleHasPermission } from "../utils/roles";
+import {
+  confirmProbationEmployee,
+  extendProbationEmployee,
+} from "../services/probationService";
 
 
 import {
@@ -163,6 +169,8 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Employment",
     fields: [
       { key: "client", label: "Client" },
+      { key: "employmentStatus", label: "Employment Status", type: "select-employment-status", hint: "New joiners start on probation by default" },
+      { key: "probationEndDate", label: "Probation End Date", type: "date" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
       { key: "payType", label: "Pay Type", type: "select-paytype" },
     ],
@@ -316,6 +324,20 @@ function EmployeeFormFields({
       );
     }
 
+    if (field.type === "select-employment-status") {
+      return (
+        <>
+          <select {...common} value={values.employmentStatus || "probation"}>
+            <option value="probation">Probation</option>
+            <option value="full-time">Full-time</option>
+          </select>
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
+        </>
+      );
+    }
+
     if (field.type === "select-paytype") {
       return (
         <>
@@ -417,7 +439,7 @@ function EmployeeFormFields({
           hint={
             field.key === "email" && emailRequired
               ? "Required for app login"
-              : undefined
+              : field.hint
           }
         >
           {renderInput(field)}
@@ -590,6 +612,76 @@ function Employees() {
   const [statusFilter, setStatusFilter] = useState(urlStatus);
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  // Accordion: kaunsi menu category khuli hai (ek time pe ek)
+  const [expandedMenuSection, setExpandedMenuSection] = useState("general");
+
+  const toggleMenuSection = (key) => {
+    setExpandedMenuSection((prev) => (prev === key ? null : key));
+  };
+
+  const renderMenuSectionToggle = (key, label, danger = false) => (
+    <button
+      type="button"
+      className={`dropdown-section-toggle${danger ? " dropdown-section-toggle--danger" : ""}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        toggleMenuSection(key);
+      }}
+      aria-expanded={expandedMenuSection === key}
+    >
+      <span>{label}</span>
+      <ChevronDown
+        size={14}
+        className={expandedMenuSection === key ? "open" : ""}
+      />
+    </button>
+  );
+
+  // Probation confirm / extend state
+  const [confirmProbationTarget, setConfirmProbationTarget] = useState(null);
+  const [probationActionLoading, setProbationActionLoading] = useState(false);
+  const [extendEmp, setExtendEmp] = useState(null);
+  const [extendMonths, setExtendMonths] = useState(1);
+  const [extendRemark, setExtendRemark] = useState("");
+
+  const handleConfirmProbation = (emp) => {
+    setConfirmProbationTarget(emp);
+  };
+
+  const handleConfirmProbationSubmit = async () => {
+    if (!confirmProbationTarget || probationActionLoading) return;
+    setProbationActionLoading(true);
+    try {
+      await confirmProbationEmployee(confirmProbationTarget._id);
+      setConfirmProbationTarget(null);
+      fetchEmployees();
+    } catch (e) {
+      alert(e?.response?.data?.message || "Could not mark employee as full-time");
+    } finally {
+      setProbationActionLoading(false);
+    }
+  };
+
+  const handleExtendProbationSubmit = async () => {
+    if (!extendEmp || probationActionLoading) return;
+    const months = Number(extendMonths);
+    if (!months || months < 1 || months > 12) {
+      alert("Extension must be between 1 and 12 months");
+      return;
+    }
+    setProbationActionLoading(true);
+    try {
+      await extendProbationEmployee(extendEmp._id, months, extendRemark);
+      setExtendEmp(null);
+      setExtendMonths(1);
+      setExtendRemark("");
+      fetchEmployees();
+    } catch (e) {
+      alert(e?.response?.data?.message || "Could not extend probation");
+    } finally {
+      setProbationActionLoading(false);
+    }
+  };
 
   // Convert consultant → employee modal state
   const [convertTarget, setConvertTarget] = useState(null);
@@ -1259,6 +1351,10 @@ function Employees() {
       emp.relievingDate
         ? emp.relievingDate.split("T")[0]
         : "",
+    employmentStatus: emp.employmentStatus || "probation",
+    probationStartDate: emp.probationStartDate ? emp.probationStartDate.split("T")[0] : "",
+    probationEndDate: emp.probationEndDate ? emp.probationEndDate.split("T")[0] : "",
+    confirmationDate: emp.confirmationDate ? emp.confirmationDate.split("T")[0] : "",
     basicSalary: emp.basicSalary ?? "",
     hra: emp.hra ?? "",
     conveyanceAllowance: emp.conveyanceAllowance ?? "",
@@ -1880,6 +1976,8 @@ function Employees() {
               >
                 <option value="">All Employees</option>
                 <option value="active">Active Employees</option>
+                <option value="probation">Probation Employees</option>
+                <option value="full-time">Full-time Employees</option>
                 <option value="inactive">Inactive Employees</option>
                 <option value="exited">Exited Employees</option>
                 <option value="deleted">Deleted Employees</option>
@@ -2044,24 +2142,37 @@ function Employees() {
                       </td>
 
                       <td>
-                        <span
-                          className={`status-badge ${emp.isDeleted
-                            ? "deleted"
-                            : emp.isExited
-                              ? "exited"
-                              : emp.isActive
-                                ? "active"
-                                : "inactive"
-                            }`}
-                        >
-                          {emp.isDeleted
-                            ? "Deleted"
-                            : emp.isExited
-                              ? "Exited"
-                              : emp.isActive
-                                ? "Active"
-                                : "Inactive"}
-                        </span>
+                        <div className="emp-status-cell">
+                          <span
+                            className={`status-badge ${emp.isDeleted
+                              ? "deleted"
+                              : emp.isExited
+                                ? "exited"
+                                : emp.isActive
+                                  ? "active"
+                                  : "inactive"
+                              }`}
+                          >
+                            {emp.isDeleted
+                              ? "Deleted"
+                              : emp.isExited
+                                ? "Exited"
+                                : emp.isActive
+                                  ? "Active"
+                                  : "Inactive"}
+                          </span>
+                          {!emp.isDeleted && !emp.isExited ? (
+                            emp.employmentStatus === "probation" ? (
+                              <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
+                                Probation
+                              </span>
+                            ) : (
+                              <span className="status-badge full-time" title="Confirmed employee">
+                                Full-time
+                              </span>
+                            )
+                          ) : null}
+                        </div>
                       </td>
 
                       <td>
@@ -2070,6 +2181,9 @@ function Employees() {
                             className="emp-grid-btn dropdown-toggle"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (openDropdownId !== emp._id) {
+                                setExpandedMenuSection("general");
+                              }
                               setOpenDropdownId(
                                 openDropdownId === emp._id ? null : emp._id
                               );
@@ -2080,29 +2194,78 @@ function Employees() {
 
                           {openDropdownId === emp._id && (
                             <div className="action-dropdown-menu">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleView(emp);
-                                }}
-                              >
-                                <Eye size={16} /> View Profile
-                              </button>
+                              {renderMenuSectionToggle("general", "General")}
+                              {expandedMenuSection === "general" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleView(emp);
+                                    }}
+                                  >
+                                    <Eye size={16} /> View Profile
+                                  </button>
 
-                              {(directoryType === "employee" ? canManage : canManageConsultancy) && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenDropdownId(null);
-                                    handleEdit(emp);
-                                  }}
-                                >
-                                  <Pencil size={16} /> Edit Details
-                                </button>
+                                  {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenDropdownId(null);
+                                        handleEdit(emp);
+                                      }}
+                                    >
+                                      <Pencil size={16} /> Edit Details
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setOpenDropdownId(null);
+                                      setSelectedEmployeeForDocs(emp);
+                                      await loadEmployeeDocuments(emp._id);
+                                      setShowDocumentsModal(true);
+                                    }}
+                                  >
+                                    <FolderOpen size={16} /> Documents
+                                  </button>
+                                </>
                               )}
 
-                              {canLetters && (
+                              {directoryType === "employee" && canManageProbation(user?.role) && emp.employmentStatus === "probation" && !emp.isDeleted && !emp.isExited ? (
+                                <>
+                                  {renderMenuSectionToggle("probation", "Probation")}
+                                  {expandedMenuSection === "probation" && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenDropdownId(null);
+                                          handleConfirmProbation(emp);
+                                        }}
+                                      >
+                                        <UserCheck size={16} /> Mark Full-time
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenDropdownId(null);
+                                          setExtendEmp(emp);
+                                          setExtendMonths(1);
+                                          setExtendRemark("");
+                                        }}
+                                      >
+                                        <Clock size={16} /> Extend Probation
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : null}
+
+                              {canLetters && renderMenuSectionToggle("letters", "Letters")}
+
+                              {canLetters && expandedMenuSection === "letters" && (
                                 <button
                                   type="button"
                                   disabled={!emp.isActive}
@@ -2128,7 +2291,7 @@ function Employees() {
                                 </button>
                               )}
 
-                              {canLetters && (
+                              {canLetters && expandedMenuSection === "letters" && (
                                 <button
                                   type="button"
                                   disabled={!emp.isActive}
@@ -2155,7 +2318,7 @@ function Employees() {
                                 </button>
                               )}
 
-                              {canLetters && (
+                              {canLetters && expandedMenuSection === "letters" && (
                                 <button
                                   type="button"
                                   disabled={!emp.isActive}
@@ -2188,19 +2351,9 @@ function Employees() {
                                 </button>
                               )}
 
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  setOpenDropdownId(null);
-                                  setSelectedEmployeeForDocs(emp);
-                                  await loadEmployeeDocuments(emp._id);
-                                  setShowDocumentsModal(true);
-                                }}
-                              >
-                                <FolderOpen size={16} /> Documents
-                              </button>
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && renderMenuSectionToggle("access", "Access")}
 
-                              {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && (
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && expandedMenuSection === "access" && (
                                 <>
                                   <button
                                     type="button"
@@ -2231,9 +2384,9 @@ function Employees() {
                                 </>
                               )}
 
-                              <div className="dropdown-divider"></div>
+                              {directoryType === "consultancy" && canManageConsultancy && renderMenuSectionToggle("convert", "Convert")}
 
-                              {directoryType === "consultancy" && canManageConsultancy && (
+                              {directoryType === "consultancy" && canManageConsultancy && expandedMenuSection === "convert" && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2245,7 +2398,9 @@ function Employees() {
                                 </button>
                               )}
 
-                              {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && renderMenuSectionToggle("danger", "Danger", true)}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && expandedMenuSection === "danger" && (
                                 <button
                                   type="button"
                                   className="dropdown-item-danger"
@@ -2632,6 +2787,37 @@ function Employees() {
                           : "-"}
                       </span>
                     </div>
+
+                    <div>
+                      <label>Employment Status</label>
+                      <span>
+                        {selectedEmployee.employmentStatus === "probation" ? (
+                          <span className="status-badge probation">Probation</span>
+                        ) : (
+                          <span className="status-badge full-time">Full-time</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Probation End Date</label>
+                      <span>
+                        {selectedEmployee.probationEndDate
+                          ? new Date(
+                            selectedEmployee.probationEndDate
+                          ).toLocaleDateString()
+                          : "-"}
+                      </span>
+                    </div>
+
+                    {selectedEmployee.confirmationDate ? (
+                      <div>
+                        <label>Confirmation Date</label>
+                        <span>
+                          {new Date(selectedEmployee.confirmationDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ) : null}
 
                     <div>
                       <label>Relieving Date</label>
@@ -3519,6 +3705,64 @@ function Employees() {
                   : "Login enabled with the password you set."}
               </p>
             )}
+          </div>
+        </EmpModal>
+      ) : null}
+
+      <ConfirmModal
+        open={!!confirmProbationTarget}
+        title="Mark as Full-time?"
+        variant="success"
+        confirmLabel="Mark Full-time"
+        loading={probationActionLoading}
+        onCancel={() => !probationActionLoading && setConfirmProbationTarget(null)}
+        onConfirm={handleConfirmProbationSubmit}
+        message={
+          confirmProbationTarget ? (
+            <span>
+              {confirmProbationTarget.name} ({confirmProbationTarget.employeeCode})
+              will be confirmed and marked as <strong>full-time</strong>.
+            </span>
+          ) : null
+        }
+      />
+
+      {extendEmp ? (
+        <EmpModal title={`Extend Probation — ${extendEmp.name}`} onClose={() => !probationActionLoading && setExtendEmp(null)}>
+          <div className="probation-row">
+            <FormField label="Extra months" htmlFor="probation-extend-months">
+              <input
+                id="probation-extend-months"
+                type="number"
+                min={1}
+                max={12}
+                step={1}
+                value={extendMonths}
+                onChange={(e) => setExtendMonths(e.target.value)}
+              />
+            </FormField>
+            <FormField label="Remark (optional)" htmlFor="probation-extend-remark" fullWidth>
+              <input
+                id="probation-extend-remark"
+                type="text"
+                placeholder="Reason for extension"
+                value={extendRemark}
+                onChange={(e) => setExtendRemark(e.target.value)}
+              />
+            </FormField>
+          </div>
+          {extendEmp.probationEndDate ? (
+            <p className="emp-field-hint">
+              Current end: {new Date(extendEmp.probationEndDate).toLocaleDateString()}
+            </p>
+          ) : null}
+          <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+            <Button type="button" disabled={probationActionLoading} onClick={handleExtendProbationSubmit}>
+              {probationActionLoading ? "Saving…" : "Extend Probation"}
+            </Button>
+            <Button type="button" variant="secondary" disabled={probationActionLoading} onClick={() => setExtendEmp(null)}>
+              Cancel
+            </Button>
           </div>
         </EmpModal>
       ) : null}

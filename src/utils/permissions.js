@@ -9,7 +9,7 @@
 // Permission key format: module:feature  (e.g. "payroll:manage")
 // ============================================================
 
-export const RBAC_VERSION = 2;
+export const RBAC_VERSION = 3;
 
 // ---------- Employee baseline (everyone gets these) ----------
 export const BASELINE_PERMISSIONS = [
@@ -83,6 +83,8 @@ export const ELEVATED_PERMISSIONS = [
   "settings:leave-policy",
   "settings:salary",
   "settings:ot",
+  "probation:manage",
+  "settings:probation",
   "roles:manage",
 ];
 
@@ -185,6 +187,14 @@ export const ELEVATED_GROUPS = [
       { key: "advance-loan:view-all", label: "View All Requests" },
       { key: "advance-loan:statistics", label: "View Loan Statistics" },
       { key: "loan-config:manage", label: "Manage Loan Configuration" },
+    ],
+  },
+  {
+    key: "probation",
+    label: "Probation",
+    perms: [
+      { key: "probation:manage", label: "Manage Probation (Confirm / Extend Employees)" },
+      { key: "settings:probation", label: "Manage Probation Policy (Duration & Notice Period)" },
     ],
   },
   {

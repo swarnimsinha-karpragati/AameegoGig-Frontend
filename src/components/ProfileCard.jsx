@@ -72,6 +72,8 @@ export default function ProfileCard() {
   const [department, setDepartment] = useState("");
   const [role, setRole] = useState("");
   const [reportingManager, setReportingManager] = useState(null);
+  const [employmentStatus, setEmploymentStatus] = useState(null);
+  const [probationEndDate, setProbationEndDate] = useState(null);
   const [isFormDisabled, setIsFormDisabled] = useState(true);
   const [showOptions, setShowOptions] = useState(false);
   const galleryInputRef = useRef(null);
@@ -106,6 +108,8 @@ export default function ProfileCard() {
     setDepartment(data.department || "");
     setRole(data.role || "");
     setReportingManager(data.reportingManager || null);
+    setEmploymentStatus(data.employmentStatus || null);
+    setProbationEndDate(data.probationEndDate || null);
     setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
   };
 
@@ -297,6 +301,16 @@ export default function ProfileCard() {
       <div className="profile-content">
         {loadError ? <p className="profile-error">{loadError}</p> : null}
         {actionError ? <p className="profile-error">{actionError}</p> : null}
+        {employmentStatus === "probation" ? (
+          <div className="probation-banner probation-banner--on">
+            You are on probation
+            {probationEndDate ? ` till ${new Date(probationEndDate).toLocaleDateString()}` : ""}
+          </div>
+        ) : employmentStatus === "full-time" ? (
+          <div className="probation-banner probation-banner--done">
+            Full-time employee
+          </div>
+        ) : null}
 
         <div className="profile-avatar-section">
           <div className="profile-avatar">

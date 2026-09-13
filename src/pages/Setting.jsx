@@ -11,6 +11,7 @@ import {
   Wallet,
   Timer,
   Lock,
+  UserCheck,
   // ShieldCheck, // Roles tab commented
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ import HolidayManager from "../components/HolidayManager";
 import WeekOffManager from "../components/WeekOffManager";
 // import PayrollConfigCard from "../components/PayrollConfigCard";
 import LeavePolicyManager from "../components/LeavePolicyManager";
+import ProbationPolicyManager from "../components/ProbationPolicyManager";
 // import PayrollConfigCard from "../components/PayrollConfigCard";
 import OrgProfileCard from "../components/OrgProfileCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
@@ -67,6 +69,12 @@ export default function Settings() {
     }
     if (roleHasPermission(role, "settings:leave-policy")) {
       list.push({ id: "leave-policy", label: "Leave Policy", icon: FileText });
+    }
+    if (
+      roleHasPermission(role, "settings:probation") ||
+      roleHasPermission(role, "probation:manage")
+    ) {
+      list.push({ id: "probation", label: "Probation", icon: UserCheck });
     }
     if (
       roleHasPermission(role, "payroll:structure") ||
@@ -180,6 +188,8 @@ export default function Settings() {
           )}
 
           {activeTab === "leave-policy" && <LeavePolicyManager />}
+
+          {activeTab === "probation" && <ProbationPolicyManager />}
 
           {activeTab === "salary" && (
             <div className="settings-bottom-grid">

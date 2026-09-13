@@ -363,6 +363,13 @@ export const canMarkAttendance = (role) =>
 export const canManageEmployees = (role) =>
   roleHasPermission(role, "employees:manage");
 
+export const canManageProbation = (role) =>
+  roleHasPermission(role, "probation:manage");
+
+export const canManageProbationPolicy = (role) =>
+  roleHasPermission(role, "settings:probation") ||
+  roleHasPermission(role, "probation:manage");
+
 export const canEditLeaveBalances = (role) =>
   roleHasPermission(role, "leave:balances");
 
@@ -428,6 +435,10 @@ export const roleHasPermission = (role, permissionKey) => {
 
   // Implied / parent permission checks
   if (permissionKey === "employees:view" && perms.includes("employees:manage")) return true;
+  // Probation rides on the employee-management grant so setups created
+  // before probation:manage existed keep working without a migration.
+  if (permissionKey === "probation:manage" && perms.includes("employees:manage")) return true;
+  if (permissionKey === "settings:probation" && (perms.includes("probation:manage") || perms.includes("employees:manage"))) return true;
   if (permissionKey === "consultancy:view" && perms.includes("consultancy:manage")) return true;
   if (permissionKey === "departments:view" && perms.includes("departments:manage")) return true;
   if (
