@@ -349,16 +349,6 @@ function LeaveInner() {
     );
   }, [dashboard]);
 
-  const wfhQuotaText = useMemo(() => {
-    if (!wfhQuota || wfhQuota.total == null) return null;
-    // Single monthly balance (e.g. "1 of 2 WFH days left this month") —
-    // never mixed with the annual cap, so it always reads logically.
-    if (wfhQuota.monthlyLimit != null) {
-      return `${wfhQuota.remaining ?? 0} of ${wfhQuota.total} WFH days left this month`;
-    }
-    return `${wfhQuota.remaining ?? 0} of ${wfhQuota.total} WFH days left this year`;
-  }, [wfhQuota]);
-
   const leaveTypeOptions = useMemo(() => {
     const fallback = [
       { code: "CL", label: "Casual Leave (CL)" },
@@ -426,26 +416,6 @@ function LeaveInner() {
     leaveForm.requestType,
     computedLeaveDays,
   ]);
-
-  // Client-side WFH quota check (server re-validates on apply + approve).
-  const wfhLimitError = useMemo(() => {
-    if (leaveForm.requestType !== "WFH") return null;
-    if (computedLeaveDays == null || computedLeaveDays < 1) return null;
-    if (!wfhQuota) return null;
-    if (
-      wfhQuota.monthlyLimit != null &&
-      (wfhQuota.remainingThisMonth ?? 0) < computedLeaveDays
-    ) {
-      return `Monthly WFH limit exceeded. Only ${wfhQuota.remainingThisMonth ?? 0} of ${wfhQuota.monthlyLimit} days left this month.`;
-    }
-    if (
-      wfhQuota.annualLimit != null &&
-      (wfhQuota.remainingThisYear ?? 0) < computedLeaveDays
-    ) {
-      return `Annual WFH limit exceeded. Only ${wfhQuota.remainingThisYear ?? 0} of ${wfhQuota.annualLimit} days left this year.`;
-    }
-    return null;
-  }, [leaveForm.requestType, computedLeaveDays, wfhQuota]);
 
   const leaveApiErrorMessage = (err, fallback) => {
     const data = err?.response?.data;
@@ -602,10 +572,7 @@ function LeaveInner() {
         toast.error(dateValidationError.message);
         return;
       }
-      if (wfhLimitError) {
-        toast.error(wfhLimitError);
-        return;
-      }
+      // WFH quota is validated server-side on submit (backend is source of truth).
       if (!leaveForm.reason?.trim()) {
         toast.error("Please enter a reason for this request");
         return;
@@ -693,46 +660,20 @@ function LeaveInner() {
     });
   };
 
+  // Pending requests can be cancelled by the employee.
+  // Approved requests cannot be cancelled (balance already deducted).
   const handleCancel = (item) => {
-    let cancelReasonInput = "";
     const kind = getRequestKind(item.leaveType, item.requestType, item.isCoCredit);
 
     openModal({
       title: `Cancel ${kind} Request`,
-      message: (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <p>
-            Are you sure you want to cancel this {kind} request? This action cannot be undone.
-          </p>
-          {item.status === "Approved" && (
-            <div style={{ marginTop: "10px" }}>
-              <label style={{ display: "block", marginBottom: "4px", fontWeight: 600 }}>
-                Cancellation Reason <span style={{ color: "red" }}>*</span>
-              </label>
-              <textarea
-                className="leave-input"
-                rows={3}
-                placeholder="Enter reason for cancelling..."
-                style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
-                onChange={(e) => {
-                  cancelReasonInput = e.target.value;
-                }}
-              />
-            </div>
-          )}
-        </div>
-      ),
+      message: `Are you sure you want to cancel this ${kind} request? This action cannot be undone.`,
       confirmLabel: "Cancel Request",
       variant: "warning",
       onConfirm: async () => {
-        if (item.status === "Approved" && !cancelReasonInput.trim()) {
-          toast.error("Please provide a reason for cancelling");
-          return;
-        }
-
         setActionLoading(true);
         try {
-          await cancelLeaveRequest(item._id, { cancelReason: cancelReasonInput.trim() });
+          await cancelLeaveRequest(item._id, {});
           toast.success(`${kind} request cancelled successfully`);
           loadData();
         } catch (err) {
@@ -892,26 +833,6 @@ function LeaveInner() {
                 Approval will add these days to the CO balance.
               </p>
             ) : null}
-          </div>
-        ) : null}
-
-        {leaveForm.requestType === "WFH" && wfhQuotaText ? (
-          <div className="leave-field leave-field--full">
-            <p className="leave-upload-hint">{wfhQuotaText}</p>
-          </div>
-        ) : null}
-        {wfhLimitError ? (
-          <div
-            className="leave-date-feedback leave-date-feedback--error leave-field--full"
-            role="alert"
-            aria-live="polite"
-          >
-            <div className="leave-date-feedback__body">
-              <strong className="leave-date-feedback__title">
-                WFH limit exceeded
-              </strong>
-              <p className="leave-date-feedback__text">{wfhLimitError}</p>
-            </div>
           </div>
         ) : null}
 
@@ -1191,14 +1112,13 @@ function LeaveInner() {
                           item.status === "Pending";
                         const showCancel =
                           mode === "employee" &&
-                          (item.status === "Pending" ||
-                            item.status === "Approved") &&
+                          item.status === "Pending" &&
                           new Date(item.startDate).setHours(0, 0, 0, 0) >=
                           new Date().setHours(0, 0, 0, 0);
                         const showEdit =
                           canDirectEditLeave && item.status !== "Cancelled";
 
-                        if (!showApprove && !showCancel && !showEdit) {
+                        if (!showApprove && !showEdit && !showCancel) {
                           return "-";
                         }
 
@@ -1580,15 +1500,20 @@ function LeaveInner() {
           </div>
         ) : null}
         <LeaveSummaryCards
-          summary={orgSummary}
+          summary={{ ...orgSummary, totalBalance: orgSummary?.avgBalance ?? orgSummary?.totalBalance }}
           labels={
             isAdminView
-              ? undefined
+              ? {
+                wfh: "WFH Days (This Month)",
+                leave: "Leave Days (This Month)",
+                pending: "Pending Requests",
+                balance: "Avg Balance",
+              }
               : {
                 wfh: "WFH Days (Org)",
                 leave: "Leave Days (Org)",
                 pending: "Pending (Org)",
-                balance: "Total Balance (Org)",
+                balance: "Avg Balance (Org)",
               }
           }
         />
@@ -1638,18 +1563,14 @@ function LeaveInner() {
           balance: "Team Balance",
         }}
       />
-      <div className="leave-layout-grid">
-        {renderCreateRequestForm(employees, true)}
-        {renderUpcomingList(upcoming, "No upcoming team leave")}
-      </div>
-      <div className="leave-layout-grid">
-        {renderRequestsTable({
-          title: "Pending Approvals — My Team",
-          items: teamPendingList,
-          mode: "approve",
-        })}
-        {renderBalanceEditor(balances, true)}
-      </div>
+      {/* Team-lead view: only Upcoming + Pending Approvals + Team Requests.
+          Create Request and Team Leave Balances are hidden here. */}
+      {renderUpcomingList(upcoming, "No upcoming team leave")}
+      {renderRequestsTable({
+        title: "Pending Approvals — My Team",
+        items: teamPendingList,
+        mode: "approve",
+      })}
       {renderAllRequestsTable(teamRequestsForBlock, "Team Requests")}
     </>
   );
@@ -1687,18 +1608,14 @@ function LeaveInner() {
               balance: "Team Balance",
             }}
           />
-          <div className="leave-layout-grid">
-            {renderCreateRequestForm(employees, true)}
-            {renderUpcomingList(upcoming, "No upcoming team leave")}
-          </div>
-          <div className="leave-layout-grid">
-            {renderRequestsTable({
-              title: "Pending Approvals — My Team",
-              items: teamPendingList,
-              mode: "approve",
-            })}
-            {renderBalanceEditor(balances, true)}
-          </div>
+          {/* Team-lead view: only Upcoming + Pending Approvals + Team Requests.
+              Create Request and Team Leave Balances are hidden here. */}
+          {renderUpcomingList(upcoming, "No upcoming team leave")}
+          {renderRequestsTable({
+            title: "Pending Approvals — My Team",
+            items: teamPendingList,
+            mode: "approve",
+          })}
           {renderAllRequestsTable(teamRequestsForBlock, "Team Requests")}
         </section>
       ) : null}

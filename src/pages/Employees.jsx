@@ -1049,21 +1049,14 @@ function Employees() {
     });
   };
 
-  // Resend credentials — a new password is generated; sent by email if present,
-  // otherwise loginInfo is provided for the Excel download.
+  // Resend credentials — no modal. Email hai to mail chala jayega,
+  // sirf phone hai to direct Excel download ho jayega.
   const handleResendCredentials = async (employeeId, employeeName) => {
     if (!employeeId || sendingCreds) return;
     setSendingCreds(true);
     try {
       const res = await resendCredentials(employeeId);
       const data = res.data || {};
-      if (data.loginInfo) {
-        showLoginCredentials(
-          employeeName || data.loginInfo.name,
-          data.loginInfo,
-          employeeId
-        );
-      }
       if (!data.emailSent && data.loginInfo?.temporaryPassword) {
         downloadCredentialExcel({
           employeeName: employeeName || data.loginInfo.name,
