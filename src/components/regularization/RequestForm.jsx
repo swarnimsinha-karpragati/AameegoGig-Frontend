@@ -13,7 +13,7 @@ import { getLeaveRequests } from "../../services/leaveService";
 import { createRegularizationRequest } from "../../services/regularizationService";
 import { validateFields } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
-import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { getDayPartLabel, getLeaveTypeLabel, isHalfDayPart } from "../../utils/leaveLabels";
 import {
   formatAttendanceHours,
   formatRegDate,
@@ -52,6 +52,7 @@ const emptyLeave = {
   reason: "",
   checkIn: "",
   checkOut: "",
+  dayPart: "full",
 };
 
 export const buildApiErrorMessage = (error, fallback) =>
@@ -202,6 +203,21 @@ export default function RequestForm({ toast, onSubmitted }) {
   );
   const isExistingLeaveCorrection = Boolean(leave.leaveRequestId);
 
+  const isSingleLeaveDay = Boolean(
+    leave.startDate && leave.endDate && leave.startDate === leave.endDate
+  );
+  // Day Type halves exist only for a single day — multi-day ranges reset.
+  useEffect(() => {
+    if (
+      leave.startDate &&
+      leave.endDate &&
+      leave.startDate !== leave.endDate &&
+      leave.dayPart !== "full"
+    ) {
+      setLeave((previous) => ({ ...previous, dayPart: "full" }));
+    }
+  }, [leave.startDate, leave.endDate, leave.dayPart]);
+
   useEffect(() => {
     let active = true;
     getLeaveRequests()
@@ -306,6 +322,10 @@ export default function RequestForm({ toast, onSubmitted }) {
         maxLength: 5,
       },
     ]);
+    const isSingleCalendarDay =
+      Boolean(leave.startDate) &&
+      Boolean(leave.endDate) &&
+      leave.startDate === leave.endDate;
     if (leave.startDate && leave.endDate && leave.endDate < leave.startDate) {
       errors.endDate = "End date must be on or after start date";
     } else if (!isCoLeave && !isPresentLeave && workingDays === 0) {
@@ -313,6 +333,9 @@ export default function RequestForm({ toast, onSubmitted }) {
     }
     if (isPresentLeave && !leave.leaveRequestId) {
       errors.leaveRequestId = "Select an existing leave to mark as Present";
+    }
+    if (isHalfDayPart(leave.dayPart) && !isSingleCalendarDay) {
+      errors.endDate = "Half-day correction is allowed only for a single day";
     }
     if (isPresentLeave && leave.checkIn && leave.checkOut) {
       const inMinutes = minutesFromTime(leave.checkIn);
@@ -370,6 +393,8 @@ export default function RequestForm({ toast, onSubmitted }) {
       setLeave((previous) => ({ ...previous, leaveRequestId: "" }));
       return;
     }
+    const selectedStart = toDateInput(selected.startDate);
+    const selectedEnd = toDateInput(selected.endDate);
     setLeave((previous) => ({
       ...previous,
       leaveRequestId: id,
@@ -379,9 +404,14 @@ export default function RequestForm({ toast, onSubmitted }) {
         previous.leaveType === "Present"
           ? "Present"
           : selected.leaveType || "CL",
-      startDate: toDateInput(selected.startDate),
-      endDate: toDateInput(selected.endDate),
+      startDate: selectedStart,
+      endDate: selectedEnd,
       reason: selected.reason || "",
+      // Halves exist only for a single day.
+      dayPart:
+        selectedStart && selectedStart === selectedEnd
+          ? previous.dayPart || "full"
+          : "full",
     }));
   };
 
@@ -414,6 +444,7 @@ export default function RequestForm({ toast, onSubmitted }) {
               startDate: leave.startDate,
               endDate: leave.endDate,
               reason: leave.reason.trim(),
+              dayPart: leave.dayPart || "full",
               // Used when the day is corrected as Present (attendance times).
               checkIn: leave.leaveType === "Present" ? leave.checkIn || null : undefined,
               checkOut: leave.leaveType === "Present" ? leave.checkOut || null : undefined,
@@ -594,6 +625,22 @@ export default function RequestForm({ toast, onSubmitted }) {
                     : "Leave"}
               </div>
             </div>
+            {isSingleLeaveDay ? (
+              <div className="regularization-field">
+                <label htmlFor="reg-day-part">Day Type</label>
+                <select
+                  id="reg-day-part"
+                  value={leave.dayPart}
+                  onChange={(event) =>
+                    setLeave((previous) => ({ ...previous, dayPart: event.target.value }))
+                  }
+                >
+                  <option value="full">Full Day</option>
+                  <option value="first-half">First Half</option>
+                  <option value="second-half">Second Half</option>
+                </select>
+              </div>
+            ) : null}
             {isPresentLeave ? (
               <>
                 <div className="regularization-field">
@@ -695,7 +742,9 @@ export default function RequestForm({ toast, onSubmitted }) {
                       ? "Invalid date range"
                       : leaveDayCount === 0
                         ? "No working days in this range"
-                        : isPresentLeave
+                        : isHalfDayPart(leave.dayPart) && isSingleLeaveDay
+                          ? `Half day · ${getDayPartLabel(leave.dayPart)} (0.5 day)`
+                          : isPresentLeave
                           ? `${leaveDayCount} day${leaveDayCount === 1 ? "" : "s"} will be marked Present`
                           : isCoLeave
                             ? `${leaveDayCount} day${leaveDayCount === 1 ? "" : "s"} (weekends included for Comp-Off)`

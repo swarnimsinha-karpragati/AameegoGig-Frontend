@@ -138,6 +138,36 @@ describe("regularization direct edit helpers", () => {
     });
   });
 
+  test("rejects half-day corrections spanning many days", () => {
+    const errors = validateDirectEdit("leave", {
+      employeeId: "employee-1",
+      leaveRequestId: "leave-1",
+      leaveType: "CL",
+      startDate: "2026-09-08",
+      endDate: "2026-09-09",
+      reason: "Correcting the leave record",
+      auditNote: "Correcting the leave record",
+      dayPart: "first-half",
+    });
+    expect(errors.endDate).toMatch(/single day/i);
+  });
+
+  test("accepts a single-day half correction with times for Present", () => {
+    const errors = validateDirectEdit("leave", {
+      employeeId: "employee-1",
+      leaveRequestId: "leave-1",
+      leaveType: "Present",
+      startDate: "2026-09-08",
+      endDate: "2026-09-08",
+      reason: "Actually worked that day",
+      auditNote: "Correcting the leave record",
+      checkIn: "10:00",
+      checkOut: "19:00",
+      dayPart: "full",
+    });
+    expect(errors).toEqual({});
+  });
+
   test("still requires a working day for non-CO weekend corrections", () => {
     const errors = validateDirectEdit("leave", {
       employeeId: "employee-1",

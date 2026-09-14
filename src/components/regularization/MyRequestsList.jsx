@@ -8,7 +8,7 @@ import {
   X,
 } from "lucide-react";
 import ConfirmModal from "../ConfirmModal";
-import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { getDayPartLabel, getLeaveTypeLabel, isHalfDayPart } from "../../utils/leaveLabels";
 import { formatRegDate, formatRegRange } from "../../utils/regularizationFormatters";
 
 const requestPeriod = (request) => {
@@ -76,6 +76,9 @@ export default function MyRequestsList({
             const isAttendance = request.kind === "attendance";
             const Icon = isAttendance ? Clock3 : CalendarDays;
             const employee = request.employeeId || {};
+            const halfSuffix = isHalfDayPart(request.requested?.dayPart)
+              ? ` · ${getDayPartLabel(request.requested.dayPart)}`
+              : "";
             return (
               <article className="regularization-request-card" key={request._id}>
                 <div className={`regularization-request-card__icon ${request.kind}`}>
@@ -89,14 +92,14 @@ export default function MyRequestsList({
                           ? `${employee.name || "Employee"}${employee.employeeCode ? ` · ${employee.employeeCode}` : ""}`
                           : isAttendance
                             ? `${request.requested?.status || "Attendance"} correction`
-                            : `${getLeaveTypeLabel(request.requested?.leaveType)} correction`}
+                            : `${getLeaveTypeLabel(request.requested?.leaveType)} correction${halfSuffix}`}
                       </h3>
                       <p>
                         {showEmployee
                           ? `${isAttendance
                             ? `${request.requested?.status || "Attendance"} correction`
-                            : `${getLeaveTypeLabel(request.requested?.leaveType)} correction`} · ${requestPeriod(request)}`
-                          : requestPeriod(request)}
+                            : `${getLeaveTypeLabel(request.requested?.leaveType)} correction${halfSuffix}`} · ${requestPeriod(request)}`
+                          : `${requestPeriod(request)}${halfSuffix}`}
                       </p>
                     </div>
                     <span className={`regularization-status ${String(request.status).toLowerCase()}`}>

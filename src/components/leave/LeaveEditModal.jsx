@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pencil, X } from "lucide-react";
 import Button from "../Button";
 import { directEditLeave } from "../../services/regularizationService";
+import { isHalfDayPart } from "../../utils/leaveLabels";
 import { useToast } from "../Toast";
 import "../attendance/RecordEditModal.css";
 
@@ -32,6 +33,7 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
   const [leaveType, setLeaveType] = useState("CL");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [dayPart, setDayPart] = useState("full");
   const [reason, setReason] = useState("");
   const [auditNote, setAuditNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -42,6 +44,7 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
     setLeaveType(record.leaveType || "CL");
     setStartDate(toDateInputValue(record.startDate));
     setEndDate(toDateInputValue(record.endDate));
+    setDayPart(record.dayPart || "full");
     setReason(record.reason || "");
     setAuditNote("");
     setError("");
@@ -51,9 +54,14 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
 
   const employeeName = record.employeeId?.name || "Employee";
 
+  const isSingleDay = Boolean(startDate && endDate && startDate === endDate);
+
   const validate = () => {
     if (!startDate || !endDate) return "Start and end dates are required.";
     if (endDate < startDate) return "End date must be on or after start date.";
+    if (isHalfDayPart(dayPart) && !isSingleDay) {
+      return "Half-day leave is allowed only for a single day.";
+    }
     if (!reason.trim() || reason.trim().length < 3) {
       return "Please enter a reason (at least 3 characters).";
     }
@@ -82,6 +90,7 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
         endDate,
         reason: reason.trim(),
         auditNote: auditNote.trim(),
+        dayPart: isSingleDay ? dayPart : "full",
       });
       toast.success("Leave request updated");
       onSaved?.();
@@ -146,7 +155,11 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setStartDate(next);
+                  if (next !== endDate) setDayPart("full");
+                }}
                 disabled={saving || record.status === "Cancelled"}
                 required
               />
@@ -156,11 +169,29 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setEndDate(next);
+                  if (next !== startDate) setDayPart("full");
+                }}
                 disabled={saving || record.status === "Cancelled"}
                 required
               />
             </label>
+            {isSingleDay ? (
+              <label className="record-edit-field">
+                <span>Day Type</span>
+                <select
+                  value={dayPart}
+                  onChange={(e) => setDayPart(e.target.value)}
+                  disabled={saving || record.status === "Cancelled"}
+                >
+                  <option value="full">Full Day</option>
+                  <option value="first-half">First Half</option>
+                  <option value="second-half">Second Half</option>
+                </select>
+              </label>
+            ) : null}
           </div>
 
           <label className="record-edit-field record-edit-field--full">

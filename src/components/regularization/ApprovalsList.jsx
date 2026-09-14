@@ -18,7 +18,7 @@ import {
 import { validateField } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
 import { buildApiErrorMessage } from "./RequestForm";
-import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { getDayPartLabel, getLeaveTypeLabel, isHalfDayPart } from "../../utils/leaveLabels";
 import {
   formatAttendanceHours,
   formatRegDate,
@@ -53,7 +53,10 @@ export const describeApprovalChange = (request) => {
   }
   const describe = (value) => {
     const snapshot = value && typeof value === "object" ? value : {};
-    return `${getLeaveTypeLabel(snapshot.leaveType)} · ${leaveRange(snapshot)}`;
+    const half = isHalfDayPart(snapshot.dayPart)
+      ? ` · ${getDayPartLabel(snapshot.dayPart)}`
+      : "";
+    return `${getLeaveTypeLabel(snapshot.leaveType)} · ${leaveRange(snapshot)}${half}`;
   };
   return {
     previous: describe(request?.previous),

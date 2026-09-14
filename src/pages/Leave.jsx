@@ -41,6 +41,11 @@ import {
   roleHasPermission,
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
+import {
+  formatLeaveDays,
+  getDayPartLabel,
+  isHalfDayPart,
+} from "../utils/leaveLabels";
 import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
@@ -118,6 +123,12 @@ const getRequestKind = (leaveType, requestType, isCoCredit = false) => {
 const coTypeLabel = (item) =>
   item?.isCoCredit ? "CO (Credit)" : item?.leaveType;
 
+// Day Type is a separate field — halves show alongside the type/duration.
+const leaveTypeDisplay = (item) =>
+  isHalfDayPart(item?.dayPart)
+    ? `${coTypeLabel(item)} · ${getDayPartLabel(item.dayPart)}`
+    : coTypeLabel(item);
+
 /* ===========================
    INNER COMPONENT (uses useToast)
 =========================== */
@@ -167,6 +178,7 @@ function LeaveInner() {
     startDate: "",
     endDate: "",
     reason: "",
+    dayPart: "full",
   });
   // CO purpose: "leave" (take comp-off) vs "credit" (worked on an off-day,
   // earn comp-off on approval). Only used when leaveType === CO.
@@ -199,6 +211,17 @@ function LeaveInner() {
     () => countWeekdaysInclusiveClient(leaveForm.startDate, leaveForm.endDate),
     [leaveForm.startDate, leaveForm.endDate]
   );
+
+  // Day Type halves exist only when a single day is selected — multi-day
+  // ranges are always full days, so the field resets automatically.
+  const isSingleDayLeave = computedLeaveDays === 1;
+  useEffect(() => {
+    if (computedLeaveDays !== 1) {
+      setLeaveForm((prev) =>
+        prev.dayPart === "full" ? prev : { ...prev, dayPart: "full" }
+      );
+    }
+  }, [computedLeaveDays]);
 
   const isMedicalDocRequired =
     leaveForm.leaveType === "SL" &&
@@ -621,6 +644,7 @@ function LeaveInner() {
         startDate: "",
         endDate: "",
         reason: "",
+        dayPart: "full",
       }));
       setMedicalDocFile(null);
       loadData();
@@ -894,6 +918,23 @@ function LeaveInner() {
             aria-describedby="leave-date-feedback"
           />
         </div>
+        {isSingleDayLeave ? (
+          <div className="leave-field">
+            <label htmlFor="leave-day-type">Day Type</label>
+            <select
+              id="leave-day-type"
+              className="leave-control"
+              value={leaveForm.dayPart}
+              onChange={(e) =>
+                setLeaveForm((p) => ({ ...p, dayPart: e.target.value }))
+              }
+            >
+              <option value="full">Full Day</option>
+              <option value="first-half">First Half</option>
+              <option value="second-half">Second Half</option>
+            </select>
+          </div>
+        ) : null}
         {leaveForm.startDate && leaveForm.endDate ? (
           <div
             id="leave-date-feedback"
@@ -956,9 +997,11 @@ function LeaveInner() {
               ) : (
                 <>
                   <strong className="leave-date-feedback__title">
-                    {computedLeaveDays === 1
-                      ? "1 working day"
-                      : `${computedLeaveDays} working days`}
+                    {computedLeaveDays === 1 && isHalfDayPart(leaveForm.dayPart)
+                      ? `Half day · ${getDayPartLabel(leaveForm.dayPart)} (0.5 day)`
+                      : computedLeaveDays === 1
+                        ? "1 working day"
+                        : `${computedLeaveDays} working days`}
                   </strong>
                   <p className="leave-date-feedback__text">
                     Weekends are excluded from the day count automatically.
@@ -1008,7 +1051,7 @@ function LeaveInner() {
             <div>
               <strong>{item.employeeId?.name}</strong>
               <p>
-                {coTypeLabel(item)} •{" "}
+                {leaveTypeDisplay(item)} •{" "}
                 {new Date(item.startDate).toLocaleDateString()} -{" "}
                 {new Date(item.endDate).toLocaleDateString()}
               </p>
@@ -1059,10 +1102,10 @@ function LeaveInner() {
                     {mode === "all" || mode === "approve" ? (
                       <td>{empName || "-"}</td>
                     ) : null}
-                    <td>{coTypeLabel(item)}</td>
+                    <td>{leaveTypeDisplay(item)}</td>
                     <td>
                       {new Date(item.startDate).toLocaleDateString()} -{" "}
-                      {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
+                      {new Date(item.endDate).toLocaleDateString()} ({formatLeaveDays(item)})
                     </td>
                     <td>{item.reason || "-"}</td>
 
@@ -1420,12 +1463,12 @@ function LeaveInner() {
             {items.map((item) => (
               <tr key={item._id}>
                 <td>{item.employeeId?.name || "-"}</td>
-                <td>{coTypeLabel(item)}</td>
+                <td>{leaveTypeDisplay(item)}</td>
                 <td>
                   {new Date(item.startDate).toLocaleDateString()} -{" "}
                   {new Date(item.endDate).toLocaleDateString()}
                 </td>
-                <td>{item.days}</td>
+                <td>{formatLeaveDays(item)}</td>
                 <td>
                   <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                     <span

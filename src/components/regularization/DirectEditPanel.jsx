@@ -24,7 +24,7 @@ import {
   countCalendarDaysInclusive,
   countWeekdaysInclusive,
 } from "./RequestForm";
-import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import { getDayPartLabel, getLeaveTypeLabel, isHalfDayPart } from "../../utils/leaveLabels";
 import {
   formatRegDate,
   formatRegRange,
@@ -66,6 +66,7 @@ const emptyLeave = {
   auditNote: "",
   checkIn: "",
   checkOut: "",
+  dayPart: "full",
 };
 
 const toDateInput = (value) => {
@@ -232,6 +233,15 @@ export const validateDirectEdit = (kind, form) => {
     // Present corrections reuse the locked original leave dates.
     errors.endDate = "Choose dates that include at least one working day";
   }
+  if (
+    kind === "leave" &&
+    isHalfDayPart(form.dayPart) &&
+    form.startDate &&
+    form.endDate &&
+    form.startDate !== form.endDate
+  ) {
+    errors.endDate = "Half-day correction is allowed only for a single day";
+  }
   if (kind === "leave" && form.leaveType === "Present") {
     const presentIn = minutesFromTime(form.checkIn);
     const presentOut = minutesFromTime(form.checkOut);
@@ -314,6 +324,7 @@ export const buildDirectEditPayload = (kind, form) => {
     endDate: form.endDate,
     reason: form.reason.trim(),
     auditNote: form.auditNote.trim(),
+    dayPart: form.dayPart || "full",
     // Used when the day is corrected as Present (attendance times).
     checkIn: form.leaveType === "Present" ? form.checkIn || null : undefined,
     checkOut: form.leaveType === "Present" ? form.checkOut || null : undefined,
@@ -533,6 +544,8 @@ export default function DirectEditPanel({ toast, onChanged }) {
       }));
       return;
     }
+    const selectedSingleDay =
+      toDateInput(selected.startDate) === toDateInput(selected.endDate);
     setLeave((previous) => ({
       ...previous,
       leaveRequestId: selected._id,
@@ -545,6 +558,8 @@ export default function DirectEditPanel({ toast, onChanged }) {
       startDate: toDateInput(selected.startDate),
       endDate: toDateInput(selected.endDate),
       reason: selected.reason || "",
+      // Halves exist only for a single day.
+      dayPart: selectedSingleDay ? previous.dayPart || "full" : "full",
     }));
   };
 
@@ -902,6 +917,25 @@ export default function DirectEditPanel({ toast, onChanged }) {
                     : "Leave"}
               </div>
             </div>
+            {leave.startDate && leave.endDate && leave.startDate === leave.endDate ? (
+              <div className="regularization-field">
+                <label htmlFor="direct-day-part">Day Type</label>
+                <select
+                  id="direct-day-part"
+                  value={leave.dayPart}
+                  onChange={(event) =>
+                    setLeave((previous) => ({
+                      ...previous,
+                      dayPart: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="full">Full Day</option>
+                  <option value="first-half">First Half</option>
+                  <option value="second-half">Second Half</option>
+                </select>
+              </div>
+            ) : null}
             {leave.leaveType === "Present" ? (
               <>
                 <div className="regularization-field">
@@ -968,9 +1002,12 @@ export default function DirectEditPanel({ toast, onChanged }) {
                 <div>
                   <strong>
                     {errors.endDate ||
-                      (leave.leaveType === "CO"
-                        ? `${workingDays} day${workingDays === 1 ? "" : "s"} (weekends included for Comp-Off)`
-                        : `${workingDays} working day${workingDays === 1 ? "" : "s"}`)}
+                      (isHalfDayPart(leave.dayPart) &&
+                      leave.startDate === leave.endDate
+                        ? `Half day · ${getDayPartLabel(leave.dayPart)} (0.5 day)`
+                        : leave.leaveType === "CO"
+                          ? `${workingDays} day${workingDays === 1 ? "" : "s"} (weekends included for Comp-Off)`
+                          : `${workingDays} working day${workingDays === 1 ? "" : "s"}`)}
                   </strong>
                   <p>
                     {leave.leaveType === "CO"
