@@ -169,7 +169,7 @@ function LeaveInner() {
   // Per-employee WFH quota (monthlyLimit/annualLimit based) for the employee
   // currently selected in Manage Leave Balances. The org-wide balances list
   // only carries CL/SL/EL/CO buckets, so this is fetched separately.
-  const [selectedWfhQuota, setSelectedWfhQuota] = useState(null);
+  const [, setSelectedWfhQuota] = useState(null);
 
   const [leaveForm, setLeaveForm] = useState({
     employeeId: "",
