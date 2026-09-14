@@ -1,5 +1,6 @@
 import {
   buildApiErrorMessage,
+  countCalendarDaysInclusive,
   countWeekdaysInclusive,
   validateAttendanceRequest,
 } from "./RequestForm";
@@ -11,6 +12,12 @@ describe("regularization request helpers", () => {
 
   test("returns zero for a weekend-only leave range", () => {
     expect(countWeekdaysInclusive("2026-09-05", "2026-09-06")).toBe(0);
+  });
+
+  test("counts calendar days including weekends for Comp-Off ranges", () => {
+    expect(countCalendarDaysInclusive("2026-09-05", "2026-09-06")).toBe(2);
+    expect(countCalendarDaysInclusive("2026-09-07", "2026-09-07")).toBe(1);
+    expect(countCalendarDaysInclusive("2026-09-07", "2026-09-06")).toBeNull();
   });
 
   test("prefers API message and falls back to API error", () => {
@@ -100,6 +107,21 @@ describe("regularization request helpers", () => {
         status: "Present",
         checkIn: "18:00",
         checkOut: "09:30",
+        reason: "Correcting attendance status",
+      },
+      bounds
+    );
+    expect(errors.checkOut).toMatch(/on or after check-in/i);
+  });
+
+  test("flags late-night check-in with earlier check-out (10:00 PM to 5:00 PM)", () => {
+    const bounds = { min: "2026-07-10", max: "2026-09-08" };
+    const errors = validateAttendanceRequest(
+      {
+        date: "2026-09-08",
+        status: "Present",
+        checkIn: "22:00",
+        checkOut: "17:00",
         reason: "Correcting attendance status",
       },
       bounds

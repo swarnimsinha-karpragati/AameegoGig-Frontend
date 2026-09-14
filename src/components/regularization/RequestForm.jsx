@@ -14,7 +14,11 @@ import { createRegularizationRequest } from "../../services/regularizationServic
 import { validateFields } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
 import { getLeaveTypeLabel } from "../../utils/leaveLabels";
-import { formatAttendanceHours } from "../../utils/regularizationFormatters";
+import {
+  formatAttendanceHours,
+  formatRegDate,
+  formatRegRange,
+} from "../../utils/regularizationFormatters";
 
 const ATTENDANCE_STATUSES = [
   "Present",
@@ -24,7 +28,7 @@ const ATTENDANCE_STATUSES = [
   "Leave",
   "WFH",
 ];
-const LEAVE_TYPES = ["CL", "SL", "EL", "CO", "WFH", "LOP", "LWP"];
+const LEAVE_TYPES = ["CL", "SL", "EL", "CO", "WFH", "LOP", "LWP", "Present"];
 const STATUSES_REQUIRING_TIMES = ["Present", "Late", "Half Day", "WFH"];
 
 const minutesFromTime = (value) => {
@@ -46,6 +50,8 @@ const emptyLeave = {
   startDate: "",
   endDate: "",
   reason: "",
+  checkIn: "",
+  checkOut: "",
 };
 
 export const buildApiErrorMessage = (error, fallback) =>
@@ -66,6 +72,21 @@ export const countWeekdaysInclusive = (startValue, endValue) => {
     if (day.getDay() !== 0 && day.getDay() !== 6) count += 1;
   }
   return count;
+};
+
+/**
+ * Calendar-day count (weekends included). Comp-Off can be earned and taken
+ * on weekends/holidays, so CO corrections use this instead of the
+ * weekday-only count. Returns null when the range is empty/invalid.
+ */
+export const countCalendarDaysInclusive = (startValue, endValue) => {
+  if (!startValue || !endValue) return null;
+  const start = new Date(`${startValue}T00:00:00`);
+  const end = new Date(`${endValue}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return null;
+  }
+  return Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
 };
 
 const toDateInput = (value) => {
@@ -164,10 +185,22 @@ export default function RequestForm({ toast, onSubmitted }) {
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
   const bounds = useMemo(getDateBounds, []);
+  const isCoLeave = leave.leaveType === "CO";
+  const isPresentLeave = leave.leaveType === "Present";
   const workingDays = useMemo(
     () => countWeekdaysInclusive(leave.startDate, leave.endDate),
     [leave.startDate, leave.endDate]
   );
+  // Comp-Off counts every calendar day (weekends/holidays included), and a
+  // Present correction simply marks the locked original dates.
+  const leaveDayCount = useMemo(
+    () =>
+      isCoLeave || isPresentLeave
+        ? countCalendarDaysInclusive(leave.startDate, leave.endDate)
+        : workingDays,
+    [isCoLeave, isPresentLeave, leave.startDate, leave.endDate, workingDays]
+  );
+  const isExistingLeaveCorrection = Boolean(leave.leaveRequestId);
 
   useEffect(() => {
     let active = true;
@@ -256,11 +289,37 @@ export default function RequestForm({ toast, onSubmitted }) {
         minLength: 3,
         maxLength: 500,
       },
+      {
+        name: "checkIn",
+        label: "Check-in",
+        value: leave.checkIn,
+        kind: "text",
+        required: isPresentLeave,
+        maxLength: 5,
+      },
+      {
+        name: "checkOut",
+        label: "Check-out",
+        value: leave.checkOut,
+        kind: "text",
+        required: isPresentLeave,
+        maxLength: 5,
+      },
     ]);
     if (leave.startDate && leave.endDate && leave.endDate < leave.startDate) {
       errors.endDate = "End date must be on or after start date";
-    } else if (workingDays === 0) {
+    } else if (!isCoLeave && !isPresentLeave && workingDays === 0) {
       errors.endDate = "Choose dates that include at least one working day";
+    }
+    if (isPresentLeave && !leave.leaveRequestId) {
+      errors.leaveRequestId = "Select an existing leave to mark as Present";
+    }
+    if (isPresentLeave && leave.checkIn && leave.checkOut) {
+      const inMinutes = minutesFromTime(leave.checkIn);
+      const outMinutes = minutesFromTime(leave.checkOut);
+      if (inMinutes !== null && outMinutes !== null && outMinutes < inMinutes) {
+        errors.checkOut = "Check-out must be on or after check-in";
+      }
     }
     if (leave.startDate && leave.startDate < bounds.min) {
       errors.startDate = "Choose a start date within the last 60 days";
@@ -269,10 +328,30 @@ export default function RequestForm({ toast, onSubmitted }) {
       errors.startDate = "Start date cannot be in the future";
     }
     return errors;
-  }, [leave, workingDays, bounds]);
+  }, [leave, isCoLeave, isPresentLeave, workingDays, bounds]);
 
   const activeErrors = kind === "attendance" ? attendanceErrors : leaveErrors;
   const isValid = Object.keys(activeErrors).length === 0;
+
+  // Submit stays disabled while invalid, so show the reason live once the
+  // user starts typing — a disabled button can never set `touched`.
+  const isFormDirty = useMemo(() => {
+    const values =
+      kind === "attendance"
+        ? [attendance.date, attendance.checkIn, attendance.checkOut, attendance.reason]
+        : [
+            leave.leaveRequestId,
+            // leaveType defaults to CL — only a real change counts.
+            leave.leaveType === "CL" ? "" : leave.leaveType,
+            leave.startDate,
+            leave.endDate,
+            leave.reason,
+            leave.checkIn,
+            leave.checkOut,
+          ];
+    return values.some((v) => String(v || "").trim() !== "");
+  }, [kind, attendance, leave]);
+  const showErrors = touched || isFormDirty;
 
   const updateAttendance = (field, value) => {
     setAttendance((previous) => {
@@ -291,13 +370,19 @@ export default function RequestForm({ toast, onSubmitted }) {
       setLeave((previous) => ({ ...previous, leaveRequestId: "" }));
       return;
     }
-    setLeave({
+    setLeave((previous) => ({
+      ...previous,
       leaveRequestId: id,
-      leaveType: selected.leaveType || "CL",
+      // Keep an explicitly chosen "Present" correction; otherwise match the
+      // selected request's type.
+      leaveType:
+        previous.leaveType === "Present"
+          ? "Present"
+          : selected.leaveType || "CL",
       startDate: toDateInput(selected.startDate),
       endDate: toDateInput(selected.endDate),
       reason: selected.reason || "",
-    });
+    }));
   };
 
   const handleSubmit = async (event) => {
@@ -310,15 +395,15 @@ export default function RequestForm({ toast, onSubmitted }) {
     const payload =
       kind === "attendance"
         ? {
-            kind,
-            reason: attendance.reason.trim(),
-            requested: {
-              date: attendance.date,
-              status: attendance.status,
-              checkIn: attendance.checkIn || null,
-              checkOut: attendance.checkOut || null,
-            },
-          }
+          kind,
+          reason: attendance.reason.trim(),
+          requested: {
+            date: attendance.date,
+            status: attendance.status,
+            checkIn: attendance.checkIn || null,
+            checkOut: attendance.checkOut || null,
+          },
+        }
         : {
             kind,
             reason: leave.reason.trim(),
@@ -329,6 +414,9 @@ export default function RequestForm({ toast, onSubmitted }) {
               startDate: leave.startDate,
               endDate: leave.endDate,
               reason: leave.reason.trim(),
+              // Used when the day is corrected as Present (attendance times).
+              checkIn: leave.leaveType === "Present" ? leave.checkIn || null : undefined,
+              checkOut: leave.leaveType === "Present" ? leave.checkOut || null : undefined,
             },
           };
     setSubmitting(true);
@@ -390,7 +478,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                 max={bounds.max}
                 value={attendance.date}
                 onChange={(event) => updateAttendance("date", event.target.value)}
-                aria-invalid={touched && Boolean(attendanceErrors.date)}
+                aria-invalid={showErrors && Boolean(attendanceErrors.date)}
               />
               <small>Requests can be raised for the last 60 days.</small>
             </div>
@@ -415,7 +503,13 @@ export default function RequestForm({ toast, onSubmitted }) {
                     type="time"
                     value={attendance.checkIn}
                     onChange={(event) => updateAttendance("checkIn", event.target.value)}
+                    aria-invalid={showErrors && Boolean(attendanceErrors.checkIn)}
                   />
+                  {showErrors && attendanceErrors.checkIn ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {attendanceErrors.checkIn}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="regularization-field">
                   <label htmlFor="reg-check-out">Check-out *</label>
@@ -424,8 +518,13 @@ export default function RequestForm({ toast, onSubmitted }) {
                     type="time"
                     value={attendance.checkOut}
                     onChange={(event) => updateAttendance("checkOut", event.target.value)}
-                    aria-invalid={touched && Boolean(attendanceErrors.checkOut)}
+                    aria-invalid={showErrors && Boolean(attendanceErrors.checkOut)}
                   />
+                  {showErrors && attendanceErrors.checkOut ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {attendanceErrors.checkOut}
+                    </p>
+                  ) : null}
                 </div>
               </>
             ) : null}
@@ -464,10 +563,9 @@ export default function RequestForm({ toast, onSubmitted }) {
                 value={leave.leaveRequestId}
                 onChange={(event) => selectLeaveRequest(event.target.value)}
               >
-                <option value="">New leave correction</option>
                 {leaveRequests.map((item) => (
                   <option value={item._id} key={item._id}>
-                    {getLeaveTypeLabel(item.leaveType)} · {toDateInput(item.startDate)} to {toDateInput(item.endDate)} · {item.status}
+                    {getLeaveTypeLabel(item.leaveType)} · {formatRegDate(item.startDate)} to {formatRegDate(item.endDate)} · {item.status}
                   </option>
                 ))}
               </select>
@@ -489,51 +587,104 @@ export default function RequestForm({ toast, onSubmitted }) {
             <div className="regularization-field">
               <label>Request mode</label>
               <div className="regularization-readonly">
-                {leave.leaveType === "WFH" ? "Work from home" : "Leave"}
+                {leave.leaveType === "WFH"
+                  ? "Work from home"
+                  : isPresentLeave
+                    ? "Mark present"
+                    : "Leave"}
               </div>
             </div>
-            <div className="regularization-field">
-              <label htmlFor="reg-leave-start">Start date *</label>
-              <input
-                id="reg-leave-start"
-                type="date"
-                min={bounds.min}
-                max={bounds.max}
-                value={leave.startDate}
-                onChange={(event) =>
-                  setLeave((previous) => ({ ...previous, startDate: event.target.value }))
-                }
-                aria-invalid={touched && Boolean(leaveErrors.startDate)}
-                aria-describedby="regularization-date-feedback"
-              />
-            </div>
-            <div className="regularization-field">
-              <label htmlFor="reg-leave-end">End date *</label>
-              <input
-                id="reg-leave-end"
-                type="date"
-                min={leave.startDate || bounds.min}
-                max={bounds.max}
-                value={leave.endDate}
-                onChange={(event) =>
-                  setLeave((previous) => ({ ...previous, endDate: event.target.value }))
-                }
-                aria-invalid={touched && Boolean(leaveErrors.endDate)}
-                aria-describedby="regularization-date-feedback"
-              />
-            </div>
+            {isPresentLeave ? (
+              <>
+                <div className="regularization-field">
+                  <label htmlFor="reg-present-check-in">Check-in *</label>
+                  <input
+                    id="reg-present-check-in"
+                    type="time"
+                    value={leave.checkIn}
+                    onChange={(event) =>
+                      setLeave((previous) => ({ ...previous, checkIn: event.target.value }))
+                    }
+                    aria-invalid={showErrors && Boolean(leaveErrors.checkIn)}
+                  />
+                  {showErrors && leaveErrors.checkIn ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {leaveErrors.checkIn}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="regularization-field">
+                  <label htmlFor="reg-present-check-out">Check-out *</label>
+                  <input
+                    id="reg-present-check-out"
+                    type="time"
+                    value={leave.checkOut}
+                    onChange={(event) =>
+                      setLeave((previous) => ({ ...previous, checkOut: event.target.value }))
+                    }
+                    aria-invalid={showErrors && Boolean(leaveErrors.checkOut)}
+                  />
+                  {showErrors && leaveErrors.checkOut ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {leaveErrors.checkOut}
+                    </p>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+            {isExistingLeaveCorrection ? (
+              <div className="regularization-field regularization-field--full">
+                <label>Leave dates (locked to the original request)</label>
+                <div className="regularization-readonly">
+                  {formatRegRange(leave.startDate, leave.endDate)}
+                </div>
+                <small>Dates cannot be changed when correcting an existing leave — pick “New leave correction” for different dates.</small>
+              </div>
+            ) : (
+              <>
+                <div className="regularization-field">
+                  <label htmlFor="reg-leave-start">Start date *</label>
+                  <input
+                    id="reg-leave-start"
+                    type="date"
+                    min={bounds.min}
+                    max={bounds.max}
+                    value={leave.startDate}
+                    onChange={(event) =>
+                      setLeave((previous) => ({ ...previous, startDate: event.target.value }))
+                    }
+                    aria-invalid={showErrors && Boolean(leaveErrors.startDate)}
+                    aria-describedby="regularization-date-feedback"
+                  />
+                </div>
+                <div className="regularization-field">
+                  <label htmlFor="reg-leave-end">End date *</label>
+                  <input
+                    id="reg-leave-end"
+                    type="date"
+                    min={leave.startDate || bounds.min}
+                    max={bounds.max}
+                    value={leave.endDate}
+                    onChange={(event) =>
+                      setLeave((previous) => ({ ...previous, endDate: event.target.value }))
+                    }
+                    aria-invalid={showErrors && Boolean(leaveErrors.endDate)}
+                    aria-describedby="regularization-date-feedback"
+                  />
+                </div>
+              </>
+            )}
             {leave.startDate && leave.endDate ? (
               <div
                 id="regularization-date-feedback"
-                className={`regularization-date-feedback regularization-field--full ${
-                  workingDays === 0 || leave.endDate < leave.startDate
+                className={`regularization-date-feedback regularization-field--full ${leaveDayCount === 0 || leave.endDate < leave.startDate
                     ? "regularization-date-feedback--error"
                     : "regularization-date-feedback--ok"
-                }`}
-                role={workingDays === 0 || leave.endDate < leave.startDate ? "alert" : "status"}
+                  }`}
+                role={leaveDayCount === 0 || leave.endDate < leave.startDate ? "alert" : "status"}
                 aria-live="polite"
               >
-                {workingDays === 0 || leave.endDate < leave.startDate ? (
+                {leaveDayCount === 0 || leave.endDate < leave.startDate ? (
                   <Info size={18} />
                 ) : (
                   <CheckCircle2 size={18} />
@@ -542,14 +693,22 @@ export default function RequestForm({ toast, onSubmitted }) {
                   <strong>
                     {leave.endDate < leave.startDate
                       ? "Invalid date range"
-                      : workingDays === 0
+                      : leaveDayCount === 0
                         ? "No working days in this range"
-                        : `${workingDays} working day${workingDays === 1 ? "" : "s"}`}
+                        : isPresentLeave
+                          ? `${leaveDayCount} day${leaveDayCount === 1 ? "" : "s"} will be marked Present`
+                          : isCoLeave
+                            ? `${leaveDayCount} day${leaveDayCount === 1 ? "" : "s"} (weekends included for Comp-Off)`
+                            : `${leaveDayCount} working day${leaveDayCount === 1 ? "" : "s"}`}
                   </strong>
                   <p>
-                    {workingDays === 0
+                    {leaveDayCount === 0
                       ? "Weekends are excluded. Choose dates that include at least one weekday."
-                      : "Saturdays and Sundays are excluded automatically."}
+                      : isPresentLeave
+                        ? "The leave will be cancelled and attendance marked Present with the times above."
+                        : isCoLeave
+                          ? "Comp-Off can be applied on weekends and holidays."
+                          : "Saturdays and Sundays are excluded automatically."}
                   </p>
                 </div>
               </div>
@@ -570,12 +729,12 @@ export default function RequestForm({ toast, onSubmitted }) {
                 ? updateAttendance("reason", event.target.value)
                 : setLeave((previous) => ({ ...previous, reason: event.target.value }))
             }
-            aria-invalid={touched && Boolean(activeErrors.reason)}
+            aria-invalid={showErrors && Boolean(activeErrors.reason)}
           />
           <small>{(kind === "attendance" ? attendance.reason : leave.reason).length}/500 characters</small>
         </div>
 
-        {touched && !isValid ? (
+        {showErrors && !isValid ? (
           <div className="regularization-inline-error regularization-field--full" role="alert">
             <Info size={16} /> {Object.values(activeErrors)[0]}
           </div>
@@ -583,7 +742,7 @@ export default function RequestForm({ toast, onSubmitted }) {
 
         <div className="regularization-form__actions regularization-field--full">
           <span>Your manager or HR team will review this request.</span>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting || !isValid}>
             {submitting ? "Submitting…" : "Submit request"}
           </Button>
         </div>

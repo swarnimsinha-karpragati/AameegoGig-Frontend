@@ -466,6 +466,69 @@
   font-weight: 650;
 }
 
+/* Direct-edit confirmation summary (Before vs After) */
+.regularization-confirm-summary {
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+.regularization-confirm-summary__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+.regularization-confirm-summary__row > span {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-weight: 600;
+}
+.regularization-confirm-summary__row > strong {
+  color: #0f172a;
+  text-align: right;
+}
+.regularization-confirm-summary__change {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.regularization-confirm-summary__change > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.regularization-confirm-summary__change span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.regularization-confirm-summary__change strong {
+  color: #0f172a;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.regularization-confirm-summary__change svg {
+  color: #94a3b8;
+  flex: 0 0 auto;
+}
+.regularization-confirm-summary__warning {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: #9a3412;
+  background: #fff7ed;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .regularization-form__actions {
   display: flex;
   align-items: center;

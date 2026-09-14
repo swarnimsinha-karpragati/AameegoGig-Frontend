@@ -7,23 +7,13 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
-import Button from "../Button";
+import ConfirmModal from "../ConfirmModal";
 import { getLeaveTypeLabel } from "../../utils/leaveLabels";
-
-const formatDate = (value) => {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
-};
+import { formatRegDate, formatRegRange } from "../../utils/regularizationFormatters";
 
 const requestPeriod = (request) => {
-  if (request.kind === "attendance") return formatDate(request.requested?.date);
-  const start = formatDate(request.requested?.startDate);
-  const end = formatDate(request.requested?.endDate);
-  return start === end ? start : `${start} – ${end}`;
+  if (request.kind === "attendance") return formatRegDate(request.requested?.date);
+  return formatRegRange(request.requested?.startDate, request.requested?.endDate);
 };
 
 export default function MyRequestsList({
@@ -37,6 +27,9 @@ export default function MyRequestsList({
   allowCancel = true,
   compact = false,
   description = "Track decisions and withdraw requests that are still pending.",
+  // Organization-wide list (e.g. Admin "All Requests"): show the employee
+  // on every row, same as Pending Approvals / Approved This Month.
+  showEmployee = false,
 }) {
   const [cancelId, setCancelId] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -82,6 +75,7 @@ export default function MyRequestsList({
           {requests.map((request) => {
             const isAttendance = request.kind === "attendance";
             const Icon = isAttendance ? Clock3 : CalendarDays;
+            const employee = request.employeeId || {};
             return (
               <article className="regularization-request-card" key={request._id}>
                 <div className={`regularization-request-card__icon ${request.kind}`}>
@@ -91,11 +85,19 @@ export default function MyRequestsList({
                   <div className="regularization-request-card__top">
                     <div>
                       <h3>
-                        {isAttendance
-                          ? `${request.requested?.status || "Attendance"} correction`
-                          : `${getLeaveTypeLabel(request.requested?.leaveType)} correction`}
+                        {showEmployee
+                          ? `${employee.name || "Employee"}${employee.employeeCode ? ` · ${employee.employeeCode}` : ""}`
+                          : isAttendance
+                            ? `${request.requested?.status || "Attendance"} correction`
+                            : `${getLeaveTypeLabel(request.requested?.leaveType)} correction`}
                       </h3>
-                      <p>{requestPeriod(request)}</p>
+                      <p>
+                        {showEmployee
+                          ? `${isAttendance
+                            ? `${request.requested?.status || "Attendance"} correction`
+                            : `${getLeaveTypeLabel(request.requested?.leaveType)} correction`} · ${requestPeriod(request)}`
+                          : requestPeriod(request)}
+                      </p>
                     </div>
                     <span className={`regularization-status ${String(request.status).toLowerCase()}`}>
                       {request.status}
@@ -103,7 +105,7 @@ export default function MyRequestsList({
                   </div>
                   <p className="regularization-request-card__reason">{request.reason}</p>
                   <div className="regularization-request-card__meta">
-                    <span>Requested {formatDate(request.createdAt)}</span>
+                    <span>Requested {formatRegDate(request.createdAt)}</span>
                     {request.approverId?.name ? (
                       <span>Reviewed by {request.approverId.name}</span>
                     ) : null}
@@ -114,42 +116,7 @@ export default function MyRequestsList({
                       <span>{request.approverComment}</span>
                     </div>
                   ) : null}
-                  {allowCancel && cancelId === request._id ? (
-                    <div className="regularization-cancel-box">
-                      <div>
-                        <strong>Cancel this request?</strong>
-                        <p>It will be removed from the approval queue.</p>
-                      </div>
-                      <label htmlFor={`cancel-${request._id}`}>Reason (optional)</label>
-                      <input
-                        id={`cancel-${request._id}`}
-                        value={cancelReason}
-                        maxLength="500"
-                        onChange={(event) => setCancelReason(event.target.value)}
-                        placeholder="Why are you withdrawing it?"
-                      />
-                      <div className="regularization-cancel-box__actions">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => {
-                            setCancelId("");
-                            setCancelReason("");
-                          }}
-                        >
-                          Keep request
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="delete"
-                          disabled={cancelling === request._id}
-                          onClick={() => confirmCancel(request)}
-                        >
-                          {cancelling === request._id ? "Cancelling…" : "Cancel request"}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : allowCancel && request.status === "Pending" ? (
+                  {allowCancel && request.status === "Pending" ? (
                     <button
                       type="button"
                       className="regularization-cancel-trigger"
@@ -171,6 +138,30 @@ export default function MyRequestsList({
           Most recent requests appear first
         </div>
       ) : null}
+
+      {/* Cancel confirmation as a centered modal (always fully visible and
+          clickable, on any viewport) instead of an inline expanding box. */}
+      <ConfirmModal
+        open={Boolean(allowCancel && cancelId)}
+        title="Cancel this request?"
+        message="It will be removed from the approval queue."
+        confirmLabel="Cancel request"
+        variant="danger"
+        inputLabel="Reason (optional)"
+        inputValue={cancelReason}
+        onInputChange={setCancelReason}
+        inputPlaceholder="Why are you withdrawing it?"
+        loading={Boolean(cancelling)}
+        onCancel={() => {
+          if (cancelling) return;
+          setCancelId("");
+          setCancelReason("");
+        }}
+        onConfirm={() => {
+          const target = requests.find((item) => item._id === cancelId);
+          if (target) confirmCancel(target);
+        }}
+      />
     </section>
   );
 }

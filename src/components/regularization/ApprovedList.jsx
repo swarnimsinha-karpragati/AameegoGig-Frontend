@@ -1,20 +1,10 @@
 import { CalendarDays, CheckCircle2, Clock3, Loader2 } from "lucide-react";
 import { getLeaveTypeLabel } from "../../utils/leaveLabels";
-
-const formatDate = (value) => {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
-};
+import { formatRegDate, formatRegRange } from "../../utils/regularizationFormatters";
 
 const requestPeriod = (request) => {
-  if (request.kind === "attendance") return formatDate(request.requested?.date);
-  const start = formatDate(request.requested?.startDate);
-  const end = formatDate(request.requested?.endDate);
-  return start === end ? start : `${start} – ${end}`;
+  if (request.kind === "attendance") return formatRegDate(request.requested?.date);
+  return formatRegRange(request.requested?.startDate, request.requested?.endDate);
 };
 
 export default function ApprovedList({
@@ -75,7 +65,7 @@ export default function ApprovedList({
                   </div>
                   <p className="regularization-request-card__reason">{request.reason}</p>
                   <div className="regularization-request-card__meta">
-                    <span>Approved {formatDate(request.decidedAt)}</span>
+                    <span>Approved {formatRegDate(request.decidedAt)}</span>
                     {request.approverId?.name ? (
                       <span>Reviewed by {request.approverId.name}</span>
                     ) : null}

@@ -250,6 +250,7 @@ function RegularizationInner() {
             requests={requests}
             loading={loading}
             onCancel={handleCancel}
+            showEmployee={isAdminOrHr}
           />
         ) : null}
         {activeTab === "approvals" ? (

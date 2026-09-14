@@ -6,6 +6,7 @@ const LEAVE_LABELS = {
   WFH: "Work From Home (WFH)",
   LOP: "Loss of Pay (LOP)",
   LWP: "Leave Without Pay (LWP)",
+  Present: "Present",
 };
 
 export const getLeaveTypeLabel = (type) =>

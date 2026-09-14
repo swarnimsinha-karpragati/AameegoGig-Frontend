@@ -19,41 +19,20 @@ import { validateField } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
 import { buildApiErrorMessage } from "./RequestForm";
 import { getLeaveTypeLabel } from "../../utils/leaveLabels";
-import { formatAttendanceHours } from "../../utils/regularizationFormatters";
+import {
+  formatAttendanceHours,
+  formatRegDate,
+  formatRegRange,
+  formatRegTime,
+} from "../../utils/regularizationFormatters";
 
-const formatDate = (value) => {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-};
+const leaveRange = (value = {}) => formatRegRange(value.startDate, value.endDate);
 
-const leaveRange = (value = {}) => {
-  const start = formatDate(value.startDate);
-  const end = formatDate(value.endDate);
-  return start === end ? start : `${start} – ${end}`;
-};
-
-export const formatTime = (value) => {
-  if (!value) return "—";
-  const text = String(value);
-  if (/^([01]\d|2[0-3]):[0-5]\d$/.test(text)) return text;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-};
+export const formatTime = formatRegTime;
 
 export const approvalPeriod = (request) =>
   request.kind === "attendance"
-    ? formatDate(request.requested?.date)
+    ? formatRegDate(request.requested?.date)
     : leaveRange(request.requested);
 
 export const describeApprovalChange = (request) => {

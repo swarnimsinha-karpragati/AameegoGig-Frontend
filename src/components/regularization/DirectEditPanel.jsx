@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -9,6 +10,7 @@ import {
 import Button from "../Button";
 import ConfirmModal from "../ConfirmModal";
 import SearchableEmployeeSelectServer from "../attendance/SearchableEmployeeSelectServer";
+import { getAttendanceList } from "../../services/attendanceService";
 import { getLeaveRequests } from "../../services/leaveService";
 import {
   directEditAttendance,
@@ -19,9 +21,15 @@ import { validateFields } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
 import {
   buildApiErrorMessage,
+  countCalendarDaysInclusive,
   countWeekdaysInclusive,
 } from "./RequestForm";
 import { getLeaveTypeLabel } from "../../utils/leaveLabels";
+import {
+  formatRegDate,
+  formatRegRange,
+} from "../../utils/regularizationFormatters";
+import { describeApprovalChange } from "./ApprovalsList";
 
 const ATTENDANCE_STATUSES = [
   "Present",
@@ -31,10 +39,8 @@ const ATTENDANCE_STATUSES = [
   "Leave",
   "WFH",
 ];
-const LEAVE_TYPES = ["CL", "SL", "EL", "CO", "WFH", "LOP", "LWP"];
+const LEAVE_TYPES = ["CL", "SL", "EL", "CO", "WFH", "LOP", "LWP", "Present"];
 const STATUSES_REQUIRING_TIMES = ["Present", "Late", "Half Day", "WFH"];
-const MAX_WORKING_HOURS = 9;
-const MAX_WORKING_MINUTES = MAX_WORKING_HOURS * 60;
 
 const minutesFromTime = (value) => {
   const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -58,6 +64,8 @@ const emptyLeave = {
   endDate: "",
   reason: "",
   auditNote: "",
+  checkIn: "",
+  checkOut: "",
 };
 
 const toDateInput = (value) => {
@@ -128,6 +136,7 @@ export const validateDirectEdit = (kind, form) => {
       }
     );
   } else {
+    const isPresentLeave = form.leaveType === "Present";
     fields.push(
       {
         name: "leaveRequestId",
@@ -167,30 +176,44 @@ export const validateDirectEdit = (kind, form) => {
         required: true,
         minLength: 3,
         maxLength: 500,
+      },
+      {
+        name: "checkIn",
+        label: "Check-in",
+        value: form.checkIn,
+        kind: "text",
+        required: isPresentLeave,
+        maxLength: 5,
+      },
+      {
+        name: "checkOut",
+        label: "Check-out",
+        value: form.checkOut,
+        kind: "text",
+        required: isPresentLeave,
+        maxLength: 5,
       }
     );
   }
 
   const { errors } = validateFields(fields);
+  // Same numeric time comparison as the employee request form and the
+  // backend (minutesFromTime) — never lexicographic string comparison,
+  // so "9:00" vs "10:00" and "17:00" vs "22:00" are handled correctly.
+  const checkInMinutes = minutesFromTime(form.checkIn);
+  const checkOutMinutes = minutesFromTime(form.checkOut);
   if (
     kind === "attendance" &&
-    form.checkIn &&
-    form.checkOut &&
-    form.checkOut < form.checkIn
+    checkInMinutes !== null &&
+    checkOutMinutes !== null &&
+    checkOutMinutes < checkInMinutes
   ) {
     errors.checkOut = "Check-out must be on or after check-in";
   }
-  if (kind === "attendance") {
-    const startMinutes = minutesFromTime(form.checkIn);
-    const endMinutes = minutesFromTime(form.checkOut);
-    if (
-      startMinutes !== null &&
-      endMinutes !== null &&
-      endMinutes - startMinutes > MAX_WORKING_MINUTES
-    ) {
-      errors.checkOut = `Regularization hours cannot exceed ${MAX_WORKING_HOURS} hours`;
-    }
-  }
+  // Shift-duration limit (e.g. "Regularization hours cannot exceed X hours
+  // for this department shift") is enforced by the backend API against the
+  // employee's department shift — same as the employee submit flow. No
+  // hardcoded frontend cap here, so valid shift hours never block Review.
   if (
     kind === "leave" &&
     form.startDate &&
@@ -200,9 +223,25 @@ export const validateDirectEdit = (kind, form) => {
     errors.endDate = "End date must be on or after start date";
   } else if (
     kind === "leave" &&
+    form.leaveType !== "CO" &&
+    form.leaveType !== "Present" &&
     countWeekdaysInclusive(form.startDate, form.endDate) === 0
   ) {
+    // Comp-Off can be earned/taken on weekends and holidays (calendar days),
+    // so the weekday-only requirement does not apply to CO corrections.
+    // Present corrections reuse the locked original leave dates.
     errors.endDate = "Choose dates that include at least one working day";
+  }
+  if (kind === "leave" && form.leaveType === "Present") {
+    const presentIn = minutesFromTime(form.checkIn);
+    const presentOut = minutesFromTime(form.checkOut);
+    if (
+      presentIn !== null &&
+      presentOut !== null &&
+      presentOut < presentIn
+    ) {
+      errors.checkOut = "Check-out must be on or after check-in";
+    }
   }
   return errors;
 };
@@ -275,6 +314,9 @@ export const buildDirectEditPayload = (kind, form) => {
     endDate: form.endDate,
     reason: form.reason.trim(),
     auditNote: form.auditNote.trim(),
+    // Used when the day is corrected as Present (attendance times).
+    checkIn: form.leaveType === "Present" ? form.checkIn || null : undefined,
+    checkOut: form.leaveType === "Present" ? form.checkOut || null : undefined,
   };
 };
 
@@ -291,6 +333,60 @@ export default function DirectEditPanel({ toast, onChanged }) {
   const [saving, setSaving] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(false);
+  // Existing (recorded) attendance for the selected employee + date, used by
+  // the confirmation summary (Before vs After). Non-blocking on failure.
+  const [existingRecord, setExistingRecord] = useState(null);
+  const [existingLoading, setExistingLoading] = useState(false);
+
+  useEffect(() => {
+    if (kind !== "attendance" || !attendance.employeeId || !attendance.date) {
+      setExistingRecord(null);
+      setExistingLoading(false);
+      return undefined;
+    }
+    let active = true;
+    setExistingLoading(true);
+    getAttendanceList({
+      target: "org",
+      filterType: "custom",
+      startDate: attendance.date,
+      endDate: attendance.date,
+      page: 1,
+      limit: 100,
+    })
+      .then((data) => {
+        if (!active) return;
+        const row = (data?.rows || []).find((item) => {
+          const id = item.employeeId?._id || item.employeeId;
+          return id && String(id) === String(attendance.employeeId);
+        });
+        if (!row) {
+          setExistingRecord(null);
+          return;
+        }
+        const emp = typeof row.employeeId === "object" ? row.employeeId : {};
+        setExistingRecord({
+          employee: {
+            name: emp.name || row.name || null,
+            code: emp.employeeCode || row.employeeCode || null,
+          },
+          record: {
+            status: row.status || null,
+            checkIn: row.checkIn || null,
+            checkOut: row.checkOut || null,
+          },
+        });
+      })
+      .catch(() => {
+        if (active) setExistingRecord(null);
+      })
+      .finally(() => {
+        if (active) setExistingLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [kind, attendance.employeeId, attendance.date]);
 
   useEffect(() => {
     if (kind !== "leave" || !leave.employeeId) {
@@ -381,9 +477,13 @@ export default function DirectEditPanel({ toast, onChanged }) {
       ),
     [leaveRequests, leave.employeeId]
   );
+  // Comp-Off counts every calendar day (weekends/holidays included).
   const workingDays = useMemo(
-    () => countWeekdaysInclusive(leave.startDate, leave.endDate),
-    [leave.startDate, leave.endDate]
+    () =>
+      leave.leaveType === "CO"
+        ? countCalendarDaysInclusive(leave.startDate, leave.endDate)
+        : countWeekdaysInclusive(leave.startDate, leave.endDate),
+    [leave.leaveType, leave.startDate, leave.endDate]
   );
   const pendingConflict = useMemo(
     () =>
@@ -406,6 +506,18 @@ export default function DirectEditPanel({ toast, onChanged }) {
     !pendingLoading &&
     (kind === "attendance" ? Boolean(attendance.date) : Boolean(leave.leaveRequestId));
 
+  // The submit button stays disabled while the form is invalid, so the
+  // reason must be visible without waiting for a submit attempt (which a
+  // disabled button can never trigger). Show errors live once dirty.
+  const isFormDirty = useMemo(() => {
+    const values =
+      kind === "attendance"
+        ? [attendance.employeeId, attendance.date, attendance.checkIn, attendance.checkOut, attendance.auditNote]
+        : [leave.employeeId, leave.leaveRequestId, leave.startDate, leave.endDate, leave.reason, leave.auditNote, leave.checkIn, leave.checkOut];
+    return values.some((v) => String(v || "").trim() !== "");
+  }, [kind, attendance, leave]);
+  const showErrors = touched || isFormDirty;
+
   const selectLeaveRequest = (id) => {
     const selected = employeeLeaves.find((request) => request._id === id);
     if (!selected) {
@@ -416,13 +528,20 @@ export default function DirectEditPanel({ toast, onChanged }) {
         startDate: "",
         endDate: "",
         reason: "",
+        checkIn: "",
+        checkOut: "",
       }));
       return;
     }
     setLeave((previous) => ({
       ...previous,
       leaveRequestId: selected._id,
-      leaveType: selected.leaveType || "CL",
+      // Keep an explicitly chosen "Present" correction; otherwise match the
+      // selected request's type.
+      leaveType:
+        previous.leaveType === "Present"
+          ? "Present"
+          : selected.leaveType || "CL",
       startDate: toDateInput(selected.startDate),
       endDate: toDateInput(selected.endDate),
       reason: selected.reason || "",
@@ -480,14 +599,85 @@ export default function DirectEditPanel({ toast, onChanged }) {
     }
   };
 
-  const confirmationMessage =
-    kind === "attendance"
-      ? `${attendance.date} · Set attendance to ${attendance.status}${
-          ["Absent", "Leave"].includes(attendance.status)
-            ? " and clear recorded times"
-            : ` · ${attendance.checkIn || "—"} to ${attendance.checkOut || "—"}`
-        }`
-      : `${getLeaveTypeLabel(leave.leaveType)} · ${leave.startDate} to ${leave.endDate} · ${workingDays || 0} working day(s)`;
+  // Rich Before-vs-After summary for the confirmation modal: employee,
+  // date, recorded vs new values, audit note, and the apply warning.
+  const selectedLeaveEntry =
+    kind === "leave"
+      ? employeeLeaves.find((item) => item._id === leave.leaveRequestId) || null
+      : null;
+  const summaryEmployee = (() => {
+    if (kind === "attendance") return existingRecord?.employee || null;
+    const emp = selectedLeaveEntry?.employeeId;
+    if (emp && typeof emp === "object") {
+      return { name: emp.name || null, code: emp.employeeCode || null };
+    }
+    return null;
+  })();
+  const summaryChange = (() => {
+    if (kind === "attendance") {
+      return describeApprovalChange({
+        kind: "attendance",
+        previous: existingRecord?.record || null,
+        requested: {
+          status: attendance.status,
+          checkIn: attendance.checkIn || null,
+          checkOut: attendance.checkOut || null,
+        },
+      });
+    }
+    return describeApprovalChange({
+      kind: "leave",
+      previous: selectedLeaveEntry
+        ? {
+            leaveType: selectedLeaveEntry.leaveType,
+            startDate: selectedLeaveEntry.startDate,
+            endDate: selectedLeaveEntry.endDate,
+          }
+        : null,
+      requested: {
+        leaveType: leave.leaveType,
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+      },
+    });
+  })();
+  const confirmationSummary = (
+    <div className="regularization-confirm-summary">
+      <div className="regularization-confirm-summary__row">
+        <span>Employee</span>
+        <strong>
+          {summaryEmployee?.name || "Selected employee"}
+          {summaryEmployee?.code ? ` · ${summaryEmployee.code}` : ""}
+        </strong>
+      </div>
+      <div className="regularization-confirm-summary__row">
+        <span>Date</span>
+        <strong>
+          {kind === "attendance"
+            ? formatRegDate(attendance.date)
+            : formatRegRange(leave.startDate, leave.endDate)}
+        </strong>
+      </div>
+      <div className="regularization-confirm-summary__change">
+        <div>
+          <span>Recorded (before)</span>
+          <strong>{summaryChange.previous}</strong>
+        </div>
+        <ArrowRight size={18} aria-hidden="true" />
+        <div>
+          <span>New (after)</span>
+          <strong>{summaryChange.requested}</strong>
+        </div>
+      </div>
+      <div className="regularization-confirm-summary__row">
+        <span>Audit note</span>
+        <strong>{activeForm.auditNote.trim() || "—"}</strong>
+      </div>
+      <p className="regularization-confirm-summary__warning">
+        This change applies immediately and will be recorded in the audit trail.
+      </p>
+    </div>
+  );
 
   return (
     <section className="regularization-panel regularization-glass">
@@ -535,10 +725,12 @@ export default function DirectEditPanel({ toast, onChanged }) {
                   startDate: "",
                   endDate: "",
                   reason: "",
+                  checkIn: "",
+                  checkOut: "",
                 }));
               }
             }}
-            hasError={touched && Boolean(errors.employeeId)}
+            hasError={showErrors && Boolean(errors.employeeId)}
             controlClassName="regularization-employee-control"
             placeholder="Search employee by name or code"
           />
@@ -564,9 +756,20 @@ export default function DirectEditPanel({ toast, onChanged }) {
                 onChange={(event) =>
                   setAttendance((previous) => ({ ...previous, date: event.target.value }))
                 }
-                aria-invalid={touched && Boolean(errors.date)}
+                aria-invalid={showErrors && Boolean(errors.date)}
               />
             </div>
+            {attendance.employeeId && attendance.date ? (
+              <div className="regularization-field regularization-field--full">
+                <small>
+                  {existingLoading
+                    ? "Loading recorded attendance…"
+                    : existingRecord
+                      ? `Recorded: ${describeApprovalChange({ kind: "attendance", previous: existingRecord.record, requested: existingRecord.record }).previous}`
+                      : "No attendance record found for this date"}
+                </small>
+              </div>
+            ) : null}
             <div className="regularization-field">
               <label htmlFor="direct-attendance-status">Status *</label>
               <select
@@ -604,7 +807,13 @@ export default function DirectEditPanel({ toast, onChanged }) {
                         checkIn: event.target.value,
                       }))
                     }
+                    aria-invalid={showErrors && Boolean(errors.checkIn)}
                   />
+                  {showErrors && errors.checkIn ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {errors.checkIn}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="regularization-field">
                   <label htmlFor="direct-check-out">Check-out *</label>
@@ -618,8 +827,13 @@ export default function DirectEditPanel({ toast, onChanged }) {
                         checkOut: event.target.value,
                       }))
                     }
-                    aria-invalid={touched && Boolean(errors.checkOut)}
+                    aria-invalid={showErrors && Boolean(errors.checkOut)}
                   />
+                  {showErrors && errors.checkOut ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {errors.checkOut}
+                    </p>
+                  ) : null}
                 </div>
               </>
             ) : (
@@ -641,7 +855,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
                 value={leave.leaveRequestId}
                 disabled={!leave.employeeId || leavesLoading}
                 onChange={(event) => selectLeaveRequest(event.target.value)}
-                aria-invalid={touched && Boolean(errors.leaveRequestId)}
+                aria-invalid={showErrors && Boolean(errors.leaveRequestId)}
               >
                 <option value="">
                   {leavesLoading
@@ -652,8 +866,8 @@ export default function DirectEditPanel({ toast, onChanged }) {
                 </option>
                 {employeeLeaves.map((request) => (
                   <option key={request._id} value={request._id}>
-                    {getLeaveTypeLabel(request.leaveType)} · {toDateInput(request.startDate)} to{" "}
-                    {toDateInput(request.endDate)} · {request.status}
+                    {getLeaveTypeLabel(request.leaveType)} · {formatRegDate(request.startDate)} to{" "}
+                    {formatRegDate(request.endDate)} · {request.status}
                   </option>
                 ))}
               </select>
@@ -681,39 +895,65 @@ export default function DirectEditPanel({ toast, onChanged }) {
             <div className="regularization-field">
               <label>Request mode</label>
               <div className="regularization-readonly">
-                {leave.leaveType === "WFH" ? "Work from home" : "Leave"}
+                {leave.leaveType === "WFH"
+                  ? "Work from home"
+                  : leave.leaveType === "Present"
+                    ? "Mark present"
+                    : "Leave"}
               </div>
             </div>
-            <div className="regularization-field">
-              <label htmlFor="direct-leave-start">Start date *</label>
-              <input
-                id="direct-leave-start"
-                type="date"
-                value={leave.startDate}
-                onChange={(event) =>
-                  setLeave((previous) => ({
-                    ...previous,
-                    startDate: event.target.value,
-                  }))
-                }
-                aria-invalid={touched && Boolean(errors.startDate)}
-              />
-            </div>
-            <div className="regularization-field">
-              <label htmlFor="direct-leave-end">End date *</label>
-              <input
-                id="direct-leave-end"
-                type="date"
-                min={leave.startDate || undefined}
-                value={leave.endDate}
-                onChange={(event) =>
-                  setLeave((previous) => ({
-                    ...previous,
-                    endDate: event.target.value,
-                  }))
-                }
-                aria-invalid={touched && Boolean(errors.endDate)}
-              />
+            {leave.leaveType === "Present" ? (
+              <>
+                <div className="regularization-field">
+                  <label htmlFor="direct-present-check-in">Check-in *</label>
+                  <input
+                    id="direct-present-check-in"
+                    type="time"
+                    value={leave.checkIn}
+                    onChange={(event) =>
+                      setLeave((previous) => ({
+                        ...previous,
+                        checkIn: event.target.value,
+                      }))
+                    }
+                    aria-invalid={showErrors && Boolean(errors.checkIn)}
+                  />
+                  {showErrors && errors.checkIn ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {errors.checkIn}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="regularization-field">
+                  <label htmlFor="direct-present-check-out">Check-out *</label>
+                  <input
+                    id="direct-present-check-out"
+                    type="time"
+                    value={leave.checkOut}
+                    onChange={(event) =>
+                      setLeave((previous) => ({
+                        ...previous,
+                        checkOut: event.target.value,
+                      }))
+                    }
+                    aria-invalid={showErrors && Boolean(errors.checkOut)}
+                  />
+                  {showErrors && errors.checkOut ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {errors.checkOut}
+                    </p>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+            <div className="regularization-field regularization-field--full">
+              <label>Leave dates (locked to the original request)</label>
+              <div className="regularization-readonly">
+                {leave.startDate && leave.endDate
+                  ? formatRegRange(leave.startDate, leave.endDate)
+                  : "Select a leave request to load its dates"}
+              </div>
+              <small>Dates cannot be changed in a direct correction — they stay within the applied leave.</small>
             </div>
             {leave.startDate && leave.endDate ? (
               <div
@@ -728,9 +968,15 @@ export default function DirectEditPanel({ toast, onChanged }) {
                 <div>
                   <strong>
                     {errors.endDate ||
-                      `${workingDays} working day${workingDays === 1 ? "" : "s"}`}
+                      (leave.leaveType === "CO"
+                        ? `${workingDays} day${workingDays === 1 ? "" : "s"} (weekends included for Comp-Off)`
+                        : `${workingDays} working day${workingDays === 1 ? "" : "s"}`)}
                   </strong>
-                  <p>Weekends are excluded when leave usage is recalculated.</p>
+                  <p>
+                    {leave.leaveType === "CO"
+                      ? "Comp-Off can be applied on weekends and holidays."
+                      : "Weekends are excluded when leave usage is recalculated."}
+                  </p>
                 </div>
               </div>
             ) : null}
@@ -747,7 +993,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
                     reason: event.target.value,
                   }))
                 }
-                aria-invalid={touched && Boolean(errors.reason)}
+                aria-invalid={showErrors && Boolean(errors.reason)}
               />
             </div>
           </>
@@ -784,12 +1030,12 @@ export default function DirectEditPanel({ toast, onChanged }) {
                 setLeave((previous) => ({ ...previous, auditNote }));
               }
             }}
-            aria-invalid={touched && Boolean(errors.auditNote)}
+            aria-invalid={showErrors && Boolean(errors.auditNote)}
           />
           <small>{activeForm.auditNote.length}/500 characters · Stored in the audit trail</small>
         </div>
 
-        {touched && !isValid ? (
+        {showErrors && !isValid ? (
           <div className="regularization-inline-error regularization-field--full" role="alert">
             <Info size={16} /> {Object.values(errors)[0]}
           </div>
@@ -806,7 +1052,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
       <ConfirmModal
         open={confirming}
         title="Apply this direct edit?"
-        message={confirmationMessage}
+        message={confirmationSummary}
         confirmLabel="Apply change"
         variant="warning"
         loading={saving}
