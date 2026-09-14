@@ -305,7 +305,7 @@ function Attendance() {
       .catch(() => { })
       .finally(() => setLoading(false));
     // eslint-disable-next-line
-  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, teamFilters, hasTeam]);
+  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, teamFilters, hasTeam, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, teamPagination.page, teamPagination.limit]);
 
   useEffect(() => {
     loadTodaySelf();
@@ -338,6 +338,7 @@ function Attendance() {
       setSelectedPersonalDay(null);
     }
     setSelfFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+    setSelfPagination((p) => ({ ...p, page: 1 }));
   };
 
   const handleOrgFilterChange = (key, value) => {
@@ -345,18 +346,22 @@ function Attendance() {
       setSelectedOrgDay(null);
     }
     setOrgFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+    setOrgPagination((p) => ({ ...p, page: 1 }));
   };
 
   const handleTeamFilterChange = (key, value) => {
     setTeamFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+    setTeamPagination((p) => ({ ...p, page: 1 }));
   };
 
   const handlePersonalDaySelect = (day) => {
     setSelectedPersonalDay((prev) => (prev === day ? null : day));
+    setSelfPagination((p) => ({ ...p, page: 1 }));
   };
 
   const handleOrgDaySelect = (day) => {
     setSelectedOrgDay((prev) => (prev === day ? null : day));
+    setOrgPagination((p) => ({ ...p, page: 1 }));
   };
 
   const buildCalendarCells = (viewDateObj, calendarData) => {
@@ -484,6 +489,7 @@ function Attendance() {
     );
     setPersonalViewDate(newDate);
     setSelectedPersonalDay(null);
+    setSelfPagination((p) => ({ ...p, page: 1 }));
   };
 
   const shiftOrgMonth = (delta) => {
@@ -494,6 +500,7 @@ function Attendance() {
     );
     setOrgViewDate(newDate);
     setSelectedOrgDay(null);
+    setOrgPagination((p) => ({ ...p, page: 1 }));
   };
 
   const formatTimeForApi = (time24) => {
@@ -1254,7 +1261,7 @@ function Attendance() {
         holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
         weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
         isCalendarSelection={selectedOrgDay !== null}
-        onClearSelectedDay={() => setSelectedOrgDay(null)}
+        onClearSelectedDay={() => { setSelectedOrgDay(null); setOrgPagination((p) => ({ ...p, page: 1 })); }}
       />
 
       {orgPagination.pages > 1 && (
@@ -1303,7 +1310,7 @@ function Attendance() {
         holiday={selectedPersonalDay !== null ? selfCalendar.holidays[selectedPersonalDay] : null}
         weekOff={selectedPersonalDay !== null ? selfCalendar.weekOffs[selectedPersonalDay] : null}
         isCalendarSelection={selectedPersonalDay !== null}
-        onClearSelectedDay={() => setSelectedPersonalDay(null)}
+        onClearSelectedDay={() => { setSelectedPersonalDay(null); setSelfPagination((p) => ({ ...p, page: 1 })); }}
       />
 
       {selfPagination.pages > 1 && (
@@ -1392,7 +1399,7 @@ function Attendance() {
                 holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
                 weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
                 isCalendarSelection={selectedOrgDay !== null}
-                onClearSelectedDay={() => setSelectedOrgDay(null)}
+                onClearSelectedDay={() => { setSelectedOrgDay(null); setOrgPagination((p) => ({ ...p, page: 1 })); }}
               />
 
               {orgPagination.pages > 1 && (
@@ -1443,7 +1450,7 @@ function Attendance() {
         holiday={selectedPersonalDay !== null ? selfCalendar.holidays[selectedPersonalDay] : null}
         weekOff={selectedPersonalDay !== null ? selfCalendar.weekOffs[selectedPersonalDay] : null}
         isCalendarSelection={selectedPersonalDay !== null}
-        onClearSelectedDay={() => setSelectedPersonalDay(null)}
+        onClearSelectedDay={() => { setSelectedPersonalDay(null); setSelfPagination((p) => ({ ...p, page: 1 })); }}
       />
 
       {selfPagination.pages > 1 && (
