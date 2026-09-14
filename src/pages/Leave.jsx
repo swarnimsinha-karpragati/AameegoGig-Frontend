@@ -212,6 +212,15 @@ function LeaveInner() {
     [leaveForm.startDate, leaveForm.endDate]
   );
 
+  // Backdate limit (mirrors backend getEarliestLeaveStartDate): earliest
+  // selectable date = 1st day of previous month (e.g. today 15 Feb → 1 Jan).
+  const minLeaveDate = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      .toISOString()
+      .split("T")[0];
+  }, []);
+
   // Day Type halves exist only when a single day is selected — multi-day
   // ranges are always full days, so the field resets automatically.
   const isSingleDayLeave = computedLeaveDays === 1;
@@ -419,6 +428,12 @@ function LeaveInner() {
 
   const dateValidationError = useMemo(() => {
     if (!leaveForm.startDate || !leaveForm.endDate) return null;
+    if (leaveForm.startDate < minLeaveDate) {
+      return {
+        code: "backdate",
+        message: `Leave can be applied only from ${minLeaveDate} onwards (up to 1 month back). Older dates are not allowed.`,
+      };
+    }
     if (computedLeaveDays == null) {
       return {
         code: "range",
@@ -438,6 +453,7 @@ function LeaveInner() {
     leaveForm.endDate,
     leaveForm.requestType,
     computedLeaveDays,
+    minLeaveDate,
   ]);
 
   const leaveApiErrorMessage = (err, fallback) => {
@@ -895,6 +911,7 @@ function LeaveInner() {
             type="date"
             className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.startDate}
+            min={minLeaveDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, startDate: e.target.value }))
             }
@@ -910,6 +927,7 @@ function LeaveInner() {
             type="date"
             className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.endDate}
+            min={minLeaveDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, endDate: e.target.value }))
             }

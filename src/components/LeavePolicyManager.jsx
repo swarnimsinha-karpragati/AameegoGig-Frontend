@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import Button from "./Button";
 import "./LeavePolicyManager.css";
 import { getLeavePolicy, updateLeavePolicy } from "../services/leaveService";
@@ -165,6 +165,7 @@ export default function LeavePolicyManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState({ type: "", message: "" });
+  const topRef = useRef(null);
   const [confirm, setConfirm] = useState({
     open: false,
     title: "",
@@ -282,6 +283,22 @@ export default function LeavePolicyManager() {
     return prefix;
   };
 
+  const scrollStatusIntoView = () => {
+    // The Save button sits at the bottom of a long page while the result
+    // banner renders at the top — scroll up so the confirmation is visible.
+    const schedule =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : (fn) => setTimeout(fn, 0);
+    schedule(() => {
+      try {
+        topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {
+        // Non-visual environments (tests) may lack scrolling — ignore.
+      }
+    });
+  };
+
   const handleSaveCustom = async () => {
     if (!policy) return;
     setSaving(true);
@@ -342,13 +359,16 @@ export default function LeavePolicyManager() {
         type: "success",
         message: formatSyncMessage("Leave policy saved successfully.", res),
       });
+      scrollStatusIntoView();
     } catch (e) {
       setStatus({
         type: "error",
         message: e?.response?.data?.message || e.message || "Could not save policy",
       });
+      scrollStatusIntoView();
     } finally {
       setSaving(false);
+      closeConfirm();
     }
   };
 
@@ -389,7 +409,7 @@ export default function LeavePolicyManager() {
   }
 
   return (
-    <section className="lp-manager" id="leave-policy-settings">
+    <section className="lp-manager" id="leave-policy-settings" ref={topRef}>
       <header className="lp-header">
         <div>
           <h2>Leave policy</h2>
@@ -399,7 +419,14 @@ export default function LeavePolicyManager() {
           </p>
         </div>
       </header>
-
+      188	Expense Submission Email Notification Not Triggered	Expenses		"1.Login to the HRMS portal as an Employee.
+      2.Go to Expenses → Submit Expense.
+      3.Fill in all required expense details and submit the expense.
+      4.Check the registered email inbox of the employee's Manager and HR.
+      5.Repeat the same process by logging in as a Manager and submitting an expense.
+      6.Check the registered email inbox of the Administrator and HR."	"When an Employee submits an expense → email should be sent to Manager + HR.
+      When a Manager submits an expense → email should be sent to Administrator + HR.
+      The email should contain the expense details and a link/action to review the expense."
       {status?.message ? (
         <div className={`lp-banner ${status.type}`}>{status.message}</div>
       ) : null}
@@ -700,6 +727,7 @@ export default function LeavePolicyManager() {
         <Button
           type="button"
           disabled={saving}
+          icon={saving ? <Loader2 size={16} className="lp-btn-spinner" /> : null}
           onClick={() =>
             openConfirm({
               title: "Save this leave policy?",
@@ -711,7 +739,7 @@ export default function LeavePolicyManager() {
             })
           }
         >
-          Save policy
+          {saving ? "Saving…" : "Save policy"}
         </Button>
       </div>
 
@@ -723,9 +751,9 @@ export default function LeavePolicyManager() {
         confirmLabel={confirm.confirmLabel}
         loading={saving}
         onConfirm={() => {
-          const fn = confirm.onConfirm;
-          closeConfirm();
-          fn?.();
+          // Keep the modal open with its own loading state until the save
+          // finishes — handleSaveCustom closes it in `finally`.
+          confirm.onConfirm?.();
         }}
         onCancel={closeConfirm}
       />
