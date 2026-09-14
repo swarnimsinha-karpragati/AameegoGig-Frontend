@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import Button from "./Button";
 import "./LeavePolicyManager.css";
-import { applyLeavePolicyTemplate, getLeavePolicy, updateLeavePolicy } from "../services/leaveService";
+import { getLeavePolicy, updateLeavePolicy } from "../services/leaveService";
 import ConfirmModal from "./ConfirmModal";
 
 const MONTHS = [
@@ -19,53 +20,7 @@ const MONTHS = [
   { value: 12, label: "December" },
 ];
 
-const ACCRUAL_OPTIONS = [
-  {
-    value: "upfront_annual",
-    label: "Full quota on 1st day of the year",
-    hint: "Employees get the yearly limit immediately (e.g. 12 days on 1 Jan).",
-  },
-  {
-    value: "fixed_monthly",
-    label: "Fixed days every month",
-    hint: "The same number of days is added at the start of each month.",
-  },
-  {
-    value: "prorate_paid_days",
-    label: "Based on days present / paid",
-    hint: "Monthly credit is reduced if the employee was not paid for all working days.",
-  },
-  {
-    value: "full_if_min_present",
-    label: "Full month only if attendance is enough",
-    hint: "They get the full monthly credit only when they meet the minimum paid days.",
-  },
-  {
-    value: "none",
-    label: "No automatic credit",
-    hint: "Days are added only when HR credits them (typical for compensatory off).",
-  },
-];
-
-const TEMPLATES = [
-  {
-    key: "legacy",
-    title: "Yearly quota",
-    blurb: "12 casual, 12 sick and 20 earned days on 1 January. Same as the current app.",
-  },
-  {
-    key: "india_accrual_fnf",
-    title: "Monthly accrual",
-    blurb: "0.5 casual + 0.5 sick each month. Earned leave grows with attendance. Unused casual/sick expire. Remaining earned leave can be paid at full & final.",
-  },
-  {
-    key: "custom",
-    title: "Custom",
-    blurb: "Start from the current values and change any rule yourself.",
-  },
-];
-
-const BALANCE_CODES = ["CL", "SL", "EL", "CO"];
+const BALANCE_CODES = ["CL", "SL", "EL", "CO", "WFH"];
 
 const asNumberOrNull = (v) => {
   if (v === "" || v === null || v === undefined) return null;
@@ -75,15 +30,65 @@ const asNumberOrNull = (v) => {
 
 const monthLabel = (month) => MONTHS.find((m) => m.value === Number(month))?.label || "January";
 
-const accrualMeta = (method) =>
-  ACCRUAL_OPTIONS.find((o) => o.value === method) || ACCRUAL_OPTIONS[ACCRUAL_OPTIONS.length - 1];
+const STANDARD_CODES = ["CL", "SL", "EL"];
 
 const needsMonthlyCredit = (method) =>
   ["fixed_monthly", "prorate_paid_days", "full_if_min_present"].includes(method);
 
 const describeType = (t) => {
   if (!t?.enabled) return "Turned off — employees cannot apply for this type.";
+
+  if (t.code === "WFH") {
+    const ml = t.monthlyLimit ?? null;
+    const al = t.annualLimit ?? null;
+    const monthPart =
+      ml != null && ml !== ""
+        ? `${ml} days added to balance every month`
+        : "No monthly quota";
+    const yearPart =
+      al != null && al !== "" ? `max ${al} per year` : "no yearly cap";
+    const endPart =
+      t.monthEnd?.lapseUnused !== false
+        ? "unused days expire monthly"
+        : "leftover days carry forward";
+    return `${monthPart}, ${yearPart}, ${endPart}.`;
+  }
+
   if (!t.hasBalance) return "Employees can apply. Remaining days are not tracked.";
+
+  if (t.code === "CO") {
+    const cap = t.accrual?.yearlyCap ?? 0;
+    const earnPart =
+      cap != null && cap !== ""
+        ? `No days granted upfront — employees earn CO through approved credit requests (worked on off-days), up to ${cap} per year.`
+        : "No days granted upfront — employees earn CO through approved credit requests (worked on off-days).";
+    if (t.yearEnd?.lapseUnused) return `${earnPart} Unused days expire at year end.`;
+    return `${earnPart} Unused days can be carried forward.`;
+  }
+
+  // Standard 18-day policy: CL/SL/EL fixed 0.5/mo.
+  // "How they earn" is fixed — carry-forward (lapse vs carry) is configurable.
+  if (STANDARD_CODES.includes(t.code)) {
+    const monthly = t.accrual?.monthlyCredit ?? 0.5;
+    const cap = t.accrual?.yearlyCap ?? 6;
+    const parts = [
+      `${monthly} day${monthly === 1 ? "" : "s"} added each month, up to ${cap} per year.`,
+    ];
+    if (t.yearEnd?.lapseUnused !== false) {
+      parts.push("Unused days expire at year end.");
+    } else if (t.yearEnd?.carryForwardMax != null && t.yearEnd.carryForwardMax !== "") {
+      parts.push(`Up to ${t.yearEnd.carryForwardMax} unused days can be carried to next year.`);
+    } else {
+      parts.push("Unused days can be carried forward.");
+    }
+    if (t.code === "EL") {
+      parts.push("EL starts only after probation (probation: only CL + SL).");
+    }
+    if (t.code === "SL" && t.documents?.requiredWhenDaysGt != null) {
+      parts.push(`Medical document needed when sick leave is more than ${t.documents.requiredWhenDaysGt} day${t.documents.requiredWhenDaysGt === 1 ? "" : "s"}.`);
+    }
+    return parts.join(" ");
+  }
 
   const method = t.accrual?.method;
   const monthly = t.accrual?.monthlyCredit ?? 0;
@@ -155,10 +160,12 @@ const Field = ({ label, hint, children }) => (
 
 export default function LeavePolicyManager() {
   const [policy, setPolicy] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState("legacy");
+  // Accordion: which leave-type card is open (all closed by default)
+  const [expandedType, setExpandedType] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState({ type: "", message: "" });
+  const topRef = useRef(null);
   const [confirm, setConfirm] = useState({
     open: false,
     title: "",
@@ -171,7 +178,6 @@ export default function LeavePolicyManager() {
   const yearStartMonth = policy?.yearStartMonth ?? 1;
   const yearStartDay = policy?.yearStartDay ?? 1;
   const types = useMemo(() => policy?.types ?? [], [policy?.types]);
-  const isCustomMode = selectedTemplate === "custom";
 
   const balanceTypes = useMemo(
     () =>
@@ -193,7 +199,6 @@ export default function LeavePolicyManager() {
     try {
       const res = await getLeavePolicy();
       setPolicy(res.policy || res || null);
-      setSelectedTemplate(res.policy?.templateKey || "legacy");
       setStatus({ type: "", message: "" });
     } catch (e) {
       setStatus({
@@ -244,6 +249,18 @@ export default function LeavePolicyManager() {
     });
   };
 
+  const updateMonthEnd = (code, patch) => {
+    setPolicy((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        types: (prev.types || []).map((t) =>
+          t.code === code ? { ...t, monthEnd: { ...(t.monthEnd || {}), ...patch } } : t
+        ),
+      };
+    });
+  };
+
   const updateDocuments = (code, patch) => {
     setPolicy((prev) => {
       if (!prev) return prev;
@@ -258,18 +275,6 @@ export default function LeavePolicyManager() {
     });
   };
 
-  const updateEncashment = (code, patch) => {
-    setPolicy((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        types: (prev.types || []).map((t) =>
-          t.code === code ? { ...t, encashment: { ...(t.encashment || {}), ...patch } } : t
-        ),
-      };
-    });
-  };
-
   const formatSyncMessage = (prefix, res) => {
     const n = res?.sync?.employeeCount;
     if (typeof n === "number") {
@@ -278,24 +283,20 @@ export default function LeavePolicyManager() {
     return prefix;
   };
 
-  const handleApplyTemplate = async () => {
-    setSaving(true);
-    setStatus({ type: "", message: "" });
-    try {
-      const res = await applyLeavePolicyTemplate(selectedTemplate);
-      setPolicy(res.policy || res);
-      setStatus({
-        type: "success",
-        message: formatSyncMessage("Policy applied.", res),
-      });
-    } catch (e) {
-      setStatus({
-        type: "error",
-        message: e?.response?.data?.message || e.message || "Could not apply this policy",
-      });
-    } finally {
-      setSaving(false);
-    }
+  const scrollStatusIntoView = () => {
+    // The Save button sits at the bottom of a long page while the result
+    // banner renders at the top — scroll up so the confirmation is visible.
+    const schedule =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : (fn) => setTimeout(fn, 0);
+    schedule(() => {
+      try {
+        topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {
+        // Non-visual environments (tests) may lack scrolling — ignore.
+      }
+    });
   };
 
   const handleSaveCustom = async () => {
@@ -307,29 +308,67 @@ export default function LeavePolicyManager() {
         templateKey: "custom",
         yearStartMonth: asNumberOrNull(yearStartMonth) ?? 1,
         yearStartDay: asNumberOrNull(yearStartDay) ?? 1,
-        types: (policy.types || []).map((t) => ({
-          ...t,
-          accrual: { ...(t.accrual || {}) },
-          yearEnd: { ...(t.yearEnd || {}) },
-          documents: { ...(t.documents || {}) },
-          encashment: { ...(t.encashment || {}) },
-        })),
+        types: (policy.types || []).map((t) => {
+          // Standard CL/SL/EL: force fixed 0.5/mo, no encashment.
+          // Carry-forward (lapse vs carry + limit) passes through from UI.
+          if (STANDARD_CODES.includes(t.code)) {
+            return {
+              ...t,
+              hasBalance: true,
+              accrual: {
+                ...(t.accrual || {}),
+                method: "fixed_monthly",
+                monthlyCredit: Number(t.accrual?.monthlyCredit ?? 0.5),
+                yearlyCap: Number(t.accrual?.yearlyCap ?? 6),
+                minPresentDays: 0,
+              },
+              yearEnd: {
+                ...(t.yearEnd || {}),
+                lapseUnused: t.yearEnd?.lapseUnused !== false,
+                carryForwardMax: asNumberOrNull(t.yearEnd?.carryForwardMax),
+                lapseExcessCarry: false,
+              },
+              monthEnd: { ...(t.monthEnd || {}) },
+              documents:
+                t.code === "SL"
+                  ? { ...(t.documents || {}) }
+                  : { requiredWhenDaysGt: null },
+              encashment: { enabled: false, on: null, base: null },
+            };
+          }
+          return {
+            ...t,
+            // WFH never uses balance tracking — quota runs on its two fields.
+            hasBalance: t.code === "WFH" ? false : t.code === "CO" ? true : t.hasBalance,
+            // CO is earned-only: no upfront grant, no accrual method.
+            accrual:
+              t.code === "CO"
+                ? { ...(t.accrual || {}), method: "none", monthlyCredit: 0, minPresentDays: 0 }
+                : { ...(t.accrual || {}) },
+            yearEnd: { ...(t.yearEnd || {}) },
+            monthEnd: { ...(t.monthEnd || {}) },
+            documents: { ...(t.documents || {}) },
+            encashment: { ...(t.encashment || {}) },
+          };
+        }),
       };
 
       const res = await updateLeavePolicy(payload);
       setPolicy(res.policy || res);
-      setSelectedTemplate("custom");
       setStatus({
         type: "success",
         message: formatSyncMessage("Leave policy saved successfully.", res),
       });
+      scrollStatusIntoView();
     } catch (e) {
       setStatus({
         type: "error",
         message: e?.response?.data?.message || e.message || "Could not save policy",
       });
+      scrollStatusIntoView();
     } finally {
       setSaving(false);
+      closeConfirm();
     }
   };
 
@@ -353,18 +392,6 @@ export default function LeavePolicyManager() {
   const openConfirm = (cfg) => setConfirm((c) => ({ ...c, ...cfg, open: true }));
   const closeConfirm = () => setConfirm((c) => ({ ...c, open: false, onConfirm: null }));
 
-  const switchToCustom = () => {
-    setPolicy((prev) => {
-      if (!prev) return prev;
-      return { ...prev, templateKey: "custom" };
-    });
-    setSelectedTemplate("custom");
-    setStatus({
-      type: "info",
-      message: "You can edit the values now. Click Save policy when you are done.",
-    });
-  };
-
   if (loading) {
     return (
       <section className="lp-manager" id="leave-policy-settings">
@@ -382,7 +409,7 @@ export default function LeavePolicyManager() {
   }
 
   return (
-    <section className="lp-manager" id="leave-policy-settings">
+    <section className="lp-manager" id="leave-policy-settings" ref={topRef}>
       <header className="lp-header">
         <div>
           <h2>Leave policy</h2>
@@ -392,74 +419,17 @@ export default function LeavePolicyManager() {
           </p>
         </div>
       </header>
-
+      188	Expense Submission Email Notification Not Triggered	Expenses		"1.Login to the HRMS portal as an Employee.
+      2.Go to Expenses → Submit Expense.
+      3.Fill in all required expense details and submit the expense.
+      4.Check the registered email inbox of the employee's Manager and HR.
+      5.Repeat the same process by logging in as a Manager and submitting an expense.
+      6.Check the registered email inbox of the Administrator and HR."	"When an Employee submits an expense → email should be sent to Manager + HR.
+      When a Manager submits an expense → email should be sent to Administrator + HR.
+      The email should contain the expense details and a link/action to review the expense."
       {status?.message ? (
         <div className={`lp-banner ${status.type}`}>{status.message}</div>
       ) : null}
-
-      <div className="lp-block">
-        <div className="lp-block-head">
-          <h3>Choose a starting policy</h3>
-          <p>Pick a ready-made policy, or customise the numbers yourself.</p>
-        </div>
-        <div className="lp-template-grid">
-          {TEMPLATES.map((tpl) => {
-            const active = selectedTemplate === tpl.key;
-            return (
-              <button
-                type="button"
-                key={tpl.key}
-                className={`lp-template-card ${active ? "is-active" : ""}`}
-                onClick={() => setSelectedTemplate(tpl.key)}
-              >
-                <span className="lp-template-title">{tpl.title}</span>
-                <span className="lp-template-blurb">{tpl.blurb}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="lp-toolbar">
-          {selectedTemplate !== "custom" ? (
-            <Button
-              type="button"
-              disabled={saving}
-              onClick={() =>
-                openConfirm({
-                  title: "Apply this policy to everyone?",
-                  message:
-                    "This replaces the organisation leave rules and updates this year’s leave balances for every employee.",
-                  variant: "warning",
-                  confirmLabel: "Apply policy",
-                  onConfirm: handleApplyTemplate,
-                })
-              }
-            >
-              Apply policy
-            </Button>
-          ) : null}
-          {selectedTemplate !== "custom" ? (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={saving}
-              onClick={() =>
-                openConfirm({
-                  title: "Edit these values?",
-                  message:
-                    "You will keep the current numbers and can change them. Nothing is saved until you click Save policy.",
-                  variant: "warning",
-                  confirmLabel: "Edit values",
-                  onConfirm: switchToCustom,
-                })
-              }
-            >
-              Edit values
-            </Button>
-          ) : (
-            <p className="lp-toolbar-note">Editing is on. Change the fields below, then save.</p>
-          )}
-        </div>
-      </div>
 
       <div className="lp-block lp-year-block">
         <div className="lp-block-head">
@@ -474,7 +444,6 @@ export default function LeavePolicyManager() {
             <select
               className="lp-input"
               value={yearStartMonth}
-              disabled={!isCustomMode}
               onChange={(e) =>
                 setPolicy((prev) => ({ ...prev, yearStartMonth: Number(e.target.value) }))
               }
@@ -493,7 +462,6 @@ export default function LeavePolicyManager() {
               min={1}
               max={31}
               value={yearStartDay}
-              disabled={!isCustomMode}
               onChange={(e) =>
                 setPolicy((prev) => ({ ...prev, yearStartDay: Number(e.target.value) }))
               }
@@ -505,56 +473,69 @@ export default function LeavePolicyManager() {
       <div className="lp-types">
         {balanceTypes.map((t) => {
           const method = t.accrual?.method || "none";
-          const meta = accrualMeta(method);
+          const isStandard = STANDARD_CODES.includes(t.code);
+          const isOpen = expandedType === t.code;
           return (
             <article
-              className={`lp-type-card ${t.enabled ? "" : "is-off"}`}
+              className={`lp-type-card ${t.enabled ? "" : "is-off"} ${isOpen ? "is-open" : ""}`}
               key={t.code}
               data-code={t.code}
             >
               <header className="lp-type-head">
                 <span className="lp-code">{t.code}</span>
-                <div className="lp-type-titles">
-                  <h3>{t.name || t.code}</h3>
-                  <p>{describeType(t)}</p>
-                </div>
-                <Toggle
-                  checked={Boolean(t.enabled)}
-                  disabled={!isCustomMode}
-                  onChange={(enabled) => updateType(t.code, { enabled })}
-                  label={t.enabled ? "On" : "Off"}
-                />
+                <button
+                  type="button"
+                  className="lp-type-toggle"
+                  aria-expanded={isOpen}
+                  onClick={() => setExpandedType((prev) => (prev === t.code ? null : t.code))}
+                >
+                  <span className="lp-type-titles">
+                    <h3>{t.name || t.code}</h3>
+                    <p>{describeType(t)}</p>
+                  </span>
+                  <ChevronDown
+                    size={18}
+                    className={`lp-type-chevron ${isOpen ? "open" : ""}`}
+                  />
+                </button>
+                <span onClick={(e) => e.stopPropagation()}>
+                  <Toggle
+                    checked={Boolean(t.enabled)}
+                    onChange={(enabled) => updateType(t.code, { enabled })}
+                    label={t.enabled ? "On" : "Off"}
+                  />
+                </span>
               </header>
 
-              {t.enabled ? (
+              {t.enabled && isOpen ? (
                 <div className="lp-type-body">
-                  <Toggle
-                    checked={Boolean(t.hasBalance)}
-                    disabled={!isCustomMode}
-                    onChange={(hasBalance) => updateType(t.code, { hasBalance })}
-                    label="Track remaining days"
-                    hint="Turn off for types like work from home, where people apply but do not use a quota."
-                  />
+                  {!isStandard && t.code !== "WFH" && t.code !== "CO" ? (
+                    <Toggle
+                      checked={Boolean(t.hasBalance)}
+                      onChange={(hasBalance) => updateType(t.code, { hasBalance })}
+                      label="Track remaining days"
+                      hint="Turn off for types like work from home, where people apply but do not use a quota."
+                    />
+                  ) : null}
 
                   {t.hasBalance ? (
                     <>
-                      <Field label="How they earn days" hint={meta.hint}>
-                        <select
-                          className="lp-input"
-                          value={method}
-                          disabled={!isCustomMode}
-                          onChange={(e) => updateAccrual(t.code, { method: e.target.value })}
-                        >
-                          {ACCRUAL_OPTIONS.map((opt) => (
-                            <option value={opt.value} key={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
+                      {isStandard ? (
+                        <p className="lp-field-hint" style={{ marginBottom: "8px" }}>
+                          Standard policy: 0.5 day added every month, up to 6 per year.
+                          {t.code === "EL" ? " EL starts only after probation." : ""}
+                        </p>
+                      ) : null}
+
+                      {t.code === "CO" ? (
+                        <p className="lp-field-hint" style={{ marginBottom: "8px" }}>
+                          No upfront grant and no monthly accrual — CO is earned only
+                          through approved credit requests (worked on off-days).
+                        </p>
+                      ) : null}
 
                       <div className="lp-field-row">
-                        {needsMonthlyCredit(method) ? (
+                        {(isStandard || (needsMonthlyCredit(method) && t.code !== "WFH" && t.code !== "CO")) ? (
                           <Field
                             label="Days each month"
                             hint="Added after each completed month."
@@ -564,31 +545,31 @@ export default function LeavePolicyManager() {
                               type="number"
                               min={0}
                               step="0.5"
-                              value={t.accrual?.monthlyCredit ?? 0}
-                              disabled={!isCustomMode}
+                              value={t.accrual?.monthlyCredit ?? 0.5}
                               onChange={(e) =>
                                 updateAccrual(t.code, { monthlyCredit: Number(e.target.value) })
                               }
                             />
                           </Field>
                         ) : null}
-                        <Field
-                          label="Maximum per year"
-                          hint="Credits stop once this limit is reached."
-                        >
-                          <input
-                            className="lp-input lp-input-sm"
-                            type="number"
-                            min={0}
-                            step="0.5"
-                            value={t.accrual?.yearlyCap ?? 0}
-                            disabled={!isCustomMode}
-                            onChange={(e) =>
-                              updateAccrual(t.code, { yearlyCap: Number(e.target.value) })
-                            }
-                          />
-                        </Field>
-                        {method === "full_if_min_present" ? (
+                        {t.code !== "WFH" ? (
+                          <Field
+                            label={t.code === "CO" ? "Maximum earnable per year" : "Maximum per year"}
+                            hint={t.code === "CO" ? "Approvals stop adding CO once this limit is reached." : "Credits stop once this limit is reached."}
+                          >
+                            <input
+                              className="lp-input lp-input-sm"
+                              type="number"
+                              min={0}
+                              step="0.5"
+                              value={t.accrual?.yearlyCap ?? 0}
+                              onChange={(e) =>
+                                updateAccrual(t.code, { yearlyCap: Number(e.target.value) })
+                              }
+                            />
+                          </Field>
+                        ) : null}
+                        {!isStandard && method === "full_if_min_present" && t.code !== "CO" ? (
                           <Field label="Minimum paid days in the month">
                             <input
                               className="lp-input lp-input-sm"
@@ -596,7 +577,6 @@ export default function LeavePolicyManager() {
                               min={0}
                               step="1"
                               value={t.accrual?.minPresentDays ?? 0}
-                              disabled={!isCustomMode}
                               onChange={(e) =>
                                 updateAccrual(t.code, {
                                   minPresentDays: Number(e.target.value),
@@ -607,19 +587,11 @@ export default function LeavePolicyManager() {
                         ) : null}
                       </div>
 
-                      <Toggle
-                        checked={Boolean(t.yearEnd?.lapseUnused)}
-                        disabled={!isCustomMode}
-                        onChange={(lapseUnused) => updateYearEnd(t.code, { lapseUnused })}
-                        label="Unused days expire at year end"
-                        hint="If off, leftover days can be carried into the next leave year."
-                      />
-
                       {t.code === "EL" ? (
                         <div className="lp-field-row">
                           <Field
                             label="Carry to next year, up to"
-                            hint="Days above this limit are lost."
+                            hint="Days above this limit are lost. Only used when unused days do NOT expire."
                           >
                             <input
                               className="lp-input lp-input-sm"
@@ -627,7 +599,6 @@ export default function LeavePolicyManager() {
                               min={0}
                               placeholder="No limit"
                               value={t.yearEnd?.carryForwardMax ?? ""}
-                              disabled={!isCustomMode}
                               onChange={(e) =>
                                 updateYearEnd(t.code, {
                                   carryForwardMax: asNumberOrNull(e.target.value),
@@ -636,22 +607,6 @@ export default function LeavePolicyManager() {
                             />
                           </Field>
                         </div>
-                      ) : null}
-
-                      {t.code === "EL" ? (
-                        <Toggle
-                          checked={Boolean(t.encashment?.enabled)}
-                          disabled={!isCustomMode}
-                          onChange={(enabled) =>
-                            updateEncashment(t.code, {
-                              enabled,
-                              on: enabled ? "fnf" : null,
-                              base: enabled ? "gross" : null,
-                            })
-                          }
-                          label="Pay remaining earned leave at full & final"
-                          hint="Amount = leftover EL days × (monthly gross ÷ 30)."
-                        />
                       ) : null}
 
                       {t.code === "SL" ? (
@@ -666,7 +621,6 @@ export default function LeavePolicyManager() {
                               min={0}
                               placeholder="—"
                               value={t.documents?.requiredWhenDaysGt ?? ""}
-                              disabled={!isCustomMode}
                               onChange={(e) =>
                                 updateDocuments(t.code, {
                                   requiredWhenDaysGt: asNumberOrNull(e.target.value),
@@ -678,6 +632,64 @@ export default function LeavePolicyManager() {
                         </Field>
                       ) : null}
                     </>
+                  ) : null}
+
+
+                  {t.code === "WFH" ? (
+                    <>
+                      <div className="lp-field-row">
+                        <Field
+                          label="WFH days per month"
+                          hint="Added to balance every month. Blank = unlimited."
+                        >
+                          <input
+                            className="lp-input lp-input-sm"
+                            type="number"
+                            min={0}
+                            step="1"
+                            placeholder="No limit"
+                            value={t.monthlyLimit ?? ""}
+                            onChange={(e) =>
+                              updateType(t.code, {
+                                monthlyLimit: asNumberOrNull(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+                        <Field
+                          label="WFH days per year"
+                          hint="Max per leave year. Blank = unlimited."
+                        >
+                          <input
+                            className="lp-input lp-input-sm"
+                            type="number"
+                            min={0}
+                            step="1"
+                            placeholder="No limit"
+                            value={t.annualLimit ?? ""}
+                            onChange={(e) =>
+                              updateType(t.code, {
+                                annualLimit: asNumberOrNull(e.target.value),
+                              })
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <Toggle
+                        checked={t.monthEnd?.lapseUnused !== false}
+                        onChange={(lapseUnused) => updateMonthEnd(t.code, { lapseUnused })}
+                        label="Unused days expire at month end"
+                        hint="If off, leftover WFH days carry into next month (yearly cap still applies)."
+                      />
+                    </>
+                  ) : null}
+                  {t.code !== "WFH" ? (
+                    <Toggle
+                      checked={t.yearEnd?.lapseUnused !== false}
+                      onChange={(lapseUnused) => updateYearEnd(t.code, { lapseUnused })}
+                      label="Unused days expire at year end"
+                      hint="If off, leftover days can be carried into the next leave year."
+                    />
                   ) : null}
                 </div>
               ) : null}
@@ -702,7 +714,6 @@ export default function LeavePolicyManager() {
                 </div>
                 <Toggle
                   checked={Boolean(t.enabled)}
-                  disabled={!isCustomMode}
                   onChange={(enabled) => updateType(t.code, { enabled })}
                   label={t.enabled ? "On" : "Off"}
                 />
@@ -715,7 +726,8 @@ export default function LeavePolicyManager() {
       <div className="lp-actions">
         <Button
           type="button"
-          disabled={!isCustomMode || saving}
+          disabled={saving}
+          icon={saving ? <Loader2 size={16} className="lp-btn-spinner" /> : null}
           onClick={() =>
             openConfirm({
               title: "Save this leave policy?",
@@ -727,7 +739,7 @@ export default function LeavePolicyManager() {
             })
           }
         >
-          Save policy
+          {saving ? "Saving…" : "Save policy"}
         </Button>
       </div>
 
@@ -739,9 +751,9 @@ export default function LeavePolicyManager() {
         confirmLabel={confirm.confirmLabel}
         loading={saving}
         onConfirm={() => {
-          const fn = confirm.onConfirm;
-          closeConfirm();
-          fn?.();
+          // Keep the modal open with its own loading state until the save
+          // finishes — handleSaveCustom closes it in `finally`.
+          confirm.onConfirm?.();
         }}
         onCancel={closeConfirm}
       />

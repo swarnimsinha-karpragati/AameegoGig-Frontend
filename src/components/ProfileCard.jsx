@@ -8,6 +8,11 @@ import {
   PencilOff,
   LocateIcon,
   User,
+  ShieldCheck,
+  HeartPulse,
+  PhoneCall,
+  MapPin,
+  Cake,
 } from "lucide-react";
 import useFormValidation from "../hooks/useFormValidation";
 import {
@@ -25,7 +30,9 @@ function InputField({
   onChange,
   placeholder,
   isFormDisabled,
-  error
+  error,
+  type = "text",
+  max,
 }) {
   return (
     <div className="field-container">
@@ -49,10 +56,11 @@ function InputField({
         <div className="input-icon">{icon}</div>
 
         <input
-          type="text"
+          type={type}
           value={value}
           onChange={onChange}
           placeholder={placeholder}
+          max={max}
           disabled={isFormDisabled}
           className={`profile-input 
             ${isFormDisabled ? "input-disabled" : ""}
@@ -72,6 +80,29 @@ export default function ProfileCard() {
   const [department, setDepartment] = useState("");
   const [role, setRole] = useState("");
   const [reportingManager, setReportingManager] = useState(null);
+  const [employmentStatus, setEmploymentStatus] = useState(null);
+  const [probationEndDate, setProbationEndDate] = useState(null);
+  const [designation, setDesignation] = useState("");
+  // Self-editable personal details
+  const [dob, setDob] = useState("");
+  const [bloodGroup, setBloodGroup] = useState("");
+  const [emergencyContact, setEmergencyContact] = useState("");
+  const [permanentAddress, setPermanentAddress] = useState("");
+  // Identity lock: email/phone editable ONLY when missing (once set, HR only)
+  const [emailLocked, setEmailLocked] = useState(true);
+  const [phoneLocked, setPhoneLocked] = useState(true);
+
+  const toDateInput = (v) => {
+    if (!v) return "";
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString().slice(0, 10);
+  };
+  const maxDobInput = () => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    return d.toISOString().slice(0, 10);
+  };
   const [isFormDisabled, setIsFormDisabled] = useState(true);
   const [showOptions, setShowOptions] = useState(false);
   const galleryInputRef = useRef(null);
@@ -89,14 +120,20 @@ export default function ProfileCard() {
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
 
-  const profileFields = (values) => [
-    { name: "fullName", label: "Full Name", value: values.fullName, kind: "person_name", required: true },
-    { name: "email", label: "Email", value: values.email, inputType: "email", required: true },
-    { name: "phone", label: "Phone", value: values.phone, inputType: "tel", required: true },
-    { name: "location", label: "Location", value: values.location, required: true },
-    { name: "department", label: "Department", value: values.department, required: false },
-    { name: "role", label: "Role", value: values.role, required: true },
-  ];
+  const profileFields = (values) => {
+    const fields = [
+      { name: "fullName", label: "Full Name", value: values.fullName, kind: "person_name", required: true },
+      { name: "location", label: "Location", value: values.location, required: true },
+    ];
+    // Email/phone validate only when the employee is adding a missing one.
+    if (!values.emailLocked) {
+      fields.push({ name: "email", label: "Email", value: values.email, inputType: "email", required: false });
+    }
+    if (!values.phoneLocked) {
+      fields.push({ name: "phone", label: "Phone", value: values.phone, inputType: "tel", required: false });
+    }
+    return fields;
+  };
 
   const applyProfileData = (data) => {
     setFullName(data.name || "");
@@ -105,7 +142,16 @@ export default function ProfileCard() {
     setLocation(data.location || "");
     setDepartment(data.department || "");
     setRole(data.role || "");
+    setDesignation(data.designation || "");
     setReportingManager(data.reportingManager || null);
+    setEmploymentStatus(data.employmentStatus || null);
+    setProbationEndDate(data.probationEndDate || null);
+    setDob(toDateInput(data.dob));
+    setBloodGroup(data.bloodGroup || "");
+    setEmergencyContact(data.emergencyContact || "");
+    setPermanentAddress(data.permanentAddress || "");
+    setEmailLocked(Boolean(String(data.email || "").trim()));
+    setPhoneLocked(Boolean(String(data.phone || "").trim()));
     setProfileImage(resolveMediaUrl(data.photoDisplayUrl, data.photoUrl));
   };
 
@@ -122,6 +168,7 @@ export default function ProfileCard() {
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -130,9 +177,15 @@ export default function ProfileCard() {
 
   const validateForm = () => {
     const result = validateAll(
-      profileFields({ fullName, email, phone, location, department, role })
+      profileFields({ fullName, phone, location, email, emailLocked, phoneLocked })
     );
-    return result.valid;
+    if (!result.valid) return false;
+    // At least one contact must exist when both are being added fresh.
+    if (!emailLocked && !phoneLocked && !String(email || "").trim() && !String(phone || "").trim()) {
+      validateOne({ name: "phone", label: "Phone", value: phone, inputType: "tel", required: true });
+      return false;
+    }
+    return true;
   };
 
   const handleFieldChange = (name, label, value, extra = {}) => {
@@ -247,6 +300,11 @@ export default function ProfileCard() {
         name: fullName,
         phone,
         location,
+        ...(!emailLocked ? { email } : {}),
+        dob: dob || undefined,
+        bloodGroup,
+        emergencyContact,
+        permanentAddress,
       });
       const data = res.data?.data || {};
       applyProfileData(data);
@@ -292,6 +350,73 @@ export default function ProfileCard() {
         >
           {isFormDisabled ? <PencilOff size={16} /> : <Pencil size={16} />}
         </button>
+      </div>
+
+      <div className="profile-info-strip">
+        {emailLocked ? (
+          <div className="profile-info-item">
+            <span className="profile-info-icon profile-info-icon--blue"><Mail size={15} /></span>
+            <span className="profile-info-copy">
+              <span className="profile-info-label">Email</span>
+              <span className="profile-info-value" title={email}>{email || "-"}</span>
+            </span>
+          </div>
+        ) : null}
+        {phoneLocked ? (
+          <div className="profile-info-item">
+            <span className="profile-info-icon profile-info-icon--green"><Phone size={15} /></span>
+            <span className="profile-info-copy">
+              <span className="profile-info-label">Phone</span>
+              <span className="profile-info-value">{phone || "-"}</span>
+            </span>
+          </div>
+        ) : null}
+        <div className="profile-info-item">
+          <span className="profile-info-icon profile-info-icon--purple"><Briefcase size={15} /></span>
+          <span className="profile-info-copy">
+            <span className="profile-info-label">Department</span>
+            <span className="profile-info-value" title={department}>{department || "-"}</span>
+          </span>
+        </div>
+        <div className="profile-info-item">
+          <span className="profile-info-icon profile-info-icon--amber"><ShieldCheck size={15} /></span>
+          <span className="profile-info-copy">
+            <span className="profile-info-label">Role</span>
+            <span className="profile-info-value">{role || "-"}</span>
+          </span>
+        </div>
+        {designation ? (
+          <div className="profile-info-item">
+            <span className="profile-info-icon profile-info-icon--cyan"><User size={15} /></span>
+            <span className="profile-info-copy">
+              <span className="profile-info-label">Designation</span>
+              <span className="profile-info-value" title={designation}>{designation}</span>
+            </span>
+          </div>
+        ) : null}
+        {employmentStatus ? (
+          <div className="profile-info-item">
+            <span className="profile-info-icon profile-info-icon--green"><ShieldCheck size={15} /></span>
+            <span className="profile-info-copy">
+              <span className="profile-info-label">Employment Status</span>
+              <span className="profile-info-value">
+                {employmentStatus === "probation" ? "Probation" : "Full-time"}
+                {employmentStatus === "probation" && probationEndDate
+                  ? ` (till ${new Date(probationEndDate).toLocaleDateString()})`
+                  : ""}
+              </span>
+            </span>
+          </div>
+        ) : null}
+        {role !== "Admin" ? (
+          <div className="profile-info-item">
+            <span className="profile-info-icon profile-info-icon--pink"><User size={15} /></span>
+            <span className="profile-info-copy">
+              <span className="profile-info-label">Reporting Manager</span>
+              <span className="profile-info-value">{reportingManager?.name || "Not assigned"}</span>
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div className="profile-content">
@@ -358,31 +483,39 @@ export default function ProfileCard() {
           />
           {/* {errors.fullName && <p className="error-text">{errors.fullName}</p>} */}
 
-          <InputField
-            label="Email"
-            icon={<Mail size={15} color="#2563eb" />}
-            value={email}
-            onChange={() => { }}
-            placeholder="Enter your email"
-            error={errors.email}
-            isFormDisabled
-          />
-          {/* {errors.email && <p className="error-text">{errors.email}</p>} */}
+          {!emailLocked ? (
+            <InputField
+              label="Email"
+              icon={<Mail size={15} color="#2563eb" />}
+              value={email}
+              type="email"
+              onChange={(e) => {
+                const value = e.target.value.replace(/^\s+/, "");
+                setEmail(value);
+                handleFieldChange("email", "Email", value, { inputType: "email" });
+              }}
+              placeholder="Enter your email"
+              error={errors.email}
+              isFormDisabled={isFormDisabled}
+            />
+          ) : null}
 
-          <InputField
-            label="Phone"
-            icon={<Phone size={15} color="#2563eb" />}
-            value={phone}
-            onChange={(e) => {
-              const value = e.target.value;
-              setPhone(value);
-              handleFieldChange("phone", "Phone", value, { inputType: "tel" });
-            }}
-            placeholder="Enter phone number"
-            error={errors.phone}
-            isFormDisabled={isFormDisabled}
-          />
-          {/* {errors.phone && <p className="error-text">{errors.phone}</p>} */}
+          {!phoneLocked ? (
+            <InputField
+              label="Phone"
+              icon={<Phone size={15} color="#2563eb" />}
+              value={phone}
+              type="tel"
+              onChange={(e) => {
+                const value = e.target.value;
+                setPhone(value);
+                handleFieldChange("phone", "Phone", value, { inputType: "tel" });
+              }}
+              placeholder="Enter phone number"
+              error={errors.phone}
+              isFormDisabled={isFormDisabled}
+            />
+          ) : null}
 
           <InputField
             label="Location"
@@ -400,57 +533,62 @@ export default function ProfileCard() {
           {/* {errors.location && <p className="error-text">{errors.location}</p>} */}
 
           <InputField
-            label="Department"
-            icon={<Briefcase size={15} color="#2563eb" />}
-            value={department}
-            onChange={(e) => {
-              const value = e.target.value;
-              setDepartment(value);
-              handleFieldChange("department", "Department", value);
-            }}
-            placeholder="Enter department"
-            error={errors.department}
-            isFormDisabled={true}
+            label="Date of Birth"
+            icon={<Cake size={15} color="#2563eb" />}
+            value={dob}
+            type="date"
+            max={maxDobInput()}
+            onChange={(e) => setDob(e.target.value)}
+            placeholder="Select date of birth"
+            isFormDisabled={isFormDisabled}
           />
-
 
           <InputField
-            label="Role"
-            icon={<Briefcase size={15} color="#2563eb" />}
-            value={role}
-            onChange={() => { }}
-            placeholder="Enter role"
-            error={errors.role}
-            isFormDisabled
+            label="Blood Group"
+            icon={<HeartPulse size={15} color="#2563eb" />}
+            value={bloodGroup}
+            onChange={(e) => setBloodGroup(e.target.value)}
+            placeholder="e.g. B+"
+            isFormDisabled={isFormDisabled}
           />
 
-          {role !== "Admin" ? (
-            <InputField
-              label="Reporting Manager"
-              icon={<User size={15} color="#2563eb" />}
-              value={reportingManager?.name || "Not assigned"}
-              onChange={() => { }}
-              placeholder="Not assigned"
-              isFormDisabled
-            />
-          ) : null}
+          <InputField
+            label="Emergency Contact"
+            icon={<PhoneCall size={15} color="#2563eb" />}
+            value={emergencyContact}
+            type="tel"
+            onChange={(e) => setEmergencyContact(e.target.value)}
+            placeholder="Emergency phone number"
+            isFormDisabled={isFormDisabled}
+          />
+
+          <InputField
+            label="Permanent Address"
+            icon={<MapPin size={15} color="#2563eb" />}
+            value={permanentAddress}
+            onChange={(e) => setPermanentAddress(e.target.value)}
+            placeholder="Enter permanent address"
+            isFormDisabled={isFormDisabled}
+          />
 
         </div>
       </div>
 
-      <div className="button-row">
-        <Button
-          className="secondary-btn"
-          onClick={handleDiscard}
-          disabled={saving}
-        >
-          Discard
-        </Button>
+      {!isFormDisabled ? (
+        <div className="button-row">
+          <Button
+            className="secondary-btn"
+            onClick={handleDiscard}
+            disabled={saving}
+          >
+            Discard
+          </Button>
 
-        <Button onClick={handleSave} disabled={saving || isFormDisabled}>
-          {saving ? "Saving…" : "Save Changes"}
-        </Button>
-      </div>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        </div>
+      ) : null}
 
       {/* Popup */}
       {showOptions && (

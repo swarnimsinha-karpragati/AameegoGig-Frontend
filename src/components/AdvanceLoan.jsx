@@ -40,6 +40,7 @@ import {
     getStoredUser,
     canApproveAdvanceLoan,
     canViewAllAdvanceLoan,
+    roleHasPermission,
 } from "../utils/roles";
 import "./AdvanceLoanRequest.css";
 import Card from "../components/Card";
@@ -1211,7 +1212,9 @@ function AdvanceLoanInner() {
     const toast = useToast();
     const user = getStoredUser();
     const canApprove = canApproveAdvanceLoan(user?.role);
-    const canCreate = user?.role !== "Admin";
+    const canCreate =
+        user?.role !== "Admin" &&
+        roleHasPermission(user?.role, "advance-loan:create");
 
     const [dashboard, setDashboard] = useState(null);
     const [requests, setRequests] = useState([]);
@@ -1253,11 +1256,6 @@ function AdvanceLoanInner() {
     };
 
     const summary = dashboard?.statistics || {};
-
-    const teamMembers = useMemo(() => {
-        if (!user?.employeeId) return employees;
-        return employees.filter((emp) => String(emp._id) !== String(user.employeeId));
-    }, [employees, user?.employeeId]);
 
     const loadLoanConfig = useCallback(async () => {
         try {
@@ -1528,6 +1526,28 @@ function AdvanceLoanInner() {
     }, [requests, filterStatus, filterType]);
 
     const myRequests = useMemo(() => filteredRequests.filter(matchesUser), [filteredRequests, matchesUser]);
+    const employeeRequests = useMemo(() => requests.filter(matchesUser), [requests, matchesUser]);
+    const employeeSummary = useMemo(() => {
+        const activeStatuses = ["APPROVED", "PARTIALLY_PAID"];
+        const approvedStatuses = ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"];
+        const totalAmount = employeeRequests.reduce((sum, request) => sum + (request.amount || 0), 0);
+        const totalApprovedPrincipal = employeeRequests
+            .filter((request) => activeStatuses.includes(request.status))
+            .reduce((sum, request) => sum + (request.amount || 0), 0);
+        const totalRemainingAmount = employeeRequests
+            .filter((request) => activeStatuses.includes(request.status))
+            .reduce((sum, request) => sum + (request.remainingAmount || 0), 0);
+        const totalPaid = employeeRequests.reduce((sum, request) => sum + (request.totalPaid || 0), 0);
+
+        return {
+            totalAmount,
+            totalApprovedPrincipal,
+            totalRemainingAmount,
+            totalPaid,
+            totalRequests: employeeRequests.length,
+            approvedRequests: employeeRequests.filter((request) => approvedStatuses.includes(request.status)).length,
+        };
+    }, [employeeRequests]);
     const pendingRequests = useMemo(() => filteredRequests.filter((r) => r.status === "PENDING"), [filteredRequests]);
     const approvedRequests = useMemo(() => filteredRequests.filter((r) => r.status === "APPROVED" || r.status === "PARTIALLY_PAID"), [filteredRequests]);
 
@@ -1642,29 +1662,8 @@ function AdvanceLoanInner() {
                     <span>{payrollWarning}</span>
                 </div>
             )}
-            <AdvanceLoanSummaryCards summary={summary} labels={{ total: "My Total Requested", approved: "My Approved", remaining: "My Remaining", paid: "My Paid" }} />
+            <AdvanceLoanSummaryCards summary={employeeSummary} labels={{ total: "My Total Requested", approved: "My Approved", remaining: "My Remaining", paid: "My Paid" }} />
             {renderRequestTable({ title: "My Recent Requests", items: myRequests.slice(0, 10), showActions: true, actionMode: "owner" })}
-        </>
-    );
-
-    const renderManagerView = () => (
-        <>
-            <div className="advance-page-header">
-                <div className="advance-header-left">
-                    <h2 className="advance-page-title">Team Advances & Loans</h2>
-                    <p className="advance-page-subtitle">Manage your team's advance and loan requests</p>
-                </div>
-                {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
-            </div>
-            {teamMembers.length > 0 && (
-                <div className="advance-role-banner manager"><Users size={18} /><span>Managing {teamMembers.length} team member{teamMembers.length === 1 ? "" : "s"}</span></div>
-            )}
-            <AdminSummaryTiles summary={summary} />
-            <div className="advance-layout-grid">
-                {renderRequestTable({ title: "Pending Approvals", items: pendingRequests, showEmployee: true, showActions: true, actionMode: "approve" })}
-                {renderRequestTable({ title: "Active Requests", items: approvedRequests, showEmployee: true, showActions: true, actionMode: "payment" })}
-            </div>
-            {renderRequestTable({ title: "All Team Requests", items: requests, showEmployee: true })}
         </>
     );
 
@@ -1714,35 +1713,77 @@ function AdvanceLoanInner() {
         }
     });
 
+    const [requestView, setRequestView] = useState(() => {
+        try {
+            return localStorage.getItem("advance-loan-request-view") || "employee";
+        } catch {
+            return "employee";
+        }
+    });
+
     useEffect(() => {
         try {
             localStorage.setItem("advance-loan-active-tab", activeTab);
         } catch { }
     }, [activeTab]);
 
-    const isAdminOrHR = user?.role === "Admin" || user?.role === "HR";
+    useEffect(() => {
+        try {
+            localStorage.setItem("advance-loan-request-view", requestView);
+        } catch { }
+    }, [requestView]);
 
-    const roleViews = {
-        Organization: renderAdminView, HR: renderAdminView, Admin: renderAdminView,
-        Manager: renderManagerView, Employee: renderEmployeeView,
-    };
+    const isAdminOrHR =
+        roleHasPermission(user?.role, "advance-loan:view-all") ||
+        roleHasPermission(user?.role, "loan-config:manage") ||
+        roleHasPermission(user?.role, "advance-loan:approve") ||
+        roleHasPermission(user?.role, "advance-loan:statistics");
+    const canViewOrganisation =
+        user?.role === "Admin" ||
+        roleHasPermission(user?.role, "advance-loan:view-all");
+    const canManageLoanConfig =
+        user?.role === "Admin" ||
+        roleHasPermission(user?.role, "loan-config:manage");
+    const canViewEmployee = user?.role !== "Admin";
+    const effectiveRequestView =
+        user?.role === "Admin" || (canViewOrganisation && requestView === "organization")
+            ? "organization"
+            : "employee";
+
+    useEffect(() => {
+        if ((user?.role === "Admin" && requestView !== "organization") || (!canViewOrganisation && requestView === "organization")) {
+            setRequestView(user?.role === "Admin" ? "organization" : "employee");
+        }
+    }, [canViewOrganisation, requestView, user?.role]);
 
     const renderTabs = () => {
         if (!isAdminOrHR) return null;
         return (
             <div className="advance-tabs">
-                <button
-                    className={`advance-tab ${activeTab === "requests" ? "active" : ""}`}
-                    onClick={() => setActiveTab("requests")}
-                >
-                    <Clock3 size={16} /> Requests
-                </button>
-                <button
-                    className={`advance-tab ${activeTab === "config" ? "active" : ""}`}
-                    onClick={() => setActiveTab("config")}
-                >
-                    <Settings size={16} /> Configuration
-                </button>
+                {canViewEmployee ? (
+                    <button
+                        className={`advance-tab ${activeTab === "requests" && effectiveRequestView === "employee" ? "active" : ""}`}
+                        onClick={() => { setActiveTab("requests"); setRequestView("employee"); }}
+                    >
+                        <Clock3 size={16} /> Employee View
+                    </button>
+                ) : null}
+                {canViewOrganisation ? (
+                    <button
+                        className={`advance-tab ${activeTab === "requests" && effectiveRequestView === "organization" ? "active" : ""}`}
+                        onClick={() => { setActiveTab("requests"); setRequestView("organization"); }}
+                    >
+                        <Users size={16} /> Organisation View
+                    </button>
+                ) : null}
+                {canManageLoanConfig ? (
+                    <button
+                        className={`advance-tab ${activeTab === "config" ? "active" : ""}`}
+                        onClick={() => setActiveTab("config")}
+                    >
+                        <Settings size={16} /> Configuration
+                    </button>
+                ) : null}
             </div>
         );
     };
@@ -1753,10 +1794,12 @@ function AdvanceLoanInner() {
                 {renderTabs()}
                 {/* {error ? <p className="advance-error">{error}</p> : null} */}
                 {loading && !dashboard ? <p className="advance-empty">Loading data...</p> : (
-                    activeTab === "config" ? (
+                    activeTab === "config" && canManageLoanConfig ? (
                         <LoanConfiguration initialConfig={loanConfig} onConfigUpdate={(cfg) => setLoanConfig(cfg)} />
                     ) : (
-                        roleViews[user?.role]?.() || roleViews.Employee()
+                        effectiveRequestView === "organization"
+                            ? renderAdminView()
+                            : renderEmployeeView()
                     )
                 )}
                 {activeTab === "requests" && (

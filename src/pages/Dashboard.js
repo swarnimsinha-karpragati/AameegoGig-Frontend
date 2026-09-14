@@ -26,7 +26,7 @@ import {
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getDashboard } from "../services/dashboardService";
-import { getStoredUser, userHasModule, visibleDashboardStats } from "../utils/roles";
+import { getStoredUser, userHasModule, visibleDashboardStats, roleHasPermission } from "../utils/roles";
 import "./Dashboard.css";
 import Card from "../components/Card";
 
@@ -126,7 +126,15 @@ function Dashboard() {
 
   const isOrgView = data?.scope === "org";
   const isManager = data?.scope === "team";
-  const showApprovals = data?.role !== "Employee";
+  const showApprovals =
+    data?.role !== "Employee" &&
+    (roleHasPermission(data?.role, "leave:approve-all") ||
+      roleHasPermission(data?.role, "expenses:approve") ||
+      roleHasPermission(data?.role, "regularization:approve") ||
+      roleHasPermission(data?.role, "regularization:view-all") ||
+      roleHasPermission(data?.role, "advance-loan:approve") ||
+      // No team permission exists: team-scope approvers see it automatically.
+      isManager);
   const modules = data?.allowedModules || user?.allowedModules;
   const hasModule = (key) => userHasModule(user, key, modules);
   const showAttendance = hasModule("attendance") && data?.attendanceToday;

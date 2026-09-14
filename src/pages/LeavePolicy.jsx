@@ -3,14 +3,14 @@ import LeavePolicyManager from "../components/LeavePolicyManager";
 import Button from "../components/Button";
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getStoredUser } from "../utils/roles";
+import { getStoredUser, roleHasPermission } from "../utils/roles";
 import "./LeavePolicy.css";
 
 export default function LeavePolicy() {
   const navigate = useNavigate();
   const user = getStoredUser();
 
-  if (user?.role !== "Admin" && user?.role !== "HR") {
+  if (!roleHasPermission(user?.role, "leave:policy")) {
     return (
       <MainLayout>
         <div className="leave-policy-page">

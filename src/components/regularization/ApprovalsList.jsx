@@ -16,43 +16,23 @@ import {
   rejectRegularizationRequest,
 } from "../../services/regularizationService";
 import { validateField } from "../../utils/inputValidation";
+import { getStoredUser } from "../../utils/roles";
 import { buildApiErrorMessage } from "./RequestForm";
-import { getLeaveTypeLabel } from "../../utils/leaveLabels";
-import { formatAttendanceHours } from "../../utils/regularizationFormatters";
+import { getDayPartLabel, getLeaveTypeLabel, isHalfDayPart } from "../../utils/leaveLabels";
+import {
+  formatAttendanceHours,
+  formatRegDate,
+  formatRegRange,
+  formatRegTime,
+} from "../../utils/regularizationFormatters";
 
-const formatDate = (value) => {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-};
+const leaveRange = (value = {}) => formatRegRange(value.startDate, value.endDate);
 
-const leaveRange = (value = {}) => {
-  const start = formatDate(value.startDate);
-  const end = formatDate(value.endDate);
-  return start === end ? start : `${start} – ${end}`;
-};
-
-export const formatTime = (value) => {
-  if (!value) return "—";
-  const text = String(value);
-  if (/^([01]\d|2[0-3]):[0-5]\d$/.test(text)) return text;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-};
+export const formatTime = formatRegTime;
 
 export const approvalPeriod = (request) =>
   request.kind === "attendance"
-    ? formatDate(request.requested?.date)
+    ? formatRegDate(request.requested?.date)
     : leaveRange(request.requested);
 
 export const describeApprovalChange = (request) => {
@@ -73,7 +53,10 @@ export const describeApprovalChange = (request) => {
   }
   const describe = (value) => {
     const snapshot = value && typeof value === "object" ? value : {};
-    return `${getLeaveTypeLabel(snapshot.leaveType)} · ${leaveRange(snapshot)}`;
+    const half = isHalfDayPart(snapshot.dayPart)
+      ? ` · ${getDayPartLabel(snapshot.dayPart)}`
+      : "";
+    return `${getLeaveTypeLabel(snapshot.leaveType)} · ${leaveRange(snapshot)}${half}`;
   };
   return {
     previous: describe(request?.previous),
@@ -84,6 +67,21 @@ export const describeApprovalChange = (request) => {
 export default function ApprovalsList({ toast, onChanged }) {
   const toastError = toast.error;
   const toastSuccess = toast.success;
+  const user = getStoredUser();
+  // Nobody may approve/reject their own correction (backend 403s too).
+  const isOwnRequest = (request) => {
+    const userEmpId =
+      typeof user?.employeeId === "object"
+        ? user?.employeeId?._id
+        : user?.employeeId;
+    const reqEmpId = request?.employeeId?._id || request?.employeeId;
+    if (userEmpId && reqEmpId && String(userEmpId) === String(reqEmpId))
+      return true;
+    const reqName = request?.employeeId?.name?.toLowerCase?.();
+    return Boolean(
+      reqName && user?.name && reqName === user.name.toLowerCase()
+    );
+  };
   const [filter, setFilter] = useState("all");
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -244,21 +242,32 @@ export default function ApprovalsList({ toast, onChanged }) {
 
                 <p className="regularization-request-card__reason">{request.reason}</p>
                 <div className="regularization-approval-card__actions">
-                  <Button
-                    type="button"
-                    variant="delete"
-                    icon={<X size={15} />}
-                    onClick={() => setDecision({ request, action: "reject" })}
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    type="button"
-                    icon={<Check size={15} />}
-                    onClick={() => setDecision({ request, action: "approve" })}
-                  >
-                    Approve
-                  </Button>
+                  {isOwnRequest(request) ? (
+                    <span
+                      className="regularization-self-blocked"
+                      title="You cannot approve or reject your own correction"
+                    >
+                      Your request — decision blocked
+                    </span>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        variant="delete"
+                        icon={<X size={15} />}
+                        onClick={() => setDecision({ request, action: "reject" })}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        type="button"
+                        icon={<Check size={15} />}
+                        onClick={() => setDecision({ request, action: "approve" })}
+                      >
+                        Approve
+                      </Button>
+                    </>
+                  )}
                 </div>
               </article>
             );

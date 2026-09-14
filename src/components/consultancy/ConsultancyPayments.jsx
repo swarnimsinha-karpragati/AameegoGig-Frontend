@@ -27,7 +27,7 @@ const netBreakdown = (gross, tdsPercent) => {
   return { gross: amount, tds, net: amount - tds };
 };
 
-export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
+export default function ConsultancyPayments({ refreshKey = 0, search = "", canManage = false }) {
   const today = new Date();
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
@@ -62,12 +62,23 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
 
   // On mount and whenever month/year/refresh key changes: materialise the month's
   // records (so every consultant gets an entry to pay against) and then reload.
+  // View-only users (consultancy:view without manage) skip init — POST /init
+  // needs consultancy:manage, but GET works with view permission.
   useEffect(() => {
     const initializeAndLoad = async () => {
       setLoading(true);
       setError("");
       try {
-        await API.post("/consultancy-payments/init", period);
+        if (canManage) {
+          try {
+            await API.post("/consultancy-payments/init", period);
+          } catch (initError) {
+            // Init is best-effort: if it fails (e.g. 403), still load via GET
+            // so view-only dashboard stats keep showing.
+            const status = initError?.response?.status;
+            if (status !== 403 && status !== 401) throw initError;
+          }
+        }
         setData((await API.get("/consultancy-payments", { params: period })).data || { rows: [], summary: {} });
       } catch (requestError) {
         setError(apiErrorMessage(requestError, "Unable to load consultancy payments"));
@@ -76,7 +87,7 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
       }
     };
     initializeAndLoad();
-  }, [period, refreshKey]);
+  }, [period, refreshKey, canManage]);
 
   const onMonthChange = (month) => setPeriod({ ...period, month: Number(month) });
 
@@ -212,7 +223,7 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
       {loading ? <p>Loading payments...</p> : (
         <div className="employee-table-scroll">
           <table className="employee-table">
-            <thead><tr><th>Consultant</th><th>Department</th><th>Rate</th><th>TDS %</th><th>Net payable</th><th>Status</th><th>Action</th></tr></thead>
+            <thead><tr><th>Consultant</th><th>Department</th><th>Rate</th><th>TDS %</th><th>Net payable</th><th>Status</th>{canManage ? <th>Action</th> : null}</tr></thead>
             <tbody>
               {rows.map((row) => {
                 const net = Number(row.payment.netAmount) || 0;
@@ -224,20 +235,22 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "" }) {
                     <td>{Number(row.payment.tdsPercent) || 0}%</td>
                     <td><strong>{money(net)}</strong></td>
                     <td><span className={`status-badge ${row.payment.status === "Paid" ? "active" : "inactive"}`}>{row.payment.status}</span></td>
-                    <td>
-                      {row.payment.status === "Paid" ? (
-                        <span className="consultancy-status-locked">Payment locked</span>
-                      ) : (
-                        <div className="consultancy-payments-actions">
-                          <Button variant="secondary" icon={<Check size={15} />} onClick={() => openModal(row, "pay")}>Mark as paid</Button>
-                          <Button variant="secondary" icon={<Pencil size={15} />} onClick={() => openModal(row, "edit")}>Edit</Button>
-                        </div>
-                      )}
-                    </td>
+                    {canManage ? (
+                      <td>
+                        {row.payment.status === "Paid" ? (
+                          <span className="consultancy-status-locked">Payment locked</span>
+                        ) : (
+                          <div className="consultancy-payments-actions">
+                            <Button variant="secondary" icon={<Check size={15} />} onClick={() => openModal(row, "pay")}>Mark as paid</Button>
+                            <Button variant="secondary" icon={<Pencil size={15} />} onClick={() => openModal(row, "edit")}>Edit</Button>
+                          </div>
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
-              {!rows.length ? <tr><td colSpan="7">No consultancy records found.</td></tr> : null}
+              {!rows.length ? <tr><td colSpan={canManage ? "7" : "6"}>No consultancy records found.</td></tr> : null}
             </tbody>
           </table>
         </div>

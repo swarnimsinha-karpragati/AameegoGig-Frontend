@@ -23,6 +23,7 @@ import {
 import "./Department.css";
 import Button from "../components/Button";
 import { isSiteVendor } from "../utils/vendorIdhelper";
+import { getStoredUser, roleHasPermission } from "../utils/roles";
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
@@ -73,6 +74,14 @@ function FormField({ label, htmlFor, required, fullWidth, children }) {
 
 function Departments() {
   const [vendorId, setVendorId] = useState(null);
+  const userRole = getStoredUser()?.role;
+  // departments:view = read + stats, departments:manage = add/edit/delete.
+  // manage implies view via roleHasPermission.
+  const canView =
+    userRole === "Admin" ||
+    roleHasPermission(userRole, "departments:view") ||
+    roleHasPermission(userRole, "departments:manage");
+  const canManage = roleHasPermission(userRole, "departments:manage");
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -375,9 +384,11 @@ function Departments() {
           </div>
 
           <div className="manage-depts-actions">
+            {canManage && (
             <Button icon={<Plus size={20} />} onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
               Add {name}
             </Button>
+            )}
           </div>
         </div>
 
@@ -421,15 +432,21 @@ function Departments() {
                       <td>{dep.departmentHead ? dep.departmentHead.name : <span style={{ opacity: 0.5 }}>Unassigned</span>}</td>
                       <td>
                         <div className="manage-depts-row-buttons">
-                          <button className="manage-depts-btn-view" onClick={() => handleView(dep)}>
-                            <Eye size={15} />
-                          </button>
-                          <button className="manage-depts-btn-edit" onClick={() => handleEdit(dep)}>
-                            <Pencil size={15} />
-                          </button>
-                          <button className="manage-depts-btn-delete" onClick={() => handleDeleteClick(dep._id)}>
-                            <Trash2 size={15} />
-                          </button>
+                          {(canView || canManage) && (
+                            <button className="manage-depts-btn-view" onClick={() => handleView(dep)}>
+                              <Eye size={15} />
+                            </button>
+                          )}
+                          {canManage && (
+                            <button className="manage-depts-btn-edit" onClick={() => handleEdit(dep)}>
+                              <Pencil size={15} />
+                            </button>
+                          )}
+                          {canManage && (
+                            <button className="manage-depts-btn-delete" onClick={() => handleDeleteClick(dep._id)}>
+                              <Trash2 size={15} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

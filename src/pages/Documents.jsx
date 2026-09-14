@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
+import { roleHasPermission } from "../utils/roles";
 import {
   Search,
   Upload,
@@ -53,7 +54,7 @@ function Documents() {
         setLoggedInUser({
           employeeId: parsed.employeeId,
           name: parsed.name || "Workspace User",
-          role: parsed.role?.toLowerCase() || "employee",
+          role: parsed.role || "Employee",
         });
       }
     } catch (error) {
@@ -63,7 +64,7 @@ function Documents() {
 
   // Admin/HR see every employee's documents; everyone else sees only their own.
   const canSeeAll =
-    loggedInUser?.role === "admin" || loggedInUser?.role === "hr";
+    roleHasPermission(loggedInUser?.role, "documents:view-all");
   const isEmployee = !canSeeAll;
 
   const fetchDocuments = useCallback(async () => {
