@@ -419,14 +419,6 @@ export default function LeavePolicyManager() {
           </p>
         </div>
       </header>
-      188	Expense Submission Email Notification Not Triggered	Expenses		"1.Login to the HRMS portal as an Employee.
-      2.Go to Expenses → Submit Expense.
-      3.Fill in all required expense details and submit the expense.
-      4.Check the registered email inbox of the employee's Manager and HR.
-      5.Repeat the same process by logging in as a Manager and submitting an expense.
-      6.Check the registered email inbox of the Administrator and HR."	"When an Employee submits an expense → email should be sent to Manager + HR.
-      When a Manager submits an expense → email should be sent to Administrator + HR.
-      The email should contain the expense details and a link/action to review the expense."
       {status?.message ? (
         <div className={`lp-banner ${status.type}`}>{status.message}</div>
       ) : null}

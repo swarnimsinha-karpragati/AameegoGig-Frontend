@@ -361,7 +361,7 @@ function HelpDeskWidget() {
               {t?.assignedHrUserId?.name ? ` · HR: ${t.assignedHrUserId.name}` : ""}
             </span>
           </div>
-          {isHrSide && !isClosed && t?.canClose && !showCloseNote && (
+          {(isHrSide || isAdmin) && !isClosed && t?.canClose && !showCloseNote && (
             <button type="button" className="hdw-close-btn" onClick={() => setShowCloseNote(true)}>
               Mark Closed
             </button>
