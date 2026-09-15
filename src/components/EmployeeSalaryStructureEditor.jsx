@@ -9,6 +9,7 @@ import {
   getSalaryComponents,
 } from "../services/salaryComponentService";
 import { getStoredUser } from "../utils/roles";
+import { canUseCalendarDailyPay } from "../utils/vendorIdhelper";
 import {
   validateAnnualCtc,
   validateDailyWage,
@@ -79,6 +80,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
 
   const isDaily = wageType === "DAILY";
   const isCalendarDaily = wageType === "CALENDAR_DAILY";
+  const showCalendarDailyOption = canUseCalendarDailyPay() || isCalendarDaily;
   const usesDailyWageInput = isDaily || isCalendarDaily;
   const previewDaysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
 
@@ -600,9 +602,11 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
           <span className={`emp-struct-mode-pill ${wageType === "DAILY" ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchWageType("DAILY")}>
             Daily Wage
           </span>
-          <span className={`emp-struct-mode-pill ${wageType === "CALENDAR_DAILY" ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchWageType("CALENDAR_DAILY")}>
-            Calendar Daily
-          </span>
+          {showCalendarDailyOption && (
+            <span className={`emp-struct-mode-pill ${wageType === "CALENDAR_DAILY" ? "emp-struct-mode-pill--active" : ""}`} onClick={() => handleSwitchWageType("CALENDAR_DAILY")}>
+              Calendar Daily
+            </span>
+          )}
         </div>
       )}
 

@@ -79,7 +79,7 @@ import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsM
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
 import DocumentPreview from "../components/DocumentPreview";
-import { isSiteVendor } from "../utils/vendorIdhelper";
+import { isSiteVendor, canUseCalendarDailyPay } from "../utils/vendorIdhelper";
 import { defaultSelectedModules } from "../utils/roles";
 import { downloadCredentialExcel } from "../utils/credentialExcel";
 import { getRoles } from "../services/roleService";
@@ -344,7 +344,9 @@ function EmployeeFormFields({
           <select {...common} value={values.payType || ""}>
             <option value="MONTHLY">Monthly</option>
             <option value="DAILY">Daily</option>
-            <option value="CALENDAR_DAILY">Calendar Daily</option>
+            {(canUseCalendarDailyPay() || values.payType === "CALENDAR_DAILY") && (
+              <option value="CALENDAR_DAILY">Calendar Daily</option>
+            )}
           </select>
 
           {fieldError(field.key) ? (

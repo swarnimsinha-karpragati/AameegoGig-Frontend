@@ -6,6 +6,9 @@ import {
 } from "lucide-react";
 import { getAvailableMonths, PAYROLL_YEARS, formatInr } from "../../utils/payrollConstants";
 import Button from "../Button";
+import MonthYearFilter from "./MonthYearFilter";
+import PayrollListToolbar from "./PayrollListToolbar";
+import Pagination from "../Pagination";
 
 /** Local (browser-timezone) today as YYYY-MM-DD — avoids the UTC shift of toISOString(). */
 const todayLocalISO = () => {
@@ -17,12 +20,24 @@ export default function PayrollManager(props) {
   const {
     employees,
     payrolls,
-    reviewPayrolls,
+    payrollSummary,
+    listLoading,
+    searchQuery,
+    reviewFilter,
+    pagination,
     actionLoading,
-    selectedMonth,
-    selectedYear,
-    onMonthChange,
-    onYearChange,
+    listMonth,
+    listYear,
+    onListMonthChange,
+    onListYearChange,
+    calcMonth,
+    calcYear,
+    onCalcMonthChange,
+    onCalcYearChange,
+    onSearchChange,
+    onReviewFilterChange,
+    onPageChange,
+    onPageSizeChange,
     onPreview,
     onCalculateSingle,
     onBulkCalculate,
@@ -31,8 +46,9 @@ export default function PayrollManager(props) {
     onBulkApprove,
     onViewBreakdown,
   } = props;
+
   const [payrollType, setPayrollType] = useState("monthly");
-  const [selectedEmp, setSelectedEmp] = useState("");
+  const [selectedEmp, setSelectedEmp] = useState(null); // { id, code, name, phone }
   const [selectedEmpIds, setSelectedEmpIds] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [expandedRow, setExpandedRow] = useState(null);
@@ -41,30 +57,28 @@ export default function PayrollManager(props) {
   const [empSearch, setEmpSearch] = useState("");
   const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
   const empWrapRef = useRef(null);
-
-  const allReview = reviewPayrolls || payrolls;
+  const empSearchRef = useRef(null);
 
   const pendingPayrolls = useMemo(
-    () => allReview.filter((p) => p.approvalStatus !== "Approved" && p.status !== "Processed"),
-    [allReview]
+    () => payrolls.filter((p) => p.approvalStatus !== "Approved" && p.status !== "Processed"),
+    [payrolls]
   );
 
-  const approvedPayrolls = useMemo(
-    () => allReview.filter((p) => p.approvalStatus === "Approved" || p.status === "Processed"),
-    [allReview]
+  const stats = useMemo(
+    () => ({
+      totalGross: payrollSummary?.totalGross || 0,
+      totalDeductions: payrollSummary?.totalDeductions || 0,
+      totalNet: payrollSummary?.totalNet || 0,
+      total: payrollSummary?.total || 0,
+      pending: payrollSummary?.pending || 0,
+      approved: payrollSummary?.approved || 0,
+    }),
+    [payrollSummary]
   );
 
-  const stats = useMemo(() => {
-    const totalGross = payrolls.reduce((s, p) => s + (p.totalEarnings || 0), 0);
-    const totalDeductions = payrolls.reduce((s, p) => s + (p.totalDeduction || 0), 0);
-    const totalNet = payrolls.reduce((s, p) => s + (p.netSalary || 0), 0);
-    return { totalGross, totalDeductions, totalNet, total: payrolls.length };
-  }, [payrolls]);
-
-  const filteredEmployees = useMemo(() => {
-    const q = empSearch.trim().toLowerCase();
-    const monthStart = new Date(selectedYear, selectedMonth - 1, 1);
-    const eligible = employees.filter((e) => {
+  const eligibleEmployees = useMemo(() => {
+    const monthStart = new Date(calcYear, calcMonth - 1, 1);
+    return employees.filter((e) => {
       if (!e.ctcStructureId) return false;
       if (e.relievingDate) {
         const rd = new Date(e.relievingDate);
@@ -72,23 +86,46 @@ export default function PayrollManager(props) {
       }
       return true;
     });
-    if (!q) return eligible;
-    return eligible.filter(
-      (e) =>
-        e.name?.toLowerCase().includes(q) ||
-        e.employeeCode?.toLowerCase().includes(q)
-    );
-  }, [employees, empSearch, selectedMonth, selectedYear]);
+  }, [employees, calcMonth, calcYear]);
+
+  const filteredEmployees = useMemo(() => {
+    const q = empSearch.trim().toLowerCase();
+    if (!q) return eligibleEmployees;
+    const phoneDigits = q.replace(/\D/g, "");
+    return eligibleEmployees.filter((e) => {
+      const nameMatch = e.name?.toLowerCase().includes(q);
+      const codeMatch = e.employeeCode?.toLowerCase().includes(q);
+      const phoneMatch =
+        phoneDigits.length >= 3 &&
+        String(e.phone || "").replace(/\D/g, "").includes(phoneDigits);
+      return nameMatch || codeMatch || phoneMatch;
+    });
+  }, [eligibleEmployees, empSearch]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (empWrapRef.current && !empWrapRef.current.contains(e.target)) {
         setEmpDropdownOpen(false);
+        setEmpSearch("");
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (empDropdownOpen) {
+      // Focus search when opening the select
+      requestAnimationFrame(() => empSearchRef.current?.focus());
+    }
+  }, [empDropdownOpen]);
+
+  // Clear selection if employee no longer eligible for calc period
+  useEffect(() => {
+    if (!selectedEmp) return;
+    const stillEligible = eligibleEmployees.some((e) => e._id === selectedEmp.id);
+    if (!stillEligible) setSelectedEmp(null);
+  }, [eligibleEmployees, selectedEmp]);
 
   const toggleEmpSelect = (empId) => {
     setSelectedEmpIds((prev) =>
@@ -107,22 +144,19 @@ export default function PayrollManager(props) {
 
   const getPeriod = () => {
     if (payrollType === "daily" && payrollDate) {
-      // Parse the YYYY-MM-DD string directly — new Date("2026-08-14") is UTC
-      // midnight and shifts the month on some timezones.
       const [year, month] = payrollDate.split("-").map(Number);
       return { month, year };
     }
-    return { month: selectedMonth, year: selectedYear };
+    return { month: calcMonth, year: calcYear };
   };
 
   const handleBulkCalc = () => {
-    const empIds = selectedEmpIds.length > 0 ? selectedEmpIds : undefined;
     const { month, year } = getPeriod();
     onBulkCalculate({
       payrollType,
       month,
       year,
-      employeeIds: empIds,
+      employeeIds: undefined,
       payrollDate: payrollType === "daily" ? payrollDate : undefined,
     });
   };
@@ -136,10 +170,9 @@ export default function PayrollManager(props) {
 
   const handlePreview = () => {
     if (!selectedEmp) return;
-    const emp = JSON.parse(selectedEmp);
     const { month, year } = getPeriod();
     onPreview({
-      employeeId: emp.code,
+      employeeId: selectedEmp.code,
       month,
       year,
       payrollType,
@@ -149,10 +182,9 @@ export default function PayrollManager(props) {
 
   const handleCalculate = () => {
     if (!selectedEmp) return;
-    const emp = JSON.parse(selectedEmp);
     const { month, year } = getPeriod();
     onCalculateSingle({
-      employeeId: emp.id,
+      employeeId: selectedEmp.id,
       month,
       year,
       payrollType,
@@ -160,11 +192,25 @@ export default function PayrollManager(props) {
     });
   };
 
+  const pickEmployee = (emp) => {
+    setSelectedEmp({
+      id: emp._id,
+      code: emp.employeeCode,
+      name: emp.name,
+      phone: emp.phone || "",
+    });
+    setEmpSearch("");
+    setEmpDropdownOpen(false);
+  };
+
+  const clearEmployee = (e) => {
+    e.stopPropagation();
+    setSelectedEmp(null);
+    setEmpSearch("");
+    setEmpDropdownOpen(true);
+  };
+
   const dailyReady = payrollType !== "daily" || payrollDate;
-  const selectedEmpObj = selectedEmp ? JSON.parse(selectedEmp) : null;
-  const selectedEmpName = selectedEmpObj
-    ? employees.find((e) => e._id === selectedEmpObj.id)?.name || ""
-    : "";
 
   return (
     <div className="pm-new">
@@ -185,7 +231,7 @@ export default function PayrollManager(props) {
           </div>
           <div className="pm-stat-body">
             <span className="pm-stat-label">Pending Review</span>
-            <span className="pm-stat-value">{pendingPayrolls.length}</span>
+            <span className="pm-stat-value">{stats.pending}</span>
           </div>
         </div>
         <div className="pm-stat-card">
@@ -194,7 +240,7 @@ export default function PayrollManager(props) {
           </div>
           <div className="pm-stat-body">
             <span className="pm-stat-label">Approved</span>
-            <span className="pm-stat-value">{approvedPayrolls.length}</span>
+            <span className="pm-stat-value">{stats.approved}</span>
           </div>
         </div>
         <div className="pm-stat-card">
@@ -213,11 +259,11 @@ export default function PayrollManager(props) {
         <div className="pm-calc-header">
           <div className="pm-calc-title-group">
             <div className="pm-calc-icon-wrap">
-              <Calculator size={20} />
+              <Calculator size={18} />
             </div>
             <div>
               <h3 className="pm-calc-title">Payroll Calculator</h3>
-              <p className="pm-calc-subtitle">Select employee and run calculation for the chosen period</p>
+              <p className="pm-calc-subtitle">Pick period &amp; employee, then preview or calculate</p>
             </div>
           </div>
           <div className="pm-type-pills">
@@ -235,31 +281,33 @@ export default function PayrollManager(props) {
               type="button"
             >
               <Zap size={14} />
-              Daily Basis Salary
+              Daily
             </button>
           </div>
         </div>
 
-        <div className="pm-calc-body">
-          {/* Row 1: Period */}
-          <div className="pm-calc-row">
+        <div className="pm-calc-body pm-calc-body--compact">
+          <div className="pm-calc-grid">
+            {/* Period */}
             {payrollType === "monthly" ? (
-              <div className="pm-calc-field pm-calc-field--period">
+              <div className="pm-calc-field">
                 <label className="pm-calc-label">Period</label>
                 <div className="pm-calc-period-group">
                   <select
-                    value={selectedMonth}
-                    onChange={(e) => onMonthChange(parseInt(e.target.value, 10))}
+                    value={calcMonth}
+                    onChange={(e) => onCalcMonthChange(parseInt(e.target.value, 10))}
                     className="pm-calc-select"
+                    aria-label="Calculator month"
                   >
-                    {getAvailableMonths(selectedYear).map((m) => (
+                    {getAvailableMonths(calcYear).map((m) => (
                       <option key={m.value} value={m.value}>{m.label}</option>
                     ))}
                   </select>
                   <select
-                    value={selectedYear}
-                    onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
+                    value={calcYear}
+                    onChange={(e) => onCalcYearChange(parseInt(e.target.value, 10))}
                     className="pm-calc-select pm-calc-select--year"
+                    aria-label="Calculator year"
                   >
                     {PAYROLL_YEARS.map((y) => (
                       <option key={y} value={y}>{y}</option>
@@ -269,7 +317,7 @@ export default function PayrollManager(props) {
               </div>
             ) : (
               <div className="pm-calc-field">
-                <label className="pm-calc-label">Payroll Date</label>
+                <label className="pm-calc-label">Payroll date</label>
                 <input
                   type="date"
                   value={payrollDate}
@@ -277,69 +325,107 @@ export default function PayrollManager(props) {
                   className="pm-calc-select"
                   max={todayLocalISO()}
                 />
-                <span className="pm-calc-hint">
-                  Attendance must already be marked for the selected date
-                </span>
               </div>
             )}
-          </div>
 
-          {/* Row 2: Employee */}
-          <div className="pm-calc-row">
-            <div className="pm-calc-field pm-calc-field--full" ref={empWrapRef}>
-              <label className="pm-calc-label">Employee</label>
-              <div className="pm-calc-emp-wrap">
-                <Search size={15} className="pm-calc-emp-icon" />
-                <input
-                  type="text"
-                  placeholder="Search by name or code..."
-                  value={selectedEmp ? `${selectedEmpObj?.code} — ${selectedEmpName}` : empSearch}
-                  onChange={(e) => {
-                    setEmpSearch(e.target.value);
-                    setSelectedEmp("");
-                    setEmpDropdownOpen(true);
-                  }}
-                  onFocus={() => setEmpDropdownOpen(true)}
-                  className="pm-calc-select pm-calc-select--emp"
-                />
-                {selectedEmp && (
-                  <button
-                    className="pm-calc-clear"
-                    onClick={() => { setSelectedEmp(""); setEmpSearch(""); setEmpDropdownOpen(true); }}
-                    type="button"
-                  >
-                    &times;
-                  </button>
-                )}
-                {empDropdownOpen && filteredEmployees.length > 0 && (
-                  <div className="pm-calc-dropdown">
-                    {filteredEmployees.slice(0, 50).map((emp) => (
-                      <div
-                        key={emp._id}
-                        className={`pm-calc-dropdown-item ${selectedEmpObj?.id === emp._id ? "selected" : ""}`}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setSelectedEmp(JSON.stringify({ id: emp._id, code: emp.employeeCode }));
-                          setEmpSearch("");
-                          setEmpDropdownOpen(false);
-                        }}
+            {/* Employee searchable select */}
+            <div className="pm-calc-field pm-calc-field--emp" ref={empWrapRef}>
+              <label className="pm-calc-label">
+                Employee
+                <span className="pm-calc-label-meta">{eligibleEmployees.length} eligible</span>
+              </label>
+              <div className={`pm-emp-select ${empDropdownOpen ? "pm-emp-select--open" : ""}`}>
+                <button
+                  type="button"
+                  className="pm-emp-select-trigger"
+                  onClick={() => setEmpDropdownOpen((o) => !o)}
+                  aria-haspopup="listbox"
+                  aria-expanded={empDropdownOpen}
+                >
+                  {selectedEmp ? (
+                    <span className="pm-emp-select-value">
+                      <span className="pm-emp-select-code">{selectedEmp.code}</span>
+                      <span className="pm-emp-select-name">{selectedEmp.name}</span>
+                    </span>
+                  ) : (
+                    <span className="pm-emp-select-placeholder">Select employee…</span>
+                  )}
+                  <span className="pm-emp-select-actions">
+                    {selectedEmp && (
+                      <span
+                        className="pm-emp-select-clear"
+                        onClick={clearEmployee}
+                        role="button"
+                        tabIndex={-1}
+                        aria-label="Clear employee"
                       >
-                        <span className="pm-dropdown-code">{emp.employeeCode}</span>
-                        <span className="pm-dropdown-name">{emp.name}</span>
-                      </div>
-                    ))}
-                    {filteredEmployees.length > 50 && (
-                      <div className="pm-dropdown-more">+ {filteredEmployees.length - 50} more</div>
+                        ×
+                      </span>
                     )}
+                    <ChevronDown size={16} className={`pm-emp-chevron ${empDropdownOpen ? "open" : ""}`} />
+                  </span>
+                </button>
+
+                {empDropdownOpen && (
+                  <div className="pm-emp-select-panel" role="listbox">
+                    <div className="pm-emp-select-search">
+                      <Search size={14} />
+                      <input
+                        ref={empSearchRef}
+                        type="text"
+                        placeholder="Search code, name, or phone…"
+                        value={empSearch}
+                        onChange={(e) => setEmpSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            setEmpDropdownOpen(false);
+                            setEmpSearch("");
+                          }
+                          if (e.key === "Enter" && filteredEmployees[0]) {
+                            e.preventDefault();
+                            pickEmployee(filteredEmployees[0]);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="pm-emp-select-list">
+                      {filteredEmployees.length === 0 ? (
+                        <div className="pm-emp-select-empty">
+                          {eligibleEmployees.length === 0
+                            ? "No eligible employees for this period"
+                            : "No matches"}
+                        </div>
+                      ) : (
+                        filteredEmployees.slice(0, 80).map((emp) => (
+                          <button
+                            key={emp._id}
+                            type="button"
+                            role="option"
+                            aria-selected={selectedEmp?.id === emp._id}
+                            className={`pm-emp-select-option ${selectedEmp?.id === emp._id ? "selected" : ""}`}
+                            onClick={() => pickEmployee(emp)}
+                          >
+                            <span className="pm-emp-select-code">{emp.employeeCode}</span>
+                            <span className="pm-emp-select-option-meta">
+                              <span className="pm-emp-select-name">{emp.name}</span>
+                              {emp.phone ? <span className="pm-emp-select-phone">{emp.phone}</span> : null}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                      {filteredEmployees.length > 80 && (
+                        <div className="pm-emp-select-more">
+                          +{filteredEmployees.length - 80} more — refine your search
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Row 3: Actions */}
-          <div className="pm-calc-row pm-calc-row--actions">
-            <div className="pm-calc-field">
+            {/* Actions */}
+            <div className="pm-calc-field pm-calc-field--actions">
               <label className="pm-calc-label">Actions</label>
               <div className="pm-calc-btn-row">
                 <Button
@@ -348,7 +434,6 @@ export default function PayrollManager(props) {
                   disabled={actionLoading || !selectedEmp || !dailyReady}
                   type="button"
                 >
-
                   Preview
                 </Button>
                 <Button
@@ -357,98 +442,129 @@ export default function PayrollManager(props) {
                   disabled={actionLoading || !selectedEmp || !dailyReady}
                   type="button"
                 >
-
                   Calculate
                 </Button>
                 <div className="pm-calc-sep" />
-                <div className="pm-calc-bulk-group">
-                  <Button
-                    icon={<RefreshCw size={15} className={actionLoading ? "spin" : ""} />}
-                    onClick={handleBulkCalc}
-                    disabled={actionLoading || !dailyReady}
-                    type="button"
-                  >
-
-                    Calculate All
-                  </Button>
-                  <span className="pm-calc-hint">
-                    <Zap size={11} />
-                    Calculates payroll for all eligible employees
-                  </span>
-                </div>
+                <Button
+                  icon={<RefreshCw size={15} className={actionLoading ? "spin" : ""} />}
+                  onClick={handleBulkCalc}
+                  disabled={actionLoading || !dailyReady}
+                  type="button"
+                  title="Calculate payroll for all eligible employees in this period"
+                >
+                  Calculate All
+                </Button>
               </div>
             </div>
           </div>
+
+          {payrollType === "daily" && (
+            <p className="pm-calc-foot-hint">
+              <Zap size={12} /> Attendance must already be marked for the selected date.
+            </p>
+          )}
         </div>
       </div>
 
-      {/* ── Status Message ──
-      {statusMessage?.text && (
-        <div className={`pm-toast pm-toast--${statusMessage.type || "info"}`}>
-          {statusMessage.text}
-        </div>
-      )} */}
-
       {/* ── Records ── */}
-      {allReview.length === 0 ? (
-        <div className="pm-empty">
-          <div className="pm-empty-graphic">
-            <Calculator size={48} strokeWidth={1} />
+      <div className="pm-records-card payroll-list-card">
+        <div className="pm-records-header pm-records-header--toolbar">
+          <div className="pm-records-header-left">
+            <h4 className="pm-records-title">Payroll records</h4>
+            <span className="pm-records-count">{pagination?.total ?? stats.total}</span>
           </div>
-          <h4 className="pm-empty-title">No payroll records found</h4>
-          <p className="pm-empty-desc">Select employees above and click Calculate to generate payroll records.</p>
         </div>
-      ) : (
-        <div className="pm-records-card">
-          {/* Pending Section */}
-          <div className="pm-records-section">
-            <div className="pm-records-header">
-              <div className="pm-records-header-left">
-                <span className="pm-dot pm-dot--amber" />
-                <h4 className="pm-records-title">Pending Review</h4>
-                <span className="pm-records-count">{pendingPayrolls.length}</span>
-              </div>
-              {pendingPayrolls.length > 0 && (
-                <div className="pm-records-header-right">
-                  <label className="pm-check-toggle">
-                    <input
-                      type="checkbox"
-                      checked={selectAll}
-                      onChange={toggleSelectAll}
-                    />
-                    <span>Select all</span>
-                  </label>
+
+        <PayrollListToolbar
+          searchQuery={searchQuery}
+          onSearchChange={onSearchChange}
+          trailing={
+            pendingPayrolls.length > 0 && reviewFilter !== "approved" ? (
+              <div className="control-group payroll-filter-field">
+                <label className="payroll-filter-label-spacer" aria-hidden>
+                  &nbsp;
+                </label>
+                <label className="pm-check-toggle">
+                  <input type="checkbox" checked={selectAll} onChange={toggleSelectAll} />
+                  <span>Select page</span>
                   {selectedEmpIds.length > 0 && (
-                    <span className="pm-selected-pill">{selectedEmpIds.length} selected</span>
+                    <span className="pm-selected-pill">{selectedEmpIds.length}</span>
                   )}
-                </div>
-              )}
-            </div>
-
-            {/* Bulk Approve (inline) */}
-            {pendingPayrolls.length > 0 && selectedEmpIds.length > 0 && (
-              <div className="pm-bulk-bar">
-                <input
-                  type="text"
-                  placeholder="Comment (optional)"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  className="pm-bulk-comment"
-                />
-                <button
-                  className="pm-bulk-btn pm-bulk-btn--approve"
-                  onClick={handleBulkApprove}
-                  disabled={actionLoading || selectedEmpIds.length === 0}
-                  type="button"
-                >
-                  <CheckCircle size={14} />
-                  Approve{selectedEmpIds.length > 0 ? ` (${selectedEmpIds.length})` : ""}
-                </button>
+                </label>
               </div>
-            )}
+            ) : null
+          }
+        >
+          <MonthYearFilter
+            compact
+            month={listMonth}
+            year={listYear}
+            onMonthChange={onListMonthChange}
+            onYearChange={onListYearChange}
+          />
+          <div className="control-group payroll-filter-field">
+            <label>Status</label>
+            <div className="pm-type-switch">
+              {[
+                { id: "all", label: "All" },
+                { id: "pending", label: "Pending" },
+                { id: "approved", label: "Approved" },
+              ].map(({ id, label }) => (
+                <Button
+                  key={id}
+                  type="button"
+                  className={`generic-btn ${reviewFilter === id ? "active" : "not-active"}`}
+                  onClick={() => onReviewFilterChange(id)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </PayrollListToolbar>
 
-            <div className="pm-rows">
-              {pendingPayrolls.map((item) => (
+        {pendingPayrolls.length > 0 && selectedEmpIds.length > 0 && (
+          <div className="pm-bulk-bar">
+            <input
+              type="text"
+              placeholder="Comment (optional)"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              className="pm-bulk-comment"
+            />
+            <button
+              className="pm-bulk-btn pm-bulk-btn--approve"
+              onClick={handleBulkApprove}
+              disabled={actionLoading || selectedEmpIds.length === 0}
+              type="button"
+            >
+              <CheckCircle size={14} />
+              Approve ({selectedEmpIds.length})
+            </button>
+          </div>
+        )}
+
+        {listLoading ? (
+          <div className="pm-empty pm-empty--inline">
+            <p className="pm-empty-desc">Loading payroll records…</p>
+          </div>
+        ) : payrolls.length === 0 ? (
+          <div className="pm-empty pm-empty--inline">
+            <div className="pm-empty-graphic">
+              <Calculator size={40} strokeWidth={1} />
+            </div>
+            <h4 className="pm-empty-title">No payroll records</h4>
+            <p className="pm-empty-desc">
+              {searchQuery.trim()
+                ? "Try a different search or clear filters."
+                : "No records for this month — change the records period or run Calculate above."}
+            </p>
+          </div>
+        ) : (
+          <div className="pm-rows">
+            {payrolls.map((item) => {
+              const canAct = item.status !== "Processed" && item.approvalStatus !== "Approved";
+              return (
                 <PayrollRow
                   key={item._id}
                   item={item}
@@ -460,38 +576,26 @@ export default function PayrollManager(props) {
                   onDelete={() => onDeleteSingle(item._id)}
                   onViewBreakdown={() => onViewBreakdown(item)}
                   actionLoading={actionLoading}
-                  showSelect
+                  showSelect={canAct && reviewFilter !== "approved"}
                 />
-              ))}
-            </div>
+              );
+            })}
           </div>
+        )}
 
-          {/* Approved Section */}
-          {approvedPayrolls.length > 0 && (
-            <div className="pm-records-section">
-              <div className="pm-records-header">
-                <div className="pm-records-header-left">
-                  <span className="pm-dot pm-dot--green" />
-                  <h4 className="pm-records-title">Approved / Processed</h4>
-                  <span className="pm-records-count">{approvedPayrolls.length}</span>
-                </div>
-              </div>
-              <div className="pm-rows">
-                {approvedPayrolls.map((item) => (
-                  <PayrollRow
-                    key={item._id}
-                    item={item}
-                    isExpanded={expandedRow === item._id}
-                    onToggleExpand={() => setExpandedRow(expandedRow === item._id ? null : item._id)}
-                    onViewBreakdown={() => onViewBreakdown(item)}
-                    actionLoading={actionLoading}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        {pagination?.total > 0 && (
+          <Pagination
+            className="payroll-pagination"
+            currentPage={pagination.page}
+            totalPages={Math.max(pagination.pages, 1)}
+            totalRecords={pagination.total}
+            limit={pagination.limit}
+            onPageChange={onPageChange}
+            showPageSize
+            onPageSizeChange={onPageSizeChange}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -520,8 +624,6 @@ function PayrollRow({
   const canAct = item.status !== "Processed" && item.approvalStatus !== "Approved";
   const isDaily = item.payrollType === "daily";
 
-  // Whole header toggles expand/collapse in BOTH sections; only native
-  // interactive elements (checkbox/buttons/links) are excluded.
   const handleRowHeaderClick = (e) => {
     if (e.target.closest("input, button, a, label")) return;
     onToggleExpand();
