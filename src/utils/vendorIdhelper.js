@@ -10,7 +10,7 @@ export const isSiteVendor = () => {
 };
 
 /** Calendar Daily wage type is enabled only for this org code. */
-export const CALENDAR_DAILY_VENDOR_CODES = ["AMG6866"];
+export const CALENDAR_DAILY_VENDOR_CODES = ["AMG6867"];
 
 export const canUseCalendarDailyPay = (user = getStoredUser()) => {
     const code = String(user?.vendor_code || user?.vendorCode || "").toUpperCase();
