@@ -28,6 +28,31 @@ describe("module route access", () => {
     expect(canAccessRoute("Employee", "/acme-org/payroll", modules)).toBe(false);
   });
 
+  test("regularization requires attendance or leave module", () => {
+    expect(
+      canAccessRoute("Employee", "/regularization", [
+        "dashboard",
+        "settings",
+        "attendance",
+      ])
+    ).toBe(true);
+    expect(
+      canAccessRoute("Employee", "/regularization", [
+        "dashboard",
+        "settings",
+        "leave",
+      ])
+    ).toBe(true);
+    expect(
+      canAccessRoute("Employee", "/regularization", [
+        "dashboard",
+        "settings",
+        "payroll",
+      ])
+    ).toBe(false);
+    expect(canAccessRoute("Admin", "/regularization", ["payroll"])).toBe(true);
+  });
+
   test("role still blocks Employees even if listed", () => {
     expect(
       canAccessRoute("Employee", "/employees", [

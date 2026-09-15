@@ -1,3 +1,107 @@
+.employee-directory-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.employee-directory-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 9px;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.employee-directory-tab:hover { color: #0f172a; }
+
+.employee-directory-tab.active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.employee-directory-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.employee-directory-tab.active .employee-directory-tab__badge {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.consultancy-net-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.consultancy-net-summary strong {
+  margin-left: auto;
+  padding-left: 14px;
+  border-left: 1px solid #e2e8f0;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.consultancy-net-summary span + span { padding-left: 10px; border-left: 1px solid #e2e8f0; }
+
+.login-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.login-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.login-chip--on { background: #dcfce7; color: #15803d; }
+.login-chip--off { background: #fef3c7; color: #b45309; }
+.login-chip--none { background: #f1f5f9; color: #64748b; }
 /* ─── Employee modals (Add / Edit / Letter / Documents) ─── */
 
 .employee-filter select {
@@ -771,6 +875,80 @@
   position: relative;
 }
 
+/* Long-text columns (Department / Manager / State) — ellipsis at a fixed width,
+   full value in the title tooltip on hover. max-width on td is ignored by table
+   auto-layout, so it is applied to the inner span wrapper instead. */
+.emp-truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.emp-truncate--dept {
+  max-width: 150px;
+}
+
+.emp-truncate--manager {
+  max-width: 130px;
+}
+
+.emp-truncate--state {
+  max-width: 110px;
+}
+
+/* Contact column — email upar, phone niche, dono par copy button */
+.emp-contact-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 170px;
+  max-width: 240px;
+}
+
+.emp-contact-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.emp-contact-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  color: #0f172a;
+  min-width: 0;
+}
+
+.emp-contact-line--phone .emp-contact-text {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.emp-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.emp-copy-btn:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
 /* Base style for the wrapper */
 .action-dropdown-wrapper {
   position: relative;
@@ -818,6 +996,8 @@
   right: 0;
   margin-top: 4px;
   min-width: 220px;
+  max-height: 70vh;
+  overflow-y: auto;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -826,6 +1006,51 @@
   z-index: 100;
   display: flex;
   flex-direction: column;
+}
+
+/* Collapsible group header inside the action menu */
+.action-dropdown-menu button.dropdown-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 16px 7px;
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.action-dropdown-menu button.dropdown-section-toggle:hover {
+  background-color: #f8fafc;
+  color: #475569;
+}
+
+.action-dropdown-menu button.dropdown-section-toggle:hover svg {
+  color: #475569;
+}
+
+.action-dropdown-menu button.dropdown-section-toggle svg {
+  color: #94a3b8;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.action-dropdown-menu button.dropdown-section-toggle svg.open {
+  transform: rotate(180deg);
+}
+
+.action-dropdown-menu button.dropdown-section-toggle--danger {
+  color: #fca5a5;
+}
+
+.action-dropdown-menu button.dropdown-section-toggle--danger svg {
+  color: #fca5a5;
 }
 
 .action-dropdown-menu button {
@@ -905,4 +1130,141 @@
 /* Ensure row overflow doesn't clip the dropdown */
 .employee-table-scroll {
   overflow: visible; 
+}
+
+/* =========================
+   TERMINATION MODAL — EXIT PROCESS SETUP
+========================= */
+
+.termination-schedule-box {
+  grid-column: span 2;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.termination-schedule-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.termination-schedule-row:last-child {
+  border-bottom: none;
+}
+
+.termination-schedule-row span {
+  color: #475569;
+}
+
+.termination-schedule-row strong {
+  color: #1a7f37;
+  font-size: 12px;
+  text-align: right;
+}
+
+.termination-exit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  grid-column: span 2;
+}
+
+.termination-exit-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #334155;
+}
+
+.termination-exit-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.termination-exit-label--danger {
+  color: #b91c1c;
+}
+
+.termination-exit-label--danger input[type="checkbox"] {
+  accent-color: #dc2626;
+}
+/* Status cell: Active/Inactive + employment badge stacked vertically, centered */
+.emp-status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: max-content;
+  margin: 0 auto;
+}
+
+.emp-status-cell .status-badge {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: 12px;
+  text-align: center;
+}
+
+/* Probation flag badge (next to Active/Inactive) */
+.status-badge.probation {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  white-space: nowrap;
+}
+
+/* Full-time flag badge (next to Active/Inactive) */
+.status-badge.full-time {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+  white-space: nowrap;
+}
+
+.probation-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.probation-banner--on {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.probation-banner--done {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.probation-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.probation-row input {
+  max-width: 90px;
 }

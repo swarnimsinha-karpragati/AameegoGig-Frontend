@@ -36,6 +36,9 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "managerId",
   "peopleManagerId",
   "client",
+  "isConsultancy",
+  "monthlyConsultancyPay",
+  "tdsPercent",
   "state",
   "ctc",
   "ctcStructureName",
@@ -46,6 +49,10 @@ const EMPLOYEE_PAYLOAD_FIELDS = [
   "otherAllowance",
   "professionalTax",
   "payType",
+  "employmentStatus",
+  "probationStartDate",
+  "probationEndDate",
+  "confirmationDate",
 ];
 
 export const buildEmployeePayload = (data, extras = {}) => {
@@ -172,5 +179,26 @@ export const linkUserToEmployee = async (employeeId, userId) => {
 
 export const getVendorName = async (vendorId) => {
   return API.get(`/employees/get-vendor-name/${vendorId}`);
+};
+
+/* =========================
+   TOGGLE APP LOGIN ACCESS (ENABLE / DISABLE)
+========================= */
+export const toggleAppLogin = async (id, enable) => {
+  return API.patch(`/employees/${id}/app-login`, { isActive: enable });
+};
+
+/* =========================
+   RESEND CREDENTIALS (new password + email, or loginInfo for Excel download)
+========================= */
+export const resendCredentials = async (id) => {
+  return API.post(`/employees/${id}/send-credentials`);
+};
+
+/* =========================
+   CONVERT CONSULTANT → EMPLOYEE (dedicated API)
+========================= */
+export const convertToEmployee = async (id) => {
+  return API.patch(`/employees/${id}/convert-to-employee`);
 };
 

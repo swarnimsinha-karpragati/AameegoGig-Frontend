@@ -17,7 +17,7 @@ import {
 } from "../services/payrollService";
 import { getEmployees } from "../services/employeeService";
 import { getCurrentUser } from "../services/authService";
-import { getStoredUser } from "../utils/roles";
+import { getStoredUser, canManagePayroll } from "../utils/roles";
 import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER, getAvailableMonths } from "../utils/payrollConstants";
 import { payrollHasBreakdown, enrichPayrollRecord } from "../utils/payrollRecord";
 import { downloadPayrollPdf } from "../utils/generateSalarySlipPdf";
@@ -31,7 +31,7 @@ import MainLayout from "../layouts/MainLayout";
 
 export default function Payroll() {
   const user = getStoredUser();
-  const isAdminOrHR = user?.role === "Admin" || user?.role === "HR";
+  const isAdminOrHR = canManagePayroll(user?.role);
   const [searchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
 

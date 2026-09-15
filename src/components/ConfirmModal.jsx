@@ -98,9 +98,14 @@ function ConfirmModal({
           </h2>
         </div>
 
-        {/* Body */}
+        {/* Body — plain text stays in a paragraph; rich nodes (e.g. a
+            Before-vs-After summary) render as-is to avoid div-in-p nesting. */}
         {message ? (
-          <p className="confirm-modal-message">{message}</p>
+          typeof message === "string" ? (
+            <p className="confirm-modal-message">{message}</p>
+          ) : (
+            <div className="confirm-modal-message">{message}</div>
+          )
         ) : null}
 
         {/* Optional textarea input (e.g. rejection reason) */}

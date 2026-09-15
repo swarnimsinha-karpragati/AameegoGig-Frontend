@@ -26,7 +26,7 @@ import {
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getDashboard } from "../services/dashboardService";
-import { getStoredUser, userHasModule, visibleDashboardStats } from "../utils/roles";
+import { getStoredUser, userHasModule, visibleDashboardStats, roleHasPermission } from "../utils/roles";
 import "./Dashboard.css";
 import Card from "../components/Card";
 
@@ -62,7 +62,7 @@ const formatTimeAgo = (timestamp) => {
   });
 };
 
-function StatCard({ stat }) {
+function StatCard({ stat, onClick }) {
   const Icon = STAT_ICONS[stat.icon] || Clock3;
   const iconClass = {
     users: "blue",
@@ -74,7 +74,7 @@ function StatCard({ stat }) {
   }[stat.icon] || "blue";
 
   return (
-    <Card icon={<Icon size={26} />} iconClassName={`${iconClass}`} isInteractive={true}>
+    <Card icon={<Icon size={26} />} iconClassName={`${iconClass}`} isInteractive={Boolean(onClick)} onClick={onClick}>
       <Card.Header>{stat.label}</Card.Header>
       <Card.Body>{stat.value}</Card.Body>
       <Card.Footer className={stat.trend === "negative" ? "negative" : stat.trend === "positive" ? "positive" : "neutral"}>{stat.subtitle}</Card.Footer>
@@ -126,7 +126,15 @@ function Dashboard() {
 
   const isOrgView = data?.scope === "org";
   const isManager = data?.scope === "team";
-  const showApprovals = data?.role !== "Employee";
+  const showApprovals =
+    data?.role !== "Employee" &&
+    (roleHasPermission(data?.role, "leave:approve-all") ||
+      roleHasPermission(data?.role, "expenses:approve") ||
+      roleHasPermission(data?.role, "regularization:approve") ||
+      roleHasPermission(data?.role, "regularization:view-all") ||
+      roleHasPermission(data?.role, "advance-loan:approve") ||
+      // No team permission exists: team-scope approvers see it automatically.
+      isManager);
   const modules = data?.allowedModules || user?.allowedModules;
   const hasModule = (key) => userHasModule(user, key, modules);
   const showAttendance = hasModule("attendance") && data?.attendanceToday;
@@ -143,6 +151,14 @@ function Dashboard() {
       expense: data?.pendingExpenseCount,
     }
   );
+
+  // Clicking the employee tiles deep-links into the employee directory with the
+  // matching status filter applied (All / Active / Inactive).
+  const EMPLOYEE_STAT_STATUS = {
+    employees: "all",
+    activeEmployees: "active",
+    exitEmployees: "exited",
+  };
   const personalSummary = [
     showAttendance && "attendance",
     showLeave && "leave",
@@ -191,9 +207,23 @@ function Dashboard() {
           <>
             {stats.length > 0 && (
               <div className="stats-grid">
-                {stats.map((stat) => (
-                  <StatCard key={stat.key} stat={stat} />
-                ))}
+                {stats.map((stat) => {
+                  const statusTarget =
+                    showEmployees && isOrgView && EMPLOYEE_STAT_STATUS[stat.key]
+                      ? EMPLOYEE_STAT_STATUS[stat.key]
+                      : null;
+                  return (
+                    <StatCard
+                      key={stat.key}
+                      stat={stat}
+                      onClick={
+                        statusTarget
+                          ? () => navigate(`/${vendorName}/employees?status=${statusTarget}`)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
               </div>
             )}
 
@@ -206,10 +236,10 @@ function Dashboard() {
                   </div>
                 )}
                 {showEmployees && data.exitEmployees > 0 && (
-                  <div className="insight-chip warning">
+                  <Link to={`/${vendorName}/employees?status=exited`} className="insight-chip warning">
                     <UserMinus size={16} />
                     <span>{data.exitEmployees} employee{data.exitEmployees !== 1 ? "s" : ""} exited</span>
-                  </div>
+                  </Link>
                 )}
                 {showPayroll && data.payrollPending > 0 && (
                   <Link to={`/${vendorName}/payroll?tab=payroll`} className="insight-chip warning">

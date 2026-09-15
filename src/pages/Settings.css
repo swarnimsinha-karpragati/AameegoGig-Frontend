@@ -56,6 +56,50 @@
   gap: 16px;
 }
 
+/* Top tabs — Leave/Employees pattern */
+.settings-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.settings-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 9px 15px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: 9px;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settings-tab:hover { color: #0f172a; }
+
+.settings-tab.active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.settings-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 200px;
+}
+
 .ot-form-scroll-target,
 .ot-list-scroll-target {
   scroll-margin-top: 1rem;

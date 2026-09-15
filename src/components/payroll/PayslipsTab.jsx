@@ -3,7 +3,6 @@ import { Search, Download, Eye, Mail, RefreshCw, Send } from "lucide-react";
 import Button from "../Button";
 import MonthYearFilter from "./MonthYearFilter";
 import { formatInr, formatStatusLabel, getAvailableMonths } from "../../utils/payrollConstants";
-import { getStoredUser } from "../../utils/roles";
 
 export default function PayslipsTab({
   isAdminOrHR,
@@ -34,7 +33,6 @@ export default function PayslipsTab({
   }, [filteredHistory, typeFilter]);
 
   const availableMonths = getAvailableMonths(selectedYear);
-  const user = getStoredUser();
 
   const payrollsForGuard = payrollsProp || filteredHistory;
   const canDownloadWageSheet = useMemo(() => {
@@ -106,7 +104,7 @@ export default function PayslipsTab({
               {downloadingWageSheet ? "Preparing..." : `${availableMonths[selectedMonth-1]?.label} Wage Sheet`}
             </Button>
           )}
-          {(user?.role === "Admin" || user?.role === "HR") &&  (
+          {isAdminOrHR &&  (
           <div className="table-search-bar">
               <Search size={18} />
               <input

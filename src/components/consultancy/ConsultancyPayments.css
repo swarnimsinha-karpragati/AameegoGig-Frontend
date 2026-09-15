@@ -1,0 +1,45 @@
+.consultancy-payments-panel { margin: 18px 0; padding: 22px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }
+.consultancy-payments-head { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 18px; }
+.consultancy-payments-head h2 { margin: 0; font-size: 18px; }
+.consultancy-payments-head p { margin: 4px 0 0; color: #64748b; }
+.consultancy-payments-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.consultancy-payments-controls select, .consultancy-payments-controls input { min-height: 36px; border: 1px solid #cbd5e1; border-radius: 7px; padding: 0 9px; }
+.consultancy-payment-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.consultancy-payment-stats div { padding: 14px; background: #f8fafc; border-radius: 8px; }
+.consultancy-payment-stats span, .consultancy-payment-stats strong { display: block; }
+.consultancy-payment-stats span { color: #64748b; font-size: 12px; }
+.consultancy-payment-stats strong { margin-top: 5px; font-size: 19px; }
+.employee-table td small { display: block; color: #64748b; margin-top: 3px; }
+.consultancy-payments-actions { display: flex; gap: 8px; align-items: center; }
+.consultancy-payments-actions .generic-btn { white-space: nowrap; }
+.consultancy-status-locked { display: inline-block; min-height: 32px; line-height: 32px; padding: 0 12px; border-radius: 8px; background: #f1f5f9; color: #64748b; font-size: 12px; font-weight: 600; }
+.consultancy-confirm-field { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 0.875rem; color: #1e40af; }
+.consultancy-confirm-field input { margin-top: 2px; }
+.consultancy-modal-breakdown {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #475569;
+}
+.consultancy-modal-breakdown strong {
+  margin-left: auto;
+  padding-left: 14px;
+  border-left: 1px solid #e2e8f0;
+  font-size: 15px;
+  color: #0f172a;
+}
+.consultancy-modal-breakdown span + span { padding-left: 10px; border-left: 1px solid #e2e8f0; }
+@media (max-width: 800px) {
+  .consultancy-payments-head { align-items: flex-start; flex-direction: column; }
+  .consultancy-payment-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .consultancy-payments-actions { flex-direction: column; align-items: stretch; }
+}
+@media (max-width: 520px) {
+  .consultancy-payment-stats { grid-template-columns: 1fr; }
+}

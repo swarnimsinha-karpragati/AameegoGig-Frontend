@@ -14,6 +14,7 @@ import Settings from "./pages/Setting";
 import Payroll from './pages/Payroll';
 import Attendance from "./pages/Attendance";
 import Leave from "./pages/Leave";
+import Regularization from "./pages/Regularization";
 import Departments from './pages/Department';
 import Expense from "./pages/Expense";
 import ForgotPassword from './pages/ForgotPassword';
@@ -21,9 +22,11 @@ import ForgotPassword from './pages/ForgotPassword';
 import Resignations from './pages/Resignations';
 import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
+import { syncRolesFromServer } from './utils/roles';
 import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
 import AdvanceLoanRequest from './components/AdvanceLoan';
+import Roles from './pages/Roles';
 
 function App() {
   const token = localStorage.getItem("token");
@@ -44,6 +47,7 @@ function App() {
     if (isSuccess && data?.user) {
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("user-updated"));
+      syncRolesFromServer();
     }
 
     const path = window.location.pathname;
@@ -80,8 +84,10 @@ function App() {
         <Route path=":vendor/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
         <Route path=":vendor/leave" element={<ProtectedRoute><Leave /></ProtectedRoute>} />
         <Route path=":vendor/leave/policy" element={<ProtectedRoute><LeavePolicy /></ProtectedRoute>} />
+        <Route path=":vendor/regularization" element={<ProtectedRoute><Regularization /></ProtectedRoute>} />
         <Route path=":vendor/expenses" element={<ProtectedRoute><Expense /></ProtectedRoute>} />
         <Route path=":vendor/advance-loan" element={<ProtectedRoute><AdvanceLoanRequest /></ProtectedRoute>} />
+        <Route path=":vendor/roles" element={<ProtectedRoute><Roles /></ProtectedRoute>} />
         <Route path=":vendor/resignation" element={<ProtectedRoute><Resignations /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import {
   addEmployee,
@@ -8,6 +9,9 @@ import {
   bulkUploadEmployees,
   updateEmployee,
   deleteEmployee,
+  toggleAppLogin,
+  convertToEmployee,
+  resendCredentials,
 } from "../services/employeeService";
 
 import {
@@ -28,16 +32,29 @@ import {
   FolderOpen,
   Download,
   MoreVertical,
+  Lock,
+  LockOpen,
+  Mail,
+  Copy,
+  Check,
   TriangleAlert,
-  OctagonX
+  OctagonX,
+  UserCheck,
+  Clock,
+  ChevronDown,
 } from "lucide-react";
+import { getStoredUser, canManageEmployees, canManageProbation, roleHasPermission } from "../utils/roles";
+import {
+  confirmProbationEmployee,
+  extendProbationEmployee,
+} from "../services/probationService";
 
 
 import {
   generateAppointmentLetter,
   generateWarningLetter,
-  generateTerminationLetter,
 } from "../services/letterService";
+import { createTermination } from "../services/terminationService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
 import Pagination from "../components/Pagination";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
@@ -60,9 +77,14 @@ import {
 } from "../validators/employeeValidation";
 import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, validateComponentsMatchCalendarDaily, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
+import ConfirmModal from "../components/ConfirmModal";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor } from "../utils/vendorIdhelper";
-import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles";
+import { defaultSelectedModules } from "../utils/roles";
+import { downloadCredentialExcel } from "../utils/credentialExcel";
+import { getRoles } from "../services/roleService";
+import ConsultancyPayments from "../components/consultancy/ConsultancyPayments";
+import "../components/consultancy/ConsultancyPayments.css";
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
@@ -147,6 +169,8 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Employment",
     fields: [
       { key: "client", label: "Client" },
+      { key: "employmentStatus", label: "Employment Status", type: "select-employment-status", hint: "New joiners start on probation by default" },
+      { key: "probationEndDate", label: "Probation End Date", type: "date" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
       { key: "payType", label: "Pay Type", type: "select-paytype" },
     ],
@@ -185,6 +209,13 @@ function EmpModal({ title, onClose, size = "lg", children, footer }) {
     </div>
   );
 }
+
+const calculateNetConsultancy = (gross, tdsPercent) => {
+  const amount = Number(gross) || 0;
+  const tdsRate = Math.min(100, Math.max(0, Number(tdsPercent) || 0));
+  const tds = Math.round((amount * tdsRate) / 100);
+  return { gross: amount, tds, net: amount - tds };
+};
 
 function FormSection({ title, description, children, fullWidth = false }) {
   return (
@@ -286,6 +317,20 @@ function EmployeeFormFields({
       return (
         <>
           <input {...common} {...dateInputProps} type="date" />
+          {fieldError(field.key) ? (
+            <p className="emp-field-error">{fieldError(field.key)}</p>
+          ) : null}
+        </>
+      );
+    }
+
+    if (field.type === "select-employment-status") {
+      return (
+        <>
+          <select {...common} value={values.employmentStatus || "probation"}>
+            <option value="probation">Probation</option>
+            <option value="full-time">Full-time</option>
+          </select>
           {fieldError(field.key) ? (
             <p className="emp-field-error">{fieldError(field.key)}</p>
           ) : null}
@@ -395,7 +440,7 @@ function EmployeeFormFields({
           hint={
             field.key === "email" && emailRequired
               ? "Required for app login"
-              : undefined
+              : field.hint
           }
         >
           {renderInput(field)}
@@ -405,38 +450,11 @@ function EmployeeFormFields({
   ));
 }
 
-function ModuleAccessFields({ role, selected = [], onChange, idPrefix = "emp-mod" }) {
-  const options = grantableModulesForRole(role);
-
-  const toggle = (key) => {
-    const next = selected.includes(key)
-      ? selected.filter((item) => item !== key)
-      : [...selected, key];
-    onChange(next);
-  };
-
-  return (
-    <div className="emp-module-access">
-      <p className="emp-module-access__label">Module access</p>
-      <p className="emp-module-access__hint">
-        Uncheck a module to hide it for this login. Dashboard and Settings stay available.
-      </p>
-      <div className="emp-module-access__grid">
-        {options.map((item) => (
-          <label key={item.key} className="emp-module-access__item" htmlFor={`${idPrefix}-${item.key}`}>
-            <input
-              id={`${idPrefix}-${item.key}`}
-              type="checkbox"
-              checked={selected.includes(item.key)}
-              onChange={() => toggle(item.key)}
-            />
-            {item.label}
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
+const DEFAULT_ROLE_OPTIONS = [
+  { roleName: "Employee", displayName: "Employee" },
+  { roleName: "Manager", displayName: "Manager" },
+  { roleName: "HR", displayName: "HR Manager" },
+];
 
 function AppLoginSection({
   enabled,
@@ -447,23 +465,40 @@ function AppLoginSection({
   onPasswordChange,
   alreadyEnabled,
   linkedEmail,
-  allowedModules,
-  onModulesChange,
+  roles = DEFAULT_ROLE_OPTIONS,
   modulesIdPrefix,
 }) {
+  const currentRole = userRole || "Employee";
+  const hasRole = roles.some((role) => role.roleName === currentRole);
+  const roleOptions = hasRole
+    ? roles
+    : [{ roleName: currentRole, displayName: currentRole }, ...roles];
+
+  const renderRoleField = (
+    <FormField label="Login role" htmlFor={`${modulesIdPrefix}-user-role`}>
+      <select
+        id={`${modulesIdPrefix}-user-role`}
+        value={currentRole}
+        onChange={onRoleChange}
+      >
+        {roleOptions.map((role) => (
+          <option key={role._id || role.roleName} value={role.roleName}>
+            {role.displayName || role.roleName}
+          </option>
+        ))}
+      </select>
+    </FormField>
+  );
+
   if (alreadyEnabled) {
     return (
       <div className="emp-login-card emp-field--full">
         <p className="emp-field-hint" style={{ margin: 0 }}>
           App login is enabled
-          {linkedEmail ? ` for ${linkedEmail}` : ""}.
+          {linkedEmail ? ` for ${linkedEmail}` : ""}. Choose the role for this
+          login below.
         </p>
-        <ModuleAccessFields
-          role={userRole}
-          selected={allowedModules}
-          onChange={onModulesChange}
-          idPrefix={modulesIdPrefix}
-        />
+        <div className="emp-login-card__fields">{renderRoleField}</div>
       </div>
     );
   }
@@ -483,17 +518,7 @@ function AppLoginSection({
             Password is shown once after saving. Email must be filled above.
           </p>
           <div className="emp-login-card__fields">
-            <FormField label="Login role" htmlFor={`${modulesIdPrefix}-user-role`}>
-              <select
-                id={`${modulesIdPrefix}-user-role`}
-                value={userRole}
-                onChange={onRoleChange}
-              >
-                <option value="Employee">Employee</option>
-                <option value="Manager">Manager</option>
-                <option value="HR">HR</option>
-              </select>
-            </FormField>
+            {renderRoleField}
             <FormField
               label="Password"
               htmlFor={`${modulesIdPrefix}-user-password`}
@@ -508,12 +533,6 @@ function AppLoginSection({
               />
             </FormField>
           </div>
-          <ModuleAccessFields
-            role={userRole}
-            selected={allowedModules}
-            onChange={onModulesChange}
-            idPrefix={modulesIdPrefix}
-          />
         </>
       ) : null}
     </div>
@@ -525,9 +544,25 @@ function Employees() {
      STATES
   ========================= */
 
+  const user = getStoredUser();
+  const canManage = canManageEmployees(user?.role);
+  const canViewEmployees =
+    user?.role === "Admin" || roleHasPermission(user?.role, "employees:view");
+  const canViewConsultancy =
+    user?.role === "Admin" ||
+    roleHasPermission(user?.role, "consultancy:view") ||
+    roleHasPermission(user?.role, "consultancy:manage");
+  const canManageConsultancy =
+    user?.role === "Admin" || roleHasPermission(user?.role, "consultancy:manage");
+  const canLetters = roleHasPermission(user?.role, "employees:letters");
+  // Consultancy lives inside Employees page: consultancy-only users get
+  // Employees menu access but must see only the Consultancy tab.
+  const isConsultancyOnly = !canViewEmployees && !canManage && canViewConsultancy;
+
   const initialForm = {
     name: "", email: "", phone: "",
     designation: "", departmentId: "", location: "",
+    isConsultancy: false, monthlyConsultancyPay: "", tdsPercent: "",
     dob: "", bloodGroup: "", emergencyContact: "",
 
     gender: "",
@@ -553,11 +588,17 @@ function Employees() {
 
   const [form, setForm] = useState(initialForm);
 
+  const [availableRoles, setAvailableRoles] = useState(DEFAULT_ROLE_OPTIONS);
+
   const [employees, setEmployees] = useState([]);
+  const [directoryType, setDirectoryType] = useState(() =>
+    isConsultancyOnly ? "consultancy" : "employee"
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
+  const [consultancyRefreshKey, setConsultancyRefreshKey] = useState(0);
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
@@ -567,7 +608,85 @@ function Employees() {
   const [department, setDepartment] = useState([]);
   const [departmentFilter, setDepartmentFilter] = useState("");
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStatus = searchParams.get("status") || "";
+  const [statusFilter, setStatusFilter] = useState(urlStatus);
+
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  // Accordion: which menu category is open (one at a time)
+  const [expandedMenuSection, setExpandedMenuSection] = useState("general");
+
+  const toggleMenuSection = (key) => {
+    setExpandedMenuSection((prev) => (prev === key ? null : key));
+  };
+
+  const renderMenuSectionToggle = (key, label, danger = false) => (
+    <button
+      type="button"
+      className={`dropdown-section-toggle${danger ? " dropdown-section-toggle--danger" : ""}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        toggleMenuSection(key);
+      }}
+      aria-expanded={expandedMenuSection === key}
+    >
+      <span>{label}</span>
+      <ChevronDown
+        size={14}
+        className={expandedMenuSection === key ? "open" : ""}
+      />
+    </button>
+  );
+
+  // Probation confirm / extend state
+  const [confirmProbationTarget, setConfirmProbationTarget] = useState(null);
+  const [probationActionLoading, setProbationActionLoading] = useState(false);
+  const [extendEmp, setExtendEmp] = useState(null);
+  const [extendMonths, setExtendMonths] = useState(1);
+  const [extendRemark, setExtendRemark] = useState("");
+
+  const handleConfirmProbation = (emp) => {
+    setConfirmProbationTarget(emp);
+  };
+
+  const handleConfirmProbationSubmit = async () => {
+    if (!confirmProbationTarget || probationActionLoading) return;
+    setProbationActionLoading(true);
+    try {
+      await confirmProbationEmployee(confirmProbationTarget._id);
+      setConfirmProbationTarget(null);
+      fetchEmployees();
+    } catch (e) {
+      alert(e?.response?.data?.message || "Could not mark employee as full-time");
+    } finally {
+      setProbationActionLoading(false);
+    }
+  };
+
+  const handleExtendProbationSubmit = async () => {
+    if (!extendEmp || probationActionLoading) return;
+    const months = Number(extendMonths);
+    if (!months || months < 1 || months > 12) {
+      alert("Extension must be between 1 and 12 months");
+      return;
+    }
+    setProbationActionLoading(true);
+    try {
+      await extendProbationEmployee(extendEmp._id, months, extendRemark);
+      setExtendEmp(null);
+      setExtendMonths(1);
+      setExtendRemark("");
+      fetchEmployees();
+    } catch (e) {
+      alert(e?.response?.data?.message || "Could not extend probation");
+    } finally {
+      setProbationActionLoading(false);
+    }
+  };
+
+  // Convert consultant → employee modal state
+  const [convertTarget, setConvertTarget] = useState(null);
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -577,6 +696,23 @@ function Employees() {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    getRoles()
+      .then((roles) => {
+        if (mounted && Array.isArray(roles)) {
+          const selectable = roles.filter((role) => !role.isAdmin);
+          if (selectable.length) setAvailableRoles(selectable);
+        }
+      })
+      .catch(() => {
+        /* fall back to default role options */
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const [
@@ -621,6 +757,10 @@ function Employees() {
 
   const [loginCredentials, setLoginCredentials] =
     useState(null);
+
+  const [sendingCreds, setSendingCreds] = useState(false);
+
+  const [copiedKey, setCopiedKey] = useState(null);
 
   const [showAddModal, setShowAddModal] =
     useState(false);
@@ -688,6 +828,10 @@ function Employees() {
       client: "",
       settlementDate: "",
       noticeClause: "7(B)",
+      isExperienceLetterIssued: false,
+      isRelievingLetterIssued: false,
+      deleteEmployeeAccount: false,
+      hrMail: "",
     });
 
   const salaryEditorRef = useRef(null);
@@ -700,9 +844,11 @@ function Employees() {
     try {
       const res = await getEmployees({
         departmentId: departmentFilter || undefined,
+        status: statusFilter || undefined,
         page,
         limit,
         search,
+        isConsultancy: directoryType === "consultancy",
         isPagination: "true",
       });
       setEmployees(res.data.employees || []);
@@ -712,14 +858,31 @@ function Employees() {
           pages: res.data.pagination.pages,
         });
       }
+      setConsultancyRefreshKey((value) => value + 1);
     } catch (error) {
       console.error("Error fetching employees:", error);
     }
-  }, [departmentFilter, page, limit, search]);
+  }, [departmentFilter, statusFilter, page, limit, search, directoryType]);
 
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
+
+  useEffect(() => {
+    if (!canViewConsultancy && directoryType === "consultancy") {
+      setDirectoryType("employee");
+      setPage(1);
+    }
+    if (isConsultancyOnly && directoryType === "employee") {
+      setDirectoryType("consultancy");
+      setPage(1);
+    }
+  }, [canViewConsultancy, isConsultancyOnly, directoryType]);
+
+  useEffect(() => {
+    setStatusFilter(urlStatus);
+    setPage(1);
+  }, [urlStatus]);
 
   useEffect(() => {
     const loggedUser = localStorage.getItem("user");
@@ -844,14 +1007,39 @@ function Employees() {
     );
   };
 
+  // Contact (email/phone) copy — inline tick feedback, no alert popup
+  const handleCopyContact = async (empId, field, value) => {
+    if (!value) return;
+    const key = `${empId}-${field}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = value;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedKey(key);
+      setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 1500);
+    } catch (error) {
+      console.error("Copy failed", error);
+    }
+  };
+
   /* =========================
      ADD EMPLOYEE
   ========================= */
 
-  const showLoginCredentials = (employeeName, loginInfo) => {
+  const showLoginCredentials = (employeeName, loginInfo, employeeId) => {
     if (!loginInfo) return;
 
     setLoginCredentials({
+      employeeId: employeeId || loginInfo.employeeId || null,
       employeeName,
       email: loginInfo.email,
       role: loginInfo.role,
@@ -860,6 +1048,34 @@ function Employees() {
       linkedExisting: Boolean(loginInfo.linkedExisting),
       phone: loginInfo.phone,
     });
+  };
+
+  // Resend credentials — no modal. Email hai to mail chala jayega,
+  // sirf phone hai to direct Excel download ho jayega.
+  const handleResendCredentials = async (employeeId, employeeName) => {
+    if (!employeeId || sendingCreds) return;
+    setSendingCreds(true);
+    try {
+      const res = await resendCredentials(employeeId);
+      const data = res.data || {};
+      if (!data.emailSent && data.loginInfo?.temporaryPassword) {
+        downloadCredentialExcel({
+          employeeName: employeeName || data.loginInfo.name,
+          email: data.loginInfo.email,
+          phone: data.loginInfo.phone,
+          role: data.loginInfo.role,
+          organizationCode: data.loginInfo.organizationCode,
+          temporaryPassword: data.loginInfo.temporaryPassword,
+        });
+      }
+      alert(data.message || "Credentials sent.");
+    } catch (error) {
+      alert(
+        error.response?.data?.message || "Failed to send credentials"
+      );
+    } finally {
+      setSendingCreds(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -955,7 +1171,7 @@ function Employees() {
       }
 
       if (data.loginInfo) {
-        showLoginCredentials(form.name, data.loginInfo);
+        showLoginCredentials(form.name, data.loginInfo, newEmployeeId);
       } else if (form.createAppLogin) {
         alert(
           data.message ||
@@ -1107,7 +1323,7 @@ function Employees() {
       // Refresh table
       fetchEmployees();
 
-      // ❌ modal close mat karo
+      // ❌ do not close the modal
       // setShowUploadModal(false);
 
     } catch (error) {
@@ -1148,6 +1364,10 @@ function Employees() {
       emp.relievingDate
         ? emp.relievingDate.split("T")[0]
         : "",
+    employmentStatus: emp.employmentStatus || "probation",
+    probationStartDate: emp.probationStartDate ? emp.probationStartDate.split("T")[0] : "",
+    probationEndDate: emp.probationEndDate ? emp.probationEndDate.split("T")[0] : "",
+    confirmationDate: emp.confirmationDate ? emp.confirmationDate.split("T")[0] : "",
     basicSalary: emp.basicSalary ?? "",
     hra: emp.hra ?? "",
     conveyanceAllowance: emp.conveyanceAllowance ?? "",
@@ -1181,6 +1401,9 @@ function Employees() {
     esicNumber: emp.esicNumber || "",
     userRole: emp.linkedUser?.role || emp.userRole || "Employee",
     payType: emp.payType || "MONTHLY",
+    isConsultancy: Boolean(emp.isConsultancy),
+    monthlyConsultancyPay: emp.monthlyConsultancyPay ?? "",
+    tdsPercent: emp.tdsPercent ?? "",
     allowedModules: defaultSelectedModules(
       emp.linkedUser?.role || emp.userRole || "Employee",
       emp.linkedUser?.allowedModules
@@ -1208,8 +1431,22 @@ function Employees() {
         return;
       }
       const payload = buildEmployeePayload(selectedEmployee, {
+        // Only create a new login when the user explicitly enabled it.
+        // Normal edits of employees that already had login used to return loginInfo
+        // again, which reopened the "App Login Details" modal every time.
         createAppLogin: enableLoginOnUpdate,
       });
+
+      // When login is already enabled, send role/modules/password explicitly for sync
+      // so the backend updates without triggering the loginInfo modal.
+      if (selectedEmployee.hasAppLogin && !enableLoginOnUpdate) {
+        if (selectedEmployee.userRole) {
+          payload.userRole = selectedEmployee.userRole;
+        }
+        if (selectedEmployee.userPassword?.trim()) {
+          payload.userPassword = selectedEmployee.userPassword.trim();
+        }
+      }
 
       const formErrors = await collectEmployeeFormErrors(payload);
       if (Object.keys(formErrors).length) {
@@ -1245,8 +1482,14 @@ function Employees() {
         }
       }
 
-      if (res.data?.loginInfo) {
-        showLoginCredentials(selectedEmployee.name, res.data.loginInfo);
+      // Show the modal only when a new login was created or the password was reset.
+      // Plain edits don't return loginInfo from the backend / created+password stays empty.
+      if (res.data?.loginInfo?.created || res.data?.loginInfo?.temporaryPassword) {
+        showLoginCredentials(
+          selectedEmployee.name,
+          res.data.loginInfo,
+          selectedEmployee._id
+        );
       } else if (enableLoginOnUpdate) {
         alert(
           res.data?.message ||
@@ -1273,13 +1516,35 @@ function Employees() {
   };
 
   /* =========================
+     CONVERT CONSULTANCY → EMPLOYEE (via info modal + dedicated API)
+  ========================= */
+
+  const handleConfirmConvertToEmployee = async () => {
+    if (!convertTarget) return;
+    setConverting(true);
+    try {
+      const res = await convertToEmployee(convertTarget._id);
+      alert(res.data?.message || `${convertTarget.name} is now an Employee.`);
+      setConvertTarget(null);
+      fetchEmployees();
+    } catch (error) {
+      alert(
+        error.response?.data?.message ||
+        "Conversion failed"
+      );
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  /* =========================
      DELETE EMPLOYEE
   ========================= */
 
   const handleDelete = async (id) => {
     const confirmDelete =
       window.confirm(
-        "Are you sure you want to delete this employee?"
+        "Are you sure you want to delete this employee? This is a soft delete — their details will be archived and hidden from default views."
       );
 
     if (!confirmDelete) return;
@@ -1287,7 +1552,7 @@ function Employees() {
     try {
       await deleteEmployee(id);
 
-      alert("Employee deleted successfully");
+      alert("Employee soft deleted successfully. Their details are archived.");
 
       if (employees.length <= 1 && page > 1) {
         setPage(page - 1);
@@ -1299,6 +1564,32 @@ function Employees() {
         error.response?.data
           ?.message ||
         "Delete failed"
+      );
+    }
+  };
+
+  /* =====================================
+     Toggle App Login Access (Enable / Disable)
+  ======================================== */
+
+  const handleToggleAppLogin = async (emp) => {
+    const enable = !emp.hasLoginEnabled;
+    const confirmToggle = window.confirm(
+      enable
+        ? `Enable app login for ${emp.name}? They will be able to log in again.`
+        : `Disable app login for ${emp.name}? They will not be able to log in until re-enabled.`
+    );
+
+    if (!confirmToggle) return;
+
+    try {
+      await toggleAppLogin(emp._id, enable);
+      alert(enable ? "App login enabled." : "App login disabled.");
+      fetchEmployees();
+    } catch (error) {
+      alert(
+        error.response?.data?.message ||
+        "Failed to update app login access"
       );
     }
   };
@@ -1417,23 +1708,45 @@ function Employees() {
        GENERATE TERMINATION LETTER
      ========================= */
 
+  /* =========================
+       TERMINATION FLOW
+  ========================= */
+
+  const formatDayAfterDate = (dateStr) => {
+    if (!dateStr) return "Not scheduled";
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + 1);
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
   const handleGenerateTermination =
     async () => {
-      if (
-        !terminationData.employeeName ||
-        !terminationData.designation ||
-        !terminationData.terminationDate ||
-        !terminationData.reason?.trim()
-      ) {
-        alert(
-          "Please fill all mandatory fields (employee, designation, termination date, and reason)"
-        );
+      const missingFields = [];
+      if (!terminationData.employeeId) missingFields.push("Employee");
+      if (!terminationData.designation) missingFields.push("Designation");
+      if (!terminationData.terminationDate) missingFields.push("Termination date");
+      if (!terminationData.reason?.trim()) missingFields.push("Reason");
+
+      if (missingFields.length > 0) {
+        alert(`Please fill mandatory fields: ${missingFields.join(", ")}`);
         return;
       }
 
+      const confirmGenerate = window.confirm(
+        `Are you sure you want to terminate ${terminationData.employeeName} effective ${terminationData.terminationDate}? The Termination Letter will be generated immediately, and the exit process (experience/relieving letters + F&F) will follow automatically.`
+      );
+
+      if (!confirmGenerate) return;
+
       try {
         setLoading(true);
-        await generateTerminationLetter({
+
+        await createTermination({
           employeeId: terminationData.employeeId,
           employeeName: terminationData.employeeName,
           employeeCode: terminationData.employeeCode,
@@ -1446,19 +1759,84 @@ function Employees() {
           client: terminationData.client,
           settlementDate: terminationData.settlementDate,
           noticeClause: terminationData.noticeClause,
+          isExperienceLetterIssued: terminationData.isExperienceLetterIssued,
+          isRelievingLetterIssued: terminationData.isRelievingLetterIssued,
+          deleteEmployeeAccount: terminationData.deleteEmployeeAccount,
+          hrMail: terminationData.hrMail,
+          generateAndSend: true,
         });
 
         alert(
-          "Termination Letter Generated Successfully"
+          "Termination recorded and letter generated successfully. Exit process will follow automatically."
         );
 
         setShowTerminationModal(false);
+        fetchEmployees();
 
       } catch (error) {
         alert(
           error.response?.data
             ?.message ||
           "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  const handleSaveTermination =
+    async () => {
+      const missingFields = [];
+      if (!terminationData.employeeId) missingFields.push("Employee");
+      if (!terminationData.terminationDate) missingFields.push("Termination date");
+      if (!terminationData.reason?.trim()) missingFields.push("Reason");
+
+      if (missingFields.length > 0) {
+        alert(`Please fill mandatory fields: ${missingFields.join(", ")}`);
+        return;
+      }
+
+      const confirmSave = window.confirm(
+        `Save termination details for ${terminationData.employeeName} without generating the letter yet? You can generate it later.`
+      );
+
+      if (!confirmSave) return;
+
+      try {
+        setLoading(true);
+
+        await createTermination({
+          employeeId: terminationData.employeeId,
+          employeeName: terminationData.employeeName,
+          employeeCode: terminationData.employeeCode,
+          designation: terminationData.designation,
+          department: terminationData.department,
+          terminationDate: terminationData.terminationDate,
+          reason: terminationData.reason,
+          noticePeriod: terminationData.noticePeriod,
+          workLocation: terminationData.workLocation,
+          client: terminationData.client,
+          settlementDate: terminationData.settlementDate,
+          noticeClause: terminationData.noticeClause,
+          isExperienceLetterIssued: terminationData.isExperienceLetterIssued,
+          isRelievingLetterIssued: terminationData.isRelievingLetterIssued,
+          deleteEmployeeAccount: terminationData.deleteEmployeeAccount,
+          hrMail: terminationData.hrMail,
+          generateAndSend: false,
+        });
+
+        alert(
+          "Termination details saved. Click Generate & Send when ready to start the exit process."
+        );
+
+        setShowTerminationModal(false);
+        fetchEmployees();
+
+      } catch (error) {
+        alert(
+          error.response?.data
+            ?.message ||
+          "Failed to save termination"
         );
       } finally {
         setLoading(false);
@@ -1534,9 +1912,24 @@ function Employees() {
     <MainLayout>
       <div className="employee-page">
 
-        <p className="employee-page__count">
-          Total employees: <strong>{pagination?.total || 0}</strong>
-        </p>
+        <div className="employee-directory-tabs" role="tablist" aria-label="People directory">
+          {canViewEmployees ? (
+            <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => { setDirectoryType("employee"); setPage(1); }}>
+              Employees
+              {directoryType === "employee" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
+            </button>
+          ) : null}
+          {canViewConsultancy ? (
+            <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => { setDirectoryType("consultancy"); setPage(1); }}>
+              Consultancy
+              {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
+            </button>
+          ) : null}
+        </div>
+
+        {/* <p className="employee-page__count">
+          Total {directoryType === "consultancy" ? "consultants" : "employees"}: <strong>{pagination?.total || 0}</strong>
+        </p> */}
 
         <div className="employee-toolbar">
 
@@ -1577,31 +1970,64 @@ function Employees() {
               </select>
             </div>
 
-            <Button
-              variant="secondary"
-              icon={<Upload size={18} />}
-              onClick={() => {
-                setShowUploadModal(true)
-                setUploadMessage("")
-                setUploadFile(null)
-              }}
-            >
-              Bulk Upload
-            </Button>
+            <div className="employee-filter">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                  setSearchParams(
+                    (prev) => {
+                      const next = new URLSearchParams(prev);
+                      if (e.target.value) next.set("status", e.target.value);
+                      else next.delete("status");
+                      return next;
+                    },
+                    { replace: true }
+                  );
+                }}
+              >
+                <option value="">All Employees</option>
+                <option value="active">Active Employees</option>
+                <option value="probation">Probation Employees</option>
+                <option value="full-time">Full-time Employees</option>
+                <option value="inactive">Inactive Employees</option>
+                <option value="exited">Exited Employees</option>
+                <option value="deleted">Deleted Employees</option>
+              </select>
+            </div>
 
-            <Button
-              icon={<Plus size={18} />}
-              onClick={() => {
-                setForm({ ...initialForm });
-                setSalaryDraft(initialSalaryDraft);
-                setErrors({});
-                setShowAddModal(true);
-              }}
-            >
-              Add Employee
-            </Button>
+            {directoryType === "employee" && canManage && (
+              <Button
+                variant="secondary"
+                icon={<Upload size={18} />}
+                onClick={() => {
+                  setShowUploadModal(true)
+                  setUploadMessage("")
+                  setUploadFile(null)
+                }}
+              >
+                Bulk Upload
+              </Button>
+            )}
+
+            {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+              <Button
+                icon={<Plus size={18} />}
+                onClick={() => {
+                  setForm({ ...initialForm, isConsultancy: directoryType === "consultancy" });
+                  setSalaryDraft(initialSalaryDraft);
+                  setErrors({});
+                  setShowAddModal(true);
+                }}
+              >
+                Add {directoryType === "consultancy" ? "Consultant" : "Employee"}
+              </Button>
+            )}
           </div>
         </div>
+
+        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} canManage={canManageConsultancy} /> : null}
 
         <div className="employee-table-card">
           <div className="employee-table-scroll">
@@ -1610,7 +2036,7 @@ function Employees() {
                 <tr>
                   <th>Code</th>
                   <th>Name</th>
-                  <th>Phone</th>
+                  <th>Contact</th>
                   <th>Designation</th>
                   <th>{name} name</th>
                   <th>Reporting Manager</th>
@@ -1630,7 +2056,56 @@ function Employees() {
                       <td title={emp.name}>{emp.name}</td>
 
                       <td>
-                        {emp.phone || "-"}
+                        <div className="emp-contact-cell">
+                          <div
+                            className="emp-contact-line"
+                            title={emp.email || ""}
+                          >
+                            <span className="emp-contact-text">
+                              {emp.email || "-"}
+                            </span>
+                            {emp.email ? (
+                              <button
+                                type="button"
+                                className="emp-copy-btn"
+                                title="Copy email"
+                                onClick={() =>
+                                  handleCopyContact(emp._id, "email", emp.email)
+                                }
+                              >
+                                {copiedKey === `${emp._id}-email` ? (
+                                  <Check size={12} />
+                                ) : (
+                                  <Copy size={12} />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                          <div
+                            className="emp-contact-line emp-contact-line--phone"
+                            title={emp.phone || ""}
+                          >
+                            <span className="emp-contact-text">
+                              {emp.phone || "-"}
+                            </span>
+                            {emp.phone ? (
+                              <button
+                                type="button"
+                                className="emp-copy-btn"
+                                title="Copy phone"
+                                onClick={() =>
+                                  handleCopyContact(emp._id, "phone", emp.phone)
+                                }
+                              >
+                                {copiedKey === `${emp._id}-phone` ? (
+                                  <Check size={12} />
+                                ) : (
+                                  <Copy size={12} />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
                       </td>
 
                       <td title={emp.designation}>
@@ -1638,37 +2113,79 @@ function Employees() {
                       </td>
 
                       <td title={emp.department}>
-                        {emp.department || "-"}
+                        <span className="emp-truncate emp-truncate--dept">
+                          {emp.department || "-"}
+                        </span>
                       </td>
 
                       <td title={emp.managerId?.name}>
-                        {emp.managerId?.name || "-"}
+                        <span className="emp-truncate emp-truncate--manager">
+                          {emp.managerId?.name || "-"}
+                        </span>
                       </td>
 
                       <td title={emp.stateName}>
-                        {emp.stateName || "-"}
-                      </td>
-
-                      <td>
-                        <span
-                          className={`status-badge ${emp.hasAppLogin ? "active" : "inactive"
-                            }`}
-                        >
-                          {emp.hasAppLogin ? "Login enabled" : "No login"}
+                        <span className="emp-truncate emp-truncate--state">
+                          {emp.stateName || "-"}
                         </span>
                       </td>
 
                       <td>
                         <span
-                          className={`status-badge ${emp.isActive
-                            ? "active"
-                            : "inactive"
+                          className={`login-chip ${emp.hasAppLogin
+                              ? emp.hasLoginEnabled
+                                ? "login-chip--on"
+                                : "login-chip--off"
+                              : "login-chip--none"
                             }`}
+                          title={
+                            emp.hasAppLogin
+                              ? emp.hasLoginEnabled
+                                ? "App login enabled"
+                                : "App login disabled"
+                              : "No app login"
+                          }
                         >
-                          {emp.isActive
-                            ? "Active"
-                            : "Inactive"}
+                          {emp.hasAppLogin
+                            ? emp.hasLoginEnabled
+                              ? "Enabled"
+                              : "Disabled"
+                            : "No login"}
                         </span>
+                      </td>
+
+                      <td>
+                        <div className="emp-status-cell">
+                          <span
+                            className={`status-badge ${emp.isDeleted
+                              ? "deleted"
+                              : emp.isExited
+                                ? "exited"
+                                : emp.isActive
+                                  ? "active"
+                                  : "inactive"
+                              }`}
+                          >
+                            {emp.isDeleted
+                              ? "Deleted"
+                              : emp.isExited
+                                ? "Exited"
+                                : emp.isActive
+                                  ? "Active"
+                                  : "Inactive"}
+                          </span>
+                          {!emp.isDeleted && !emp.isExited ? (
+                            emp.employmentStatus === "probation" ? (
+                              <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
+                                Probation
+                              </span>
+                            ) : (
+                              <span className="status-badge full-time" title="Confirmed employee">
+                                Full-time
+                              </span>
+                            )
+                          ) : null}
+                        </div>
                       </td>
 
                       <td>
@@ -1677,6 +2194,9 @@ function Employees() {
                             className="emp-grid-btn dropdown-toggle"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (openDropdownId !== emp._id) {
+                                setExpandedMenuSection("general");
+                              }
                               setOpenDropdownId(
                                 openDropdownId === emp._id ? null : emp._id
                               );
@@ -1687,126 +2207,224 @@ function Employees() {
 
                           {openDropdownId === emp._id && (
                             <div className="action-dropdown-menu">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleView(emp);
-                                }}
-                              >
-                                <Eye size={16} /> View Profile
-                              </button>
+                              {renderMenuSectionToggle("general", "General")}
+                              {expandedMenuSection === "general" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleView(emp);
+                                    }}
+                                  >
+                                    <Eye size={16} /> View Profile
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleEdit(emp);
-                                }}
-                              >
-                                <Pencil size={16} /> Edit Details
-                              </button>
+                                  {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenDropdownId(null);
+                                        handleEdit(emp);
+                                      }}
+                                    >
+                                      <Pencil size={16} /> Edit Details
+                                    </button>
+                                  )}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setLetterEmployeeId(emp._id);
-                                  setLetterData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    designation: emp.designation || "",
-                                    joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                                    annualCTC: "",
-                                    monthlySalary: "",
-                                    workLocation: emp.location || "Gurgaon",
-                                    salaryComponents: [],
-                                  });
-                                  setShowLetterModal(true);
-                                }}
-                              >
-                                <FileText size={16} /> Appointment Letter
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setOpenDropdownId(null);
+                                      setSelectedEmployeeForDocs(emp);
+                                      await loadEmployeeDocuments(emp._id);
+                                      setShowDocumentsModal(true);
+                                    }}
+                                  >
+                                    <FolderOpen size={16} /> Documents
+                                  </button>
+                                </>
+                              )}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setWarningData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    employeeCode: emp.employeeCode || "",
-                                    designation: emp.designation || "",
-                                    department: emp.department || "",
-                                    incidentDate: new Date().toISOString().split("T")[0],
-                                    reason: "",
-                                    severity: "First",
-                                    actionTaken: "",
-                                    responsePeriod: "5",
-                                  });
-                                  setShowWarningModal(true);
-                                }}
-                              >
-                                <TriangleAlert size={16} /> Warning Letter
-                              </button>
+                              {directoryType === "employee" && canManageProbation(user?.role) && emp.employmentStatus === "probation" && !emp.isDeleted && !emp.isExited ? (
+                                <>
+                                  {renderMenuSectionToggle("probation", "Probation")}
+                                  {expandedMenuSection === "probation" && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenDropdownId(null);
+                                          handleConfirmProbation(emp);
+                                        }}
+                                      >
+                                        <UserCheck size={16} /> Mark Full-time
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenDropdownId(null);
+                                          setExtendEmp(emp);
+                                          setExtendMonths(1);
+                                          setExtendRemark("");
+                                        }}
+                                      >
+                                        <Clock size={16} /> Extend Probation
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : null}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setTerminationData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    employeeCode: emp.employeeCode || "",
-                                    designation: emp.designation || "",
-                                    department: emp.department || "",
-                                    terminationDate: new Date().toISOString().split("T")[0],
-                                    reason: "",
-                                    noticePeriod: "",
-                                    workLocation: emp.location || "",
-                                    client: emp.client || "",
-                                    settlementDate: new Date().toISOString().split("T")[0],
-                                    noticeClause: "7(B)",
-                                  });
-                                  setShowTerminationModal(true);
-                                }}
-                              >
-                                <OctagonX size={16} /> Termination Letter
-                              </button>
+                              {canLetters && renderMenuSectionToggle("letters", "Letters")}
 
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  setOpenDropdownId(null);
-                                  setSelectedEmployeeForDocs(emp);
-                                  await loadEmployeeDocuments(emp._id);
-                                  setShowDocumentsModal(true);
-                                }}
-                              >
-                                <FolderOpen size={16} /> Documents
-                              </button>
+                              {canLetters && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setLetterEmployeeId(emp._id);
+                                    setLetterData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      designation: emp.designation || "",
+                                      joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                                      annualCTC: "",
+                                      monthlySalary: "",
+                                      workLocation: emp.location || "Gurgaon",
+                                      salaryComponents: [],
+                                    });
+                                    setShowLetterModal(true);
+                                  }}
+                                >
+                                  <FileText size={16} /> Appointment Letter
+                                </button>
+                              )}
 
-                              <div className="dropdown-divider"></div>
+                              {canLetters && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setWarningData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      incidentDate: new Date().toISOString().split("T")[0],
+                                      reason: "",
+                                      severity: "First",
+                                      actionTaken: "",
+                                      responsePeriod: "5",
+                                    });
+                                    setShowWarningModal(true);
+                                  }}
+                                >
+                                  <TriangleAlert size={16} /> Warning Letter
+                                </button>
+                              )}
 
-                              <button
-                                type="button"
-                                className="dropdown-item-danger"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleDelete(emp._id);
-                                }}
-                              >
-                                <Trash2 size={16} /> Delete Employee
-                              </button>
+                              {canLetters && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setTerminationData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      terminationDate: new Date().toISOString().split("T")[0],
+                                      reason: "",
+                                      noticePeriod: "",
+                                      workLocation: emp.location || "",
+                                      client: emp.client || "",
+                                      settlementDate: new Date().toISOString().split("T")[0],
+                                      noticeClause: "7(B)",
+                                      isExperienceLetterIssued: false,
+                                      isRelievingLetterIssued: false,
+                                      deleteEmployeeAccount: false,
+                                      hrMail: "",
+                                    });
+                                    setShowTerminationModal(true);
+                                  }}
+                                >
+                                  <OctagonX size={16} /> Termination Letter
+                                </button>
+                              )}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && renderMenuSectionToggle("access", "Access")}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && expandedMenuSection === "access" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleToggleAppLogin(emp);
+                                    }}
+                                  >
+                                    {emp.hasLoginEnabled ? (
+                                      <>
+                                        <Lock size={16} /> Disable App Login
+                                      </>
+                                    ) : (
+                                      <>
+                                        <LockOpen size={16} /> Enable App Login
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleResendCredentials(emp._id, emp.name);
+                                    }}
+                                  >
+                                    <Mail size={16} /> Send Credentials
+                                  </button>
+                                </>
+                              )}
+
+                              {directoryType === "consultancy" && canManageConsultancy && renderMenuSectionToggle("convert", "Convert")}
+
+                              {directoryType === "consultancy" && canManageConsultancy && expandedMenuSection === "convert" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    setConvertTarget(emp);
+                                  }}
+                                >
+                                  <UserCheck size={16} /> Make it Employee
+                                </button>
+                              )}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && renderMenuSectionToggle("danger", "Danger", true)}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && expandedMenuSection === "danger" && (
+                                <button
+                                  type="button"
+                                  className="dropdown-item-danger"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    handleDelete(emp._id);
+                                  }}
+                                >
+                                  <Trash2 size={16} /> Delete {directoryType === "consultancy" ? "Consultant" : "Employee"}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1816,7 +2434,7 @@ function Employees() {
                 ) : (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="10"
                       className="empty-row"
                     >
                       No employees found.
@@ -1846,7 +2464,7 @@ function Employees() {
         {/* ================= ADD EMPLOYEE MODAL ================= */}
         {showAddModal ? (
           <EmpModal
-            title="Add Employee"
+            title={`Add ${form.isConsultancy ? "Consultant" : "Employee"}`}
             onClose={() => {
               setShowAddModal(false);
               setSalaryDraft(initialSalaryDraft);
@@ -1886,6 +2504,21 @@ function Employees() {
                 department={department}
                 errors={errors}
               />
+              {form.isConsultancy ? (
+                <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
+                  <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
+                    <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" />
+                  </FormField>
+                  <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
+                    <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" />
+                  </FormField>
+                  <div className="consultancy-net-summary">
+                    <span>Gross: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).gross.toLocaleString("en-IN")}</span>
+                    <span>TDS ({form.tdsPercent || 0}%): −₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).tds.toLocaleString("en-IN")}</span>
+                    <strong>Net Payable: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).net.toLocaleString("en-IN")}</strong>
+                  </div>
+                </FormSection>
+              ) : null}
               <FormSection title="App Access">
                 <AppLoginSection
                   enabled={form.createAppLogin}
@@ -1911,14 +2544,11 @@ function Employees() {
                   onPasswordChange={(e) =>
                     setForm({ ...form, userPassword: e.target.value })
                   }
-                  allowedModules={form.allowedModules}
-                  onModulesChange={(allowedModules) =>
-                    setForm({ ...form, allowedModules })
-                  }
+                  roles={availableRoles}
                   modulesIdPrefix="add-emp-mod"
                 />
               </FormSection>
-              <FormSection
+              {!form.isConsultancy ? <FormSection
                 title="Salary Structure"
                 description="Set earnings and deductions from your organization component library"
                 fullWidth
@@ -1933,7 +2563,7 @@ function Employees() {
                   onDraftChange={setSalaryDraft}
                   hideActions
                 />
-              </FormSection>
+              </FormSection> : null}
             </form>
           </EmpModal>
         ) : null}
@@ -2002,7 +2632,7 @@ function Employees() {
         {/* ================= VIEW / EDIT MODAL ================= */}
         {selectedEmployee ? (
           <EmpModal
-            title={isEditing ? "Edit Employee" : "Employee Details"}
+            title={isEditing ? `Edit ${selectedEmployee.isConsultancy ? "Consultant" : "Employee"}` : `${selectedEmployee.isConsultancy ? "Consultant" : "Employee"} Details`}
             onClose={() => setSelectedEmployee(null)}
             size="lg"
             footer={
@@ -2042,9 +2672,24 @@ function Employees() {
                     !!selectedEmployee?.departmentId &&
                     !!originalDepartmentId &&
                     String(selectedEmployee.departmentId) !==
-                      String(originalDepartmentId)
+                    String(originalDepartmentId)
                   }
                 />
+                {selectedEmployee.isConsultancy ? (
+                  <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
+                    <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
+                      <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" />
+                    </FormField>
+                    <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
+                      <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" />
+                    </FormField>
+                    <div className="consultancy-net-summary">
+                      <span>Gross: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).gross.toLocaleString("en-IN")}</span>
+                      <span>TDS ({selectedEmployee.tdsPercent || 0}%): −₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).tds.toLocaleString("en-IN")}</span>
+                      <strong>Net Payable: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).net.toLocaleString("en-IN")}</strong>
+                    </div>
+                  </FormSection>
+                ) : null}
                 <FormSection title="App Access">
                   <AppLoginSection
                     enabled={enableLoginOnUpdate}
@@ -2072,23 +2717,17 @@ function Employees() {
                     }
                     alreadyEnabled={selectedEmployee.hasAppLogin}
                     linkedEmail={selectedEmployee.linkedUser?.email}
-                    allowedModules={selectedEmployee.allowedModules}
-                    onModulesChange={(allowedModules) =>
-                      setSelectedEmployee({
-                        ...selectedEmployee,
-                        allowedModules,
-                      })
-                    }
+                    roles={availableRoles}
                     modulesIdPrefix="edit-emp-mod"
                   />
                 </FormSection>
-                <FormSection
+                {!selectedEmployee.isConsultancy ? <FormSection
                   title="Salary Structure"
                   description="Dynamic earnings and deductions from your organization library"
                   fullWidth
                 >
                   <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} payType={selectedEmployee.payType} />
-                </FormSection>
+                </FormSection> : null}
               </>
             ) : (
               <div className="emp-view-body">
@@ -2161,6 +2800,37 @@ function Employees() {
                           : "-"}
                       </span>
                     </div>
+
+                    <div>
+                      <label>Employment Status</label>
+                      <span>
+                        {selectedEmployee.employmentStatus === "probation" ? (
+                          <span className="status-badge probation">Probation</span>
+                        ) : (
+                          <span className="status-badge full-time">Full-time</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Probation End Date</label>
+                      <span>
+                        {selectedEmployee.probationEndDate
+                          ? new Date(
+                            selectedEmployee.probationEndDate
+                          ).toLocaleDateString()
+                          : "-"}
+                      </span>
+                    </div>
+
+                    {selectedEmployee.confirmationDate ? (
+                      <div>
+                        <label>Confirmation Date</label>
+                        <span>
+                          {new Date(selectedEmployee.confirmationDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ) : null}
 
                     <div>
                       <label>Relieving Date</label>
@@ -2610,15 +3280,26 @@ function Employees() {
             onClose={() => setShowTerminationModal(false)}
             size="md"
             footer={
-              <Button
-                type="button"
-                icon={<OctagonX size={16} />}
-                onClick={handleGenerateTermination}
-                disabled={loading}
-                style={{ flex: 1 }}
-              >
-                {loading ? "Generating…" : "Generate Termination Letter"}
-              </Button>
+              <div style={{ display: "flex", gap: 10, width: "100%" }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleSaveTermination}
+                  disabled={loading}
+                  style={{ flex: 1 }}
+                >
+                  Save Details
+                </Button>
+                <Button
+                  type="button"
+                  icon={<OctagonX size={16} />}
+                  onClick={handleGenerateTermination}
+                  disabled={loading}
+                  style={{ flex: 1 }}
+                >
+                  {loading ? "Processing…" : "Generate & Send"}
+                </Button>
+              </div>
             }
           >
             <FormSection
@@ -2755,6 +3436,98 @@ function Employees() {
                 />
               </FormField>
             </FormSection>
+
+            <FormSection
+              title="Exit Process Setup"
+              description="Auto-run schedule after your sign-off — mirrors the resignation flow:"
+            >
+              <div className="termination-schedule-box">
+                <div className="termination-schedule-row">
+                  <span>Termination Letter</span>
+                  <strong>On "Generate &amp; Send"</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Employee deactivated (Exited)</span>
+                  <strong>{terminationData.terminationDate || "Not scheduled"}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Experience / Relieving Letters</span>
+                  <strong>{formatDayAfterDate(terminationData.terminationDate)}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Final Salary Slips + F&amp;F Statement</span>
+                  <strong>{formatDayAfterDate(terminationData.settlementDate)}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Status update</span>
+                  <strong>Auto-updates to "Released" after F&amp;F</strong>
+                </div>
+              </div>
+
+              <FormField label="Documents to auto-generate" fullWidth>
+                <div className="termination-exit-list">
+                  <label className="termination-exit-label">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.isExperienceLetterIssued}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          isExperienceLetterIssued: e.target.checked,
+                        })
+                      }
+                    />
+                    <strong>Experience Certificate</strong>
+                  </label>
+                  <label className="termination-exit-label">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.isRelievingLetterIssued}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          isRelievingLetterIssued: e.target.checked,
+                        })
+                      }
+                    />
+                    <strong>Relieving Letter</strong>
+                  </label>
+                </div>
+              </FormField>
+
+              <FormField label="HR Email (for exit/F&F notifications)" htmlFor="term-hrmail" fullWidth>
+                <input
+                  id="term-hrmail"
+                  type="email"
+                  value={terminationData.hrMail}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      hrMail: e.target.value,
+                    })
+                  }
+                  placeholder="hr@company.com (optional)"
+                />
+              </FormField>
+
+              <FormField label="Account after settlement" fullWidth>
+                <div className="termination-exit-list">
+                  <label className="termination-exit-label termination-exit-label--danger">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.deleteEmployeeAccount}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          deleteEmployeeAccount: e.target.checked,
+                        })
+                      }
+                    />
+                    Archive (soft-delete) employee after F&amp;F is dispatched
+                  </label>
+                </div>
+              </FormField>
+            </FormSection>
           </EmpModal>
         ) : null}
 
@@ -2869,13 +3642,41 @@ function Employees() {
           onClose={() => setLoginCredentials(null)}
           size="md"
           footer={
-            <button
-              type="button"
-              className="emp-btn emp-btn--primary emp-btn--block"
-              onClick={() => setLoginCredentials(null)}
-            >
-              Done
-            </button>
+            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+              {loginCredentials.email ? (
+                <button
+                  type="button"
+                  className="emp-btn emp-btn--secondary"
+                  style={{ flex: 1 }}
+                  disabled={sendingCreds}
+                  onClick={() =>
+                    handleResendCredentials(
+                      loginCredentials.employeeId,
+                      loginCredentials.employeeName
+                    )
+                  }
+                >
+                  <Mail size={14} />{" "}
+                  {sendingCreds ? "Sending..." : "Send on Email"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="emp-btn emp-btn--secondary"
+                style={{ flex: 1 }}
+                onClick={() => downloadCredentialExcel(loginCredentials)}
+              >
+                <Download size={14} /> Download Excel
+              </button>
+              <button
+                type="button"
+                className="emp-btn emp-btn--primary"
+                style={{ flex: 1 }}
+                onClick={() => setLoginCredentials(null)}
+              >
+                Done
+              </button>
+            </div>
           }
         >
           <div className="credentials-body">
@@ -2921,10 +3722,114 @@ function Employees() {
         </EmpModal>
       ) : null}
 
+      <ConfirmModal
+        open={!!confirmProbationTarget}
+        title="Mark as Full-time?"
+        variant="success"
+        confirmLabel="Mark Full-time"
+        loading={probationActionLoading}
+        onCancel={() => !probationActionLoading && setConfirmProbationTarget(null)}
+        onConfirm={handleConfirmProbationSubmit}
+        message={
+          confirmProbationTarget ? (
+            <span>
+              {confirmProbationTarget.name} ({confirmProbationTarget.employeeCode})
+              will be confirmed and marked as <strong>full-time</strong>.
+            </span>
+          ) : null
+        }
+      />
+
+      {extendEmp ? (
+        <EmpModal title={`Extend Probation — ${extendEmp.name}`} onClose={() => !probationActionLoading && setExtendEmp(null)}>
+          <div className="probation-row">
+            <FormField label="Extra months" htmlFor="probation-extend-months">
+              <input
+                id="probation-extend-months"
+                type="number"
+                min={1}
+                max={12}
+                step={1}
+                value={extendMonths}
+                onChange={(e) => setExtendMonths(e.target.value)}
+              />
+            </FormField>
+            <FormField label="Remark (optional)" htmlFor="probation-extend-remark" fullWidth>
+              <input
+                id="probation-extend-remark"
+                type="text"
+                placeholder="Reason for extension"
+                value={extendRemark}
+                onChange={(e) => setExtendRemark(e.target.value)}
+              />
+            </FormField>
+          </div>
+          {extendEmp.probationEndDate ? (
+            <p className="emp-field-hint">
+              Current end: {new Date(extendEmp.probationEndDate).toLocaleDateString()}
+            </p>
+          ) : null}
+          <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+            <Button type="button" disabled={probationActionLoading} onClick={handleExtendProbationSubmit}>
+              {probationActionLoading ? "Saving…" : "Extend Probation"}
+            </Button>
+            <Button type="button" variant="secondary" disabled={probationActionLoading} onClick={() => setExtendEmp(null)}>
+              Cancel
+            </Button>
+          </div>
+        </EmpModal>
+      ) : null}
+
       <DocumentPreview
         isOpen={!!docPreviewUrl}
         onClose={() => setDocPreviewUrl(null)}
         url={docPreviewUrl}
+      />
+
+      <ConfirmModal
+        open={!!convertTarget}
+        title="Make it Employee"
+        variant="success"
+        confirmLabel="Convert to Employee"
+        loading={converting}
+        onCancel={() => !converting && setConvertTarget(null)}
+        onConfirm={handleConfirmConvertToEmployee}
+        message={
+          convertTarget ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", textAlign: "left" }}>
+              <div className="credentials-body" style={{ margin: 0 }}>
+                <div className="credentials-row">
+                  <span>Name</span>
+                  <strong>{convertTarget.name || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Employee code</span>
+                  <strong>{convertTarget.employeeCode || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Designation</span>
+                  <strong>{convertTarget.designation || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Monthly consultancy pay</span>
+                  <strong>₹{Number(convertTarget.monthlyConsultancyPay || 0).toLocaleString("en-IN")}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>TDS</span>
+                  <strong>{convertTarget.tdsPercent || 0}%</strong>
+                </div>
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#475569", lineHeight: 1.6 }}>
+                <strong>After conversion:</strong>
+                <ul style={{ margin: "6px 0 0", paddingLeft: "18px" }}>
+                  <li>Moves to the Employees list</li>
+                  <li>Consultancy pay / TDS is cleared</li>
+                  <li>Becomes payroll-eligible — assign department + salary structure next</li>
+                </ul>
+              </div>
+            </div>
+          ) : null
+        }
       />
     </MainLayout>
   );
