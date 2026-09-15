@@ -183,7 +183,7 @@ export default function EmployeeSalaryStructureView({ employeeId }) {
           </div>
         </div>
         <div style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginTop: 6 }}>
-          Payroll rebuilds monthly gross as per day × calendar days each month. Preview snapshot may be for one month only.
+          Payroll uses Horticulture sheet formulas: earned pay = rate × working days; ESIC eligibility on rate × 26; HRA = earned net − earned basic.
         </div>
         {previewWarning && (
           <div className="emp-salary-view__state--warn">

@@ -261,7 +261,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
   };
 
     const handleCalculateSplit = async () => {
-        if (!selectedStructureId) return setError("Please select a Salary Structure template.");
+        if (!isCalendarDaily && !selectedStructureId) return setError("Please select a Salary Structure template.");
         if (usesDailyWageInput) {
           const wageErr = validateDailyWage(dailyWage);
           if (wageErr) return setError(wageErr);
@@ -277,17 +277,18 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             if (isCalendarDaily) {
               const basicAmt = Number(basicFixed);
               if (!basicAmt || basicAmt <= 0) {
-                setError("Enter Fixed Basic amount (required for Calendar Daily).");
+                setError("Enter Fixed Basic+DA amount (required for Calendar Daily).");
                 setCalculating(false);
                 return;
               }
               res = await calculateCalendarDailySplit(user.vendorId, {
                 dailyWage: Number(dailyWage),
-                structureId: selectedStructureId,
+                structureId: selectedStructureId || undefined,
                 daysInMonth: previewDaysInMonth,
                 basicFixedAmount: basicAmt,
               });
             } else if (isDaily) {
+              if (!selectedStructureId) return setError("Please select a Salary Structure template.");
               res = await calculateStructureSplit(user.vendorId, {
                 dailyWage: Number(dailyWage),
                 structureId: selectedStructureId,
@@ -411,7 +412,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     setSaving(true);
     setError("");
 
-    if (inputMode === "template" && !selectedStructureId) { setError("Salary structure is missing."); setSaving(false); return; }
+    if (inputMode === "template" && !isCalendarDaily && !selectedStructureId) { setError("Salary structure is missing."); setSaving(false); return; }
     if (safeComponents.length === 0) { setError("Please configure components before saving."); setSaving(false); return; }
     if (isCalendarDaily) {
       const wageErr = validateDailyWage(dailyWage);
@@ -634,7 +635,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
               <span className="emp-struct-mode-card__title">Use Structure Template</span>
               <span className="emp-struct-mode-card__desc">
                 {isCalendarDaily
-                  ? "Pick a template; monthly gross = per day × days in month (BASIC required fixed)"
+                  ? "Enter per day pay + fixed Basic+DA (sheet formulas). Template optional for LWF."
                   : isDaily
                     ? "Pick a template and auto-split daily wage across components"
                     : "Pick a predefined template and auto-split CTC across components"}
@@ -687,26 +688,36 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             {isCalendarDaily && (
               <>
                 <span style={{fontSize:11, color:"#64748b", marginTop:4, display:"block"}}>
-                  Preview month: {previewDaysInMonth} days → gross ₹{((Number(dailyWage)||0)*previewDaysInMonth).toLocaleString("en-IN")} (payroll rebuilds each month)
+                  ESIC eligibility gross = rate × 26 (e.g. ₹{((Number(dailyWage)||0)*26).toLocaleString("en-IN")}). Earned pay uses working days at payroll.
                 </span>
               </>
             )}
           </div>
           {isCalendarDaily && (
             <div className="emp-struct-editor__field">
-              <label>3. Fixed Basic (₹)</label>
+              <label>3. Fixed Basic+DA (₹)</label>
               <input
                 type="number"
                 min="0"
                 value={basicFixed}
                 onChange={(e) => setBasicFixed(e.target.value)}
-                placeholder="e.g. 9000"
+                placeholder="e.g. 10994"
                 disabled={calculating || saving}
               />
             </div>
           )}
           <div>
-            <Button type="button" onClick={handleCalculateSplit} disabled={calculating || saving || !selectedStructureId || (usesDailyWageInput ? !dailyWage : !ctcAnnual) || (isCalendarDaily && !basicFixed)}>
+            <Button
+              type="button"
+              onClick={handleCalculateSplit}
+              disabled={
+                calculating ||
+                saving ||
+                (isCalendarDaily
+                  ? !dailyWage || !basicFixed
+                  : !selectedStructureId || (usesDailyWageInput ? !dailyWage : !ctcAnnual))
+              }
+            >
               {calculating ? <RefreshCw size={16} className="spin" /> : "Calculate Breakdown"}
             </Button>
           </div>
