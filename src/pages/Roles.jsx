@@ -466,12 +466,6 @@ export default function Roles() {
     <MainLayout>
       <div className="roles-page">
         <div className="roles-page-header">
-          <div>
-            <h1>Roles & Permissions</h1>
-            <p>
-              HR/Admin features can be assigned to any role. Admin always has full access.
-            </p>
-          </div>
           <button type="button" className="roles-page-add-btn" onClick={() => setShowCreate(true)}>
             <Plus size={16} />
             Create Role

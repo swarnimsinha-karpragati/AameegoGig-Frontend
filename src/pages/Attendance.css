@@ -5,7 +5,9 @@
 .attendance-page {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  overflow-x: clip;
+  max-width: 100%;
+  padding: 0 0 20px;
   background-color: #f8fafc;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --attendance-radius-card: 16px;
@@ -152,7 +154,10 @@
   display: flex;
   flex-direction: column;
   padding: 16px 18px;
-  width:100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .attendance-panel__head {
@@ -1306,19 +1311,9 @@ input.attendance-control[type="time"] {
   }
 }
 
-@media (max-width: 1100px) {
-  .attendance-page .payroll-stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 640px) {
   .attendance-page {
     padding: 16px;
-  }
-
-  .attendance-page .payroll-stats-grid {
-    grid-template-columns: 1fr;
   }
 
   .attendance-mark-form__row,
@@ -1374,5 +1369,143 @@ input.attendance-control[type="time"] {
 
   .attendance-role-select-wrap {
     width: 100%;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE ADD-ONS — CSS only (no logic change)
+   Tablet stacking + small-phone polish for all attendance views.
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .attendance-page {
+    padding: 0 0 16px;
+    gap: 14px;
+  }
+
+  .attendance-header-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .attendance-title {
+    font-size: 22px;
+  }
+
+  .attendance-panel,
+  .attendance-mark-card,
+  .month-mark-card {
+    padding: 16px;
+  }
+
+  .month-mark-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .month-mark-button-wrap {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .attendance-mark-form__row--details {
+    padding: 12px;
+  }
+
+  .attendance-checkin-card--hero .attendance-checkin-hero,
+  .attendance-checkin-card--hero .attendance-today-sessions {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .attendance-checkin-card--hero .attendance-checkin-proof {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+
+  .attendance-checkin-actions--center {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .attendance-checkin-proof {
+    flex-direction: column;
+  }
+
+  .attendance-checkin-selfie img {
+    width: 100px;
+    height: 100px;
+  }
+
+  .selfie-modal-backdrop,
+  .month-upload-backdrop {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .attendance-page {
+    padding: 0 0 12px;
+    gap: 12px;
+  }
+
+  .attendance-title {
+    font-size: 20px;
+  }
+
+  .attendance-subtitle {
+    font-size: 13px;
+  }
+
+  .attendance-panel,
+  .attendance-calendar-card,
+  .attendance-table-card {
+    padding: 14px 12px;
+  }
+
+  .attendance-checkin-card--hero .attendance-checkin-hero {
+    padding: 16px;
+  }
+
+  .attendance-checkin-hero-text h2 {
+    font-size: 18px;
+  }
+
+  .attendance-status-pill {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .attendance-metrics-grid {
+    padding: 14px 14px 8px;
+  }
+
+  .attendance-metric-card {
+    padding: 12px;
+  }
+
+  .attendance-form-actions,
+  .month-mark-actions {
+    justify-content: stretch;
+  }
+
+  .attendance-form-actions .generic-btn,
+  .month-mark-actions .generic-btn,
+  .month-mark-actions .month-mark-btn {
+    width: 100%;
+  }
+
+  .month-mark-row--split {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-today-sessions-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .attendance-my-details {
+    grid-template-columns: 1fr;
   }
 }
