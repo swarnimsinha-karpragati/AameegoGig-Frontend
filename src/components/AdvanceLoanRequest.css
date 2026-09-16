@@ -22,6 +22,45 @@
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     width: fit-content;
+    max-width: 100%;
+}
+
+/* Tabs left, Refresh button end (right) par */
+.advance-tabs-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 100%;
+}
+
+.advance-tabs-row .advance-tabs {
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.advance-tabs-row .advance-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+button.advance-tabs-refresh {
+    justify-self: end;
+    white-space: nowrap;
+    padding: 7px 12px;
+    font-size: 12px;
+    border-radius: 10px;
+    gap: 6px;
+}
+
+.advance-tabs-refresh svg {
+    width: 14px;
+    height: 14px;
+}
+
+.advance-header-actions:empty {
+    display: none;
 }
 
 .advance-tab {
@@ -110,6 +149,19 @@
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
+}
+
+/* Title hata diya gaya hai (topbar me hai) — sirf action buttons ki row */
+.advance-page-header--actions {
+    justify-content: flex-end;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 12px;
+}
+
+.advance-page-header--actions:empty {
+    display: none;
 }
 
 /* ── Modern Buttons ── */

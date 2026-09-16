@@ -1649,11 +1649,7 @@ function AdvanceLoanInner() {
 
     const renderEmployeeView = () => (
         <>
-            <div className="advance-page-header">
-                <div className="advance-header-left">
-                    <h2 className="advance-page-title">My Advances & Loans</h2>
-                    <p className="advance-page-subtitle">Request advances or loans and track your repayments</p>
-                </div>
+            <div className="advance-page-header advance-page-header--actions">
                 {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
             </div>
             {payrollWarning && (
@@ -1669,13 +1665,8 @@ function AdvanceLoanInner() {
 
     const renderAdminView = () => (
         <>
-            <div className="advance-page-header">
-                <div className="advance-header-left">
-                    <h2 className="advance-page-title">Advance & Loan Management</h2>
-                    <p className="advance-page-subtitle">Manage all advance and loan requests across the organization</p>
-                </div>
+            <div className="advance-page-header advance-page-header--actions">
                 <div className="advance-header-actions">
-                    <button className="btn-secondary" onClick={loadData}><RefreshCw size={16} />Refresh</button>
                     {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
                 </div>
             </div>
@@ -1759,6 +1750,7 @@ function AdvanceLoanInner() {
     const renderTabs = () => {
         if (!isAdminOrHR) return null;
         return (
+            <div className="advance-tabs-row">
             <div className="advance-tabs">
                 {canViewEmployee ? (
                     <button
@@ -1784,6 +1776,8 @@ function AdvanceLoanInner() {
                         <Settings size={16} /> Configuration
                     </button>
                 ) : null}
+            </div>
+            <button className="btn-secondary advance-tabs-refresh" onClick={loadData}><RefreshCw size={14} />Refresh</button>
             </div>
         );
     };

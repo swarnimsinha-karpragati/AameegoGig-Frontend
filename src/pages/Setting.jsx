@@ -142,15 +142,6 @@ export default function Settings() {
   return (
     <MainLayout>
       <main className="settings-container">
-        <div className="settings-header">
-          <div>
-            <h1 className="settings-title">Settings</h1>
-            <p className="settings-subtitle">
-              Configure your HRMS preferences
-            </p>
-          </div>
-        </div>
-
         {/* Top tabs — sab settings ka tab sabse upar */}
         <div className="settings-tabs" role="tablist" aria-label="Settings sections">
           {tabs.map(({ id, label, icon: Icon }) => (

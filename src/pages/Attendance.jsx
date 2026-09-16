@@ -48,7 +48,6 @@ import AttendanceCalendar from "../components/attendance/AttendanceCalendar";
 import TodayAttendanceTable from "../components/attendance/TodayAttendanceTable";
 import {
   normalizeRecord,
-  ROLE_DESCRIPTIONS,
   statusTextClass,
   EMPTY_STATS,
   EMPTY_MY_ROW,
@@ -1503,13 +1502,6 @@ function Attendance() {
   return (
     <MainLayout>
       <div className="attendance-page">
-        <div className="attendance-header-banner">
-          <div>
-            <h1 className="attendance-title">Attendance</h1>
-            <p className="attendance-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
-          </div>
-        </div>
-
         {error ? <p className="attendance-alert attendance-alert--error">{error}</p> : null}
         {roleViews[viewRole]?.()}
 

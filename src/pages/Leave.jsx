@@ -51,13 +51,6 @@ import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
 
-const ROLE_DESCRIPTIONS = {
-  Organization: "Organization-wide leave overview and management",
-  HR: "HR leave policies, balances, and org-wide approvals",
-  Manager: "Review and approve leave requests for your team",
-  Employee: "Apply for leave and track your personal balance",
-};
-
 const leaveStatusClass = {
   Approved: "leave-status approved",
   Pending: "leave-status pending",
@@ -1687,21 +1680,10 @@ function LeaveInner() {
   const renderEmployeeTab = () =>
     viewRole === "Manager" ? renderManagerView() : renderEmployeeView();
 
-  const tabSubtitle =
-    activeTab === "organization"
-      ? ROLE_DESCRIPTIONS.Organization
-      : viewRole === "Manager"
-        ? ROLE_DESCRIPTIONS.Manager
-        : ROLE_DESCRIPTIONS.Employee;
-
   return (
     <MainLayout>
       <div className="leave-page">
         <div className="leave-header-banner">
-          <div>
-            <h1 className="leave-title">Leave</h1>
-            <p className="leave-subtitle">{tabSubtitle}</p>
-          </div>
           {canConfigurePolicy ? (
             <Button
               type="button"
