@@ -55,6 +55,7 @@ import {
   FILTER_LABELS,
 } from "../components/attendance/attendanceUtils";
 import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
+import { validateField } from "../utils/inputValidation";
 
 function Attendance() {
   const user = getStoredUser();
@@ -546,20 +547,19 @@ function Attendance() {
       newErrors.month = 'Please select an attendance month.';
     }
 
-    const validateDays = (field, label, { integer = false, required = false } = {}) => {
-      const value = markMonthForm[field];
-      const days = Number(value);
-      if (required && (value === '' || value === null || value === undefined)) {
-        newErrors[field] = `${label} is required.`;
-      } else if (value !== '' && (!Number.isFinite(days) || days < 0 || days > 31)) {
-        newErrors[field] = `${label} must be between 0 and 31.`;
-      } else if (value !== '' && integer && !Number.isInteger(days)) {
-        newErrors[field] = `${label} must be a whole number.`;
-      }
+    const validateDays = (field, label, { required = false } = {}) => {
+      const err = validateField({
+        name: field,
+        label,
+        value: markMonthForm[field],
+        required,
+        kind: "attendance_days",
+      });
+      if (err) newErrors[field] = err;
     };
 
-    validateDays('totalWorkingDays', 'Total working days', { integer: true, required: true });
-    validateDays('incentiveDays', 'Incentive days');
+    validateDays("totalWorkingDays", "Total working days", { required: true });
+    validateDays("incentiveDays", "Incentive days");
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -660,11 +660,11 @@ function Attendance() {
       ["INSTRUCTIONS FOR MONTHLY ATTENDANCE BULK UPLOAD"],
       ["1. Employee Code (Required): Use the exact employee code, e.g. GRV-0026."],
       ["2. Month and Year (Required): Use full month name, e.g. August, and a four-digit year."],
-      ["3. Total Working Days (Required): Total Working Days must be a whole number"],
+      ["3. Total Working Days (Required): Use whole or half days, e.g. 27 or 27.5."],
       ["4. Incentive Days and Notes (Optional): Incentive Days can include 0.5. Leave it blank to use 0."],
       [],
       ["Employee Code", "Month", "Year", "Total Working Days", "Incentive Days", "Notes"],
-      ["GRV-0026", "August", 2026, 22, 0, "Monthly attendance upload"],
+      ["GRV-0026", "August", 2026, 27.5, 0, "Monthly attendance upload"],
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     worksheet["!cols"] = [
@@ -1142,7 +1142,8 @@ function Attendance() {
               type="number"
               min="0"
               max="31"
-              placeholder="e.g., 22"
+              step="0.5"
+              placeholder="e.g., 27.5"
               className="month-mark-control"
               value={markMonthForm.totalWorkingDays}
               onChange={(e) => handleMonthMarkChange('totalWorkingDays', e.target.value)}

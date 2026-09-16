@@ -279,7 +279,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             if (isCalendarDaily) {
               const basicAmt = Number(basicFixed);
               if (!basicAmt || basicAmt <= 0) {
-                setError("Enter Fixed Basic+DA amount (required for Calendar Daily).");
+                setError("Enter Fixed Basic amount (required for Calendar Daily).");
                 setCalculating(false);
                 return;
               }
@@ -639,7 +639,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
               <span className="emp-struct-mode-card__title">Use Structure Template</span>
               <span className="emp-struct-mode-card__desc">
                 {isCalendarDaily
-                  ? "Enter per day pay + fixed Basic+DA (sheet formulas). Template optional for LWF."
+                  ? "Enter per day pay + fixed Basic (sheet formulas). Template optional for LWF."
                   : isDaily
                     ? "Pick a template and auto-split daily wage across components"
                     : "Pick a predefined template and auto-split CTC across components"}
@@ -689,17 +689,10 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
             ) : (
               <input type="number" min="0" value={ctcAnnual} onChange={(e) => setCtcAnnual(e.target.value)} placeholder="e.g. 600000" disabled={calculating || saving} />
             )}
-            {isCalendarDaily && (
-              <>
-                <span style={{fontSize:11, color:"#64748b", marginTop:4, display:"block"}}>
-                  ESIC eligibility gross = rate × 26 (e.g. ₹{((Number(dailyWage)||0)*26).toLocaleString("en-IN")}). Earned pay uses working days at payroll.
-                </span>
-              </>
-            )}
           </div>
           {isCalendarDaily && (
             <div className="emp-struct-editor__field">
-              <label>3. Fixed Basic+DA (₹)</label>
+              <label>3. Fixed Basic (₹)</label>
               <input
                 type="number"
                 min="0"

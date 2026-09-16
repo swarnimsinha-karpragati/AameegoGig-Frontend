@@ -33,4 +33,19 @@ describe("inputValidation (frontend)", () => {
     expect(errors.panNumber).toBeTruthy();
     expect(errors.ifscCode).toBeTruthy();
   });
+
+  test("accepts half working days such as 27.5", () => {
+    expect(inferFieldKind({ label: "Total Working Days" })).toBe("attendance_days");
+    expect(
+      validateField({
+        name: "totalWorkingDays",
+        label: "Total Working Days",
+        value: 27.5,
+        required: true,
+      })
+    ).toBeNull();
+    expect(
+      validateField({ label: "Total Working Days", value: 27.25, required: true })
+    ).toMatch(/half days/i);
+  });
 });

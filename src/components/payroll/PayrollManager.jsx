@@ -16,6 +16,11 @@ const todayLocalISO = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 };
 
+const isSelectablePayroll = (p) =>
+  Boolean(p) && p.status !== "Processed" && p.approvalStatus !== "Approved";
+
+const payrollId = (p) => String(p?._id || "");
+
 export default function PayrollManager(props) {
   const {
     employees,
@@ -50,7 +55,6 @@ export default function PayrollManager(props) {
   const [payrollType, setPayrollType] = useState("monthly");
   const [selectedEmp, setSelectedEmp] = useState(null); // { id, code, name, phone }
   const [selectedEmpIds, setSelectedEmpIds] = useState([]);
-  const [selectAll, setSelectAll] = useState(false);
   const [expandedRow, setExpandedRow] = useState(null);
   const [comment, setComment] = useState("");
   const [payrollDate, setPayrollDate] = useState("");
@@ -58,11 +62,24 @@ export default function PayrollManager(props) {
   const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
   const empWrapRef = useRef(null);
   const empSearchRef = useRef(null);
+  const selectPageRef = useRef(null);
 
-  const pendingPayrolls = useMemo(
-    () => payrolls.filter((p) => p.approvalStatus !== "Approved" && p.status !== "Processed"),
+  const selectableOnPage = useMemo(
+    () => (payrolls || []).filter(isSelectablePayroll),
     [payrolls]
   );
+
+  const pageSelectableIds = useMemo(
+    () => selectableOnPage.map(payrollId).filter(Boolean),
+    [selectableOnPage]
+  );
+
+  const selectedIdSet = useMemo(() => new Set(selectedEmpIds.map(String)), [selectedEmpIds]);
+
+  const allPageSelected =
+    pageSelectableIds.length > 0 && pageSelectableIds.every((id) => selectedIdSet.has(id));
+  const somePageSelected = pageSelectableIds.some((id) => selectedIdSet.has(id));
+  const showPageSelect = reviewFilter !== "approved" && pageSelectableIds.length > 0;
 
   const stats = useMemo(
     () => ({
@@ -120,6 +137,16 @@ export default function PayrollManager(props) {
     }
   }, [empDropdownOpen]);
 
+  useEffect(() => {
+    if (selectPageRef.current) {
+      selectPageRef.current.indeterminate = somePageSelected && !allPageSelected;
+    }
+  }, [somePageSelected, allPageSelected]);
+
+  useEffect(() => {
+    setSelectedEmpIds([]);
+  }, [searchQuery, listMonth, listYear, reviewFilter]);
+
   // Clear selection if employee no longer eligible for calc period
   useEffect(() => {
     if (!selectedEmp) return;
@@ -128,18 +155,21 @@ export default function PayrollManager(props) {
   }, [eligibleEmployees, selectedEmp]);
 
   const toggleEmpSelect = (empId) => {
+    const id = String(empId);
     setSelectedEmpIds((prev) =>
-      prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
+      prev.map(String).includes(id) ? prev.filter((x) => String(x) !== id) : [...prev, id]
     );
   };
 
-  const toggleSelectAll = () => {
-    if (selectAll) {
-      setSelectedEmpIds([]);
-    } else {
-      setSelectedEmpIds(pendingPayrolls.map((p) => p._id));
-    }
-    setSelectAll(!selectAll);
+  const toggleSelectPage = () => {
+    setSelectedEmpIds((prev) => {
+      const current = prev.map(String);
+      if (allPageSelected) {
+        const drop = new Set(pageSelectableIds);
+        return current.filter((id) => !drop.has(id));
+      }
+      return [...new Set([...current, ...pageSelectableIds])];
+    });
   };
 
   const getPeriod = () => {
@@ -163,8 +193,7 @@ export default function PayrollManager(props) {
 
   const handleBulkApprove = () => {
     if (selectedEmpIds.length === 0) return;
-    const ids = selectAll ? pendingPayrolls.map((p) => p._id) : selectedEmpIds;
-    onBulkApprove(ids, comment);
+    onBulkApprove(selectedEmpIds, comment);
     setComment("");
   };
 
@@ -479,13 +508,19 @@ export default function PayrollManager(props) {
           searchQuery={searchQuery}
           onSearchChange={onSearchChange}
           trailing={
-            pendingPayrolls.length > 0 && reviewFilter !== "approved" ? (
+            showPageSelect ? (
               <div className="control-group payroll-filter-field">
                 <label className="payroll-filter-label-spacer" aria-hidden>
                   &nbsp;
                 </label>
                 <label className="pm-check-toggle">
-                  <input type="checkbox" checked={selectAll} onChange={toggleSelectAll} />
+                  <input
+                    ref={selectPageRef}
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectPage}
+                    aria-label="Select all payrolls on this page"
+                  />
                   <span>Select page</span>
                   {selectedEmpIds.length > 0 && (
                     <span className="pm-selected-pill">{selectedEmpIds.length}</span>
@@ -523,7 +558,7 @@ export default function PayrollManager(props) {
           </div>
         </PayrollListToolbar>
 
-        {pendingPayrolls.length > 0 && selectedEmpIds.length > 0 && (
+        {reviewFilter !== "approved" && selectedEmpIds.length > 0 && (
           <div className="pm-bulk-bar">
             <input
               type="text"
@@ -563,20 +598,22 @@ export default function PayrollManager(props) {
         ) : (
           <div className="pm-rows">
             {payrolls.map((item) => {
-              const canAct = item.status !== "Processed" && item.approvalStatus !== "Approved";
+              const canAct = isSelectablePayroll(item);
+              const id = payrollId(item);
               return (
                 <PayrollRow
-                  key={item._id}
+                  key={id}
                   item={item}
-                  isSelected={selectedEmpIds.includes(item._id)}
+                  isSelected={selectedIdSet.has(id)}
                   isExpanded={expandedRow === item._id}
-                  onToggleSelect={() => toggleEmpSelect(item._id)}
+                  onToggleSelect={() => toggleEmpSelect(id)}
                   onToggleExpand={() => setExpandedRow(expandedRow === item._id ? null : item._id)}
                   onApprove={() => onApproveSingle(item._id)}
                   onDelete={() => onDeleteSingle(item._id)}
                   onViewBreakdown={() => onViewBreakdown(item)}
                   actionLoading={actionLoading}
-                  showSelect={canAct && reviewFilter !== "approved"}
+                  showSelect={reviewFilter !== "approved"}
+                  canSelect={canAct}
                 />
               );
             })}
@@ -612,6 +649,7 @@ function PayrollRow({
   onViewBreakdown,
   actionLoading,
   showSelect = false,
+  canSelect = false,
 }) {
   const statusConfig = (() => {
     if (item.status === "Processed") return { cls: "pm-status--processed", label: "Processed" };
@@ -646,14 +684,19 @@ function PayrollRow({
         tabIndex={0}
         aria-expanded={isExpanded}
       >
-        {showSelect && canAct && (
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
-            onClick={(e) => e.stopPropagation()}
-            className="pm-row-check"
-          />
+        {showSelect && (
+          canSelect ? (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
+              onClick={(e) => e.stopPropagation()}
+              className="pm-row-check"
+              aria-label={`Select payroll for ${item.employeeName || item.employeeCode}`}
+            />
+          ) : (
+            <span className="pm-row-check-spacer" aria-hidden />
+          )
         )}
 
         <div className="pm-row-identity">
