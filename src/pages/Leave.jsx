@@ -18,7 +18,7 @@ import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import LeaveEditModal from "../components/leave/LeaveEditModal";
 import { ToastProvider, useToast } from "../components/Toast";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
   approveLeaveRequest,
@@ -144,7 +144,11 @@ function LeaveInner() {
   const [requests, setRequests] = useState([]);
   const [balances, setBalances] = useState([]);
   const [leavePolicy, setLeavePolicy] = useState(null);
-  const [employees, setEmployees] = useState([]);
+
+  const canManageLeave =
+    roleCanManageLeaveRequests(user?.role) || dashboard?.scope === "team";
+
+  const { data: employees = [] } = useAllEmployees({ enabled: canManageLeave });
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
@@ -244,8 +248,6 @@ function LeaveInner() {
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
   const openModal = (config) => setModal({ open: true, ...config });
 
-  const canManageLeave =
-    roleCanManageLeaveRequests(user?.role) || dashboard?.scope === "team";
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canDirectEditLeave =
@@ -527,32 +529,22 @@ function LeaveInner() {
     }
   };
 
-  const loadEmployees = async () => {
-    if (!canManageLeave) return;
-    try {
-      const res = await getEmployees();
-      const list = res.data?.employees || [];
-      setEmployees(list);
-      if (!leaveForm.employeeId && list.length > 0) {
-        setLeaveForm((prev) => ({ ...prev, employeeId: list[0]._id }));
-      }
-      if (!selectedBalanceEmployee && list.length > 0) {
-        setSelectedBalanceEmployee(list[0]._id);
-      }
-    } catch {
-      // non-blocking
-    }
-  };
-
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    loadEmployees();
+    if (employees.length > 0) {
+      if (!leaveForm.employeeId) {
+        setLeaveForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
+      }
+      if (!selectedBalanceEmployee) {
+        setSelectedBalanceEmployee(employees[0]._id);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.role]);
+  }, [employees]);
 
   useEffect(() => {
     const selected = balances.find(

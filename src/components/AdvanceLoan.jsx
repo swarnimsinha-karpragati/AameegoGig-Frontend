@@ -34,7 +34,7 @@ import {
     getLoanConfig,
     deferDeduction,
 } from "../services/advanceLoanService";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
     getStoredUser,
@@ -1218,7 +1218,7 @@ function AdvanceLoanInner() {
 
     const [dashboard, setDashboard] = useState(null);
     const [requests, setRequests] = useState([]);
-    const [employees, setEmployees] = useState([]);
+    const { data: employees = [] } = useAllEmployees({ enabled: canApprove });
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [, setError] = useState("");
@@ -1374,16 +1374,7 @@ function AdvanceLoanInner() {
         if (showRequestForm) loadLoanConfig();
     }, [showRequestForm, loadLoanConfig]);
 
-    useEffect(() => {
-        if (!canApprove) return;
-        const fetchEmployees = async () => {
-            try {
-                const res = await getEmployees();
-                setEmployees(res.data?.employees || []);
-            } catch { }
-        };
-        fetchEmployees();
-    }, [user?.role, canApprove]);
+    // Data is now fetched by useAllEmployees hook
 
     const handleCreateRequest = async (formData) => {
         try {
