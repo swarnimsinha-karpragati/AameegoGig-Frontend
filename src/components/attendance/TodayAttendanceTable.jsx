@@ -4,7 +4,8 @@ import SessionList from "./SessionList";
 import SessionLocationLink from "./SessionLocationLink";
 import SelfieModal from "./SelfieModal";
 import AttendanceEditModal from "./AttendanceEditModal";
-import { getCheckInSelfieUrl, downloadAttendanceReport } from "../../services/attendanceService";
+import { getCheckInSelfieUrl } from "../../services/attendanceService";
+import { useDownloadAttendanceReport } from "../../hooks/useAttendance";
 import { normalizeRecord, statusTextClass } from "./attendanceUtils";
 import { useToast } from "../Toast";
 import "./TodayAttendanceTable.css";
@@ -33,6 +34,7 @@ function TodayAttendanceTable({
   const [localSearch, setLocalSearch] = useState(filters.search);
   const [isSearching, setIsSearching] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const downloadMutation = useDownloadAttendanceReport();
   const toast = useToast();
   const columnCount = canEdit ? 13 : 12;
 
@@ -74,7 +76,7 @@ function TodayAttendanceTable({
         month: filters.month,
         year: filters.year,
       };
-      const blob = await downloadAttendanceReport(params);
+      const blob = await downloadMutation.mutateAsync(params);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
