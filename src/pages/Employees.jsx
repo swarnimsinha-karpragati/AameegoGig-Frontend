@@ -1,18 +1,22 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import {
-  addEmployee,
   buildEmployeePayload,
-  getEmployees,
-  bulkUploadEmployees,
-  updateEmployee,
-  deleteEmployee,
-  toggleAppLogin,
-  convertToEmployee,
-  resendCredentials,
 } from "../services/employeeService";
+
+import {
+  useEmployees,
+  useAddEmployee,
+  useUpdateEmployee,
+  useDeleteEmployee,
+  useBulkUploadEmployees,
+  useToggleAppLogin,
+  useConvertToEmployee,
+  useResendCredentials,
+} from "../hooks/useEmployees";
+import { useDepartmentNames } from "../hooks/useDepartments";
 
 import {
   uploadEmployeeDocument,
@@ -63,7 +67,6 @@ import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
 import { saveEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
-import { getDepartmentName } from "../services/departmentService";
 import {
   DOC_TYPE_ACCEPT,
   DOC_TYPE_OPTIONS,
@@ -589,14 +592,12 @@ function Employees() {
 
   const [availableRoles, setAvailableRoles] = useState(DEFAULT_ROLE_OPTIONS);
 
-  const [employees, setEmployees] = useState([]);
   const [directoryType, setDirectoryType] = useState(() =>
     isConsultancyOnly ? "consultancy" : "employee"
   );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [pagination, setPagination] = useState({ total: 0, pages: 0 });
   const [consultancyRefreshKey, setConsultancyRefreshKey] = useState(0);
 
   const [uploadFile, setUploadFile] = useState(null);
@@ -604,12 +605,43 @@ function Employees() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const [department, setDepartment] = useState([]);
-  const [departmentFilter, setDepartmentFilter] = useState("");
-
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "";
   const [statusFilter, setStatusFilter] = useState(urlStatus);
+
+  const [departmentFilter, setDepartmentFilter] = useState("");
+
+  const { data: employeeData, refetch: refetchEmployees } = useEmployees({
+    departmentId: departmentFilter || undefined,
+    status: statusFilter || undefined,
+    page,
+    limit,
+    search,
+    isConsultancy: directoryType === "consultancy",
+    isPagination: "true",
+  });
+
+  const employees = employeeData?.employees || [];
+  const pagination = employeeData?.pagination || { total: 0, pages: 0 };
+
+  const { data: department = [] } = useDepartmentNames(
+    (() => {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        const { vendorId } = JSON.parse(userData);
+        return vendorId;
+      }
+      return null;
+    })()
+  );
+
+  const addMutation = useAddEmployee();
+  const updateMutation = useUpdateEmployee();
+  const deleteMutation = useDeleteEmployee();
+  const bulkUploadMutation = useBulkUploadEmployees();
+  const toggleAppLoginMutation = useToggleAppLogin();
+  const convertToEmployeeMutation = useConvertToEmployee();
+  const resendCredentialsMutation = useResendCredentials();
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
   // Accordion: which menu category is open (one at a time)
@@ -654,7 +686,7 @@ function Employees() {
     try {
       await confirmProbationEmployee(confirmProbationTarget._id);
       setConfirmProbationTarget(null);
-      fetchEmployees();
+      refetchEmployees();
     } catch (e) {
       alert(e?.response?.data?.message || "Could not mark employee as full-time");
     } finally {
@@ -675,7 +707,7 @@ function Employees() {
       setExtendEmp(null);
       setExtendMonths(1);
       setExtendRemark("");
-      fetchEmployees();
+      refetchEmployees();
     } catch (e) {
       alert(e?.response?.data?.message || "Could not extend probation");
     } finally {
@@ -836,36 +868,12 @@ function Employees() {
   const salaryEditorRef = useRef(null);
 
   /* =========================
-     FETCH EMPLOYEES
+     FETCH EMPLOYEES (via useEmployees hook)
   ========================= */
 
-  const fetchEmployees = useCallback(async () => {
-    try {
-      const res = await getEmployees({
-        departmentId: departmentFilter || undefined,
-        status: statusFilter || undefined,
-        page,
-        limit,
-        search,
-        isConsultancy: directoryType === "consultancy",
-        isPagination: "true",
-      });
-      setEmployees(res.data.employees || []);
-      if (res.data.pagination) {
-        setPagination({
-          total: res.data.pagination.total,
-          pages: res.data.pagination.pages,
-        });
-      }
-      setConsultancyRefreshKey((value) => value + 1);
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-    }
-  }, [departmentFilter, statusFilter, page, limit, search, directoryType]);
-
   useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
+    refetchEmployees();
+  }, [departmentFilter, statusFilter, page, limit, search, directoryType, refetchEmployees]);
 
   useEffect(() => {
     if (!canViewConsultancy && directoryType === "consultancy") {
@@ -884,22 +892,8 @@ function Employees() {
   }, [urlStatus]);
 
   useEffect(() => {
-    const loggedUser = localStorage.getItem("user");
-    if (!loggedUser) return;
-    const { vendorId } = JSON.parse(loggedUser);
-    fetchDepartment(vendorId);
-  }, []);
-
-  const fetchDepartment = async (vendorId) => {
-    try {
-      if (!vendorId) return
-      const res = await getDepartmentName(vendorId);
-      setDepartment(res.data)
-
-    } catch (err) {
-      console.log(err)
-    }
-  }
+    setConsultancyRefreshKey((prev) => prev + 1);
+  }, [employeeData]);
 
 
   const loadEmployeeDocuments =
@@ -1055,7 +1049,7 @@ function Employees() {
     if (!employeeId || sendingCreds) return;
     setSendingCreds(true);
     try {
-      const res = await resendCredentials(employeeId);
+      const res = await resendCredentialsMutation.mutateAsync(employeeId);
       const data = res.data || {};
       if (!data.emailSent && data.loginInfo?.temporaryPassword) {
         downloadCredentialExcel({
@@ -1126,7 +1120,7 @@ function Employees() {
 
       setErrors({});
       setSubmitting(true);
-      const res = await addEmployee(payload);
+      const res = await addMutation.mutateAsync(payload);
       const data = res.data;
       const newEmployeeId = data.employee?._id;
 
@@ -1164,7 +1158,7 @@ function Employees() {
       setForm(initialForm);
       setSalaryDraft(initialSalaryDraft);
       setShowAddModal(false);
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
       setErrors({});
       console.error("Server/Network Error:", error);
@@ -1281,7 +1275,7 @@ function Employees() {
     try {
       setLoading(true);
 
-      const res = await bulkUploadEmployees(uploadFile);
+      const res = await bulkUploadMutation.mutateAsync(uploadFile);
 
       const errorList = res.data.errors || [];
 
@@ -1301,7 +1295,7 @@ function Employees() {
       setUploadFile(null);
 
       // Refresh table
-      fetchEmployees();
+      refetchEmployees();
 
       // ❌ do not close the modal
       // setShowUploadModal(false);
@@ -1446,10 +1440,10 @@ function Employees() {
       setErrors({});
       setSubmitting(true);
 
-      const res = await updateEmployee(
-        selectedEmployee._id,
-        payload
-      );
+      const res = await updateMutation.mutateAsync({
+        id: selectedEmployee._id,
+        data: payload,
+      });
 
       if (salaryEditorRef.current?.hasUnsavedChanges) {
         try {
@@ -1483,7 +1477,7 @@ function Employees() {
       setIsEditing(false);
       setEnableLoginOnUpdate(false);
 
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
       setErrors({});
       console.error("Server/Network Error:", error);
@@ -1503,10 +1497,10 @@ function Employees() {
     if (!convertTarget) return;
     setConverting(true);
     try {
-      const res = await convertToEmployee(convertTarget._id);
+      const res = await convertToEmployeeMutation.mutateAsync(convertTarget._id);
       alert(res.data?.message || `${convertTarget.name} is now an Employee.`);
       setConvertTarget(null);
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
       alert(
         error.response?.data?.message ||
@@ -1530,14 +1524,14 @@ function Employees() {
     if (!confirmDelete) return;
 
     try {
-      await deleteEmployee(id);
+      await deleteMutation.mutateAsync(id);
 
       alert("Employee soft deleted successfully. Their details are archived.");
 
       if (employees.length <= 1 && page > 1) {
         setPage(page - 1);
       } else {
-        fetchEmployees();
+        refetchEmployees();
       }
     } catch (error) {
       alert(
@@ -1563,9 +1557,9 @@ function Employees() {
     if (!confirmToggle) return;
 
     try {
-      await toggleAppLogin(emp._id, enable);
+      await toggleAppLoginMutation.mutateAsync({ id: emp._id, enable });
       alert(enable ? "App login enabled." : "App login disabled.");
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
       alert(
         error.response?.data?.message ||
@@ -1751,7 +1745,7 @@ function Employees() {
         );
 
         setShowTerminationModal(false);
-        fetchEmployees();
+        refetchEmployees();
 
       } catch (error) {
         alert(
@@ -1810,7 +1804,7 @@ function Employees() {
         );
 
         setShowTerminationModal(false);
-        fetchEmployees();
+        refetchEmployees();
 
       } catch (error) {
         alert(

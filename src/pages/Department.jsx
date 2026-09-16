@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import {
-  getDepartments,
-  createDepartment,
-  updateDepartment,
-  deleteDepartment,
-  getOtPolicies,
-  getShifts,
-} from "../services/departmentService";
+  useDepartments,
+  useShifts,
+  useOtPolicies,
+  useCreateDepartment,
+  useUpdateDepartment,
+  useDeleteDepartment,
+} from "../hooks/useDepartments";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 
 import {
@@ -75,8 +75,6 @@ function FormField({ label, htmlFor, required, fullWidth, children }) {
 function Departments() {
   const [vendorId, setVendorId] = useState(null);
   const userRole = getStoredUser()?.role;
-  // departments:view = read + stats, departments:manage = add/edit/delete.
-  // manage implies view via roleHasPermission.
   const canView =
     userRole === "Admin" ||
     roleHasPermission(userRole, "departments:view") ||
@@ -102,42 +100,19 @@ function Departments() {
   };
 
   const [form, setForm] = useState(initialForm);
-  const [departments, setDepartments] = useState([]);
   const [search, setSearch] = useState("");
-
-  const [shifts, setShifts] = useState([]);
-  const [otPolicies, setOtPolicies] = useState([]);
-
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  const fetchAllData = async () => {
-    if (!vendorId) return;
-    try {
-      setLoading(true);
-      const [depRes, shiftRes, otRes] = await Promise.all([
-        getDepartments(vendorId),
-        getShifts(vendorId),
-        getOtPolicies(vendorId),
-      ]);
+  const { data: departments = [], isLoading: loading } = useDepartments(vendorId);
+  const { data: shifts = [] } = useShifts(vendorId);
+  const { data: otPolicies = [] } = useOtPolicies(vendorId);
 
-      setDepartments(depRes.data || []);
-      setShifts(shiftRes.data || []);
-      setOtPolicies(otRes.data || []);
-    } catch (error) {
-      console.error("Error standardizing " + name + " view initialization:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAllData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorId]);
+  const createMutation = useCreateDepartment();
+  const updateMutation = useUpdateDepartment();
+  const deleteMutation = useDeleteDepartment();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -182,15 +157,13 @@ function Departments() {
 
     try {
       if (isEditing && selectedDepartment) {
-        await updateDepartment(selectedDepartment._id, payload);
+        await updateMutation.mutateAsync({ vendorId: selectedDepartment._id, data: payload });
         alert(name + " updated successfully");
       } else {
-        await createDepartment(payload);
+        await createMutation.mutateAsync(payload);
         alert(name + " created successfully");
       }
       handleModalClose();
-      const depRes = await getDepartments(vendorId);
-      setDepartments(depRes.data || []);
     } catch (error) {
       alert(error.response?.data?.error || "Execution processing operation failed");
     }
@@ -228,10 +201,8 @@ function Departments() {
   const handleDeleteClick = async (id) => {
     if (!window.confirm("Are you sure you want to completely drop this department?")) return;
     try {
-      await deleteDepartment(id);
+      await deleteMutation.mutateAsync(id);
       alert("Department dropped cleanly");
-      const depRes = await getDepartments(vendorId);
-      setDepartments(depRes.data || []);
     } catch (error) {
       alert(error.response?.data?.error || "Drop failure transaction tracking issue");
     }

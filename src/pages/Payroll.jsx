@@ -15,7 +15,7 @@ import {
   removePayrollAdjustment,
   downloadWageSheet,
 } from "../services/payrollService";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
 import { getCurrentUser } from "../services/authService";
 import { getStoredUser, canManagePayroll } from "../utils/roles";
 import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER, getAvailableMonths } from "../utils/payrollConstants";
@@ -40,7 +40,7 @@ export default function Payroll() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [employees, setEmployees] = useState([]);
+  const { data: employees = [] } = useAllEmployees({ enabled: isAdminOrHR });
   const [payrolls, setPayrolls] = useState([]);
   const [reviewPayrolls, setReviewPayrolls] = useState([]);
   const [notLinkedToEmployee, setNotLinkedToEmployee] = useState(false);
@@ -80,11 +80,6 @@ export default function Payroll() {
     }
 
     try {
-      if (isAdminOrHR) {
-        const empRes = await getEmployees();
-        setEmployees(empRes.data?.employees || []);
-      }
-
       // Employees get the same period filter as admins; the backend scopes the
       // result to the logged-in employee's own released records.
       const params = { month: MONTH_NUMBER_TO_NAME[selectedMonth], year: selectedYear };
