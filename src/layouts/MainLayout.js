@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
-import { canAccessRoute, getRoleLabel, getStoredUser, roleHasPermission, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer } from "../utils/roles";
+import { canAccessRoute, getRoleLabel, getStoredUser, roleHasPermission, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer, refreshSessionFromServer } from "../utils/roles";
 import { loadRoles, saveRoles } from "../utils/permissions";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
@@ -112,6 +112,8 @@ function MainLayout({ children }) {
   // "roles-updated" event fires.
   useEffect(() => {
     let cancelled = false;
+    // Live session first: an Administrator role reassignment lands here.
+    refreshSessionFromServer().catch(() => {});
     fetchRolesCatalog().then((merged) => {
       if (cancelled || !merged) return;
       if (rolesCatalogKey(merged) !== rolesCatalogKey(loadRoles())) {

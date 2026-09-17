@@ -50,6 +50,7 @@ import {
   Info,
 } from "lucide-react";
 import { getStoredUser, canManageEmployees, canManageProbation, roleHasPermission } from "../utils/roles";
+import { loadRoles } from "../utils/permissions";
 import {
   confirmProbationEmployee,
   extendProbationEmployee,
@@ -298,9 +299,7 @@ function EmployeeFormFields({
                 </option>
               ))}
           </select>
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
           {showTransferNotice ? (
             <p className="emp-transfer-notice">
               Transfer letter will be created and sent to the employee when saved.
@@ -323,9 +322,7 @@ function EmployeeFormFields({
             controlClassName="emp-field-input form-control"
             placeholder={`Select ${field.label.toLowerCase()} (optional)`}
           />
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -339,9 +336,7 @@ function EmployeeFormFields({
       return (
         <>
           <input {...common} {...dateInputProps} type="date" />
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -353,9 +348,7 @@ function EmployeeFormFields({
             <option value="probation">Probation</option>
             <option value="full-time">Full-time</option>
           </select>
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -368,9 +361,7 @@ function EmployeeFormFields({
             <option value="DAILY">Daily</option>
           </select>
 
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -385,9 +376,7 @@ function EmployeeFormFields({
             <option value="Other">Other</option>
           </select>
 
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -413,7 +402,7 @@ function EmployeeFormFields({
             <option value="Guardian">Guardian</option>
             <option value="Other">Other</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -426,7 +415,7 @@ function EmployeeFormFields({
             <option value="Single">Single</option>
             <option value="Married">Married</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -474,7 +463,7 @@ function EmployeeFormFields({
 const DEFAULT_ROLE_OPTIONS = [
   { roleName: "Employee", displayName: "Employee" },
   { roleName: "Manager", displayName: "Manager" },
-  { roleName: "HR", displayName: "HR Manager" },
+  { roleName: "HR", displayName: "HR" },
 ];
 
 function AppLoginSection({
@@ -629,10 +618,25 @@ function Employees() {
   const [statusFilter, setStatusFilter] = useState(urlStatus);
 
   const [departmentFilter, setDepartmentFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+
+  // Role options for access review: system roles + custom catalog roles.
+  // Read fresh every render so newly created roles appear immediately.
+  const roleFilterOptions = (() => {
+    const systemRoles = ["Admin", "HR", "Manager", "Employee"];
+    try {
+      const catalog = loadRoles();
+      const customs = Object.keys(catalog || {}).filter((key) => !systemRoles.includes(key));
+      return [...systemRoles, ...customs];
+    } catch {
+      return systemRoles;
+    }
+  })();
 
   const { data: employeeData, refetch: refetchEmployees } = useEmployees({
     departmentId: departmentFilter || undefined,
     status: statusFilter || undefined,
+    role: roleFilter || undefined,
     page,
     limit,
     search,
@@ -802,6 +806,7 @@ function Employees() {
     setSearch("");
     setDepartmentFilter("");
     setStatusFilter("");
+    setRoleFilter("");
     setSearchParams({}, { replace: true });
   };
 
@@ -2137,6 +2142,24 @@ function Employees() {
               </select>
             </div>
 
+            <div className="employee-filter">
+              <select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Filter by role"
+              >
+                <option value="">All Roles</option>
+                {roleFilterOptions.map((roleName) => (
+                  <option key={roleName} value={roleName}>
+                    {roleName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {directoryType === "employee" && canManage && (
               <Button
                 variant="secondary"
@@ -2181,6 +2204,7 @@ function Employees() {
                   <th>{name} name</th>
                   <th>Reporting Manager</th>
                   <th>State name</th>
+                  <th>Role</th>
                   <th>App Login</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -2267,6 +2291,12 @@ function Employees() {
                       <td title={emp.stateName}>
                         <span className="emp-truncate emp-truncate--state">
                           {emp.stateName || "-"}
+                        </span>
+                      </td>
+
+                      <td title={emp.linkedUser?.role || ""}>
+                        <span className="emp-truncate emp-truncate--state">
+                          {emp.linkedUser?.role || "-"}
                         </span>
                       </td>
 
@@ -2607,7 +2637,7 @@ function Employees() {
                 ) : (
                   <tr>
                     <td
-                      colSpan="10"
+                      colSpan="11"
                       className="empty-row"
                     >
                       No employees found.
