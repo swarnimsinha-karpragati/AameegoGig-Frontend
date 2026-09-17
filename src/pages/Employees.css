@@ -1266,12 +1266,29 @@
 }
 
 .probation-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px;
+  align-items: start;
 }
 
-.probation-row input {
-  max-width: 90px;
+.probation-row input[type="number"] {
+  max-width: 150px;
+}
+
+@media (max-width: 560px) {
+  .probation-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.emp-probation-date {
+  display: inline-block;
+  font-size: 11px;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.emp-probation-date--none {
+  color: #94a3b8;
 }

@@ -43,12 +43,15 @@ import {
   UserCheck,
   Clock,
   ChevronDown,
+  Info,
 } from "lucide-react";
 import { getStoredUser, canManageEmployees, canManageProbation, roleHasPermission } from "../utils/roles";
 import {
   confirmProbationEmployee,
   extendProbationEmployee,
+  getEmployeeProbationHistory,
 } from "../services/probationService";
+import ProbationHistoryModal from "../components/ProbationHistoryModal";
 
 
 import {
@@ -105,7 +108,7 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
       { key: "peopleManagerId", label: "People Manager", type: "people-manager" },
-      { key: "dateOfJoining", label: "Date of Joining", type: "date" },
+      { key: "dateOfJoining", label: "Date of Joining", type: "date", required: true },
       { key: "dob", label: "Date of Birth", type: "date" },
     ],
   },
@@ -659,6 +662,25 @@ function Employees() {
   const [extendEmp, setExtendEmp] = useState(null);
   const [extendMonths, setExtendMonths] = useState(1);
   const [extendRemark, setExtendRemark] = useState("");
+  const [extendErrors, setExtendErrors] = useState({});
+
+  const validateExtraMonths = (raw) => {
+    if (raw === "" || raw === null || raw === undefined) {
+      return "Enter a valid value between 1 and 12.";
+    }
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > 12) {
+      return "Enter a valid value between 1 and 12.";
+    }
+    return "";
+  };
+
+  const validateExtendRemark = (raw) => {
+    if (!String(raw || "").trim()) {
+      return "Reason for extension is required.";
+    }
+    return "";
+  };
 
   const handleConfirmProbation = (emp) => {
     setConfirmProbationTarget(emp);
@@ -681,21 +703,51 @@ function Employees() {
   const handleExtendProbationSubmit = async () => {
     if (!extendEmp || probationActionLoading) return;
     const months = Number(extendMonths);
-    if (!months || months < 1 || months > 12) {
-      alert("Extension must be between 1 and 12 months");
+    const monthsError = validateExtraMonths(extendMonths);
+    const remarkError = validateExtendRemark(extendRemark);
+    if (monthsError || remarkError) {
+      setExtendErrors({
+        ...(monthsError ? { extendMonths: monthsError } : {}),
+        ...(remarkError ? { extendRemark: remarkError } : {}),
+      });
       return;
     }
     setProbationActionLoading(true);
     try {
-      await extendProbationEmployee(extendEmp._id, months, extendRemark);
+      await extendProbationEmployee(extendEmp._id, months, extendRemark.trim());
       setExtendEmp(null);
       setExtendMonths(1);
       setExtendRemark("");
+      setExtendErrors({});
       fetchEmployees();
     } catch (e) {
       alert(e?.response?.data?.message || "Could not extend probation");
     } finally {
       setProbationActionLoading(false);
+    }
+  };
+
+  const isExtendFormValid =
+    !validateExtraMonths(extendMonths) && !validateExtendRemark(extendRemark);
+
+  // Probation history (HR view of selected employee)
+  const [showProbHist, setShowProbHist] = useState(false);
+  const [probHistData, setProbHistData] = useState(null);
+  const [probHistLoading, setProbHistLoading] = useState(false);
+  const [probHistError, setProbHistError] = useState("");
+
+  const openProbationHistory = async (emp) => {
+    if (!emp) return;
+    setShowProbHist(true);
+    setProbHistLoading(true);
+    setProbHistError("");
+    try {
+      const data = await getEmployeeProbationHistory(emp._id);
+      setProbHistData(data);
+    } catch (e) {
+      setProbHistError(e?.response?.data?.message || "Could not load probation history");
+    } finally {
+      setProbHistLoading(false);
     }
   };
 
@@ -2083,6 +2135,7 @@ function Employees() {
                 <option value="">All Employees</option>
                 <option value="active">Active Employees</option>
                 <option value="probation">Probation Employees</option>
+                <option value="expiring-soon">Probation Expiring Soon (30 days)</option>
                 <option value="full-time">Full-time Employees</option>
                 <option value="inactive">Inactive Employees</option>
                 <option value="exited">Exited Employees</option>
@@ -2226,10 +2279,10 @@ function Employees() {
                       <td>
                         <span
                           className={`login-chip ${emp.hasAppLogin
-                              ? emp.hasLoginEnabled
-                                ? "login-chip--on"
-                                : "login-chip--off"
-                              : "login-chip--none"
+                            ? emp.hasLoginEnabled
+                              ? "login-chip--on"
+                              : "login-chip--off"
+                            : "login-chip--none"
                             }`}
                           title={
                             emp.hasAppLogin
@@ -2269,9 +2322,30 @@ function Employees() {
                           </span>
                           {!emp.isDeleted && !emp.isExited ? (
                             emp.employmentStatus === "probation" ? (
-                              <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
-                                Probation
-                              </span>
+                              <>
+                                <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
+                                  Probation
+                                  <button
+                                    type="button"
+                                    className="emp-info-btn"
+                                    title="View probation history"
+                                    aria-label={`View probation history of ${emp.name}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openProbationHistory(emp);
+                                    }}
+                                  >
+                                    <Info size={12} />
+                                  </button>
+                                </span>
+                                {emp.probationEndDate ? (
+                                  <span className="emp-probation-date" title={`Probation ends ${new Date(emp.probationEndDate).toLocaleDateString()}`}>
+                                    Ends {new Date(emp.probationEndDate).toLocaleDateString()}
+                                  </span>
+                                ) : (
+                                  <span className="emp-probation-date emp-probation-date--none">End date —</span>
+                                )}
+                              </>
                             ) : (
                               <span className="status-badge full-time" title="Confirmed employee">
                                 Full-time
@@ -2360,6 +2434,7 @@ function Employees() {
                                           setExtendEmp(emp);
                                           setExtendMonths(1);
                                           setExtendRemark("");
+                                          setExtendErrors({});
                                         }}
                                       >
                                         <Clock size={16} /> Extend Probation
@@ -2918,11 +2993,22 @@ function Employees() {
                     <div>
                       <label>Employment Status</label>
                       <span>
+                        {selectedEmployee.employmentStatus === "probation"
+                          ? "Probation"
+                          : selectedEmployee.employmentStatus === "full-time"
+                            ? "Full-time"
+                            : "-"}
                         {selectedEmployee.employmentStatus === "probation" ? (
-                          <span className="status-badge probation">Probation</span>
-                        ) : (
-                          <span className="status-badge full-time">Full-time</span>
-                        )}
+                          <button
+                            type="button"
+                            className="emp-info-btn"
+                            title="View probation history"
+                            aria-label="View probation history"
+                            onClick={() => openProbationHistory(selectedEmployee)}
+                          >
+                            <Info size={12} />
+                          </button>
+                        ) : null}
                       </span>
                     </div>
 
@@ -3857,7 +3943,7 @@ function Employees() {
       {extendEmp ? (
         <EmpModal title={`Extend Probation — ${extendEmp.name}`} onClose={() => !probationActionLoading && setExtendEmp(null)}>
           <div className="probation-row">
-            <FormField label="Extra months" htmlFor="probation-extend-months">
+            <FormField label="Extra Months (1–12)" htmlFor="probation-extend-months" required hint="Valid range: 1–12">
               <input
                 id="probation-extend-months"
                 type="number"
@@ -3865,17 +3951,41 @@ function Employees() {
                 max={12}
                 step={1}
                 value={extendMonths}
-                onChange={(e) => setExtendMonths(e.target.value)}
+                onChange={(e) => {
+                  setExtendMonths(e.target.value);
+                  const msg = validateExtraMonths(e.target.value);
+                  setExtendErrors((prev) => {
+                    const next = { ...prev };
+                    if (msg) next.extendMonths = msg;
+                    else delete next.extendMonths;
+                    return next;
+                  });
+                }}
+                aria-invalid={Boolean(extendErrors.extendMonths)}
+                className={extendErrors.extendMonths ? "emp-field-input--error" : undefined}
               />
+              <p className={`emp-field-error${extendErrors.extendMonths ? "" : " emp-field-error--empty"}`} aria-live="polite" role={extendErrors.extendMonths ? "alert" : undefined}>{extendErrors.extendMonths || " "}</p>
             </FormField>
-            <FormField label="Remark (optional)" htmlFor="probation-extend-remark" fullWidth>
+            <FormField label="Reason for Extension" htmlFor="probation-extend-remark" required fullWidth>
               <input
                 id="probation-extend-remark"
                 type="text"
-                placeholder="Reason for extension"
+                placeholder="Enter reason for extension (required)"
                 value={extendRemark}
-                onChange={(e) => setExtendRemark(e.target.value)}
+                onChange={(e) => {
+                  setExtendRemark(e.target.value);
+                  const msg = validateExtendRemark(e.target.value);
+                  setExtendErrors((prev) => {
+                    const next = { ...prev };
+                    if (msg) next.extendRemark = msg;
+                    else delete next.extendRemark;
+                    return next;
+                  });
+                }}
+                aria-invalid={Boolean(extendErrors.extendRemark)}
+                className={extendErrors.extendRemark ? "emp-field-input--error" : undefined}
               />
+              <p className={`emp-field-error${extendErrors.extendRemark ? "" : " emp-field-error--empty"}`} aria-live="polite" role={extendErrors.extendRemark ? "alert" : undefined}>{extendErrors.extendRemark || " "}</p>
             </FormField>
           </div>
           {extendEmp.probationEndDate ? (
@@ -3884,10 +3994,10 @@ function Employees() {
             </p>
           ) : null}
           <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-            <Button type="button" disabled={probationActionLoading} onClick={handleExtendProbationSubmit}>
+            <Button type="button" disabled={probationActionLoading || !isExtendFormValid} onClick={handleExtendProbationSubmit}>
               {probationActionLoading ? "Saving…" : "Extend Probation"}
             </Button>
-            <Button type="button" variant="secondary" disabled={probationActionLoading} onClick={() => setExtendEmp(null)}>
+            <Button type="button" variant="secondary" disabled={probationActionLoading} onClick={() => { setExtendEmp(null); setExtendErrors({}); }}>
               Cancel
             </Button>
           </div>
@@ -3898,6 +4008,14 @@ function Employees() {
         isOpen={!!docPreviewUrl}
         onClose={() => setDocPreviewUrl(null)}
         url={docPreviewUrl}
+      />
+
+      <ProbationHistoryModal
+        open={showProbHist}
+        onClose={() => setShowProbHist(false)}
+        loading={probHistLoading}
+        error={probHistError}
+        data={probHistData}
       />
 
       <ConfirmModal

@@ -196,7 +196,16 @@ export const employeeValidationSchema = Yup.object().shape({
     .max(100, "TDS must be between 0% and 100%.")
     .default(null),
 
-  dateOfJoining: Yup.date().nullable().default(null),
+  dateOfJoining: Yup.date()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .nullable()
+    .when("isConsultancy", {
+      is: true,
+      then: (schema) => schema.nullable(),
+      otherwise: (schema) =>
+        schema.required("Date of joining is required"),
+    })
+    .default(null),
 
   relievingDate: Yup.date()
     .nullable()
