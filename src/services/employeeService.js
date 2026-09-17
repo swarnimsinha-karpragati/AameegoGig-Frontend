@@ -202,3 +202,10 @@ export const convertToEmployee = async (id) => {
   return API.patch(`/employees/${id}/convert-to-employee`);
 };
 
+/* =========================
+   CONVERT EMPLOYEE → CONSULTANT (reverse; bug 265)
+========================= */
+export const convertToConsultant = async (id, payload = {}) => {
+  return API.patch(`/employees/${id}/convert-to-consultant`, payload);
+};
+

@@ -11,6 +11,7 @@ import {
   deleteEmployee,
   toggleAppLogin,
   convertToEmployee,
+  convertToConsultant,
   resendCredentials,
 } from "../services/employeeService";
 
@@ -215,6 +216,21 @@ const calculateNetConsultancy = (gross, tdsPercent) => {
   const tdsRate = Math.min(100, Math.max(0, Number(tdsPercent) || 0));
   const tds = Math.round((amount * tdsRate) / 100);
   return { gross: amount, tds, net: amount - tds };
+};
+
+// Bug 258: invalid pay/TDS must surface a validation message instead of a
+// silently clamped preview.
+const consultancyPreviewError = (gross, tdsPercent) => {
+  if (gross !== "" && gross !== null && gross !== undefined) {
+    const amount = Number(gross);
+    if (!Number.isFinite(amount) || amount < 0) return "Consultancy Pay cannot be negative.";
+    if (amount <= 0) return "Monthly Consultancy Pay must be greater than ₹0.";
+  }
+  if (tdsPercent !== "" && tdsPercent !== null && tdsPercent !== undefined) {
+    const rate = Number(tdsPercent);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) return "TDS must be between 0% and 100%.";
+  }
+  return "";
 };
 
 function FormSection({ title, description, children, fullWidth = false }) {
@@ -686,6 +702,24 @@ function Employees() {
   // Convert consultant → employee modal state
   const [convertTarget, setConvertTarget] = useState(null);
   const [converting, setConverting] = useState(false);
+
+  // Bug 265: reverse conversion (employee → consultant) modal state.
+  const [convertBackTarget, setConvertBackTarget] = useState(null);
+  const [convertBackPay, setConvertBackPay] = useState("");
+  const [convertBackTds, setConvertBackTds] = useState("");
+  const [convertBackErrors, setConvertBackErrors] = useState({});
+
+  // Bug 268: each directory tab keeps independent filter state — reset search
+  // and filters when switching tabs so stale values never leak across.
+  const switchDirectoryType = (next) => {
+    if (next === directoryType) return;
+    setDirectoryType(next);
+    setPage(1);
+    setSearch("");
+    setDepartmentFilter("");
+    setStatusFilter("");
+    setSearchParams({}, { replace: true });
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1166,10 +1200,32 @@ function Employees() {
       setShowAddModal(false);
       fetchEmployees();
     } catch (error) {
-      setErrors({});
       console.error("Server/Network Error:", error);
 
-      const serverMessage = error.response?.data?.message || "Failed to add employee";
+      // Bug 253/267: surface duplicate email/phone/code on the field itself
+      // instead of failing silently behind a generic alert.
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Failed to add employee";
+      const field = serverData.field;
+      if (field) {
+        const mapped = { [field]: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/email/i.test(serverMessage)) {
+        const mapped = { email: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/phone/i.test(serverMessage)) {
+        const mapped = { phone: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/code/i.test(serverMessage)) {
+        const mapped = { employeeCode: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else {
+        setErrors({});
+      }
       alert(serverMessage);
     } finally {
       setSubmitting(false);
@@ -1485,10 +1541,18 @@ function Employees() {
 
       fetchEmployees();
     } catch (error) {
-      setErrors({});
       console.error("Server/Network Error:", error);
 
-      const serverMessage = error.response?.data?.message || "Failed to update employee";
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Failed to update employee";
+      const field = serverData.field;
+      if (field) {
+        const mapped = { [field]: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else {
+        setErrors({});
+      }
       alert(serverMessage);
     } finally {
       setSubmitting(false);
@@ -1512,6 +1576,55 @@ function Employees() {
         error.response?.data?.message ||
         "Conversion failed"
       );
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  const openConvertBackModal = (emp) => {
+    setOpenDropdownId(null);
+    setConvertBackTarget(emp);
+    setConvertBackPay(emp.monthlyConsultancyPay || "");
+    setConvertBackTds(emp.tdsPercent ?? "");
+    setConvertBackErrors({});
+  };
+
+  const handleConfirmConvertToConsultant = async () => {
+    if (!convertBackTarget || converting) return;
+    // Inline field-level validation (same rules as Add/Edit Consultant).
+    const fieldErrors = {};
+    const pay = Number(convertBackPay);
+    if (convertBackPay === "" || !Number.isFinite(pay) || pay <= 0) {
+      fieldErrors.convertBackPay = "Monthly Consultancy Pay must be greater than ₹0.";
+    }
+    const tds = convertBackTds === "" ? 0 : Number(convertBackTds);
+    if (convertBackTds !== "" && (!Number.isFinite(tds) || tds < 0 || tds > 100)) {
+      fieldErrors.convertBackTds = "TDS must be between 0% and 100%.";
+    }
+    setConvertBackErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length) return;
+    setConverting(true);
+    try {
+      const res = await convertToConsultant(convertBackTarget._id, {
+        monthlyConsultancyPay: pay,
+        tdsPercent: tds,
+      });
+      alert(res.data?.message || `${convertBackTarget.name} is now a Consultant.`);
+      setConvertBackTarget(null);
+      setConvertBackPay("");
+      setConvertBackTds("");
+      setConvertBackErrors({});
+      fetchEmployees();
+    } catch (error) {
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Conversion failed";
+      // Map backend field errors onto the matching input.
+      if (serverData.field === "monthlyConsultancyPay") {
+        setConvertBackErrors({ convertBackPay: serverMessage });
+      } else if (serverData.field === "tdsPercent") {
+        setConvertBackErrors({ convertBackTds: serverMessage });
+      }
+      alert(serverMessage);
     } finally {
       setConverting(false);
     }
@@ -1894,13 +2007,13 @@ function Employees() {
 
         <div className="employee-directory-tabs" role="tablist" aria-label="People directory">
           {canViewEmployees ? (
-            <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => { setDirectoryType("employee"); setPage(1); }}>
+            <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => switchDirectoryType("employee")}>
               Employees
               {directoryType === "employee" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
             </button>
           ) : null}
           {canViewConsultancy ? (
-            <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => { setDirectoryType("consultancy"); setPage(1); }}>
+            <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => switchDirectoryType("consultancy")}>
               Consultancy
               {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
             </button>
@@ -2007,7 +2120,7 @@ function Employees() {
           </div>
         </div>
 
-        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} canManage={canManageConsultancy} /> : null}
+        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} departmentFilter={departmentFilter} employeeStatusFilter={statusFilter} canManage={canManageConsultancy} /> : null}
 
         <div className="employee-table-card">
           <div className="employee-table-scroll">
@@ -2391,6 +2504,17 @@ function Employees() {
                                 </button>
                               )}
 
+                              {directoryType === "employee" && canManage && renderMenuSectionToggle("convert", "Convert")}
+
+                              {directoryType === "employee" && canManage && expandedMenuSection === "convert" && (
+                                <button
+                                  type="button"
+                                  onClick={() => openConvertBackModal(emp)}
+                                >
+                                  <UserCheck size={16} /> Make it Consultant
+                                </button>
+                              )}
+
                               {(directoryType === "employee" ? canManage : canManageConsultancy) && renderMenuSectionToggle("danger", "Danger", true)}
 
                               {(directoryType === "employee" ? canManage : canManageConsultancy) && expandedMenuSection === "danger" && (
@@ -2469,7 +2593,7 @@ function Employees() {
                   form="add-employee-form"
                   disabled={hasFormErrors || submitting}
                 >
-                  {submitting ? "Creating..." : "Save Employee"}
+                  {submitting ? "Creating..." : form.isConsultancy ? "Save Consultant" : "Save Employee"}
                 </Button>
               </>
             }
@@ -2487,16 +2611,21 @@ function Employees() {
               {form.isConsultancy ? (
                 <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
                   <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
-                    <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" />
+                    <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
+                    <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
                   </FormField>
                   <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
-                    <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" />
+                    <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
+                    <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
                   </FormField>
                   <div className="consultancy-net-summary">
                     <span>Gross: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).gross.toLocaleString("en-IN")}</span>
                     <span>TDS ({form.tdsPercent || 0}%): −₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).tds.toLocaleString("en-IN")}</span>
                     <strong>Net Payable: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).net.toLocaleString("en-IN")}</strong>
                   </div>
+                  {consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent) ? (
+                    <p className="emp-field-error" role="alert">{consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent)}</p>
+                  ) : null}
                 </FormSection>
               ) : null}
               <FormSection title="App Access">
@@ -2658,16 +2787,21 @@ function Employees() {
                 {selectedEmployee.isConsultancy ? (
                   <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
                     <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
-                      <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" />
+                      <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
+                      <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
                     </FormField>
                     <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
-                      <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" />
+                      <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
+                      <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
                     </FormField>
                     <div className="consultancy-net-summary">
                       <span>Gross: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).gross.toLocaleString("en-IN")}</span>
                       <span>TDS ({selectedEmployee.tdsPercent || 0}%): −₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).tds.toLocaleString("en-IN")}</span>
                       <strong>Net Payable: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).net.toLocaleString("en-IN")}</strong>
                     </div>
+                    {consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent) ? (
+                      <p className="emp-field-error" role="alert">{consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent)}</p>
+                    ) : null}
                   </FormSection>
                 ) : null}
                 <FormSection title="App Access">
@@ -3803,7 +3937,8 @@ function Employees() {
                 <strong>After conversion:</strong>
                 <ul style={{ margin: "6px 0 0", paddingLeft: "18px" }}>
                   <li>Moves to the Employees list</li>
-                  <li>Consultancy pay / TDS is cleared</li>
+                  <li>Past consultancy payment history is preserved for audit</li>
+                  <li>Only future consultancy payments stop generating</li>
                   <li>Becomes payroll-eligible — assign department + salary structure next</li>
                 </ul>
               </div>
@@ -3811,6 +3946,78 @@ function Employees() {
           ) : null
         }
       />
+
+      {convertBackTarget ? (
+        <EmpModal title={`Make it Consultant — ${convertBackTarget.name}`} onClose={() => !converting && (setConvertBackTarget(null), setConvertBackErrors({}))}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <p className="emp-field-hint" style={{ margin: 0 }}>
+              {convertBackTarget.convertedFromConsultancy
+                ? "This employee was converted from consultancy — converting back restores monthly consultancy payments."
+                : "This employee will move to the Consultancy list and become payroll-excluded."}
+            </p>
+            <FormField label="Monthly Consultancy Pay" htmlFor="convert-back-pay" required>
+              <input
+                id="convert-back-pay"
+                type="number"
+                min="1"
+                step="any"
+                value={convertBackPay}
+                onChange={(e) => {
+                  setConvertBackPay(e.target.value);
+                  setConvertBackErrors((prev) => {
+                    if (!prev.convertBackPay) return prev;
+                    const next = { ...prev };
+                    delete next.convertBackPay;
+                    return next;
+                  });
+                }}
+                placeholder="Enter monthly amount"
+                className={convertBackErrors.convertBackPay ? "emp-field-input--error" : undefined}
+              />
+              <p className={`emp-field-error${convertBackErrors.convertBackPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{convertBackErrors.convertBackPay || " "}</p>
+            </FormField>
+            <FormField label="TDS %" htmlFor="convert-back-tds">
+              <input
+                id="convert-back-tds"
+                type="number"
+                min="0"
+                max="100"
+                step="any"
+                value={convertBackTds}
+                onChange={(e) => {
+                  setConvertBackTds(e.target.value);
+                  setConvertBackErrors((prev) => {
+                    if (!prev.convertBackTds) return prev;
+                    const next = { ...prev };
+                    delete next.convertBackTds;
+                    return next;
+                  });
+                }}
+                placeholder="e.g. 10"
+                className={convertBackErrors.convertBackTds ? "emp-field-input--error" : undefined}
+              />
+              <p className={`emp-field-error${convertBackErrors.convertBackTds ? "" : " emp-field-error--empty"}`} aria-live="polite">{convertBackErrors.convertBackTds || " "}</p>
+            </FormField>
+            {consultancyPreviewError(convertBackPay === "" ? null : convertBackPay, convertBackTds === "" ? null : convertBackTds) ? (
+              <p className="emp-field-error" role="alert">{consultancyPreviewError(convertBackPay === "" ? null : convertBackPay, convertBackTds === "" ? null : convertBackTds)}</p>
+            ) : (
+              <div className="consultancy-net-summary">
+                <span>Gross: ₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).gross.toLocaleString("en-IN")}</span>
+                <span>TDS ({convertBackTds || 0}%): −₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).tds.toLocaleString("en-IN")}</span>
+                <strong>Net Payable: ₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).net.toLocaleString("en-IN")}</strong>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Button type="button" disabled={converting} onClick={handleConfirmConvertToConsultant}>
+                {converting ? "Converting…" : "Convert to Consultant"}
+              </Button>
+              <Button type="button" variant="secondary" disabled={converting} onClick={() => { setConvertBackTarget(null); setConvertBackErrors({}); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </EmpModal>
+      ) : null}
     </MainLayout>
   );
 }

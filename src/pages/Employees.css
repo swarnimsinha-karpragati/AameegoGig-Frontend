@@ -281,6 +281,13 @@
   margin: 4px 0 0;
   font-size: 0.8125rem;
   line-height: 1.4;
+  /* Bug 264: reserve one line so the form doesn't shift when a validation
+     message appears or disappears. Empty placeholders stay invisible. */
+  min-height: 1.4em;
+}
+
+.emp-field-error--empty {
+  visibility: hidden;
 }
 
 .emp-transfer-notice {

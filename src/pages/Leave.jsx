@@ -1362,7 +1362,6 @@ function LeaveInner() {
                         className="leave-control"
                         placeholder="0"
                         value={balanceForm[type]?.used ?? ""}
-                        disabled={isWfhRow}
                         title={isWfhRow ? "WFH used is auto-counted from Pending + Approved requests" : undefined}
                         onChange={(e) =>
                           setBalanceForm((prev) => ({
@@ -1404,7 +1403,7 @@ function LeaveInner() {
             {wfhQuota && wfhQuota.total != null ? (
               <div className="leave-balance-item" key="WFH">
                 <span>Work From Home (WFH)</span>
-                <strong>{wfhQuota.remaining}</strong>
+                <strong>{wfhQuota.total}</strong>
               </div>
             ) : null}
           </>
