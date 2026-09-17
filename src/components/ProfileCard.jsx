@@ -13,6 +13,8 @@ import {
   PhoneCall,
   MapPin,
   Cake,
+  CalendarDays,
+  Info,
 } from "lucide-react";
 import useFormValidation from "../hooks/useFormValidation";
 import {
@@ -20,6 +22,8 @@ import {
   updateMyProfile,
   uploadMyProfilePhoto,
 } from "../services/userProfileService";
+import { getMyProbationHistory } from "../services/probationService";
+import ProbationHistoryModal from "./ProbationHistoryModal";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import "./ProfileCard.css";
 import Button from "./Button";
@@ -81,7 +85,7 @@ export default function ProfileCard() {
   const [role, setRole] = useState("");
   const [reportingManager, setReportingManager] = useState(null);
   const [employmentStatus, setEmploymentStatus] = useState(null);
-  const [probationEndDate, setProbationEndDate] = useState(null);
+  const [dateOfJoining, setDateOfJoining] = useState(null);
   const [designation, setDesignation] = useState("");
   // Self-editable personal details
   const [dob, setDob] = useState("");
@@ -119,6 +123,24 @@ export default function ProfileCard() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [showProbHist, setShowProbHist] = useState(false);
+  const [probHistData, setProbHistData] = useState(null);
+  const [probHistLoading, setProbHistLoading] = useState(false);
+  const [probHistError, setProbHistError] = useState("");
+
+  const openProbationHistory = async () => {
+    setShowProbHist(true);
+    setProbHistLoading(true);
+    setProbHistError("");
+    try {
+      const data = await getMyProbationHistory();
+      setProbHistData(data);
+    } catch (err) {
+      setProbHistError(err.response?.data?.message || "Could not load probation history");
+    } finally {
+      setProbHistLoading(false);
+    }
+  };
 
   const profileFields = (values) => {
     const fields = [
@@ -145,7 +167,7 @@ export default function ProfileCard() {
     setDesignation(data.designation || "");
     setReportingManager(data.reportingManager || null);
     setEmploymentStatus(data.employmentStatus || null);
-    setProbationEndDate(data.probationEndDate || null);
+    setDateOfJoining(data.dateOfJoining || null);
     setDob(toDateInput(data.dob));
     setBloodGroup(data.bloodGroup || "");
     setEmergencyContact(data.emergencyContact || "");
@@ -394,6 +416,17 @@ export default function ProfileCard() {
             </span>
           </div>
         ) : null}
+        {role !== "Admin" ? (
+          <div className="profile-info-item">
+            <span className="profile-info-icon profile-info-icon--amber"><CalendarDays size={15} /></span>
+            <span className="profile-info-copy">
+              <span className="profile-info-label">Date of Joining</span>
+              <span className="profile-info-value">
+                {dateOfJoining ? new Date(dateOfJoining).toLocaleDateString() : "-"}
+              </span>
+            </span>
+          </div>
+        ) : null}
         {employmentStatus ? (
           <div className="profile-info-item">
             <span className="profile-info-icon profile-info-icon--green"><ShieldCheck size={15} /></span>
@@ -401,9 +434,17 @@ export default function ProfileCard() {
               <span className="profile-info-label">Employment Status</span>
               <span className="profile-info-value">
                 {employmentStatus === "probation" ? "Probation" : "Full-time"}
-                {employmentStatus === "probation" && probationEndDate
-                  ? ` (till ${new Date(probationEndDate).toLocaleDateString()})`
-                  : ""}
+                {employmentStatus === "probation" ? (
+                  <button
+                    type="button"
+                    className="emp-info-btn"
+                    title="View probation history"
+                    aria-label="View probation history"
+                    onClick={openProbationHistory}
+                  >
+                    <Info size={12} />
+                  </button>
+                ) : null}
               </span>
             </span>
           </div>
@@ -696,6 +737,15 @@ export default function ProfileCard() {
           </div>
         </div>
       )}
+
+      {/* probation history (employee self view) */}
+      <ProbationHistoryModal
+        open={showProbHist}
+        onClose={() => setShowProbHist(false)}
+        loading={probHistLoading}
+        error={probHistError}
+        data={probHistData}
+      />
     </div>
   );
 }
