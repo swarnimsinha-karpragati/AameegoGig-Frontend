@@ -25,7 +25,7 @@ import {
 } from "recharts";
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
-import { getDashboard } from "../services/dashboardService";
+import { useDashboard } from "../hooks/useDashboard";
 import { getStoredUser, userHasModule, visibleDashboardStats, roleHasPermission } from "../utils/roles";
 import "./Dashboard.css";
 import Card from "../components/Card";
@@ -85,10 +85,10 @@ function StatCard({ stat, onClick }) {
 function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(() => getStoredUser());
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const vendorName = useParams().vendor;
+
+  const { data, isLoading: loading, error: queryError } = useDashboard();
+  const error = queryError?.response?.data?.message || (queryError ? "Failed to load dashboard" : "");
 
   useEffect(() => {
     const refreshUser = () => setUser(getStoredUser());
@@ -100,28 +100,6 @@ function Dashboard() {
       window.removeEventListener("user-updated", refreshUser);
       window.removeEventListener("storage", refreshUser);
     };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const res = await getDashboard();
-        if (!cancelled) setData(res);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.response?.data?.message || "Failed to load dashboard");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    load();
-    return () => { cancelled = true; };
   }, []);
 
   const isOrgView = data?.scope === "org";

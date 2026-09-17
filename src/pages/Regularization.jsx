@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CheckCircle2,
   ClipboardList,
@@ -15,10 +15,10 @@ import ApprovalsList from "../components/regularization/ApprovalsList";
 import DirectEditPanel from "../components/regularization/DirectEditPanel";
 import { ToastProvider, useToast } from "../components/Toast";
 import {
-  cancelRegularizationRequest,
-  getRegularizationDashboard,
-  listRegularizationRequests,
-} from "../services/regularizationService";
+  useRegularizationDashboard,
+  useRegularizationRequests,
+  useCancelRegularizationRequest,
+} from "../hooks/useRegularization";
 import { validateField } from "../utils/inputValidation";
 import {
   getStoredUser,
@@ -54,14 +54,18 @@ function RegularizationInner() {
     [canApprove, canDirectEdit, canRequest, isAdminOrHr]
   );
   const [activeTab, setActiveTab] = useState(canRequest ? "request" : "mine");
-  const [counts, setCounts] = useState({
-    myPending: 0,
-    awaitingApproval: 0,
-    approvedThisMonth: 0,
+
+  const dashboardQuery = useRegularizationDashboard();
+  const requestsQuery = useRegularizationRequests({
+    limit: 100,
+    ...(isAdminOrHr ? {} : { mine: 1 }),
   });
-  const [requests, setRequests] = useState([]);
-  const [approved, setApproved] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const approvedQuery = useRegularizationRequests({ status: "Approved", limit: 100 });
+  const cancelMutation = useCancelRegularizationRequest();
+
+  const counts = dashboardQuery.data?.counts || {};
+  const requests = requestsQuery.data?.requests || [];
+  const loading = dashboardQuery.isLoading || requestsQuery.isLoading;
 
   const isApprovedThisMonth = (request) => {
     const decided = new Date(request?.decidedAt);
@@ -73,43 +77,7 @@ function RegularizationInner() {
     );
   };
 
-  const loadData = useCallback(
-    async ({ quiet = false } = {}) => {
-      if (!quiet) setLoading(true);
-      const [dashboardResult, requestsResult, approvedResult] =
-        await Promise.allSettled([
-          getRegularizationDashboard(),
-          listRegularizationRequests({
-            limit: 100,
-            ...(isAdminOrHr ? {} : { mine: 1 }),
-          }),
-          listRegularizationRequests({ status: "Approved", limit: 100 }),
-        ]);
-      if (dashboardResult.status === "fulfilled") {
-        setCounts(dashboardResult.value?.counts || {});
-      } else if (!quiet) {
-        toastError(apiError(dashboardResult.reason, "Failed to load regularization summary"));
-      }
-      if (requestsResult.status === "fulfilled") {
-        setRequests(requestsResult.value?.requests || []);
-      } else {
-        toastError(apiError(requestsResult.reason, "Failed to load requests"));
-      }
-      if (approvedResult.status === "fulfilled") {
-        setApproved(
-          (approvedResult.value?.requests || []).filter(isApprovedThisMonth)
-        );
-      } else if (!quiet) {
-        toastError(apiError(approvedResult.reason, "Failed to load approved requests"));
-      }
-      setLoading(false);
-    },
-    [isAdminOrHr, toastError]
-  );
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const approved = (approvedQuery.data?.requests || []).filter(isApprovedThisMonth);
 
   const handleCancel = async (id, cancelReason) => {
     const cancelError = validateField({
@@ -125,9 +93,8 @@ function RegularizationInner() {
       return false;
     }
     try {
-      const response = await cancelRegularizationRequest(id, cancelReason);
+      const response = await cancelMutation.mutateAsync({ id, cancelReason });
       toastSuccess(response?.message || "Regularization request cancelled");
-      await loadData({ quiet: true });
       return true;
     } catch (error) {
       toastError(apiError(error, "Failed to cancel request"));
@@ -214,7 +181,11 @@ function RegularizationInner() {
 
       <main className="regularization-content">
         {activeTab === "request" ? (
-          <RequestForm toast={toast} onSubmitted={() => loadData({ quiet: true })} />
+          <RequestForm toast={toast} onSubmitted={() => {
+            dashboardQuery.refetch();
+            requestsQuery.refetch();
+            approvedQuery.refetch();
+          }} />
         ) : null}
         {activeTab === "mine" ? (
           <MyRequestsList
@@ -244,7 +215,11 @@ function RegularizationInner() {
         {activeTab === "approvals" ? (
           <ApprovalsList
             toast={toast}
-            onChanged={() => loadData({ quiet: true })}
+            onChanged={() => {
+              dashboardQuery.refetch();
+              requestsQuery.refetch();
+              approvedQuery.refetch();
+            }}
           />
         ) : null}
         {activeTab === "approved" ? (
@@ -257,7 +232,11 @@ function RegularizationInner() {
         {activeTab === "direct" ? (
           <DirectEditPanel
             toast={toast}
-            onChanged={() => loadData({ quiet: true })}
+            onChanged={() => {
+              dashboardQuery.refetch();
+              requestsQuery.refetch();
+              approvedQuery.refetch();
+            }}
           />
         ) : null}
       </main>

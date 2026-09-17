@@ -13,10 +13,10 @@ import SearchableEmployeeSelectServer from "../attendance/SearchableEmployeeSele
 import { getAttendanceList } from "../../services/attendanceService";
 import { getLeaveRequests } from "../../services/leaveService";
 import {
-  directEditAttendance,
-  directEditLeave,
-  listRegularizationRequests,
-} from "../../services/regularizationService";
+  useDirectEditAttendance,
+  useDirectEditLeave,
+  useRegularizationRequests,
+} from "../../hooks/useRegularization";
 import { validateFields } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
 import {
@@ -341,13 +341,17 @@ export default function DirectEditPanel({ toast, onChanged }) {
   const [leavesLoading, setLeavesLoading] = useState(false);
   const [touched, setTouched] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [pendingRequests, setPendingRequests] = useState([]);
-  const [pendingLoading, setPendingLoading] = useState(false);
-  // Existing (recorded) attendance for the selected employee + date, used by
-  // the confirmation summary (Before vs After). Non-blocking on failure.
   const [existingRecord, setExistingRecord] = useState(null);
   const [existingLoading, setExistingLoading] = useState(false);
+
+  const directEditAttendanceMutation = useDirectEditAttendance();
+  const directEditLeaveMutation = useDirectEditLeave();
+  const pendingQuery = useRegularizationRequests({ status: "Pending", limit: 100 });
+  const pendingRequests = useMemo(() => pendingQuery.data?.requests || [], [pendingQuery.data]);
+  const saving = directEditAttendanceMutation.isPending || directEditLeaveMutation.isPending;
+
+  const selectedEmployeeId =
+    kind === "attendance" ? attendance.employeeId : leave.employeeId;
 
   useEffect(() => {
     if (kind !== "attendance" || !attendance.employeeId || !attendance.date) {
@@ -426,9 +430,6 @@ export default function DirectEditPanel({ toast, onChanged }) {
     };
   }, [kind, leave.employeeId, toastError]);
 
-  const selectedEmployeeId =
-    kind === "attendance" ? attendance.employeeId : leave.employeeId;
-
   // Nobody may directly edit their own record (backend 403s too).
   const user = getStoredUser();
   const isSelfSelected = (() => {
@@ -442,36 +443,6 @@ export default function DirectEditPanel({ toast, onChanged }) {
         String(userEmpId) === String(selectedEmployeeId)
     );
   })();
-
-  useEffect(() => {
-    if (!selectedEmployeeId) {
-      setPendingRequests([]);
-      setPendingLoading(false);
-      return undefined;
-    }
-
-    let active = true;
-    setPendingLoading(true);
-    listRegularizationRequests({ status: "Pending", limit: 100 })
-      .then((response) => {
-        if (active) setPendingRequests(response?.requests || []);
-      })
-      .catch((error) => {
-        if (active) {
-          setPendingRequests([]);
-          toastError(
-            buildApiErrorMessage(error, "Failed to load pending regularizations")
-          );
-        }
-      })
-      .finally(() => {
-        if (active) setPendingLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [selectedEmployeeId, toastError]);
 
   const activeForm = kind === "attendance" ? attendance : leave;
   const errors = useMemo(
@@ -514,7 +485,7 @@ export default function DirectEditPanel({ toast, onChanged }) {
   );
   const showPendingConflict =
     Boolean(pendingConflict) &&
-    !pendingLoading &&
+    !pendingQuery.isLoading &&
     (kind === "attendance" ? Boolean(attendance.date) : Boolean(leave.leaveRequestId));
 
   // The submit button stays disabled while the form is invalid, so the
@@ -578,13 +549,12 @@ export default function DirectEditPanel({ toast, onChanged }) {
   };
 
   const saveChanges = async () => {
-    setSaving(true);
     try {
       const payload = buildDirectEditPayload(kind, activeForm);
       const response =
         kind === "attendance"
-          ? await directEditAttendance(payload)
-          : await directEditLeave(leave.leaveRequestId, payload);
+          ? await directEditAttendanceMutation.mutateAsync(payload)
+          : await directEditLeaveMutation.mutateAsync({ leaveRequestId: leave.leaveRequestId, payload });
       toastSuccess(
         response?.message ||
           `${kind === "attendance" ? "Attendance" : "Leave request"} updated`
@@ -609,8 +579,6 @@ export default function DirectEditPanel({ toast, onChanged }) {
           `Failed to update ${kind === "attendance" ? "attendance" : "leave request"}`
         )
       );
-    } finally {
-      setSaving(false);
     }
   };
 
