@@ -10,7 +10,7 @@ import {
 import Button from "../Button";
 import { getAttendanceList } from "../../services/attendanceService";
 import { getLeaveRequests } from "../../services/leaveService";
-import { createRegularizationRequest } from "../../services/regularizationService";
+import { useCreateRegularizationRequest } from "../../hooks/useRegularization";
 import { validateFields } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
 import { getDayPartLabel, getLeaveTypeLabel, isHalfDayPart } from "../../utils/leaveLabels";
@@ -183,9 +183,10 @@ export default function RequestForm({ toast, onSubmitted }) {
   const [currentAttendance, setCurrentAttendance] = useState(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
   const bounds = useMemo(getDateBounds, []);
+  const createMutation = useCreateRegularizationRequest();
+  const submitting = createMutation.isPending;
   const isCoLeave = leave.leaveType === "CO";
   const isPresentLeave = leave.leaveType === "Present";
   const workingDays = useMemo(
@@ -450,9 +451,8 @@ export default function RequestForm({ toast, onSubmitted }) {
               checkOut: leave.leaveType === "Present" ? leave.checkOut || null : undefined,
             },
           };
-    setSubmitting(true);
     try {
-      const response = await createRegularizationRequest(payload);
+      const response = await createMutation.mutateAsync(payload);
       toast.success(response?.message || "Regularization request submitted");
       setAttendance(emptyAttendance);
       setLeave(emptyLeave);
@@ -461,8 +461,6 @@ export default function RequestForm({ toast, onSubmitted }) {
       await onSubmitted?.();
     } catch (error) {
       toast.error(buildApiErrorMessage(error, "Failed to submit request"));
-    } finally {
-      setSubmitting(false);
     }
   };
 
