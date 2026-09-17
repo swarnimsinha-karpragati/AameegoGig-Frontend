@@ -1169,7 +1169,7 @@ function Employees() {
       alert("Please enter either an email or a phone number.");
       return;
     }
-
+    
     try {
       const payload = buildEmployeePayload(form, {
         createAppLogin: form.createAppLogin,
@@ -1188,9 +1188,10 @@ function Employees() {
           setErrors({
             salaryStructure: structureErrors.join("; "),
           });
+          alert(structureErrors.join("; "));
+          setSubmitting(false)
           return;
         }
-
         // Manual component entry must add up to CTC / daily wage when no template used
         if (!salaryDraft.structureId) {
           const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || (Number(salaryDraft.dailyWage) > 0);
@@ -1199,6 +1200,9 @@ function Employees() {
             : validateComponentsMatchCtc(salaryDraft);
           if (matchError) {
             setErrors({ salaryStructure: matchError });
+            alert(matchError);
+            setErrors({});
+            setSubmitting(false)
             return;
           }
         }
@@ -1253,6 +1257,7 @@ function Employees() {
       const serverData = error.response?.data || {};
       const serverMessage = serverData.message || "Failed to add employee";
       const field = serverData.field;
+      setSubmitting(false)
       if (field) {
         const mapped = { [field]: serverMessage };
         setErrors(mapped);

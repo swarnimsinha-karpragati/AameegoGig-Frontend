@@ -21,15 +21,17 @@ import SelfieCapture from "../components/SelfieCapture";
 import Button from "../components/Button";
 import { useAllEmployees } from "../hooks/useEmployees";
 import {
+  useMarkAttendance,
+  useMarkMonthAttendance,
+  useCheckIn,
+  useCheckOut,
+  useBulkUploadMonthAttendance,
+} from "../hooks/useAttendance";
+import {
   getMonthlyAttendance,
   getAttendanceList,
-  markAttendance,
-  checkInAttendance,
-  checkOutAttendance,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
-  markMonthAttendance,
-  bulkUploadMonthAttendance,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -141,6 +143,12 @@ function Attendance() {
   // Org section (stats/table/calendar): attendance:view-org or manage.
   // Mark permission alone does NOT unlock org data.
   const canViewOrg = canViewOrgAttendance(user?.role);
+
+  const markAttendanceMutation = useMarkAttendance();
+  const markMonthAttendanceMutation = useMarkMonthAttendance();
+  const checkInMutation = useCheckIn();
+  const checkOutMutation = useCheckOut();
+  const bulkUploadMutation = useBulkUploadMonthAttendance();
 
   const personalMonthLabel = personalViewDate.toLocaleString("en-US", {
     month: "long",
@@ -539,7 +547,7 @@ function Attendance() {
     setIsSubmitting(true);
 
     try {
-      const res = await markMonthAttendance(markMonthForm);
+      const res = await markMonthAttendanceMutation.mutateAsync(markMonthForm);
       alert(res.message);
       setMarkMonthForm((prev) => ({
         ...prev,
@@ -569,12 +577,8 @@ function Attendance() {
     setMonthlyUploadLoading(true);
     setMonthlyUploadResult(null);
     try {
-      const result = await bulkUploadMonthAttendance(monthlyUploadFile);
+      const result = await bulkUploadMutation.mutateAsync(monthlyUploadFile);
       setMonthlyUploadResult(result);
-      if (result.uploaded > 0) {
-        loadSelfData();
-        loadOrgData();
-      }
     } catch (uploadError) {
       setMonthlyUploadResult({
         errors: [{ message: uploadError.response?.data?.message || "Monthly attendance upload failed." }],
@@ -665,7 +669,7 @@ function Attendance() {
     }
 
     try {
-      await markAttendance({
+      await markAttendanceMutation.mutateAsync({
         ...markForm,
         checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
         checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
@@ -702,9 +706,9 @@ function Attendance() {
 
       let res;
       if (attendanceAction === "checkin") {
-        res = await checkInAttendance(selfieBlob, location);
+        res = await checkInMutation.mutateAsync({ selfieFile: selfieBlob, options: location });
       } else {
-        res = await checkOutAttendance(selfieBlob, location);
+        res = await checkOutMutation.mutateAsync({ selfieFile: selfieBlob, location });
       }
 
       const successMsg =
