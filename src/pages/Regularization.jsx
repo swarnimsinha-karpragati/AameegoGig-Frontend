@@ -30,13 +30,6 @@ import {
 import { buildRegularizationTabs } from "./regularizationTabs";
 import "./Regularization.css";
 
-const ROLE_SUBTITLES = {
-  Admin: "Correct records, review requests, and keep attendance and leave accurate.",
-  HR: "Manage correction requests across your organization in one place.",
-  Manager: "Request corrections and keep track of your team’s review queue.",
-  Employee: "Fix attendance or leave records and follow every decision.",
-};
-
 const apiError = (error, fallback) => buildApiErrorMessage(error, fallback);
 
 function RegularizationInner() {
@@ -148,11 +141,6 @@ function RegularizationInner() {
   return (
     <div className="regularization-page">
       <header className="regularization-header">
-        <div>
-          <span className="regularization-eyebrow">Attendance & leave</span>
-          <h1>Regularization hub</h1>
-          <p>{ROLE_SUBTITLES[user?.role] || ROLE_SUBTITLES.Employee}</p>
-        </div>
         <div className="regularization-header__badge">
           <ShieldCheck size={17} />
           <span>{user?.role || "Employee"} workspace</span>

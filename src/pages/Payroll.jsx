@@ -509,17 +509,6 @@ export default function Payroll() {
   return (
     <MainLayout>
       <main className="payroll-page">
-        <div className="payroll-header-banner">
-          <div>
-            <h1 className="payroll-title">Payroll</h1>
-            <p className="payroll-subtitle">
-              {isAdminOrHR
-                ? "Calculate, approve and release employee payroll"
-                : "View your payslips and earnings"}
-            </p>
-          </div>
-        </div>
-
         <PayrollStatusBanner
           message={statusMessage}
           onDismiss={() => setStatusMessage({ type: "", text: "" })}

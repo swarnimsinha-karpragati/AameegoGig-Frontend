@@ -146,18 +146,6 @@ function Documents() {
         url={previewUrl}
       />
       <div className="documents-page">
-        <div className="documents-header">
-          <div>
-            <h1>Documents</h1>
-            <p>
-              {isEmployee
-                ? "Upload and view your personal documents"
-                : "All employee documents across the organization"}{" "}
-              • <strong>{documents.length}</strong>
-            </p>
-          </div>
-        </div>
-
         {/* UPLOAD — employees only. Admin uploads per-employee in Employees. */}
         {isEmployee && (
           <div className="doc-upload">

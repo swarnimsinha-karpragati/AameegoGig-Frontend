@@ -4,6 +4,7 @@ import Button from "./Button";
 import "./LeavePolicyManager.css";
 import { useLeavePolicy, useUpdateLeavePolicy } from "../hooks/useLeave";
 import ConfirmModal from "./ConfirmModal";
+import LeaveAccrualCard from "./LeaveAccrualCard";
 
 const MONTHS = [
   { value: 1, label: "January" },
@@ -711,7 +712,9 @@ export default function LeavePolicyManager() {
         </div>
       ) : null}
 
+      {/* Admin-only manual month-end accrual — opens in a popup. */}
       <div className="lp-actions">
+        <LeaveAccrualCard />
         <Button
           type="button"
           disabled={saving}
