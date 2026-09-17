@@ -124,39 +124,6 @@ export default function ProbationPolicyManager() {
 
       <div className="lp-block">
         <div className="lp-block-head">
-          <h3>Notice period</h3>
-          <p>How many days of notice apply on resign / exit.</p>
-        </div>
-        <div className="lp-field-row">
-          <label className="lp-field">
-            <span className="lp-field-label">Notice during probation (days)</span>
-            <input
-              className="lp-input lp-input-sm"
-              type="number"
-              min={0}
-              max={365}
-              step={1}
-              value={form.noticeDaysProbation}
-              onChange={set("noticeDaysProbation")}
-            />
-          </label>
-          <label className="lp-field">
-            <span className="lp-field-label">Notice after full-time (days)</span>
-            <input
-              className="lp-input lp-input-sm"
-              type="number"
-              min={0}
-              max={365}
-              step={1}
-              value={form.noticeDaysConfirmed}
-              onChange={set("noticeDaysConfirmed")}
-            />
-          </label>
-        </div>
-      </div>
-
-      <div className="lp-block">
-        <div className="lp-block-head">
           <h3>Auto-confirm</h3>
           <p>What happens when the probation end date passes.</p>
         </div>

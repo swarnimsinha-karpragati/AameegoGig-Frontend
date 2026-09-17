@@ -555,15 +555,61 @@ function LeaveInner() {
   }, [user?.role]);
 
   useEffect(() => {
-    const selected = balances.find(
+    if (!selectedBalanceEmployee) return;
+    const selected = (balances || []).find(
       (b) => String(b.employeeId) === String(selectedBalanceEmployee)
     );
-    if (!selected) return;
-    const nextForm = {};
-    selected.balances.forEach((item) => {
-      nextForm[item.type] = { total: item.total, used: item.used };
-    });
-    setBalanceForm((prev) => ({ ...prev, ...nextForm }));
+    if (selected && Array.isArray(selected.balances)) {
+      const nextForm = {};
+      selected.balances.forEach((item) => {
+        nextForm[item.type] = { total: item.total, used: item.used };
+      });
+      setBalanceForm((prev) => ({ ...prev, ...nextForm }));
+      return;
+    }
+    // Selected employee not in the cached org list (e.g. newly added
+    // employee while the list is stale, or a single-employee list shape).
+    // Fetch their balances directly so the rows below always follow the
+    // dropdown selection instead of staying stuck on the previous values.
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getLeaveBalances(selectedBalanceEmployee);
+        if (cancelled) return;
+        const rows = Array.isArray(res?.balances) ? res.balances : [];
+        if (!rows.length && !res?.wfhQuota) return;
+        const nextForm = {};
+        rows.forEach((item) => {
+          if (item?.type) nextForm[item.type] = { total: item.total ?? "", used: item.used ?? "" };
+        });
+        if (res?.wfhQuota && res.wfhQuota.total != null) {
+          nextForm.WFH = { total: res.wfhQuota.total ?? "", used: res.wfhQuota.used ?? "" };
+        }
+        setBalanceForm((prev) => ({ ...prev, ...nextForm }));
+        // Merge into the cached list so the next selection is instant.
+        // Only for org-shaped lists (entries carry employeeId); never mix
+        // single-employee row shapes into the cache.
+        setBalances((prev) => {
+          if (!Array.isArray(prev)) return prev;
+          if (prev.some((b) => String(b.employeeId) === String(selectedBalanceEmployee))) return prev;
+          if (prev.length > 0 && prev[0]?.employeeId === undefined) return prev;
+          return [
+            ...prev,
+            {
+              employeeId: res?.employeeId || selectedBalanceEmployee,
+              name: res?.name || "",
+              employeeCode: res?.employeeCode || "",
+              balances: rows,
+            },
+          ];
+        });
+      } catch {
+        // non-blocking: rows keep previous values
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [balances, selectedBalanceEmployee]);
 
   // WFH quota is NOT part of the org-wide balances list (hasBalance=false),
