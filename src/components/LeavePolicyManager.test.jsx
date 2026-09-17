@@ -6,6 +6,7 @@ import { getLeavePolicy, updateLeavePolicy } from "../services/leaveService";
 jest.mock("../services/leaveService", () => ({
   getLeavePolicy: jest.fn(),
   updateLeavePolicy: jest.fn(),
+  runLeaveAccrual: jest.fn(),
 }));
 
 const policyFixture = () => ({

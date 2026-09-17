@@ -29,3 +29,8 @@ export const getEmployeeProbationHistory = async (employeeId) => {
   const res = await API.get(`/probation/employees/${employeeId}/history`);
   return res.data;
 };
+
+export const runProbationAutoConfirmNow = async () => {
+  const res = await API.post("/probation/auto-confirm/run");
+  return res.data;
+};

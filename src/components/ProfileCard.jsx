@@ -13,6 +13,7 @@ import {
   PhoneCall,
   MapPin,
   Cake,
+  CalendarDays,
   Info,
 } from "lucide-react";
 import useFormValidation from "../hooks/useFormValidation";
@@ -84,6 +85,7 @@ export default function ProfileCard() {
   const [role, setRole] = useState("");
   const [reportingManager, setReportingManager] = useState(null);
   const [employmentStatus, setEmploymentStatus] = useState(null);
+  const [dateOfJoining, setDateOfJoining] = useState(null);
   const [designation, setDesignation] = useState("");
   // Self-editable personal details
   const [dob, setDob] = useState("");
@@ -165,6 +167,7 @@ export default function ProfileCard() {
     setDesignation(data.designation || "");
     setReportingManager(data.reportingManager || null);
     setEmploymentStatus(data.employmentStatus || null);
+    setDateOfJoining(data.dateOfJoining || null);
     setDob(toDateInput(data.dob));
     setBloodGroup(data.bloodGroup || "");
     setEmergencyContact(data.emergencyContact || "");
@@ -410,6 +413,17 @@ export default function ProfileCard() {
             <span className="profile-info-copy">
               <span className="profile-info-label">Designation</span>
               <span className="profile-info-value" title={designation}>{designation}</span>
+            </span>
+          </div>
+        ) : null}
+        {role !== "Admin" ? (
+          <div className="profile-info-item">
+            <span className="profile-info-icon profile-info-icon--amber"><CalendarDays size={15} /></span>
+            <span className="profile-info-copy">
+              <span className="profile-info-label">Date of Joining</span>
+              <span className="profile-info-value">
+                {dateOfJoining ? new Date(dateOfJoining).toLocaleDateString() : "-"}
+              </span>
             </span>
           </div>
         ) : null}

@@ -3,6 +3,7 @@ import Button from "./Button";
 import {
   getProbationPolicy,
   updateProbationPolicy,
+  runProbationAutoConfirmNow,
 } from "../services/probationService";
 import { getStoredUser, canManageProbationPolicy } from "../utils/roles";
 import "./LeavePolicyManager.css";
@@ -32,6 +33,28 @@ export default function ProbationPolicyManager() {
   // HR/Admin-only screen: Employee role must never see or edit this policy.
   const storedRole = getStoredUser()?.role;
   const canManage = storedRole !== "Employee" && canManageProbationPolicy(storedRole);
+  const isAdmin = storedRole === "Admin";
+  const [running, setRunning] = useState(false);
+  const [runStatus, setRunStatus] = useState({ type: "", message: "" });
+
+  const handleRunAutoConfirm = async () => {
+    setRunning(true);
+    setRunStatus({ type: "", message: "" });
+    try {
+      const res = await runProbationAutoConfirmNow();
+      setRunStatus({
+        type: "success",
+        message: `Auto-confirm completed: ${res.confirmed ?? 0} confirmed, ${res.backfilled ?? 0} backfilled.`,
+      });
+    } catch (e) {
+      setRunStatus({
+        type: "error",
+        message: e?.response?.data?.message || "Could not run auto-confirm",
+      });
+    } finally {
+      setRunning(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -208,6 +231,27 @@ export default function ProbationPolicyManager() {
           </span>
         </label>
       </div>
+
+      {isAdmin ? (
+        <div className="lp-block">
+          <div className="lp-block-head">
+            <h3>Run auto-confirm now</h3>
+            <p>
+              Manually trigger the daily job right away — expired probations
+              become full-time immediately without waiting for the 1:30 AM
+              cron.
+            </p>
+          </div>
+          {runStatus?.message ? (
+            <div className={`lp-banner ${runStatus.type}`}>{runStatus.message}</div>
+          ) : null}
+          <div>
+            <Button type="button" disabled={running} onClick={handleRunAutoConfirm}>
+              {running ? "Running…" : "Run auto-confirm now"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="lp-actions">
         <Button type="button" disabled={saving || !isValid} onClick={handleSave}>
