@@ -27,7 +27,7 @@ import {
   deleteExpense,
   getReceiptUrl,
 } from "../services/expenseService";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
   getStoredUser,
@@ -172,7 +172,7 @@ function ExpenseInner() {
   /* ── State ── */
   const [dashboard, setDashboard] = useState(null);
   const [expenses, setExpenses] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const { data: employees = [] } = useAllEmployees({ enabled: canApprove });
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
@@ -326,29 +326,17 @@ function ExpenseInner() {
     }
   };
 
-  const loadEmployees = async () => {
-    if (!canApprove) return;
-    try {
-      const res = await getEmployees();
-      const list = res.data?.employees || [];
-      setEmployees(list);
-      if (!form.employeeId && list.length > 0) {
-        setForm((prev) => ({ ...prev, employeeId: list[0]._id }));
-      }
-    } catch {
-      // non-blocking
-    }
-  };
-
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    loadEmployees();
+    if (employees.length > 0 && !form.employeeId) {
+      setForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.role]);
+  }, [employees]);
 
   /* ── Handlers ── */
   const handleCreate = async (e, forSelf = false) => {

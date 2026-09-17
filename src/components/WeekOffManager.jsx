@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./WeekOffManager.css";
-import { getDepartments } from "../services/departmentService";
+import { useDepartments } from "../hooks/useDepartments";
 import {
   createWeekOff,
   deleteWeekOff,
@@ -28,23 +28,13 @@ const WeekOffManager = ({ vendorId }) => {
   };
 
   const [configs, setConfigs] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [editingConfigId, setEditingConfigId] = useState(null);
   const [formData, setFormData] = useState(initialFormState);
   const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
 
-  const fetchDepartments = async () => {
-    if (!vendorId) return;
-    try {
-      const res = await getDepartments(vendorId);
-      const list = res?.data?.departments || res?.data?.data || res?.data || [];
-      setDepartments(Array.isArray(list) ? list : []);
-    } catch (error) {
-      console.error("Failed to load departments:", error);
-    }
-  };
+  const { data: departments = [] } = useDepartments(vendorId);
 
   const fetchWeekOffs = async () => {
     if (!vendorId) return;
@@ -65,7 +55,6 @@ const WeekOffManager = ({ vendorId }) => {
   };
 
   useEffect(() => {
-    fetchDepartments();
     fetchWeekOffs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
