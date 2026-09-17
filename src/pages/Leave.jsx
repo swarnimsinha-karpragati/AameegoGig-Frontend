@@ -32,6 +32,7 @@ import {
   useUpdateLeaveBalances,
   useLeavePolicy,
 } from "../hooks/useLeave";
+import { getLeaveBalances } from "../services/leaveService";
 import {
   getLeaveViewKey,
   getStoredUser,
@@ -524,23 +525,6 @@ function LeaveInner() {
           nextForm.WFH = { total: res.wfhQuota.total ?? "", used: res.wfhQuota.used ?? "" };
         }
         setBalanceForm((prev) => ({ ...prev, ...nextForm }));
-        // Merge into the cached list so the next selection is instant.
-        // Only for org-shaped lists (entries carry employeeId); never mix
-        // single-employee row shapes into the cache.
-        setBalances((prev) => {
-          if (!Array.isArray(prev)) return prev;
-          if (prev.some((b) => String(b.employeeId) === String(selectedBalanceEmployee))) return prev;
-          if (prev.length > 0 && prev[0]?.employeeId === undefined) return prev;
-          return [
-            ...prev,
-            {
-              employeeId: res?.employeeId || selectedBalanceEmployee,
-              name: res?.name || "",
-              employeeCode: res?.employeeCode || "",
-              balances: rows,
-            },
-          ];
-        });
       } catch {
         // non-blocking: rows keep previous values
       }
