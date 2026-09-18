@@ -5,6 +5,12 @@ export const getRoles = async () => {
   return res.data?.roles || [];
 };
 
+// Fresh personal access snapshot (works for every authenticated user).
+export const getSession = async () => {
+  const res = await API.get("/auth/session");
+  return res.data || null;
+};
+
 export const seedRoles = () => API.post("/roles/seed");
 
 export const createRole = (payload) => API.post("/roles", payload);

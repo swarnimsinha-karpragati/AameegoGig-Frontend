@@ -215,4 +215,27 @@ export const employeeValidationSchema = Yup.object().shape({
   payType: Yup.string()
     .oneOf(["MONTHLY", "DAILY"], "Invalid pay type")
     .default("MONTHLY"),
+
+  // ---- Probation / Employment status ----
+  // Ye keys form + payload me hain. validateAt(name) inke bina
+  // "The schema does not contain the path" throw karta hai,
+  // isliye yahan explicitly define karna zaroori hai.
+  employmentStatus: Yup.string()
+    .oneOf(["probation", "full-time", ""], "Invalid employment status")
+    .default("probation"),
+
+  probationStartDate: Yup.date()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
+
+  probationEndDate: Yup.date()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
+
+  confirmationDate: Yup.date()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
 });

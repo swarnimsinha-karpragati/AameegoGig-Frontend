@@ -43,6 +43,12 @@ function RegularizationInner() {
   const isAdminOrHr = canViewAllRegularizations(user?.role);
   const canDirectEdit = canDirectEditRegularization(user?.role);
   const canRequest = hasLinkedEmployeeProfile(user);
+  const dashboardQuery = useRegularizationDashboard();
+  const counts = dashboardQuery.data?.counts || {};
+  const hasTeam = Boolean(dashboardQuery.data?.hasTeam);
+  const teamCount = dashboardQuery.data?.teamCount || 0;
+  const teamPending = counts.teamPending || 0;
+  const teamApprovedThisMonth = counts.teamApprovedThisMonth || 0;
   const tabs = useMemo(
     () =>
       buildRegularizationTabs({
@@ -50,12 +56,12 @@ function RegularizationInner() {
         canApprove,
         canDirectEdit,
         isAdminOrHr,
+        hasTeam,
       }),
-    [canApprove, canDirectEdit, canRequest, isAdminOrHr]
+    [canApprove, canDirectEdit, canRequest, isAdminOrHr, hasTeam]
   );
   const [activeTab, setActiveTab] = useState(canRequest ? "request" : "mine");
 
-  const dashboardQuery = useRegularizationDashboard();
   const requestsQuery = useRegularizationRequests({
     limit: 100,
     ...(isAdminOrHr ? {} : { mine: 1 }),
@@ -63,7 +69,6 @@ function RegularizationInner() {
   const approvedQuery = useRegularizationRequests({ status: "Approved", limit: 100 });
   const cancelMutation = useCancelRegularizationRequest();
 
-  const counts = dashboardQuery.data?.counts || {};
   const requests = requestsQuery.data?.requests || [];
   const loading = dashboardQuery.isLoading || requestsQuery.isLoading;
 
@@ -221,6 +226,53 @@ function RegularizationInner() {
               approvedQuery.refetch();
             }}
           />
+        ) : null}
+        {activeTab === "team" ? (
+          <>
+            <div className="regularization-stats" aria-label="Team summary">
+              <article className="regularization-stat regularization-glass">
+                <span className="regularization-stat__icon amber">
+                  <Clock3 size={20} />
+                </span>
+                <div>
+                  <strong>{teamPending}</strong>
+                  <span>Team pending</span>
+                </div>
+              </article>
+              <article className="regularization-stat regularization-glass">
+                <span className="regularization-stat__icon green">
+                  <CheckCircle2 size={20} />
+                </span>
+                <div>
+                  <strong>{teamApprovedThisMonth}</strong>
+                  <span>Team approved this month</span>
+                </div>
+              </article>
+              <article className="regularization-stat regularization-glass">
+                <span className="regularization-stat__icon blue">
+                  <ClipboardList size={20} />
+                </span>
+                <div>
+                  <strong>{teamCount}</strong>
+                  <span>Team member{teamCount === 1 ? "" : "s"}</span>
+                </div>
+              </article>
+            </div>
+            <ApprovalsList
+              toast={toast}
+              onChanged={() => {
+                dashboardQuery.refetch();
+                requestsQuery.refetch();
+                approvedQuery.refetch();
+              }}
+              requestParams={{ team: 1, status: "Pending" }}
+              eyebrow={teamCount > 0 ? `My team — ${teamCount} member${teamCount === 1 ? "" : "s"}` : "My team"}
+              title="Team requests"
+              description="Review your team members' corrections and approve or reject them."
+              emptyTitle="No team requests waiting"
+              emptyText="Your team members' pending corrections will appear here."
+            />
+          </>
         ) : null}
         {activeTab === "approved" ? (
           <ApprovedList

@@ -734,6 +734,27 @@
   cursor: not-allowed;
 }
 
+.dynamic-input--error {
+  border-color: #dc2626;
+}
+
+.dynamic-input--error:focus {
+  border-color: #dc2626;
+}
+
+.roles-field-error {
+  color: #b91c1c;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  /* Reserve one line so the modal doesn't shift when the message appears. */
+  min-height: 1.4em;
+}
+
+.roles-field-error--empty {
+  visibility: hidden;
+}
+
 @media (max-width: 640px) {
   .roles-card-grid {
     grid-template-columns: 1fr;

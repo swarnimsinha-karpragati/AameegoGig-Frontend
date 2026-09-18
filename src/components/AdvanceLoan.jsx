@@ -305,7 +305,7 @@ function RequestSummaryBlock({ request, showEmployee = false }) {
 /* ===========================
     REQUEST FORM MODAL
    =========================== */
-function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove = false, canCreate = true, loanConfig = null, apiError = "" }) {
+function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove = false, canCreate = true, loanConfig = null, apiError = "", isOrgView = false }) {
     const [formData, setFormData] = useState({
         requestType: "ADVANCE",
         amount: "",
@@ -464,20 +464,25 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
         if (formData.repaymentOption === "ONE_TIME" && (!formData.tenure || Number(formData.tenure) <= 0)) {
             newErrors.tenure = "Tenure must be greater than 0 months";
         }
-        if (canApprove && !formData.employeeId) newErrors.employeeId = "Employee is required";
+        if (canApprove && isOrgView && !formData.employeeId) newErrors.employeeId = "Employee is required";
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = () => {
         if (!validate()) return;
-        onSubmit({
+        const payload = {
             ...formData,
             amount: Number(formData.amount),
             totalInstallments: formData.repaymentOption === "MONTHLY_INSTALLMENTS" ? (derivedMonths || 0) : (Number(formData.totalInstallments) || 0),
             tenure: Number(formData.tenure) || 0,
             repaymentAmount: Number(formData.repaymentAmount) || 0,
-        });
+        };
+        // Employee view = self request: never send employeeId so backend uses logged-in user
+        if (!(canApprove && isOrgView)) {
+            delete payload.employeeId;
+        }
+        onSubmit(payload);
     };
 
     if (!open) return null;
@@ -509,7 +514,7 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                     )}
 
                     <div className="advance-form">
-                        {canApprove && (
+                        {canApprove && isOrgView && (
                             <div className="form-group">
                                 <label>Employee *</label>
                                 <SearchableEmployeeSelectServer
@@ -1789,7 +1794,7 @@ function AdvanceLoanInner() {
                 )}
                 {activeTab === "requests" && (
                     <>
-                        <RequestFormModal open={showRequestForm} onClose={() => { setShowRequestForm(false); setFormApiError(""); }} onSubmit={handleCreateRequest} employees={employees} canApprove={canApprove} canCreate={canCreate} loanConfig={loanConfig} apiError={formApiError} />
+                        <RequestFormModal open={showRequestForm} onClose={() => { setShowRequestForm(false); setFormApiError(""); }} onSubmit={handleCreateRequest} employees={employees} canApprove={canApprove} canCreate={canCreate} loanConfig={loanConfig} apiError={formApiError} isOrgView={effectiveRequestView === "organization"} />
                         <PaymentModal open={showPaymentModal} onClose={() => { setShowPaymentModal(false); setSelectedRequest(null); }} request={selectedRequest} onSubmit={handleRecordPayment} />
                         <ApproveModal open={showApproveModal} request={approveRequestData} loading={actionLoading} onClose={() => { setShowApproveModal(false); setApproveRequestData(null); }} onSubmit={handleApproveSubmit} />
                         <DetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} request={detailRequest} />

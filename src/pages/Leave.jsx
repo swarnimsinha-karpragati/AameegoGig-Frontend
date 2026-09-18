@@ -1106,9 +1106,12 @@ function LeaveInner() {
 
                     <td>
                       {(() => {
+                        // Team leads approve reportees via team scope (backend
+                        // grants canApproveLeave automatically) — org-wide
+                        // leave:approve-all permission is not required here.
                         const showApprove =
                           mode === "approve" &&
-                          canApprove &&
+                          (canApprove || hasTeam) &&
                           item.status === "Pending";
                         const showCancel =
                           mode === "employee" &&
@@ -1284,7 +1287,7 @@ function LeaveInner() {
                     <span className="balance-row__type">{type}</span>
                     <div className="leave-field balance-row__field">
                       <label htmlFor={`balance-${type}-total`}>
-                        {isWfhRow ? "Total (this month)" : "Total"}
+                        Total
                       </label>
                       <input
                         id={`balance-${type}-total`}

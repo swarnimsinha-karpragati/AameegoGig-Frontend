@@ -50,6 +50,7 @@ import {
   Info,
 } from "lucide-react";
 import { getStoredUser, canManageEmployees, canManageProbation, roleHasPermission } from "../utils/roles";
+import { loadRoles } from "../utils/permissions";
 import {
   confirmProbationEmployee,
   extendProbationEmployee,
@@ -176,7 +177,6 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Employment",
     fields: [
       { key: "client", label: "Client" },
-      { key: "employmentStatus", label: "Employment Status", type: "select-employment-status", hint: "New joiners start on probation by default" },
       { key: "probationEndDate", label: "Probation End Date", type: "date" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
       { key: "payType", label: "Pay Type", type: "select-paytype" },
@@ -298,9 +298,7 @@ function EmployeeFormFields({
                 </option>
               ))}
           </select>
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
           {showTransferNotice ? (
             <p className="emp-transfer-notice">
               Transfer letter will be created and sent to the employee when saved.
@@ -323,9 +321,7 @@ function EmployeeFormFields({
             controlClassName="emp-field-input form-control"
             placeholder={`Select ${field.label.toLowerCase()} (optional)`}
           />
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -335,13 +331,15 @@ function EmployeeFormFields({
         field.key === "dob"
           ? { max: getMaxDateOfBirthInputValue() }
           : {};
+      // Full-time hone par Probation End Date change nahi ho sakta.
+      if (field.key === "probationEndDate" && values?.employmentStatus === "full-time") {
+        dateInputProps.disabled = true;
+      }
 
       return (
         <>
           <input {...common} {...dateInputProps} type="date" />
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -353,9 +351,7 @@ function EmployeeFormFields({
             <option value="probation">Probation</option>
             <option value="full-time">Full-time</option>
           </select>
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -368,9 +364,7 @@ function EmployeeFormFields({
             <option value="DAILY">Daily</option>
           </select>
 
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -385,9 +379,7 @@ function EmployeeFormFields({
             <option value="Other">Other</option>
           </select>
 
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -413,7 +405,7 @@ function EmployeeFormFields({
             <option value="Guardian">Guardian</option>
             <option value="Other">Other</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -426,7 +418,7 @@ function EmployeeFormFields({
             <option value="Single">Single</option>
             <option value="Married">Married</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -474,7 +466,7 @@ function EmployeeFormFields({
 const DEFAULT_ROLE_OPTIONS = [
   { roleName: "Employee", displayName: "Employee" },
   { roleName: "Manager", displayName: "Manager" },
-  { roleName: "HR", displayName: "HR Manager" },
+  { roleName: "HR", displayName: "HR" },
 ];
 
 function AppLoginSection({
@@ -629,10 +621,25 @@ function Employees() {
   const [statusFilter, setStatusFilter] = useState(urlStatus);
 
   const [departmentFilter, setDepartmentFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+
+  // Role options for access review: system roles + custom catalog roles.
+  // Read fresh every render so newly created roles appear immediately.
+  const roleFilterOptions = (() => {
+    const systemRoles = ["Admin", "HR", "Manager", "Employee"];
+    try {
+      const catalog = loadRoles();
+      const customs = Object.keys(catalog || {}).filter((key) => !systemRoles.includes(key));
+      return [...systemRoles, ...customs];
+    } catch {
+      return systemRoles;
+    }
+  })();
 
   const { data: employeeData, refetch: refetchEmployees } = useEmployees({
     departmentId: departmentFilter || undefined,
     status: statusFilter || undefined,
+    role: roleFilter || undefined,
     page,
     limit,
     search,
@@ -802,6 +809,7 @@ function Employees() {
     setSearch("");
     setDepartmentFilter("");
     setStatusFilter("");
+    setRoleFilter("");
     setSearchParams({}, { replace: true });
   };
 
@@ -1029,6 +1037,18 @@ function Employees() {
         return next;
       });
     } catch (err) {
+      // Yup validateAt unknown path par hard throw karta hai
+      // ("The schema does not contain the path: X"). Ye validation error
+      // nahi hai, isliye field par dikhane ke bajaye ignore karo.
+      if (err?.message?.includes('does not contain the path')) {
+        setErrors((prev) => {
+          if (!prev[name]) return prev;
+          const next = { ...prev };
+          delete next[name];
+          return next;
+        });
+        return;
+      }
       setErrors((prev) => ({ ...prev, [name]: err.message }));
     }
   };
@@ -1169,7 +1189,7 @@ function Employees() {
       alert("Please enter either an email or a phone number.");
       return;
     }
-    
+
     try {
       const payload = buildEmployeePayload(form, {
         createAppLogin: form.createAppLogin,
@@ -2142,6 +2162,24 @@ function Employees() {
               </select>
             </div>
 
+            <div className="employee-filter">
+              <select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Filter by role"
+              >
+                <option value="">All Roles</option>
+                {roleFilterOptions.map((roleName) => (
+                  <option key={roleName} value={roleName}>
+                    {roleName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {directoryType === "employee" && canManage && (
               <Button
                 variant="secondary"
@@ -3055,6 +3093,28 @@ function Employees() {
                     <div>
                       <label>PF Number</label>
                       <span>{selectedEmployee.pfNumber || "-"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-section">
+                  <h4>Access &amp; Login</h4>
+
+                  <div className="profile-grid">
+                    <div>
+                      <label>App Login</label>
+                      <span>
+                        {selectedEmployee.hasAppLogin
+                          ? selectedEmployee.hasLoginEnabled
+                            ? "Enabled"
+                            : "Disabled"
+                          : "No login"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Login Role</label>
+                      <span>{selectedEmployee.linkedUser?.role || selectedEmployee.userRole || "-"}</span>
                     </div>
                   </div>
                 </div>
