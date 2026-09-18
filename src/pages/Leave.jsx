@@ -1352,7 +1352,7 @@ function LeaveInner() {
             {wfhQuota && wfhQuota.total != null ? (
               <div className="leave-balance-item" key="WFH">
                 <span>Work From Home (WFH)</span>
-                <strong>{wfhQuota.total}</strong>
+                <strong>{wfhQuota.remaining ?? wfhQuota.total}</strong>
               </div>
             ) : null}
           </>
