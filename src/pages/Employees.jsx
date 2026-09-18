@@ -335,6 +335,11 @@ function EmployeeFormFields({
       if (field.key === "probationEndDate" && values?.employmentStatus === "full-time") {
         dateInputProps.disabled = true;
       }
+      // Full-time employee ka DOJ change nahi ho sakta — lekin sirf tab
+      // disable karo jab value pehle se ho; empty ho to enable rahega.
+      if (field.key === "dateOfJoining" && values?.employmentStatus === "full-time" && values?.dateOfJoining) {
+        dateInputProps.disabled = true;
+      }
 
       return (
         <>
@@ -440,7 +445,15 @@ function EmployeeFormFields({
     );
   };
 
-  return sections.map((section) => (
+  // Consultants have no probation — Probation End Date never shows for them.
+  const visibleSections = values?.isConsultancy
+    ? sections.map((section) => ({
+        ...section,
+        fields: section.fields.filter((field) => field.key !== "probationEndDate"),
+      }))
+    : sections;
+
+  return visibleSections.map((section) => (
     <FormSection
       key={section.id}
       title={section.title}
@@ -621,7 +634,17 @@ function Employees() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "";
-  const [statusFilter, setStatusFilter] = useState(urlStatus);
+  const isPageReload = (() => {
+    try {
+      const nav = performance.getEntriesByType("navigation")[0];
+      if (nav && nav.type) return nav.type === "reload";
+      if (performance.navigation) return performance.navigation.type === 1;
+    } catch {
+      /* ignore — deep-link apply hoga */
+    }
+    return false;
+  })();
+  const [statusFilter, setStatusFilter] = useState(isPageReload ? "" : urlStatus);
 
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -815,6 +838,12 @@ function Employees() {
     setRoleFilter("");
     setSearchParams({}, { replace: true });
   };
+
+  // Reload par URL ka ?status= bhi saaf karo (chipka filter na rahe).
+  useEffect(() => {
+    if (isPageReload) setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -2379,7 +2408,7 @@ function Employees() {
                                   ? "Active"
                                   : "Inactive"}
                           </span>
-                          {!emp.isDeleted && !emp.isExited ? (
+                          {!emp.isDeleted && !emp.isExited && !emp.isConsultancy ? (
                             emp.employmentStatus === "probation" ? (
                               <>
                                 <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
@@ -2472,7 +2501,7 @@ function Employees() {
                                 </>
                               )}
 
-                              {directoryType === "employee" && canManageProbation(user?.role) && emp.employmentStatus === "probation" && !emp.isDeleted && !emp.isExited ? (
+                              {directoryType === "employee" && canManageProbation(user?.role) && !emp.isConsultancy && emp.employmentStatus === "probation" && !emp.isDeleted && !emp.isExited ? (
                                 <>
                                   {renderMenuSectionToggle("probation", "Probation")}
                                   {expandedMenuSection === "probation" && (
@@ -3049,40 +3078,44 @@ function Employees() {
                       </span>
                     </div>
 
-                    <div>
-                      <label>Employment Status</label>
-                      <span>
-                        {selectedEmployee.employmentStatus === "probation"
-                          ? "Probation"
-                          : selectedEmployee.employmentStatus === "full-time"
-                            ? "Full-time"
+                    {!selectedEmployee.isConsultancy ? (
+                      <div>
+                        <label>Employment Status</label>
+                        <span>
+                          {selectedEmployee.employmentStatus === "probation"
+                            ? "Probation"
+                            : selectedEmployee.employmentStatus === "full-time"
+                              ? "Full-time"
+                              : "-"}
+                          {selectedEmployee.employmentStatus === "probation" ? (
+                            <button
+                              type="button"
+                              className="emp-info-btn"
+                              title="View probation history"
+                              aria-label="View probation history"
+                              onClick={() => openProbationHistory(selectedEmployee)}
+                            >
+                              <Info size={12} />
+                            </button>
+                          ) : null}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {!selectedEmployee.isConsultancy ? (
+                      <div>
+                        <label>Probation End Date</label>
+                        <span>
+                          {selectedEmployee.probationEndDate
+                            ? new Date(
+                              selectedEmployee.probationEndDate
+                            ).toLocaleDateString()
                             : "-"}
-                        {selectedEmployee.employmentStatus === "probation" ? (
-                          <button
-                            type="button"
-                            className="emp-info-btn"
-                            title="View probation history"
-                            aria-label="View probation history"
-                            onClick={() => openProbationHistory(selectedEmployee)}
-                          >
-                            <Info size={12} />
-                          </button>
-                        ) : null}
-                      </span>
-                    </div>
+                        </span>
+                      </div>
+                    ) : null}
 
-                    <div>
-                      <label>Probation End Date</label>
-                      <span>
-                        {selectedEmployee.probationEndDate
-                          ? new Date(
-                            selectedEmployee.probationEndDate
-                          ).toLocaleDateString()
-                          : "-"}
-                      </span>
-                    </div>
-
-                    {selectedEmployee.confirmationDate ? (
+                    {!selectedEmployee.isConsultancy && selectedEmployee.confirmationDate ? (
                       <div>
                         <label>Confirmation Date</label>
                         <span>
