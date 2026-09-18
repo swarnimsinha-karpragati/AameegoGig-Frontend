@@ -20,10 +20,9 @@ import {
 import { useDepartmentNames } from "../hooks/useDepartments";
 
 import {
-  uploadEmployeeDocument,
-  getEmployeeDocuments,
   getDocumentViewUrl,
 } from "../services/documentService";
+import { useEmployeeDocuments, useUploadEmployeeDocument } from "../hooks/useDocuments";
 
 import {
   Search,
@@ -849,14 +848,17 @@ function Employees() {
   ] = useState(false);
 
   const [
-    employeeDocuments,
-    setEmployeeDocuments,
-  ] = useState([]);
-
-  const [
     selectedEmployeeForDocs,
     setSelectedEmployeeForDocs,
   ] = useState(null);
+
+  const { data: empDocsRes } = useEmployeeDocuments(
+    selectedEmployeeForDocs?._id,
+    {},
+    { enabled: !!selectedEmployeeForDocs?._id && showDocumentsModal }
+  );
+  const employeeDocuments = empDocsRes?.data?.documents || [];
+  const uploadDocMutation = useUploadEmployeeDocument();
 
   const [
     documentType,
@@ -992,30 +994,6 @@ function Employees() {
     setConsultancyRefreshKey((prev) => prev + 1);
   }, [employeeData]);
 
-
-  const loadEmployeeDocuments =
-    async (employeeId) => {
-      try {
-
-        const response =
-          await getEmployeeDocuments(
-            employeeId
-          );
-
-        console.log(
-          "DOCUMENT RESPONSE",
-          response.data
-        );
-
-        setEmployeeDocuments(
-          response.data.documents || []
-        );
-
-      } catch (error) {
-
-        console.error(error);
-      }
-    };
   /* =========================
      HANDLE INPUT CHANGE
   ========================= */
@@ -2074,11 +2052,7 @@ function Employees() {
           documentType
         );
 
-        await uploadEmployeeDocument(
-          formData
-        );
-
-        loadEmployeeDocuments(selectedEmployeeForDocs._id);
+        await uploadDocMutation.mutateAsync(formData);
 
         alert(
           "Document uploaded successfully"
@@ -2460,10 +2434,9 @@ function Employees() {
 
                                   <button
                                     type="button"
-                                    onClick={async () => {
+                                    onClick={() => {
                                       setOpenDropdownId(null);
                                       setSelectedEmployeeForDocs(emp);
-                                      await loadEmployeeDocuments(emp._id);
                                       setShowDocumentsModal(true);
                                     }}
                                   >

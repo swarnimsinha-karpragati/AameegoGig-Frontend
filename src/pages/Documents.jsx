@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
 import { roleHasPermission } from "../utils/roles";
 import {
@@ -12,13 +12,8 @@ import {
   Paperclip,
 } from "lucide-react";
 
-import {
-  getDocumentViewUrl,
-  downloadDocument,
-  getDocuments,
-  getEmployeeDocuments,
-  uploadEmployeeDocument,
-} from "../services/documentService";
+import { getDocumentViewUrl, downloadDocument } from "../services/documentService";
+import { useDocuments, useEmployeeDocuments, useUploadEmployeeDocument } from "../hooks/useDocuments";
 import {
   DOC_CATEGORIES,
   DOC_TYPE_ACCEPT,
@@ -33,7 +28,6 @@ import DocumentPreview from "../components/DocumentPreview";
 import Pagination from "../components/Pagination";
 
 function Documents() {
-  const [documents, setDocuments] = useState([]);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [loggedInUser, setLoggedInUser] = useState(null);
@@ -42,7 +36,6 @@ function Documents() {
   // Employee self-upload
   const [documentType, setDocumentType] = useState("AADHAAR");
   const [uploadFile, setUploadFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [previewUrl, setPreviewUrl] = useState(null);
 
@@ -67,25 +60,25 @@ function Documents() {
     roleHasPermission(loggedInUser?.role, "documents:view-all");
   const isEmployee = !canSeeAll;
 
-  const fetchDocuments = useCallback(async () => {
-    if (!loggedInUser) return;
-    try {
-      const params = { page: docPagination.page, limit: docPagination.limit };
-      const res = canSeeAll
-        ? await getDocuments(params)
-        : await getEmployeeDocuments(loggedInUser.employeeId, params);
-      setDocuments(res.data.documents || []);
-      if (res.data.pagination) {
-        setDocPagination(prev => ({ ...prev, total: res.data.pagination.total, pages: res.data.pagination.pages }));
-      }
-    } catch (error) {
-      console.error("Error fetching documents:", error);
-    }
-  }, [loggedInUser, canSeeAll, docPagination.page, docPagination.limit]);
+  const { data: docsRes } = useDocuments(
+    { page: docPagination.page, limit: docPagination.limit },
+    { enabled: canSeeAll && !!loggedInUser }
+  );
+  const { data: empDocsRes } = useEmployeeDocuments(
+    loggedInUser?.employeeId,
+    { page: docPagination.page, limit: docPagination.limit },
+    { enabled: !canSeeAll && !!loggedInUser }
+  );
+  const docRes = canSeeAll ? docsRes : empDocsRes;
+  const documents = docRes?.data?.documents || [];
 
   useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments]);
+    if (docRes?.data?.pagination) {
+      setDocPagination(prev => ({ ...prev, total: docRes.data.pagination.total, pages: docRes.data.pagination.pages }));
+    }
+  }, [docRes?.data?.pagination]);
+
+  const uploadMutation = useUploadEmployeeDocument();
 
   const handleUpload = async () => {
     if (!uploadFile || !loggedInUser?.employeeId) return;
@@ -97,7 +90,6 @@ function Documents() {
       );
       return;
     }
-    setUploading(true);
     setMessage("");
     try {
       const formData = new FormData();
@@ -105,19 +97,16 @@ function Documents() {
       formData.append("employeeId", loggedInUser.employeeId);
       formData.append("documentType", documentType);
 
-      await uploadEmployeeDocument(formData);
+      await uploadMutation.mutateAsync(formData);
       setUploadFile(null);
       setMessage("Document uploaded successfully");
       setTimeout(() => setMessage(""), 3000);
-      fetchDocuments();
     } catch (error) {
       setMessage(
         error.response?.data?.message?.includes("File too large")
           ? "File size should be less than 20 MB"
           : error.response?.data?.message || "Upload failed"
       );
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -179,9 +168,9 @@ function Documents() {
                 </div>
               </label>
 
-              <Button onClick={handleUpload} disabled={!uploadFile || uploading}>
+              <Button onClick={handleUpload} disabled={!uploadFile || uploadMutation.isPending}>
                 <Upload size={16} />
-                {uploading ? "Uploading…" : "Upload"}
+                {uploadMutation.isPending ? "Uploading…" : "Upload"}
               </Button>
             </div>
 
