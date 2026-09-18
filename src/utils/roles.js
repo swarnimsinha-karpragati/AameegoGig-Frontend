@@ -121,6 +121,7 @@ const RBAC_ROUTE_PERMISSION = {
 const CUSTOM_ROLE_MODULE_PERMISSION = {
   "/attendance": "attendance:view",
   "/leave": "leave:view",
+  "/regularization": "regularization:view",
   "/payroll": "payroll:view",
   "/expenses": "expenses:view",
   "/documents": "documents:view",
@@ -587,7 +588,7 @@ export const refreshSessionFromServer = () => {
         !stored ||
         stored.role !== session.user.role ||
         JSON.stringify(stored.allowedModules ?? null) !==
-          JSON.stringify(session.user.allowedModules ?? null);
+        JSON.stringify(session.user.allowedModules ?? null);
       if (userChanged) {
         localStorage.setItem(
           "user",

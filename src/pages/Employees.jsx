@@ -177,7 +177,6 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Employment",
     fields: [
       { key: "client", label: "Client" },
-      { key: "employmentStatus", label: "Employment Status", type: "select-employment-status", hint: "New joiners start on probation by default" },
       { key: "probationEndDate", label: "Probation End Date", type: "date" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
       { key: "payType", label: "Pay Type", type: "select-paytype" },
@@ -332,6 +331,10 @@ function EmployeeFormFields({
         field.key === "dob"
           ? { max: getMaxDateOfBirthInputValue() }
           : {};
+      // Full-time hone par Probation End Date change nahi ho sakta.
+      if (field.key === "probationEndDate" && values?.employmentStatus === "full-time") {
+        dateInputProps.disabled = true;
+      }
 
       return (
         <>
@@ -1034,6 +1037,18 @@ function Employees() {
         return next;
       });
     } catch (err) {
+      // Yup validateAt unknown path par hard throw karta hai
+      // ("The schema does not contain the path: X"). Ye validation error
+      // nahi hai, isliye field par dikhane ke bajaye ignore karo.
+      if (err?.message?.includes('does not contain the path')) {
+        setErrors((prev) => {
+          if (!prev[name]) return prev;
+          const next = { ...prev };
+          delete next[name];
+          return next;
+        });
+        return;
+      }
       setErrors((prev) => ({ ...prev, [name]: err.message }));
     }
   };
@@ -1174,7 +1189,7 @@ function Employees() {
       alert("Please enter either an email or a phone number.");
       return;
     }
-    
+
     try {
       const payload = buildEmployeePayload(form, {
         createAppLogin: form.createAppLogin,
@@ -2209,7 +2224,6 @@ function Employees() {
                   <th>{name} name</th>
                   <th>Reporting Manager</th>
                   <th>State name</th>
-                  <th>Role</th>
                   <th>App Login</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -2296,12 +2310,6 @@ function Employees() {
                       <td title={emp.stateName}>
                         <span className="emp-truncate emp-truncate--state">
                           {emp.stateName || "-"}
-                        </span>
-                      </td>
-
-                      <td title={emp.linkedUser?.role || ""}>
-                        <span className="emp-truncate emp-truncate--state">
-                          {emp.linkedUser?.role || "-"}
                         </span>
                       </td>
 
@@ -2642,7 +2650,7 @@ function Employees() {
                 ) : (
                   <tr>
                     <td
-                      colSpan="11"
+                      colSpan="10"
                       className="empty-row"
                     >
                       No employees found.
@@ -3085,6 +3093,28 @@ function Employees() {
                     <div>
                       <label>PF Number</label>
                       <span>{selectedEmployee.pfNumber || "-"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-section">
+                  <h4>Access &amp; Login</h4>
+
+                  <div className="profile-grid">
+                    <div>
+                      <label>App Login</label>
+                      <span>
+                        {selectedEmployee.hasAppLogin
+                          ? selectedEmployee.hasLoginEnabled
+                            ? "Enabled"
+                            : "Disabled"
+                          : "No login"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Login Role</label>
+                      <span>{selectedEmployee.linkedUser?.role || selectedEmployee.userRole || "-"}</span>
                     </div>
                   </div>
                 </div>

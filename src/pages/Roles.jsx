@@ -57,6 +57,11 @@ function validateRoleName(raw) {
 // lockedPerms renders as a padlock (used to keep roles:manage off system roles).
 function PermEditor({ permissions, setPermissions, viewOnly, lockedPerms }) {
   const locked = lockedPerms || new Set();
+  // roles:manage (Roles & Access) sirf Administrator ke paas rehta hai —
+  // Create/Edit me ye group dikhta hi nahi, kisi ko grant nahi ho sakta.
+  const elevatedGroups = viewOnly
+    ? ELEVATED_GROUPS
+    : ELEVATED_GROUPS.filter((g) => g.key !== 'roles');
   const [openModules, setOpenModules] = useState(() => {
     const initial = {};
     ELEVATED_GROUPS.forEach((g) => {
@@ -128,7 +133,7 @@ function PermEditor({ permissions, setPermissions, viewOnly, lockedPerms }) {
         HR / Admin Features
       </div>
 
-      {ELEVATED_GROUPS.map((group) => {
+      {elevatedGroups.map((group) => {
         const selectedCount = group.perms.filter((p) => permissions.has(p.key)).length;
         const allSelected = selectedCount === group.perms.length;
         const someSelected = selectedCount > 0 && !allSelected;
@@ -335,11 +340,6 @@ function EditModal({ role, roleName, existingNames, onSave, onClose }) {
               </div>
             </div>
           </div>
-          {isSystem ? (
-            <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 8px" }}>
-              “Manage Roles & Permissions (Admin)” is restricted for system roles and cannot be granted here.
-            </p>
-          ) : null}
           <PermEditor permissions={permissions} setPermissions={setPermissions} viewOnly={false} lockedPerms={lockedPerms} />
         </div>
         <div className="roles-modal-footer">
@@ -430,6 +430,8 @@ export default function Roles() {
   }, []);
 
   const handleSavePermissions = async (roleName, permissions, meta = {}) => {
+    // Safety: roles:manage kabhi save nahi hoga (Admin-only).
+    permissions = (permissions || []).filter((perm) => perm !== "roles:manage");
     const roleDef = roles[roleName];
     const requestedKey = (meta.roleName || "").trim().replace(/\s+/g, "_") || roleName;
     const newDescription = meta.description !== undefined ? meta.description : (roleDef.description || "");
@@ -478,36 +480,84 @@ export default function Roles() {
   const handleConfirmDeleteRole = async () => {
     if (!deleteTarget) return;
     const roleName = deleteTarget;
-    if (roles[roleName]?.isSystem) {
+    const snapshot = roles[roleName];
+    if (snapshot?.isSystem) {
       setDeleteTarget(null);
       return;
     }
     setDeleting(true);
-    const roleDef = roles[roleName];
-    const { [roleName]: _, ...rest } = roles;
-    persistRoles(rest);
-    if (roleDef?._id) {
-      try {
-        const res = await deleteRole(roleDef._id);
-        const reassigned = res.data?.reassignedCount;
-        setFeedback({
-          type: "success",
-          message:
-            res.data?.message ||
-            (reassigned > 0
-              ? `Role deleted. ${reassigned} user${reassigned === 1 ? "" : "s"} moved to the Employee role.`
-              : "Role deleted. Users on this role were moved to the Employee role."),
-        });
-        syncRolesFromServer(true);
-      } catch (error) {
-        console.error("Sync role delete failed:", error);
-        alert(error.response?.data?.message || "Role removed locally, but could not be deleted from the server.");
+    try {
+      // Server id resolve karo: purane/stale local cache me _id missing ho
+      // sakta hai — us case me delete API lagti hi nahi thi aur success
+      // dikhne ke baad refresh par role wapas aa jata tha.
+      let serverId = snapshot?._id || null;
+      if (!serverId) {
+        try {
+          const backendRoles = await getRoles();
+          const match = (backendRoles || []).find((rb) => rb.roleName === roleName);
+          if (match?._id) serverId = match._id;
+        } catch {
+          /* server unreachable — local-only delete neeche hoga */
+        }
       }
-    } else {
-      setFeedback({ type: "success", message: "Role deleted. Users on this role were moved to the Employee role." });
+      if (!serverId) {
+        // Role sirf local cache me hai, server par kabhi bana hi nahi.
+        const { [roleName]: _, ...rest } = roles;
+        persistRoles(rest);
+        setFeedback({ type: "success", message: "Role deleted. Users on this role were moved to the Employee role." });
+        return;
+      }
+      const res = await deleteRole(serverId);
+      // Server ki canonical list se reconcile karo taaki aadha-adhura
+      // delete kabhi successful na lage.
+      try {
+        const backendRoles = await getRoles();
+        const serverNames = new Set((backendRoles || []).map((rb) => rb.roleName));
+        const reconciled = { ...roles };
+        if (!serverNames.has(roleName)) delete reconciled[roleName];
+        (backendRoles || []).forEach((rb) => {
+          if (rb.isAdmin) return;
+          reconciled[rb.roleName] = {
+            displayName: rb.displayName || rb.roleName,
+            description: rb.description || "",
+            permissions: rb.permissions || [],
+            baselinePermissions: rb.baselinePermissions || BASELINE_PERMISSIONS,
+            isSystem: Boolean(rb.isSystem),
+            isAdmin: Boolean(rb.isAdmin),
+            _id: rb._id,
+          };
+        });
+        persistRoles(reconciled);
+      } catch {
+        const { [roleName]: _, ...rest } = roles;
+        persistRoles(rest);
+      }
+      const reassigned = res.data?.reassignedCount;
+      setFeedback({
+        type: "success",
+        message:
+          res.data?.message ||
+          (reassigned > 0
+            ? `Role deleted. ${reassigned} user${reassigned === 1 ? "" : "s"} moved to the Employee role.`
+            : "Role deleted. Users on this role were moved to the Employee role."),
+      });
+      syncRolesFromServer(true);
+    } catch (error) {
+      console.error("Sync role delete failed:", error);
+      if (error.response?.status === 404) {
+        // Server par pehle se gayab hai — local copy bhi hata do.
+        const { [roleName]: _, ...rest } = roles;
+        persistRoles(rest);
+        setFeedback({ type: "success", message: "Role deleted." });
+      } else {
+        // Local state untouched rakha hai taaki role gayab na lage —
+        // failure ab saaf error me dikhega, jhootha success nahi.
+        setFeedback({ type: "error", message: error.response?.data?.message || "Could not delete role from the server." });
+      }
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
-    setDeleting(false);
-    setDeleteTarget(null);
   };
 
   // A new role must grant something beyond the default Employee baseline —
@@ -524,6 +574,7 @@ export default function Roles() {
     setRoleNameError("");
     if (!hasElevatedPerms(newRolePerms)) {
       setPermError("Please select at least one permission.");
+      alert("Please select at least one permission.");
       return;
     }
     setPermError("");
@@ -535,13 +586,15 @@ export default function Roles() {
       setRoleNameError("A role with this name already exists.");
       return;
     }
+    // Safety: roles:manage kabhi grant nahi hoga (Admin-only).
+    const cleanPerms = [...newRolePerms].filter((perm) => perm !== "roles:manage");
     const updated = {
       ...roles,
       [name]: {
         displayName: name,
         description: newRoleDesc.trim() || "Custom role",
         isSystem: false,
-        permissions: [...newRolePerms],
+        permissions: cleanPerms,
       },
     };
     persistRoles(updated);
@@ -550,7 +603,7 @@ export default function Roles() {
         roleName: name,
         displayName: name,
         description: newRoleDesc.trim() || "Custom role",
-        permissions: [...newRolePerms],
+        permissions: cleanPerms,
         baselinePermissions: BASELINE_PERMISSIONS,
       });
       const dbRole = res.data?.role;

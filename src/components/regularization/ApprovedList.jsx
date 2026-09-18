@@ -70,7 +70,7 @@ export default function ApprovedList({
                   <div className="regularization-request-card__meta">
                     <span>Approved {formatRegDate(request.decidedAt)}</span>
                     {request.approverId?.name ? (
-                      <span>Reviewed by {request.approverId.name}</span>
+                      <span>Approved by {request.approverId.name}</span>
                     ) : null}
                   </div>
                   {request.approverComment ? (

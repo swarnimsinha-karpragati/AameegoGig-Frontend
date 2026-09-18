@@ -64,7 +64,18 @@ export const describeApprovalChange = (request) => {
   };
 };
 
-export default function ApprovalsList({ toast, onChanged }) {
+export default function ApprovalsList({
+  toast,
+  onChanged,
+  // Team Requests tab reuse: apne query params + labels do.
+  // Default = org-wide approval queue (purana behavior same).
+  requestParams,
+  eyebrow = "Review queue",
+  title = "Pending approvals",
+  description = "Review the recorded value and requested correction before deciding.",
+  emptyTitle = "Nothing waiting for review",
+  emptyText = null,
+}) {
   const toastError = toast.error;
   const toastSuccess = toast.success;
   const user = getStoredUser();
@@ -88,8 +99,8 @@ export default function ApprovalsList({ toast, onChanged }) {
   const [deciding, setDeciding] = useState(false);
 
   const approvalsQuery = useRegularizationRequests({
-    pendingForApproval: 1,
     limit: 100,
+    ...(requestParams || { pendingForApproval: 1 }),
     ...(filter === "all" ? {} : { kind: filter }),
   });
   const approveMutation = useApproveRegularizationRequest();
@@ -154,9 +165,9 @@ export default function ApprovalsList({ toast, onChanged }) {
     <section className="regularization-panel regularization-glass">
       <div className="regularization-panel__head regularization-panel__head--row">
         <div>
-          <span className="regularization-eyebrow">Review queue</span>
-          <h2>Pending approvals</h2>
-          <p>Review the recorded value and requested correction before deciding.</p>
+          <span className="regularization-eyebrow">{eyebrow}</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
         </div>
         <span className="regularization-count">{requests.length} pending</span>
       </div>
@@ -187,8 +198,8 @@ export default function ApprovalsList({ toast, onChanged }) {
       ) : requests.length === 0 ? (
         <div className="regularization-state regularization-state--empty">
           <span><Inbox size={26} /></span>
-          <h3>Nothing waiting for review</h3>
-          <p>Pending {filter === "all" ? "" : `${filter} `}requests will appear here.</p>
+          <h3>{emptyTitle}</h3>
+          <p>{emptyText || <>Pending {filter === "all" ? "" : `${filter} `}requests will appear here.</>}</p>
         </div>
       ) : (
         <div className="regularization-approval-list">

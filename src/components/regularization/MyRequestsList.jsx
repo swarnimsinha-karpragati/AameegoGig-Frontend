@@ -110,7 +110,7 @@ export default function MyRequestsList({
                   <div className="regularization-request-card__meta">
                     <span>Requested {formatRegDate(request.createdAt)}</span>
                     {request.approverId?.name ? (
-                      <span>Reviewed by {request.approverId.name}</span>
+                      <span>Approved by {request.approverId.name}</span>
                     ) : null}
                   </div>
                   {request.approverComment ? (

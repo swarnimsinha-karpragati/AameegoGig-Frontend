@@ -281,6 +281,13 @@ function Attendance() {
     // eslint-disable-next-line
   }, [user?.role]);
 
+  // Initial + filter/page/month change loads. 
+  useEffect(() => {
+    loadSelfData();
+    loadOrgData();
+    // eslint-disable-next-line
+  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role]);
+
   useEffect(() => {
     if (employees.length > 0 && (!markForm.employeeId || !markMonthForm.employeeId)) {
       setMarkForm((prev) => ({ ...prev, employeeId: employees[0]._id }));

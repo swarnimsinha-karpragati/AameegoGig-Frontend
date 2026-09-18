@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
-import { canAccessRoute, getRoleLabel, getStoredUser, roleHasPermission, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer, refreshSessionFromServer } from "../utils/roles";
+import { canAccessRoute, getRoleLabel, getStoredUser, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer, refreshSessionFromServer } from "../utils/roles";
 import { loadRoles, saveRoles } from "../utils/permissions";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
@@ -113,7 +113,7 @@ function MainLayout({ children }) {
   useEffect(() => {
     let cancelled = false;
     // Live session first: an Administrator role reassignment lands here.
-    refreshSessionFromServer().catch(() => {});
+    refreshSessionFromServer().catch(() => { });
     fetchRolesCatalog().then((merged) => {
       if (cancelled || !merged) return;
       if (rolesCatalogKey(merged) !== rolesCatalogKey(loadRoles())) {
@@ -209,7 +209,11 @@ function MainLayout({ children }) {
     { label: "Settings", path: "/settings", icon: Settings },
   ].filter((item) => canAccessRoute(user?.role, item.path, user?.allowedModules));
 
-  if (roleHasPermission(user?.role, "roles:manage")) {
+  // Sidebar visibility MUST use the same gate as ProtectedRoute — raw
+  // roleHasPermission("roles:manage") is true for stale catalog grants
+  // while canAccessRoute("/roles") denies them, leaving a dead menu item
+  // that shows but never opens. Single source of truth = canAccessRoute.
+  if (canAccessRoute(user?.role, "/roles", user?.allowedModules)) {
     menuItems.push({ label: "Roles & Access", path: "/roles", icon: ShieldCheck });
   }
 
