@@ -112,12 +112,6 @@ export default function Payroll() {
     setPayrollPagination((p) => ({ ...p, page: 1 }));
   }, [debouncedSearch, selectedMonth, selectedYear, activeTab, payrollReviewFilter, payslipTypeFilter]);
 
-  const loadEmployees = useCallback(async () => {
-    if (!isAdminOrHR) return;
-    const empRes = await getEmployees();
-    setEmployees(empRes.data?.employees || []);
-  }, [isAdminOrHR]);
-
   const loadPayrollList = useCallback(
     async (clearMessage = true) => {
       if (!user) return;
@@ -181,20 +175,18 @@ export default function Payroll() {
   );
 
   const loadData = async (clearMessage = true) => {
-    await Promise.all([loadEmployees(), loadPayrollList(clearMessage)]);
+    await loadPayrollList(clearMessage);
   };
 
   useEffect(() => {
+    if (isAdminOrHR) return;
     const bootstrap = async () => {
-      if (!isAdminOrHR) {
-        try {
-          const me = await getCurrentUser();
-          if (me?.user) localStorage.setItem("user", JSON.stringify(me.user));
-        } catch {
-          // keep stored user
-        }
+      try {
+        const me = await getCurrentUser();
+        if (me?.user) localStorage.setItem("user", JSON.stringify(me.user));
+      } catch {
+        // keep stored user
       }
-      loadEmployees();
     };
     bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
