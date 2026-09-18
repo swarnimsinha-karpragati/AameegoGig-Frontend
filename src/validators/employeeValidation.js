@@ -207,7 +207,7 @@ export const employeeValidationSchema = Yup.object().shape({
     .default(null),
 
   payType: Yup.string()
-    .oneOf(["MONTHLY", "DAILY"], "Invalid pay type")
+    .oneOf(["MONTHLY", "DAILY", "CALENDAR_DAILY"], "Invalid pay type")
     .default("MONTHLY"),
 
   // ---- Probation / Employment status ----

@@ -143,6 +143,23 @@ export const validateComponentsMatchDailyWage = ({ dailyWage, components = [] })
     : `Total Earnings (₹${fmt(earnings)}/day) is ₹${fmt(difference)} less than Daily Wage (₹${fmt(wage)}/day). Please adjust.`;
 };
 
+/** Calendar daily (sheet): require dailyWage + fixed BASIC; payroll rebuilds HRA/statutory. */
+export const validateComponentsMatchCalendarDaily = ({
+  dailyWage,
+  components = [],
+} = {}) => {
+  const wageErr = validateDailyWage(dailyWage);
+  if (wageErr) return wageErr;
+  const lines = (components || []).filter((comp) => comp && comp.enabled !== false);
+  if (!lines.length) return "At least one salary component is required";
+
+  const basic = lines.find((c) => String(c.code || "").toUpperCase() === "BASIC");
+  if (!basic) return "BASIC is required for Calendar Daily wage type";
+  const basicAmt = Number(basic.monthlyAmount) || 0;
+  if (basicAmt <= 0) return "BASIC fixed amount must be greater than 0 for Calendar Daily wage type";
+  return "";
+};
+
 /** Validate only the earning lines shown in the appointment letter salary table. */
 export const validateLetterSalaryStructure = ({ annualCTC, salaryComponents = [] }) => {
   const errors = [];
@@ -177,8 +194,17 @@ export const validateLetterSalaryStructure = ({ annualCTC, salaryComponents = []
   return errors;
 };
 
-export const validateStructureDraft = ({ ctcAnnual, dailyWage, wageType, components = [] }) => {
-  const isDaily = String(wageType || "").toUpperCase() === "DAILY" || (dailyWage != null && dailyWage !== "" && (ctcAnnual == null || ctcAnnual === "" || Number(ctcAnnual) === 0));
+export const validateStructureDraft = ({ ctcAnnual, dailyWage, wageType, components = [], daysInMonth } = {}) => {
+  const wt = String(wageType || "").toUpperCase();
+  if (wt === "CALENDAR_DAILY") {
+    const errors = [];
+    const wageErr = validateDailyWage(dailyWage);
+    if (wageErr) errors.push(wageErr);
+    const matchErr = validateComponentsMatchCalendarDaily({ dailyWage, components, daysInMonth });
+    if (matchErr) errors.push(matchErr);
+    return errors;
+  }
+  const isDaily = wt === "DAILY" || (dailyWage != null && dailyWage !== "" && (ctcAnnual == null || ctcAnnual === "" || Number(ctcAnnual) === 0) && wt !== "MONTHLY");
   if (isDaily) {
     const errors = [];
     const wageErr = validateDailyWage(dailyWage);

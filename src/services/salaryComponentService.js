@@ -89,3 +89,10 @@ export const deleteSalaryStructure = async (vendorId, structureId) => {
 export const calculateStructureSplit = async (vendorId, payload) => {
   return API.post(`/salary-components/structure/${vendorId}/calculate-split`, payload);
 };
+
+export const calculateCalendarDailySplit = async (vendorId, payload) => {
+  return API.post(
+    `/salary-components/structure/${vendorId}/calculate-calendar-daily-split`,
+    payload
+  );
+};

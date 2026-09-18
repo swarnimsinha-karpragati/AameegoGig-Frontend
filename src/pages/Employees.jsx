@@ -83,11 +83,11 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, sumLetterMonthlyGross } from "../utils/salaryValidation";
+import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, validateComponentsMatchCalendarDaily, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
 import DocumentPreview from "../components/DocumentPreview";
-import { isSiteVendor } from "../utils/vendorIdhelper";
+import { isSiteVendor, canUseCalendarDailyPay } from "../utils/vendorIdhelper";
 import { defaultSelectedModules } from "../utils/roles";
 import { downloadCredentialExcel } from "../utils/credentialExcel";
 import { getRoles } from "../services/roleService";
@@ -367,6 +367,9 @@ function EmployeeFormFields({
           <select {...common} value={values.payType || ""}>
             <option value="MONTHLY">Monthly</option>
             <option value="DAILY">Daily</option>
+            {(canUseCalendarDailyPay() || values.payType === "CALENDAR_DAILY") && (
+              <option value="CALENDAR_DAILY">Calendar Daily</option>
+            )}
           </select>
 
           <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
@@ -1243,10 +1246,13 @@ function Employees() {
         }
         // Manual component entry must add up to CTC / daily wage when no template used
         if (!salaryDraft.structureId) {
-          const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || (Number(salaryDraft.dailyWage) > 0);
-          const matchError = isDailyDraft
-            ? validateComponentsMatchDailyWage(salaryDraft)
-            : validateComponentsMatchCtc(salaryDraft);
+          const draftWt = String(salaryDraft.wageType || "").toUpperCase();
+          const matchError =
+            draftWt === "CALENDAR_DAILY"
+              ? validateComponentsMatchCalendarDaily(salaryDraft)
+              : draftWt === "DAILY" || (Number(salaryDraft.dailyWage) > 0 && draftWt !== "MONTHLY")
+                ? validateComponentsMatchDailyWage(salaryDraft)
+                : validateComponentsMatchCtc(salaryDraft);
           if (matchError) {
             setErrors({ salaryStructure: matchError });
             alert(matchError);
@@ -1265,16 +1271,32 @@ function Employees() {
 
       if (newEmployeeId && hasSalaryData(salaryDraft)) {
         try {
-          const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || Number(salaryDraft.dailyWage) > 0;
-          await saveEmployeeStructure(newEmployeeId, isDailyDraft ? {
-            wageType: "DAILY",
-            dailyWage: Number(salaryDraft.dailyWage) || 0,
-            components: salaryDraft.components,
-          } : {
-            wageType: "MONTHLY",
-            ctcAnnual: Number(salaryDraft.ctcAnnual) || 0,
-            components: salaryDraft.components,
-          });
+          const draftWt = String(salaryDraft.wageType || "").toUpperCase();
+          let structurePayload;
+          if (draftWt === "CALENDAR_DAILY") {
+            structurePayload = {
+              wageType: "CALENDAR_DAILY",
+              dailyWage: Number(salaryDraft.dailyWage) || 0,
+              monthlyGross: salaryDraft.components
+                ?.filter((c) => c.category === "Earning")
+                .reduce((s, c) => s + (Number(c.monthlyAmount) || 0), 0),
+              structureId: salaryDraft.structureId,
+              components: salaryDraft.components,
+            };
+          } else if (draftWt === "DAILY" || (Number(salaryDraft.dailyWage) > 0 && draftWt !== "MONTHLY")) {
+            structurePayload = {
+              wageType: "DAILY",
+              dailyWage: Number(salaryDraft.dailyWage) || 0,
+              components: salaryDraft.components,
+            };
+          } else {
+            structurePayload = {
+              wageType: "MONTHLY",
+              ctcAnnual: Number(salaryDraft.ctcAnnual) || 0,
+              components: salaryDraft.components,
+            };
+          }
+          await saveEmployeeStructure(newEmployeeId, structurePayload);
         } catch (structureError) {
           alert(
             structureError.response?.data?.message ||
