@@ -18,20 +18,21 @@ import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import LeaveEditModal from "../components/leave/LeaveEditModal";
 import { ToastProvider, useToast } from "../components/Toast";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
-  approveLeaveRequest,
-  cancelLeaveRequest,
-  createLeaveRequest,
-  createLeaveRequestMultipart,
-  getLeaveBalances,
-  getLeaveDashboard,
-  getLeavePolicy,
-  getLeaveRequests,
-  rejectLeaveRequest,
-  updateLeaveBalances,
-} from "../services/leaveService";
+  useLeaveDashboard,
+  useLeaveRequests,
+  useCreateLeaveRequest,
+  useCreateLeaveRequestMultipart,
+  useApproveLeaveRequest,
+  useRejectLeaveRequest,
+  useCancelLeaveRequest,
+  useLeaveBalances,
+  useUpdateLeaveBalances,
+  useLeavePolicy,
+} from "../hooks/useLeave";
+import { getLeaveBalances } from "../services/leaveService";
 import {
   getLeaveViewKey,
   getStoredUser,
@@ -50,13 +51,6 @@ import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
-
-const ROLE_DESCRIPTIONS = {
-  Organization: "Organization-wide leave overview and management",
-  HR: "HR leave policies, balances, and org-wide approvals",
-  Manager: "Review and approve leave requests for your team",
-  Employee: "Apply for leave and track your personal balance",
-};
 
 const leaveStatusClass = {
   Approved: "leave-status approved",
@@ -147,14 +141,29 @@ function LeaveInner() {
   );
   const activeTab = showEmployeeTab ? leaveTab : "organization";
 
-  const [dashboard, setDashboard] = useState(null);
-  const [requests, setRequests] = useState([]);
-  const [balances, setBalances] = useState([]);
-  const [leavePolicy, setLeavePolicy] = useState(null);
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const canManageLeave = roleCanManageLeaveRequests(user?.role);
+
+  const { data: employees = [] } = useAllEmployees({ enabled: canManageLeave });
+
+  const dashboardQuery = useLeaveDashboard();
+  const requestsQuery = useLeaveRequests();
+  const balancesQuery = useLeaveBalances();
+  const policyQuery = useLeavePolicy();
+
+  const createLeaveMutation = useCreateLeaveRequest();
+  const createLeaveMultipartMutation = useCreateLeaveRequestMultipart();
+  const approveLeaveMutation = useApproveLeaveRequest();
+  const rejectLeaveMutation = useRejectLeaveRequest();
+  const cancelLeaveMutation = useCancelLeaveRequest();
+  const updateBalancesMutation = useUpdateLeaveBalances();
+
+  const dashboard = dashboardQuery.data;
+  const requests = useMemo(() => requestsQuery.data?.requests || [], [requestsQuery.data]);
+  const balances = useMemo(() => Array.isArray(balancesQuery.data?.balances) ? balancesQuery.data.balances : [], [balancesQuery.data]);
+  const leavePolicy = policyQuery.data?.policy || policyQuery.data || null;
+
+  const loading = dashboardQuery.isLoading || requestsQuery.isLoading;
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState("");
   const [selectedBalanceEmployee, setSelectedBalanceEmployee] = useState("");
   // Team balance viewer (view-only): selected employee to look up, same
   // layout as admin — but every field disabled, no save, nothing editable.
@@ -251,8 +260,6 @@ function LeaveInner() {
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
   const openModal = (config) => setModal({ open: true, ...config });
 
-  const canManageLeave =
-    roleCanManageLeaveRequests(user?.role) || dashboard?.scope === "team";
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
   const canDirectEditLeave =
@@ -474,134 +481,75 @@ function LeaveInner() {
     return fallback;
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [dashResult, reqResult, balResult, policyResult] =
-        await Promise.allSettled([
-          getLeaveDashboard(),
-          getLeaveRequests(),
-          getLeaveBalances(),
-          getLeavePolicy(),
-        ]);
-
-      if (dashResult.status === "rejected") {
-        throw dashResult.reason;
+  useEffect(() => {
+    if (employees.length > 0) {
+      if (!leaveForm.employeeId) {
+        setLeaveForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
       }
-      if (reqResult.status === "rejected") {
-        throw reqResult.reason;
+      if (!selectedBalanceEmployee) {
+        setSelectedBalanceEmployee(employees[0]._id);
       }
-
-      setDashboard(dashResult.value);
-      setRequests(reqResult.value.requests || []);
-
-      if (policyResult.status === "fulfilled") {
-        const pol = policyResult.value.policy || policyResult.value;
-        setLeavePolicy(pol || null);
-
-        const enabledCodes = (pol?.types || [])
-          .filter((t) => t?.enabled)
-          .map((t) => t.code);
-
-        const desiredLeaveType = enabledCodes.includes("CL")
-          ? "CL"
-          : enabledCodes[0] || "CL";
-
-        setLeaveForm((prev) => ({
-          ...prev,
-          leaveType: desiredLeaveType,
-          requestType: desiredLeaveType === "WFH" ? "WFH" : "Leave",
-        }));
-      }
-
-      if (balResult.status === "fulfilled") {
-        const balRes = balResult.value;
-        setBalances(Array.isArray(balRes.balances) ? balRes.balances : []);
-      } else {
-        setBalances([]);
-        const balanceMessage =
-          balResult.reason?.response?.data?.message ||
-          balResult.reason?.message;
-        if (balanceMessage && balanceMessage !== "Route not found") {
-          console.warn("Leave balances unavailable:", balanceMessage);
-        }
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to load leave data");
-    } finally {
-      setLoading(false);
     }
-  };
-
-  const loadEmployees = async () => {
-    if (!canManageLeave) return;
-    try {
-      const res = await getEmployees();
-      const list = res.data?.employees || [];
-      setEmployees(list);
-      if (!leaveForm.employeeId && list.length > 0) {
-        setLeaveForm((prev) => ({ ...prev, employeeId: list[0]._id }));
-      }
-      if (!selectedBalanceEmployee && list.length > 0) {
-        setSelectedBalanceEmployee(list[0]._id);
-      }
-    } catch {
-      // non-blocking
-    }
-  };
-
-  useEffect(() => {
-    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [employees]);
 
   useEffect(() => {
-    loadEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.role]);
-
-  useEffect(() => {
-    const selected = balances.find(
+    if (!selectedBalanceEmployee) return;
+    const selected = (balances || []).find(
       (b) => String(b.employeeId) === String(selectedBalanceEmployee)
     );
-    if (!selected) return;
-    const nextForm = {};
-    selected.balances.forEach((item) => {
-      nextForm[item.type] = { total: item.total, used: item.used };
-    });
-    setBalanceForm((prev) => ({ ...prev, ...nextForm }));
-  }, [balances, selectedBalanceEmployee]);
-
-  // WFH quota is NOT part of the org-wide balances list (hasBalance=false),
-  // so fetch the selected employee's quota separately. This is what the
-  // employee sees as "WFH 1/2" on their panel.
-  useEffect(() => {
-    if (!selectedBalanceEmployee || !canEditBalances) {
-      setSelectedWfhQuota(null);
+    if (selected && Array.isArray(selected.balances)) {
+      const nextForm = {};
+      selected.balances.forEach((item) => {
+        nextForm[item.type] = { total: item.total, used: item.used };
+      });
+      setBalanceForm((prev) => ({ ...prev, ...nextForm }));
       return;
     }
+    // Selected employee not in the cached org list (e.g. newly added
+    // employee while the list is stale, or a single-employee list shape).
+    // Fetch their balances directly so the rows below always follow the
+    // dropdown selection instead of staying stuck on the previous values.
     let cancelled = false;
     (async () => {
       try {
         const res = await getLeaveBalances(selectedBalanceEmployee);
         if (cancelled) return;
-        const quota = res?.wfhQuota || null;
-        setSelectedWfhQuota(quota);
-        if (quota && quota.total != null) {
-          setBalanceForm((prev) => ({
-            ...prev,
-            WFH: { total: quota.total ?? "", used: quota.used ?? "" },
-          }));
+        const rows = Array.isArray(res?.balances) ? res.balances : [];
+        if (!rows.length && !res?.wfhQuota) return;
+        const nextForm = {};
+        rows.forEach((item) => {
+          if (item?.type) nextForm[item.type] = { total: item.total ?? "", used: item.used ?? "" };
+        });
+        if (res?.wfhQuota && res.wfhQuota.total != null) {
+          nextForm.WFH = { total: res.wfhQuota.total ?? "", used: res.wfhQuota.used ?? "" };
         }
+        setBalanceForm((prev) => ({ ...prev, ...nextForm }));
       } catch {
-        if (!cancelled) setSelectedWfhQuota(null);
+        // non-blocking: rows keep previous values
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedBalanceEmployee, canEditBalances]);
+  }, [balances, selectedBalanceEmployee]);
+
+  const wfhQuotaQuery = useLeaveBalances(selectedBalanceEmployee, {
+    enabled: Boolean(selectedBalanceEmployee && canEditBalances),
+  });
+
+  useEffect(() => {
+    const res = wfhQuotaQuery.data;
+    if (!res) return;
+    const quota = res?.wfhQuota || null;
+    setSelectedWfhQuota(quota);
+    if (quota && quota.total != null) {
+      setBalanceForm((prev) => ({
+        ...prev,
+        WFH: { total: quota.total ?? "", used: quota.used ?? "" },
+      }));
+    }
+  }, [wfhQuotaQuery.data]);
 
   /* ── Handlers ── */
   const handleCreateRequest = async (e, forSelf = false) => {
@@ -611,7 +559,6 @@ function LeaveInner() {
         toast.error(dateValidationError.message);
         return;
       }
-      // WFH quota is validated server-side on submit (backend is source of truth).
       if (!leaveForm.reason?.trim()) {
         toast.error("Please enter a reason for this request");
         return;
@@ -642,9 +589,9 @@ function LeaveInner() {
           if (v !== undefined && v !== null) formData.append(k, v);
         });
         formData.append("file", medicalDocFile);
-        await createLeaveRequestMultipart(formData);
+        await createLeaveMultipartMutation.mutateAsync(formData);
       } else {
-        await createLeaveRequest(payload);
+        await createLeaveMutation.mutateAsync(payload);
       }
 
       toast.success(`${getRequestKind(payload.leaveType, payload.requestType, isCoCreditSubmit)} request submitted successfully`);
@@ -663,7 +610,6 @@ function LeaveInner() {
         dayPart: "full",
       }));
       setMedicalDocFile(null);
-      loadData();
     } catch (err) {
       toast.error(leaveApiErrorMessage(err, "Failed to submit request"));
     }
@@ -683,13 +629,12 @@ function LeaveInner() {
         setActionLoading(true);
         try {
           if (isApprove) {
-            await approveLeaveRequest(id);
+            await approveLeaveMutation.mutateAsync({ id });
             toast.success(`${kind} request approved`);
           } else {
-            await rejectLeaveRequest(id);
+            await rejectLeaveMutation.mutateAsync({ id });
             toast.warning(`${kind} request rejected`);
           }
-          loadData();
         } catch (err) {
           toast.error(leaveApiErrorMessage(err, "Action failed"));
         } finally {
@@ -713,9 +658,8 @@ function LeaveInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await cancelLeaveRequest(item._id, {});
+          await cancelLeaveMutation.mutateAsync({ id: item._id, cancelReason: {} });
           toast.success(`${kind} request cancelled successfully`);
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Cancel failed");
         } finally {
@@ -731,13 +675,9 @@ function LeaveInner() {
     if (!selectedBalanceEmployee) return;
     try {
       const payload = {};
-      // Backend currently understands legacy keys (CL/SL/EL/CO) and the
-      // dynamic WFH bucket. This UI renders based on enabled policy balance types.
       leaveBalanceTypes.forEach((code) => {
         if (!["CL", "SL", "EL", "CO", "WFH"].includes(code)) return;
         if (!balanceForm?.[code]) return;
-        // WFH Used is derived from Pending+Approved requests — only Total
-        // (current month grant) is editable. Sending Used would be ignored.
         if (code === "WFH") {
           if (balanceForm.WFH?.total === "" || balanceForm.WFH?.total == null) return;
           payload.WFH = { total: Number(balanceForm.WFH.total) };
@@ -749,9 +689,8 @@ function LeaveInner() {
         };
       });
 
-      await updateLeaveBalances(selectedBalanceEmployee, payload);
+      await updateBalancesMutation.mutateAsync({ employeeId: selectedBalanceEmployee, payload });
       toast.success("Leave balances updated");
-      loadData();
     } catch (err) {
       toast.error(err.response?.data?.message || "Unable to save balances");
     }
@@ -1167,9 +1106,12 @@ function LeaveInner() {
 
                     <td>
                       {(() => {
+                        // Team leads approve reportees via team scope (backend
+                        // grants canApproveLeave automatically) — org-wide
+                        // leave:approve-all permission is not required here.
                         const showApprove =
                           mode === "approve" &&
-                          canApprove &&
+                          (canApprove || hasTeam) &&
                           item.status === "Pending";
                         const showCancel =
                           mode === "employee" &&
@@ -1345,7 +1287,7 @@ function LeaveInner() {
                     <span className="balance-row__type">{type}</span>
                     <div className="leave-field balance-row__field">
                       <label htmlFor={`balance-${type}-total`}>
-                        {isWfhRow ? "Total (this month)" : "Total"}
+                        Total
                       </label>
                       <input
                         id={`balance-${type}-total`}
@@ -1369,7 +1311,6 @@ function LeaveInner() {
                         className="leave-control"
                         placeholder="0"
                         value={balanceForm[type]?.used ?? ""}
-                        disabled={isWfhRow}
                         title={isWfhRow ? "WFH used is auto-counted from Pending + Approved requests" : undefined}
                         onChange={(e) =>
                           setBalanceForm((prev) => ({
@@ -1411,7 +1352,7 @@ function LeaveInner() {
             {wfhQuota && wfhQuota.total != null ? (
               <div className="leave-balance-item" key="WFH">
                 <span>Work From Home (WFH)</span>
-                <strong>{wfhQuota.remaining}</strong>
+                <strong>{wfhQuota.total}</strong>
               </div>
             ) : null}
           </>
@@ -1687,21 +1628,10 @@ function LeaveInner() {
   const renderEmployeeTab = () =>
     viewRole === "Manager" ? renderManagerView() : renderEmployeeView();
 
-  const tabSubtitle =
-    activeTab === "organization"
-      ? ROLE_DESCRIPTIONS.Organization
-      : viewRole === "Manager"
-        ? ROLE_DESCRIPTIONS.Manager
-        : ROLE_DESCRIPTIONS.Employee;
-
   return (
     <MainLayout>
       <div className="leave-page">
         <div className="leave-header-banner">
-          <div>
-            <h1 className="leave-title">Leave</h1>
-            <p className="leave-subtitle">{tabSubtitle}</p>
-          </div>
           {canConfigurePolicy ? (
             <Button
               type="button"
@@ -1714,7 +1644,7 @@ function LeaveInner() {
           ) : null}
         </div>
 
-        {error ? <p className="leave-alert leave-alert--error">{error}</p> : null}
+        {dashboardQuery.error ? <p className="leave-alert leave-alert--error">{dashboardQuery.error?.response?.data?.message || "Failed to load leave data"}</p> : null}
 
         {showEmployeeTab && showOrgTab ? (
           <div className="leave-tabs" role="tablist" aria-label="Leave views">
@@ -1755,7 +1685,11 @@ function LeaveInner() {
           open={Boolean(editLeaveRecord)}
           record={editLeaveRecord}
           onClose={() => setEditLeaveRecord(null)}
-          onSaved={loadData}
+          onSaved={() => {
+            dashboardQuery.refetch();
+            requestsQuery.refetch();
+            balancesQuery.refetch();
+          }}
         />
 
       </div>

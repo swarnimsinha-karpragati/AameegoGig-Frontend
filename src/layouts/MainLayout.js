@@ -13,11 +13,14 @@ import {
   ReceiptText,
   FileSignature,
   ClipboardPen,
-  ShieldCheck
+  ShieldCheck,
+  Menu,
+  X,
+  ChevronsLeft
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
-import { canAccessRoute, getRoleLabel, getStoredUser, roleHasPermission, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer } from "../utils/roles";
+import { canAccessRoute, getRoleLabel, getStoredUser, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer, refreshSessionFromServer } from "../utils/roles";
 import { loadRoles, saveRoles } from "../utils/permissions";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
@@ -31,6 +34,49 @@ function MainLayout({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
   const [avatarBroken, setAvatarBroken] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem("sidebar-collapsed") === "1"
+  );
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 900
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const onChange = (e) => {
+      setIsMobile(e.matches);
+      if (e.matches) setSidebarCollapsed(false);
+      else setMobileNavOpen(false);
+    };
+    setIsMobile(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("sidebar-collapsed", sidebarCollapsed ? "1" : "0");
+  }, [sidebarCollapsed]);
+
+  // Mobile drawer khulne par background scroll lock, route badalne par auto-close.
+  useEffect(() => {
+    document.body.style.overflow = mobileNavOpen && isMobile ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileNavOpen, isMobile]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Sync state dynamically whenever local storage changes.
   // roles-updated also triggers a (throttled) server re-fetch so a Roles-page
@@ -66,6 +112,8 @@ function MainLayout({ children }) {
   // "roles-updated" event fires.
   useEffect(() => {
     let cancelled = false;
+    // Live session first: an Administrator role reassignment lands here.
+    refreshSessionFromServer().catch(() => { });
     fetchRolesCatalog().then((merged) => {
       if (cancelled || !merged) return;
       if (rolesCatalogKey(merged) !== rolesCatalogKey(loadRoles())) {
@@ -130,6 +178,7 @@ function MainLayout({ children }) {
     "/employees": { title: "Employees", subtitle: "Manage your organization workforce" },
     "/attendance": { title: "Attendance", subtitle: "Track and manage employee attendance" },
     "/leave": { title: "Leave", subtitle: "Review and approve employee leave requests" },
+    "/leave/policy": { title: "Leave Policy", subtitle: "Set up how employees earn, use and carry forward leave" },
     "/regularization": {
       title: "Regularization",
       subtitle: "Request and approve attendance and leave corrections",
@@ -160,7 +209,11 @@ function MainLayout({ children }) {
     { label: "Settings", path: "/settings", icon: Settings },
   ].filter((item) => canAccessRoute(user?.role, item.path, user?.allowedModules));
 
-  if (roleHasPermission(user?.role, "roles:manage")) {
+  // Sidebar visibility MUST use the same gate as ProtectedRoute — raw
+  // roleHasPermission("roles:manage") is true for stale catalog grants
+  // while canAccessRoute("/roles") denies them, leaving a dead menu item
+  // that shows but never opens. Single source of truth = canAccessRoute.
+  if (canAccessRoute(user?.role, "/roles", user?.allowedModules)) {
     menuItems.push({ label: "Roles & Access", path: "/roles", icon: ShieldCheck });
   }
 
@@ -209,18 +262,53 @@ function MainLayout({ children }) {
 
 
   return (
-    <div className="dashboard-layout">
-      <aside className="sidebar">
+    <div
+      className={`dashboard-layout${sidebarCollapsed && !isMobile ? " sidebar-collapsed" : ""}${mobileNavOpen ? " mobile-nav-open" : ""}`}
+    >
+      {mobileNavOpen && isMobile && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside className="sidebar" aria-label="Main navigation">
         <div className="sidebar-top">
           <div className="brand">
-            <img
-              src={logo ? logo : defaultLogo}
-              alt="Logo"
-              onError={() => setLogo(null)}
-              width="60%"
-              height="auto"
-              style={{ padding: '1rem 0rem' }}
-            />
+            <div className="brand-row">
+              <img
+                src={logo ? logo : defaultLogo}
+                alt="Logo"
+                onError={() => setLogo(null)}
+                width="60%"
+                height="auto"
+                style={{ padding: '1rem 0rem' }}
+              />
+              <div className="sidebar-toggle-wrap">
+                {!isMobile && (
+                  <button
+                    type="button"
+                    className="sidebar-toggle-btn"
+                    onClick={() => setSidebarCollapsed((v) => !v)}
+                    title={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+                    aria-label={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+                  >
+                    <ChevronsLeft size={18} className={sidebarCollapsed ? "flip" : ""} />
+                  </button>
+                )}
+                {isMobile && (
+                  <button
+                    type="button"
+                    className="sidebar-toggle-btn"
+                    onClick={() => setMobileNavOpen(false)}
+                    title="Close menu"
+                    aria-label="Close menu"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+            </div>
 
             <p style={{ fontSize: '12px', fontWeight: '700', marginBottom: '5px' }}>
               {isSite ? "We make your lives simpler." : "One Workforce. One Platform."}
@@ -240,7 +328,11 @@ function MainLayout({ children }) {
                   key={item.path}
                   type="button"
                   className={`menu-item ${isActive ? "active" : ""}`}
-                  onClick={() => navigate(`/${vendorCode}${item.path}`)}
+                  title={item.label}
+                  onClick={() => {
+                    navigate(`/${vendorCode}${item.path}`);
+                    if (isMobile) setMobileNavOpen(false);
+                  }}
                 >
                   <Icon size={20} />
                   <span>{item.label}</span>
@@ -275,9 +367,33 @@ function MainLayout({ children }) {
 
       <div className="main-area">
         <div className="topbar">
-          <div>
-            <h2>{currentPage.title}</h2>
-            <p>{currentPage.subtitle}</p>
+          <div className="topbar-left">
+            {isMobile ? (
+              <button
+                type="button"
+                className="sidebar-toggle-btn hamburger"
+                onClick={() => setMobileNavOpen(true)}
+                aria-label="Open menu"
+              >
+                <Menu size={20} />
+              </button>
+            ) : (
+              sidebarCollapsed && (
+                <button
+                  type="button"
+                  className="sidebar-toggle-btn hamburger"
+                  onClick={() => setSidebarCollapsed(false)}
+                  aria-label="Open sidebar"
+                  title="Open sidebar"
+                >
+                  <Menu size={20} />
+                </button>
+              )
+            )}
+            <div>
+              <h2>{currentPage.title}</h2>
+              <p>{currentPage.subtitle}</p>
+            </div>
           </div>
 
           <button

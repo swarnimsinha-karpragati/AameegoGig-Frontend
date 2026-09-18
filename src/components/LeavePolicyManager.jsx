@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import Button from "./Button";
 import "./LeavePolicyManager.css";
-import { getLeavePolicy, updateLeavePolicy } from "../services/leaveService";
+import { useLeavePolicy, useUpdateLeavePolicy } from "../hooks/useLeave";
 import ConfirmModal from "./ConfirmModal";
+import LeaveAccrualCard from "./LeaveAccrualCard";
 
 const MONTHS = [
   { value: 1, label: "January" },
@@ -159,11 +160,7 @@ const Field = ({ label, hint, children }) => (
 );
 
 export default function LeavePolicyManager() {
-  const [policy, setPolicy] = useState(null);
-  // Accordion: which leave-type card is open (all closed by default)
   const [expandedType, setExpandedType] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState({ type: "", message: "" });
   const topRef = useRef(null);
   const [confirm, setConfirm] = useState({
@@ -174,6 +171,20 @@ export default function LeavePolicyManager() {
     confirmLabel: "Confirm",
     onConfirm: null,
   });
+
+  const { data: policyData, isLoading: loading, error: policyError } = useLeavePolicy();
+  const updatePolicyMutation = useUpdateLeavePolicy();
+
+  const [localPolicy, setLocalPolicy] = useState(null);
+  const policy = localPolicy || (policyData?.policy || policyData || null);
+  const saving = updatePolicyMutation.isPending;
+
+  useEffect(() => {
+    if (policyData && !localPolicy) {
+      const pol = policyData?.policy || policyData || null;
+      setLocalPolicy(pol);
+    }
+  }, [policyData, localPolicy]);
 
   const yearStartMonth = policy?.yearStartMonth ?? 1;
   const yearStartDay = policy?.yearStartDay ?? 1;
@@ -194,29 +205,17 @@ export default function LeavePolicyManager() {
     [types]
   );
 
-  const refresh = async () => {
-    setLoading(true);
-    try {
-      const res = await getLeavePolicy();
-      setPolicy(res.policy || res || null);
-      setStatus({ type: "", message: "" });
-    } catch (e) {
+  useEffect(() => {
+    if (policyError) {
       setStatus({
         type: "error",
-        message: e?.response?.data?.message || e.message || "Could not load leave policy",
+        message: policyError?.response?.data?.message || policyError.message || "Could not load leave policy",
       });
-    } finally {
-      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [policyError]);
 
   const updateType = (code, patch) => {
-    setPolicy((prev) => {
+    setLocalPolicy((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -226,7 +225,7 @@ export default function LeavePolicyManager() {
   };
 
   const updateAccrual = (code, patch) => {
-    setPolicy((prev) => {
+    setLocalPolicy((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -238,7 +237,7 @@ export default function LeavePolicyManager() {
   };
 
   const updateYearEnd = (code, patch) => {
-    setPolicy((prev) => {
+    setLocalPolicy((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -250,7 +249,7 @@ export default function LeavePolicyManager() {
   };
 
   const updateMonthEnd = (code, patch) => {
-    setPolicy((prev) => {
+    setLocalPolicy((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -262,7 +261,7 @@ export default function LeavePolicyManager() {
   };
 
   const updateDocuments = (code, patch) => {
-    setPolicy((prev) => {
+    setLocalPolicy((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -301,7 +300,6 @@ export default function LeavePolicyManager() {
 
   const handleSaveCustom = async () => {
     if (!policy) return;
-    setSaving(true);
     setStatus({ type: "", message: "" });
     try {
       const payload = {
@@ -353,8 +351,8 @@ export default function LeavePolicyManager() {
         }),
       };
 
-      const res = await updateLeavePolicy(payload);
-      setPolicy(res.policy || res);
+      const res = await updatePolicyMutation.mutateAsync(payload);
+      setLocalPolicy(res.policy || res);
       setStatus({
         type: "success",
         message: formatSyncMessage("Leave policy saved successfully.", res),
@@ -367,7 +365,6 @@ export default function LeavePolicyManager() {
       });
       scrollStatusIntoView();
     } finally {
-      setSaving(false);
       closeConfirm();
     }
   };
@@ -437,7 +434,7 @@ export default function LeavePolicyManager() {
               className="lp-input"
               value={yearStartMonth}
               onChange={(e) =>
-                setPolicy((prev) => ({ ...prev, yearStartMonth: Number(e.target.value) }))
+                setLocalPolicy((prev) => ({ ...prev, yearStartMonth: Number(e.target.value) }))
               }
             >
               {MONTHS.map((m) => (
@@ -455,7 +452,7 @@ export default function LeavePolicyManager() {
               max={31}
               value={yearStartDay}
               onChange={(e) =>
-                setPolicy((prev) => ({ ...prev, yearStartDay: Number(e.target.value) }))
+                setLocalPolicy((prev) => ({ ...prev, yearStartDay: Number(e.target.value) }))
               }
             />
           </Field>
@@ -715,7 +712,9 @@ export default function LeavePolicyManager() {
         </div>
       ) : null}
 
+      {/* Admin-only manual month-end accrual — opens in a popup. */}
       <div className="lp-actions">
+        <LeaveAccrualCard />
         <Button
           type="button"
           disabled={saving}

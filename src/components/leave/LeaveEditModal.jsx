@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, X } from "lucide-react";
 import Button from "../Button";
-import { directEditLeave } from "../../services/regularizationService";
+import { useDirectEditLeave } from "../../hooks/useRegularization";
 import { isHalfDayPart } from "../../utils/leaveLabels";
 import { useToast } from "../Toast";
 import "../attendance/RecordEditModal.css";
@@ -36,8 +36,9 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
   const [dayPart, setDayPart] = useState("full");
   const [reason, setReason] = useState("");
   const [auditNote, setAuditNote] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const editMutation = useDirectEditLeave();
+  const saving = editMutation.isPending;
 
   useEffect(() => {
     if (!open || !record) return;
@@ -80,17 +81,19 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
       return;
     }
 
-    setSaving(true);
     setError("");
     try {
-      await directEditLeave(record._id, {
-        leaveType,
-        requestType: leaveType === "WFH" ? "WFH" : "Leave",
-        startDate,
-        endDate,
-        reason: reason.trim(),
-        auditNote: auditNote.trim(),
-        dayPart: isSingleDay ? dayPart : "full",
+      await editMutation.mutateAsync({
+        leaveRequestId: record._id,
+        payload: {
+          leaveType,
+          requestType: leaveType === "WFH" ? "WFH" : "Leave",
+          startDate,
+          endDate,
+          reason: reason.trim(),
+          auditNote: auditNote.trim(),
+          dayPart: isSingleDay ? dayPart : "full",
+        },
       });
       toast.success("Leave request updated");
       onSaved?.();
@@ -99,8 +102,6 @@ export default function LeaveEditModal({ open, record, onClose, onSaved }) {
       const message = apiErrorMessage(err, "Failed to update leave request");
       setError(message);
       toast.error(message);
-    } finally {
-      setSaving(false);
     }
   };
 

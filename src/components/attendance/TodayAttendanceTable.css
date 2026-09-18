@@ -369,3 +369,222 @@
 .attendance-skeleton-row td {
   padding: 0.75rem 1rem;
 }
+
+/* ============================================================
+   RESPONSIVE — no page side-scroll.
+   Desktop/tablet: table scrolls ONLY inside its card.
+   Phone (<=768px): table becomes stacked cards, zero scroll.
+   ============================================================ */
+
+.attendance-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.attendance-table {
+  width: 100%;
+}
+
+@media (min-width: 769px) {
+  .attendance-table {
+    min-width: 960px;
+  }
+}
+
+@media (max-width: 900px) {
+  .attendance-panel__head {
+    align-items: stretch;
+  }
+
+  .attendance-filter-container {
+    justify-content: flex-start;
+  }
+
+  .attendance-filter-buttons {
+    gap: 0.6rem;
+  }
+
+  .attendance-search {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .attendance-date-range-wrap {
+    flex: 1 1 100%;
+    width: 100%;
+    height: auto;
+    min-height: 38px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+  }
+
+  .attendance-filter-btn,
+  .attendance-download-btn {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .attendance-table-wrap {
+    overflow-x: visible;
+  }
+
+  .attendance-table,
+  .attendance-table tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .attendance-table thead {
+    display: none;
+  }
+
+  .attendance-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    border: none;
+    padding: 5px 0;
+    font-size: 13px;
+    text-align: right;
+  }
+
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    flex-shrink: 0;
+  }
+
+  /* First cell = employee identity, full row without label */
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:first-child::before {
+    content: none;
+  }
+
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:first-child {
+    justify-content: flex-start;
+    text-align: left;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  /* Column labels (matches thead order) */
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(2)::before { content: "ID"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(3)::before { content: "Date"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(4)::before { content: "Check In"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(5)::before { content: "Check Out"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(6)::before { content: "Selfie"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(7)::before { content: "In Loc"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(8)::before { content: "Out Loc"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(9)::before { content: "Sessions"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(10)::before { content: "Hours"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(11)::before { content: "Status"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(12)::before { content: "Notes"; }
+  .attendance-table tbody > tr:not(.attendance-sessions-expand-row):not(.attendance-skeleton-row) > td:nth-child(13)::before { content: "Action"; }
+
+  .attendance-table .attendance-sessions-expand-row,
+  .attendance-table .attendance-sessions-expand-row > td {
+    display: block;
+    width: 100%;
+    border: none;
+    padding: 0;
+    background: transparent;
+  }
+
+  .attendance-table .attendance-sessions-expand-row > td::before {
+    content: none;
+  }
+
+  .attendance-inline-session-wrapper {
+    margin: 0;
+  }
+
+  .attendance-table .attendance-empty {
+    display: block;
+    text-align: center;
+    background: #fff;
+    border: 1px dashed #e2e8f0;
+    border-radius: 12px;
+    padding: 20px 12px;
+  }
+
+  .attendance-table .attendance-skeleton-row {
+    display: block;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px;
+  }
+
+  .attendance-table .attendance-skeleton-row td {
+    display: block;
+    border: none;
+    padding: 4px 0;
+  }
+
+  .attendance-table .attendance-skeleton-row td::before {
+    content: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .attendance-filter-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attendance-search,
+  .attendance-date-range-wrap,
+  .attendance-download-btn {
+    grid-column: 1 / -1;
+  }
+
+  .attendance-filter-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .attendance-download-btn {
+    height: 38px;
+  }
+
+  .attendance-holiday-banner,
+  .attendance-weekoff-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .employee-cell {
+    gap: 8px;
+  }
+
+  .employee-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+}

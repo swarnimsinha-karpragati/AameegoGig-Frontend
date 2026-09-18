@@ -34,10 +34,6 @@ export default function LeavePolicy() {
           >
             Back
           </Button>
-          <div>
-            <h1>Configure leave policy</h1>
-            <p>Set up how employees earn, use and carry forward their leave days.</p>
-          </div>
         </header>
 
         <LeavePolicyManager />

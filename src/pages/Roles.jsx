@@ -39,8 +39,29 @@ function getIconColor(roleName) {
   return ROLE_ICON_COLORS[roleName] || "custom";
 }
 
-// Permission editor: shows auto baseline + HR/Admin elevated checkboxes
-function PermEditor({ permissions, setPermissions, viewOnly }) {
+// Role name rules (mirrors backend normalizeRoleName + createRole checks):
+// spaces become underscores, 3–50 chars, letters/numbers/spaces/_/- only.
+function validateRoleName(raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return "Role name is required.";
+  const normalized = trimmed.replace(/\s+/g, "_");
+  if (normalized.length < 3) return "Role name must be at least 3 characters.";
+  if (normalized.length > 50) return "Role name must be 50 characters or less.";
+  if (!/^[A-Za-z0-9][A-Za-z0-9 _-]*$/.test(trimmed)) {
+    return "Role name can only contain letters, numbers, spaces, underscores and hyphens.";
+  }
+  return "";
+}
+
+// Permission editor: shows auto baseline + HR/Admin elevated checkboxes.
+// lockedPerms renders as a padlock (used to keep roles:manage off system roles).
+function PermEditor({ permissions, setPermissions, viewOnly, lockedPerms }) {
+  const locked = lockedPerms || new Set();
+  // roles:manage (Roles & Access) sirf Administrator ke paas rehta hai —
+  // Create/Edit me ye group dikhta hi nahi, kisi ko grant nahi ho sakta.
+  const elevatedGroups = viewOnly
+    ? ELEVATED_GROUPS
+    : ELEVATED_GROUPS.filter((g) => g.key !== 'roles');
   const [openModules, setOpenModules] = useState(() => {
     const initial = {};
     ELEVATED_GROUPS.forEach((g) => {
@@ -65,7 +86,8 @@ function PermEditor({ permissions, setPermissions, viewOnly }) {
 
   const toggleGroupAll = (group) => {
     if (viewOnly) return;
-    const keys = group.perms.map((p) => p.key);
+    // Locked (restricted) permissions can never be bulk-granted.
+    const keys = group.perms.map((p) => p.key).filter((k) => !locked.has(k));
     const allSelected = keys.every((k) => permissions.has(k));
     setPermissions((prev) => {
       const next = new Set(prev);
@@ -111,7 +133,7 @@ function PermEditor({ permissions, setPermissions, viewOnly }) {
         HR / Admin Features
       </div>
 
-      {ELEVATED_GROUPS.map((group) => {
+      {elevatedGroups.map((group) => {
         const selectedCount = group.perms.filter((p) => permissions.has(p.key)).length;
         const allSelected = selectedCount === group.perms.length;
         const someSelected = selectedCount > 0 && !allSelected;
@@ -148,7 +170,7 @@ function PermEditor({ permissions, setPermissions, viewOnly }) {
               <div className="roles-perm-module-body">
                 {group.perms.map((p) => (
                   <div key={p.key} className="roles-perm-item">
-                    {viewOnly ? (
+                    {viewOnly || locked.has(p.key) ? (
                       <ShieldCheck size={12} color={permissions.has(p.key) ? "#3b82f6" : "#cbd5e1"} />
                     ) : (
                       <input
@@ -159,10 +181,12 @@ function PermEditor({ permissions, setPermissions, viewOnly }) {
                       />
                     )}
                     <label
-                      htmlFor={viewOnly ? undefined : `${group.key}-${p.key}`}
+                      htmlFor={viewOnly || locked.has(p.key) ? undefined : `${group.key}-${p.key}`}
                       style={viewOnly && !permissions.has(p.key) ? { color: "#cbd5e1" } : undefined}
+                      title={locked.has(p.key) ? "Restricted for system roles" : undefined}
                     >
                       {p.label}
+                      {locked.has(p.key) ? " (restricted)" : ""}
                     </label>
                   </div>
                 ))}
@@ -209,14 +233,60 @@ function ViewModal({ role, roleName, onClose }) {
   );
 }
 
-function EditModal({ role, roleName, onSave, onClose }) {
+function EditModal({ role, roleName, existingNames, onSave, onClose }) {
   const [permissions, setPermissions] = useState(() => new Set(role.permissions || []));
+  const [initialPermissions] = useState(() => new Set(role.permissions || []));
+  const [editName, setEditName] = useState(roleName);
+  const [editDesc, setEditDesc] = useState(role.description || "");
+  const [editNameError, setEditNameError] = useState("");
+
+  const isSystem = Boolean(role.isSystem);
+  // roles:manage must never be grantable to seeded system roles — handing it
+  // to Employee would escalate every holder to role admin.
+  const lockedPerms = useMemo(
+    () => (isSystem ? new Set(["roles:manage"]) : new Set()),
+    [isSystem]
+  );
+
+  // Save stays disabled until a field or permission is changed.
+  const permsChanged = useMemo(() => {
+    if (permissions.size !== initialPermissions.size) return true;
+    for (const perm of permissions) {
+      if (!initialPermissions.has(perm)) return true;
+    }
+    return false;
+  }, [permissions, initialPermissions]);
+
+  const normalizedEditName = editName.trim().replace(/\s+/g, "_");
+  const metaChanged =
+    (!isSystem && normalizedEditName !== roleName) ||
+    editDesc.trim() !== (role.description || "");
+  const hasChanges = permsChanged || metaChanged;
+
+  const handleSave = () => {
+    if (!isSystem) {
+      const nameError = validateRoleName(editName);
+      if (nameError) {
+        setEditNameError(nameError);
+        return;
+      }
+      if (normalizedEditName !== roleName && (existingNames || []).includes(normalizedEditName)) {
+        setEditNameError("A role with this name already exists.");
+        return;
+      }
+    }
+    setEditNameError("");
+    onSave(roleName, [...permissions], {
+      roleName: isSystem ? roleName : normalizedEditName,
+      description: editDesc.trim(),
+    });
+  };
 
   return (
     <div className="roles-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="roles-modal" role="dialog" aria-modal="true">
         <div className="roles-modal-header">
-          <h3>Edit Permissions — {role.displayName || roleName}</h3>
+          <h3>Edit Role — {role.displayName || roleName}</h3>
           <button type="button" className="roles-modal-close" onClick={onClose} aria-label="Close">
             <X size={20} />
           </button>
@@ -232,7 +302,45 @@ function EditModal({ role, roleName, onSave, onClose }) {
             </div>
             <span className="roles-modal-perm-count">{permissions.size} selected</span>
           </div>
-          <PermEditor permissions={permissions} setPermissions={setPermissions} viewOnly={false} />
+          <div className="roles-perm-module" style={{ marginBottom: "16px" }}>
+            <div className="roles-perm-module-header" style={{ cursor: "default" }}>
+              <div className="roles-perm-module-left">
+                <span className="roles-perm-module-name">Role Details</span>
+              </div>
+            </div>
+            <div style={{ padding: "0 8px 8px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Role Name *</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => { setEditName(e.target.value); setEditNameError(isSystem ? "" : validateRoleName(e.target.value)); }}
+                  placeholder="e.g. Finance Team"
+                  className={`dynamic-input${editNameError ? " dynamic-input--error" : ""}`}
+                  disabled={isSystem}
+                  aria-invalid={Boolean(editNameError)}
+                  maxLength={60}
+                />
+                {isSystem ? (
+                  <p style={{ fontSize: "12px", color: "#64748b", margin: "4px 0 0" }}>System role names cannot be changed.</p>
+                ) : (
+                  <p className={`roles-field-error${editNameError ? "" : " roles-field-error--empty"}`} role={editNameError ? "alert" : undefined}>{editNameError || " "}</p>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Description</label>
+                <input
+                  type="text"
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  placeholder="Brief description of this role"
+                  className="dynamic-input"
+                  maxLength={200}
+                />
+              </div>
+            </div>
+          </div>
+          <PermEditor permissions={permissions} setPermissions={setPermissions} viewOnly={false} lockedPerms={lockedPerms} />
         </div>
         <div className="roles-modal-footer">
           <button type="button" className="roles-modal-cancel-btn" onClick={onClose}>
@@ -241,7 +349,9 @@ function EditModal({ role, roleName, onSave, onClose }) {
           <button
             type="button"
             className="roles-modal-save-btn"
-            onClick={() => onSave(roleName, [...permissions])}
+            disabled={!hasChanges}
+            title={hasChanges ? undefined : "Change a field or permission to save"}
+            onClick={handleSave}
           >
             Save Permissions
           </button>
@@ -270,6 +380,8 @@ export default function Roles() {
   const [deleting, setDeleting] = useState(false);
 
   const [newRoleName, setNewRoleName] = useState("");
+  const [roleNameError, setRoleNameError] = useState("");
+  const [permError, setPermError] = useState("");
   const [newRoleDesc, setNewRoleDesc] = useState("");
   const [newRolePerms, setNewRolePerms] = useState(() => new Set(BASELINE_PERMISSIONS));
 
@@ -317,36 +429,41 @@ export default function Roles() {
     };
   }, []);
 
-  const handleSavePermissions = async (roleName, permissions) => {
+  const handleSavePermissions = async (roleName, permissions, meta = {}) => {
+    // Safety: roles:manage kabhi save nahi hoga (Admin-only).
+    permissions = (permissions || []).filter((perm) => perm !== "roles:manage");
     const roleDef = roles[roleName];
-    const updated = {
-      ...roles,
-      [roleName]: {
-        ...roleDef,
-        permissions,
-      },
+    const requestedKey = (meta.roleName || "").trim().replace(/\s+/g, "_") || roleName;
+    const newDescription = meta.description !== undefined ? meta.description : (roleDef.description || "");
+    const renamed = requestedKey !== roleName;
+    const updated = { ...roles };
+    if (renamed) delete updated[roleName];
+    updated[requestedKey] = {
+      ...roleDef,
+      displayName: renamed ? requestedKey : (roleDef.displayName || roleName),
+      description: newDescription,
+      permissions,
     };
     persistRoles(updated);
     if (roleDef?._id) {
       try {
         const response = await updateRole(roleDef._id, {
-          roleName,
-          displayName: roleDef.displayName || roleName,
-          description: roleDef.description || "",
+          roleName: requestedKey,
+          displayName: renamed ? requestedKey : (roleDef.displayName || roleName),
+          description: newDescription,
           permissions,
         });
         const savedRole = response.data?.role;
         if (savedRole?.roleName) {
-          const refreshed = {
-            ...updated,
-            [savedRole.roleName]: {
-              ...updated[savedRole.roleName],
-              ...savedRole,
-            },
+          const refreshed = { ...updated };
+          if (savedRole.roleName !== requestedKey) delete refreshed[requestedKey];
+          refreshed[savedRole.roleName] = {
+            ...refreshed[savedRole.roleName],
+            ...savedRole,
           };
           persistRoles(refreshed);
         }
-        setFeedback({ type: "success", message: `${roleDef.displayName || roleName} permissions updated successfully.` });
+        setFeedback({ type: "success", message: `${requestedKey} updated successfully.` });
         // Push the fresh catalog to every component immediately.
         syncRolesFromServer(true);
       } catch (error) {
@@ -355,7 +472,7 @@ export default function Roles() {
         alert(error.response?.data?.message || "Permissions updated locally, but could not be saved to the server.");
       }
     } else {
-      setFeedback({ type: "success", message: `${roleDef.displayName || roleName} permissions updated successfully.` });
+      setFeedback({ type: "success", message: `${requestedKey} updated successfully.` });
     }
     setEditRole(null);
   };
@@ -363,54 +480,121 @@ export default function Roles() {
   const handleConfirmDeleteRole = async () => {
     if (!deleteTarget) return;
     const roleName = deleteTarget;
-    if (roles[roleName]?.isSystem) {
+    const snapshot = roles[roleName];
+    if (snapshot?.isSystem) {
       setDeleteTarget(null);
       return;
     }
     setDeleting(true);
-    const roleDef = roles[roleName];
-    const { [roleName]: _, ...rest } = roles;
-    persistRoles(rest);
-    if (roleDef?._id) {
-      try {
-        const res = await deleteRole(roleDef._id);
-        const reassigned = res.data?.reassignedCount;
-        setFeedback({
-          type: "success",
-          message:
-            res.data?.message ||
-            (reassigned > 0
-              ? `Role deleted. ${reassigned} user${reassigned === 1 ? "" : "s"} moved to the Employee role.`
-              : "Role deleted. Users on this role were moved to the Employee role."),
-        });
-        syncRolesFromServer(true);
-      } catch (error) {
-        console.error("Sync role delete failed:", error);
-        alert(error.response?.data?.message || "Role removed locally, but could not be deleted from the server.");
+    try {
+      // Server id resolve karo: purane/stale local cache me _id missing ho
+      // sakta hai — us case me delete API lagti hi nahi thi aur success
+      // dikhne ke baad refresh par role wapas aa jata tha.
+      let serverId = snapshot?._id || null;
+      if (!serverId) {
+        try {
+          const backendRoles = await getRoles();
+          const match = (backendRoles || []).find((rb) => rb.roleName === roleName);
+          if (match?._id) serverId = match._id;
+        } catch {
+          /* server unreachable — local-only delete neeche hoga */
+        }
       }
-    } else {
-      setFeedback({ type: "success", message: "Role deleted. Users on this role were moved to the Employee role." });
+      if (!serverId) {
+        // Role sirf local cache me hai, server par kabhi bana hi nahi.
+        const { [roleName]: _, ...rest } = roles;
+        persistRoles(rest);
+        setFeedback({ type: "success", message: "Role deleted. Users on this role were moved to the Employee role." });
+        return;
+      }
+      const res = await deleteRole(serverId);
+      // Server ki canonical list se reconcile karo taaki aadha-adhura
+      // delete kabhi successful na lage.
+      try {
+        const backendRoles = await getRoles();
+        const serverNames = new Set((backendRoles || []).map((rb) => rb.roleName));
+        const reconciled = { ...roles };
+        if (!serverNames.has(roleName)) delete reconciled[roleName];
+        (backendRoles || []).forEach((rb) => {
+          if (rb.isAdmin) return;
+          reconciled[rb.roleName] = {
+            displayName: rb.displayName || rb.roleName,
+            description: rb.description || "",
+            permissions: rb.permissions || [],
+            baselinePermissions: rb.baselinePermissions || BASELINE_PERMISSIONS,
+            isSystem: Boolean(rb.isSystem),
+            isAdmin: Boolean(rb.isAdmin),
+            _id: rb._id,
+          };
+        });
+        persistRoles(reconciled);
+      } catch {
+        const { [roleName]: _, ...rest } = roles;
+        persistRoles(rest);
+      }
+      const reassigned = res.data?.reassignedCount;
+      setFeedback({
+        type: "success",
+        message:
+          res.data?.message ||
+          (reassigned > 0
+            ? `Role deleted. ${reassigned} user${reassigned === 1 ? "" : "s"} moved to the Employee role.`
+            : "Role deleted. Users on this role were moved to the Employee role."),
+      });
+      syncRolesFromServer(true);
+    } catch (error) {
+      console.error("Sync role delete failed:", error);
+      if (error.response?.status === 404) {
+        // Server par pehle se gayab hai — local copy bhi hata do.
+        const { [roleName]: _, ...rest } = roles;
+        persistRoles(rest);
+        setFeedback({ type: "success", message: "Role deleted." });
+      } else {
+        // Local state untouched rakha hai taaki role gayab na lage —
+        // failure ab saaf error me dikhega, jhootha success nahi.
+        setFeedback({ type: "error", message: error.response?.data?.message || "Could not delete role from the server." });
+      }
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
-    setDeleting(false);
-    setDeleteTarget(null);
   };
 
+  // A new role must grant something beyond the default Employee baseline —
+  // otherwise it is indistinguishable from the Employee role.
+  const hasElevatedPerms = (perms) =>
+    [...perms].some((perm) => !BASELINE_PERMISSIONS.includes(perm));
+
   const handleCreateRole = async () => {
+    const validationError = validateRoleName(newRoleName);
+    if (validationError) {
+      setRoleNameError(validationError);
+      return;
+    }
+    setRoleNameError("");
+    if (!hasElevatedPerms(newRolePerms)) {
+      setPermError("Please select at least one permission.");
+      alert("Please select at least one permission.");
+      return;
+    }
+    setPermError("");
     // Role keys must not contain spaces — "Finance TEAM" becomes
     // "Finance_TEAM" (mirrors backend normalizeRoleName).
     const name = newRoleName.trim().replace(/\s+/g, "_");
     if (!name) return;
     if (roles[name]) {
-      alert("A role with this name already exists");
+      setRoleNameError("A role with this name already exists.");
       return;
     }
+    // Safety: roles:manage kabhi grant nahi hoga (Admin-only).
+    const cleanPerms = [...newRolePerms].filter((perm) => perm !== "roles:manage");
     const updated = {
       ...roles,
       [name]: {
         displayName: name,
         description: newRoleDesc.trim() || "Custom role",
         isSystem: false,
-        permissions: [...newRolePerms],
+        permissions: cleanPerms,
       },
     };
     persistRoles(updated);
@@ -419,7 +603,7 @@ export default function Roles() {
         roleName: name,
         displayName: name,
         description: newRoleDesc.trim() || "Custom role",
-        permissions: [...newRolePerms],
+        permissions: cleanPerms,
         baselinePermissions: BASELINE_PERMISSIONS,
       });
       const dbRole = res.data?.role;
@@ -435,9 +619,22 @@ export default function Roles() {
       }
     } catch (error) {
       console.error("Sync role create failed:", error);
-      alert(error.response?.data?.message || "Role saved locally, but could not be saved to the server.");
+      const status = error.response?.status;
+      const serverMessage = error.response?.data?.message || "";
+      // Duplicate (or validation) rejections highlight the field inline.
+      if (status === 409 || status === 400) {
+        // Roll back the optimistic local add — the server rejected it.
+        const rolledBack = { ...roles };
+        delete rolledBack[name];
+        persistRoles(rolledBack);
+        setRoleNameError(serverMessage || "A role with this name already exists.");
+        return;
+      }
+      alert(serverMessage || "Role saved locally, but could not be saved to the server.");
     }
     setNewRoleName("");
+    setRoleNameError("");
+    setPermError("");
     setNewRoleDesc("");
     setNewRolePerms(new Set(BASELINE_PERMISSIONS));
     setShowCreate(false);
@@ -466,13 +663,7 @@ export default function Roles() {
     <MainLayout>
       <div className="roles-page">
         <div className="roles-page-header">
-          <div>
-            <h1>Roles & Permissions</h1>
-            <p>
-              HR/Admin features can be assigned to any role. Admin always has full access.
-            </p>
-          </div>
-          <button type="button" className="roles-page-add-btn" onClick={() => setShowCreate(true)}>
+          <button type="button" className="roles-page-add-btn" onClick={() => { setRoleNameError(""); setPermError(""); setShowCreate(true); }}>
             <Plus size={16} />
             Create Role
           </button>
@@ -558,6 +749,7 @@ export default function Roles() {
           <EditModal
             role={editRole.role}
             roleName={editRole.roleName}
+            existingNames={Object.keys(roles)}
             onSave={handleSavePermissions}
             onClose={() => setEditRole(null)}
           />
@@ -584,7 +776,7 @@ export default function Roles() {
             <div className="roles-modal" role="dialog" aria-modal="true">
               <div className="roles-modal-header">
                 <h3>Create New Role</h3>
-                <button type="button" className="roles-modal-close" onClick={() => setShowCreate(false)} aria-label="Close">
+                <button type="button" className="roles-modal-close" onClick={() => { setShowCreate(false); setRoleNameError(""); setPermError(""); }} aria-label="Close">
                   <X size={20} />
                 </button>
               </div>
@@ -603,10 +795,13 @@ export default function Roles() {
                       <input
                         type="text"
                         value={newRoleName}
-                        onChange={(e) => setNewRoleName(e.target.value)}
+                        onChange={(e) => { setNewRoleName(e.target.value); setRoleNameError(validateRoleName(e.target.value)); }}
                         placeholder="e.g. Finance Team, Payroll Officer"
-                        className="dynamic-input"
+                        className={`dynamic-input${roleNameError ? " dynamic-input--error" : ""}`}
+                        aria-invalid={Boolean(roleNameError)}
+                        maxLength={60}
                       />
+                      <p className={`roles-field-error${roleNameError ? "" : " roles-field-error--empty"}`} role={roleNameError ? "alert" : undefined}>{roleNameError || " "}</p>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       <label style={{ fontSize: "13px", fontWeight: 600, color: "#475569" }}>Description</label>
@@ -627,18 +822,19 @@ export default function Roles() {
                     (Employee access already pre-selected)
                   </span>
                 </div>
+                <p className={`roles-field-error${permError ? "" : " roles-field-error--empty"}`} role={permError ? "alert" : undefined}>{permError || " "}</p>
 
-                <PermEditor permissions={newRolePerms} setPermissions={setNewRolePerms} viewOnly={false} />
+                <PermEditor permissions={newRolePerms} setPermissions={(updater) => { setPermError(""); setNewRolePerms(updater); }} viewOnly={false} />
               </div>
 
               <div className="roles-modal-footer">
-                <button type="button" className="roles-modal-cancel-btn" onClick={() => setShowCreate(false)}>
+                <button type="button" className="roles-modal-cancel-btn" onClick={() => { setShowCreate(false); setRoleNameError(""); setPermError(""); }}>
                   Cancel
                 </button>
                 <button
                   type="button"
                   className="roles-modal-save-btn"
-                  disabled={!newRoleName.trim()}
+                  disabled={!newRoleName.trim() || Boolean(validateRoleName(newRoleName))}
                   onClick={handleCreateRole}
                 >
                   Create Role

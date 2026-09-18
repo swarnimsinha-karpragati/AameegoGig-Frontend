@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, X } from "lucide-react";
 import Button from "../Button";
-import { directEditAttendance } from "../../services/regularizationService";
+import { useDirectEditAttendance } from "../../hooks/useRegularization";
 import { useToast } from "../Toast";
 import "./RecordEditModal.css";
 
@@ -73,8 +73,9 @@ export default function AttendanceEditModal({
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [auditNote, setAuditNote] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const editMutation = useDirectEditAttendance();
+  const saving = editMutation.isPending;
 
   useEffect(() => {
     if (!open || !record) return;
@@ -116,10 +117,9 @@ export default function AttendanceEditModal({
       return;
     }
 
-    setSaving(true);
     setError("");
     try {
-      await directEditAttendance({
+      await editMutation.mutateAsync({
         employeeId,
         date,
         status,
@@ -134,8 +134,6 @@ export default function AttendanceEditModal({
       const message = apiErrorMessage(err, "Failed to update attendance");
       setError(message);
       toast.error(message);
-    } finally {
-      setSaving(false);
     }
   };
 

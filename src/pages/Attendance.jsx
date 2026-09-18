@@ -19,17 +19,19 @@ import { ToastProvider, useToast } from "../components/Toast";
 import Pagination from "../components/Pagination";
 import SelfieCapture from "../components/SelfieCapture";
 import Button from "../components/Button";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
+import {
+  useMarkAttendance,
+  useMarkMonthAttendance,
+  useCheckIn,
+  useCheckOut,
+  useBulkUploadMonthAttendance,
+} from "../hooks/useAttendance";
 import {
   getMonthlyAttendance,
   getAttendanceList,
-  markAttendance,
-  checkInAttendance,
-  checkOutAttendance,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
-  markMonthAttendance,
-  bulkUploadMonthAttendance,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -48,7 +50,6 @@ import AttendanceCalendar from "../components/attendance/AttendanceCalendar";
 import TodayAttendanceTable from "../components/attendance/TodayAttendanceTable";
 import {
   normalizeRecord,
-  ROLE_DESCRIPTIONS,
   statusTextClass,
   EMPTY_STATS,
   EMPTY_MY_ROW,
@@ -80,11 +81,10 @@ function Attendance() {
   const [selfStats, setSelfStats] = useState(EMPTY_STATS);
   const [orgRows, setOrgRows] = useState([]);
   const [orgStats, setOrgStats] = useState(EMPTY_STATS);
-  const [teamRows, setTeamRows] = useState([]);
+  const [teamRows] = useState([]);
   const [todaySelfRow, setTodaySelfRow] = useState(EMPTY_MY_ROW);
   const [hasTeam, setHasTeam] = useState(false);
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSelfieModal, setShowSelfieModal] = useState(false);
@@ -138,11 +138,18 @@ function Attendance() {
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
   const canMarkForOthers = canMarkAttendance(user?.role);
+  const { data: employees = [] } = useAllEmployees({ enabled: canMarkForOthers });
   const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
   const canSelfCheckIn = hasLinkedEmployeeProfile(user);
   // Org section (stats/table/calendar): attendance:view-org or manage.
   // Mark permission alone does NOT unlock org data.
   const canViewOrg = canViewOrgAttendance(user?.role);
+
+  const markAttendanceMutation = useMarkAttendance();
+  const markMonthAttendanceMutation = useMarkMonthAttendance();
+  const checkInMutation = useCheckIn();
+  const checkOutMutation = useCheckOut();
+  const bulkUploadMutation = useBulkUploadMonthAttendance();
 
   const personalMonthLabel = personalViewDate.toLocaleString("en-US", {
     month: "long",
@@ -250,21 +257,6 @@ function Attendance() {
     }
   };
 
-  const loadTeamData = async () => {
-    if (!hasTeam) return;
-    try {
-      const params = buildListParams("team", personalViewDate, null, teamFilters, teamPagination);
-      const listRes = await getAttendanceList(params);
-      setTeamRows(listRes.rows || []);
-      if (listRes.pagination) {
-        setTeamPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
-      }
-    } catch (err) {
-      if (err.response?.status === 403) return;
-      setError(err.response?.data?.message || "Failed to load team attendance");
-    }
-  };
-
   const loadTodaySelf = async () => {
     if (!canSelfCheckIn) return;
     try {
@@ -285,38 +277,25 @@ function Attendance() {
     }
   };
 
-  const loadEmployees = async () => {
-    if (!canMarkForOthers) return;
-    try {
-      const res = await getEmployees();
-      const list = res.data?.employees || [];
-      setEmployees(list);
-      if ((!markForm.employeeId || !markMonthForm.employeeId) && list.length > 0) {
-        setMarkForm((prev) => ({ ...prev, employeeId: list[0]._id }));
-        setMarkMonthForm((prev) => ({ ...prev, employeeId: list[0]._id }));
-      }
-    } catch {
-      // non-blocking
-    }
-  };
-
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([loadSelfData(), loadOrgData(), loadTeamData()])
-      .catch(() => { })
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line
-  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, teamFilters, hasTeam, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, teamPagination.page, teamPagination.limit]);
-
   useEffect(() => {
     loadTodaySelf();
     // eslint-disable-next-line
   }, [user?.role]);
 
+  // Initial + filter/page/month change loads. 
   useEffect(() => {
-    loadEmployees();
+    loadSelfData();
+    loadOrgData();
     // eslint-disable-next-line
-  }, [user?.role]);
+  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role]);
+
+  useEffect(() => {
+    if (employees.length > 0 && (!markForm.employeeId || !markMonthForm.employeeId)) {
+      setMarkForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
+      setMarkMonthForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employees]);
 
   const applyFilterUpdate = (key, value) => {
     if (key === "clearDates") {
@@ -575,7 +554,7 @@ function Attendance() {
     setIsSubmitting(true);
 
     try {
-      const res = await markMonthAttendance(markMonthForm);
+      const res = await markMonthAttendanceMutation.mutateAsync(markMonthForm);
       alert(res.message);
       setMarkMonthForm((prev) => ({
         ...prev,
@@ -605,12 +584,8 @@ function Attendance() {
     setMonthlyUploadLoading(true);
     setMonthlyUploadResult(null);
     try {
-      const result = await bulkUploadMonthAttendance(monthlyUploadFile);
+      const result = await bulkUploadMutation.mutateAsync(monthlyUploadFile);
       setMonthlyUploadResult(result);
-      if (result.uploaded > 0) {
-        loadSelfData();
-        loadOrgData();
-      }
     } catch (uploadError) {
       setMonthlyUploadResult({
         errors: [{ message: uploadError.response?.data?.message || "Monthly attendance upload failed." }],
@@ -701,7 +676,7 @@ function Attendance() {
     }
 
     try {
-      await markAttendance({
+      await markAttendanceMutation.mutateAsync({
         ...markForm,
         checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
         checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
@@ -738,9 +713,9 @@ function Attendance() {
 
       let res;
       if (attendanceAction === "checkin") {
-        res = await checkInAttendance(selfieBlob, location);
+        res = await checkInMutation.mutateAsync({ selfieFile: selfieBlob, options: location });
       } else {
-        res = await checkOutAttendance(selfieBlob, location);
+        res = await checkOutMutation.mutateAsync({ selfieFile: selfieBlob, location });
       }
 
       const successMsg =
@@ -1504,13 +1479,6 @@ function Attendance() {
   return (
     <MainLayout>
       <div className="attendance-page">
-        <div className="attendance-header-banner">
-          <div>
-            <h1 className="attendance-title">Attendance</h1>
-            <p className="attendance-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
-          </div>
-        </div>
-
         {error ? <p className="attendance-alert attendance-alert--error">{error}</p> : null}
         {roleViews[viewRole]?.()}
 

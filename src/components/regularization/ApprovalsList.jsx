@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ArrowRight,
   CalendarDays,
@@ -11,10 +11,10 @@ import {
 import Button from "../Button";
 import ConfirmModal from "../ConfirmModal";
 import {
-  approveRegularizationRequest,
-  listRegularizationRequests,
-  rejectRegularizationRequest,
-} from "../../services/regularizationService";
+  useRegularizationRequests,
+  useApproveRegularizationRequest,
+  useRejectRegularizationRequest,
+} from "../../hooks/useRegularization";
 import { validateField } from "../../utils/inputValidation";
 import { getStoredUser } from "../../utils/roles";
 import { buildApiErrorMessage } from "./RequestForm";
@@ -64,7 +64,18 @@ export const describeApprovalChange = (request) => {
   };
 };
 
-export default function ApprovalsList({ toast, onChanged }) {
+export default function ApprovalsList({
+  toast,
+  onChanged,
+  // Team Requests tab reuse: apne query params + labels do.
+  // Default = org-wide approval queue (purana behavior same).
+  requestParams,
+  eyebrow = "Review queue",
+  title = "Pending approvals",
+  description = "Review the recorded value and requested correction before deciding.",
+  emptyTitle = "Nothing waiting for review",
+  emptyText = null,
+}) {
   const toastError = toast.error;
   const toastSuccess = toast.success;
   const user = getStoredUser();
@@ -83,32 +94,20 @@ export default function ApprovalsList({ toast, onChanged }) {
     );
   };
   const [filter, setFilter] = useState("all");
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [decision, setDecision] = useState(null);
   const [comment, setComment] = useState("");
   const [deciding, setDeciding] = useState(false);
 
-  const loadApprovals = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await listRegularizationRequests({
-        pendingForApproval: 1,
-        limit: 100,
-        ...(filter === "all" ? {} : { kind: filter }),
-      });
-      setRequests(response?.requests || []);
-    } catch (error) {
-      toastError(buildApiErrorMessage(error, "Failed to load approval requests"));
-      setRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [filter, toastError]);
+  const approvalsQuery = useRegularizationRequests({
+    limit: 100,
+    ...(requestParams || { pendingForApproval: 1 }),
+    ...(filter === "all" ? {} : { kind: filter }),
+  });
+  const approveMutation = useApproveRegularizationRequest();
+  const rejectMutation = useRejectRegularizationRequest();
 
-  useEffect(() => {
-    loadApprovals();
-  }, [loadApprovals]);
+  const requests = approvalsQuery.data?.requests || [];
+  const loading = approvalsQuery.isLoading;
 
   const closeDecision = () => {
     if (deciding) return;
@@ -138,15 +137,15 @@ export default function ApprovalsList({ toast, onChanged }) {
     try {
       const response =
         decision.action === "approve"
-          ? await approveRegularizationRequest(decision.request._id, trimmedComment)
-          : await rejectRegularizationRequest(decision.request._id, trimmedComment);
+          ? await approveMutation.mutateAsync({ id: decision.request._id, comment: trimmedComment })
+          : await rejectMutation.mutateAsync({ id: decision.request._id, comment: trimmedComment });
       toastSuccess(
         response?.message ||
           `Regularization request ${decision.action === "approve" ? "approved" : "rejected"}`
       );
       setDecision(null);
       setComment("");
-      await Promise.all([loadApprovals(), onChanged?.()]);
+      await onChanged?.();
     } catch (error) {
       toastError(
         buildApiErrorMessage(
@@ -166,9 +165,9 @@ export default function ApprovalsList({ toast, onChanged }) {
     <section className="regularization-panel regularization-glass">
       <div className="regularization-panel__head regularization-panel__head--row">
         <div>
-          <span className="regularization-eyebrow">Review queue</span>
-          <h2>Pending approvals</h2>
-          <p>Review the recorded value and requested correction before deciding.</p>
+          <span className="regularization-eyebrow">{eyebrow}</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
         </div>
         <span className="regularization-count">{requests.length} pending</span>
       </div>
@@ -199,8 +198,8 @@ export default function ApprovalsList({ toast, onChanged }) {
       ) : requests.length === 0 ? (
         <div className="regularization-state regularization-state--empty">
           <span><Inbox size={26} /></span>
-          <h3>Nothing waiting for review</h3>
-          <p>Pending {filter === "all" ? "" : `${filter} `}requests will appear here.</p>
+          <h3>{emptyTitle}</h3>
+          <p>{emptyText || <>Pending {filter === "all" ? "" : `${filter} `}requests will appear here.</>}</p>
         </div>
       ) : (
         <div className="regularization-approval-list">

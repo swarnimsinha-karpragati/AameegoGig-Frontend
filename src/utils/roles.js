@@ -84,6 +84,18 @@ export const normalizeAppPath = (pathname = "") => {
 
 export const SYSTEM_ROLE_NAMES = ["Admin", "HR", "Manager", "Employee"];
 
+// Any <module>:<feature> grant opens the module (mirrors backend moduleGate
+// customRoleHasModule). Used as the single source of truth for custom roles
+// so a stale allowedModules list can never allow or deny a module.
+export const roleHasModulePermission = (role, appPathOrModule) => {
+  if (role === "Admin") return true;
+  const moduleKey = MODULE_BY_PATH[appPathOrModule] || appPathOrModule;
+  const prefix = `${moduleKey}:`;
+  const perms = rolePermissionList(role);
+  if (!Array.isArray(perms)) return false;
+  return perms.some((p) => p === moduleKey || String(p).startsWith(prefix));
+};
+
 export const grantableModulesForRole = (role) => {
   if (!SYSTEM_ROLE_NAMES.includes(role)) return GRANTABLE_MODULES;
   return GRANTABLE_MODULES.filter((item) => {
@@ -109,6 +121,7 @@ const RBAC_ROUTE_PERMISSION = {
 const CUSTOM_ROLE_MODULE_PERMISSION = {
   "/attendance": "attendance:view",
   "/leave": "leave:view",
+  "/regularization": "regularization:view",
   "/payroll": "payroll:view",
   "/expenses": "expenses:view",
   "/documents": "documents:view",
@@ -191,11 +204,13 @@ export const canAccessRoute = (role, path, allowedModules) => {
   const rbacPerm = RBAC_ROUTE_PERMISSION[appPath];
   if (rbacPerm && !roleHasPermission(role, rbacPerm)) return false;
 
-  // Custom roles are permission-driven. A stale allowedModules list must not
-  // hide a module explicitly granted by the RBAC catalog.
+  // Custom roles are permission-driven. The RBAC catalog is the single
+  // source of truth: a stale allowedModules list must neither hide a
+  // granted module nor reveal a revoked one.
   if (!SYSTEM_ROLE_NAMES.includes(role)) {
     const modulePermission = CUSTOM_ROLE_MODULE_PERMISSION[appPath];
-    if (modulePermission && roleHasPermission(role, modulePermission)) return true;
+    if (modulePermission) return roleHasPermission(role, modulePermission);
+    return roleHasModulePermission(role, appPath);
   }
 
   const allowedRoles = ROUTE_ACCESS[appPath];
@@ -245,6 +260,11 @@ export const userHasModule = (userOrRole, moduleKey, allowedModules) => {
   const canonical = moduleKey === "expense" ? "expenses" : moduleKey === "advanceLoan" ? "advance-loan" : moduleKey;
   if (role === "Admin") return true;
   if (ALWAYS_ON_MODULES.includes(canonical)) return true;
+  // Custom roles: the RBAC catalog is the single source of truth — a stale
+  // allowedModules list must neither grant nor hide a module.
+  if (role && !SYSTEM_ROLE_NAMES.includes(role)) {
+    return roleHasModulePermission(role, canonical);
+  }
   if (!Array.isArray(modules)) return true;
   return (
     modules.includes(canonical) ||
@@ -339,21 +359,18 @@ export const canViewOrgLeave = (role) =>
   roleHasPermission(role, "leave:policy") ||
   roleHasPermission(role, "leave:balances");
 
-// Regularization: view-all (org list + stats), approve/reject, direct edit.
-// approve and direct-edit imply view-all (you must see the queue to act).
+// Regularization: strict per-permission gating. view-all alone opens the
+// org-wide list + stats, approve alone opens only the approvals queue, and
+// direct-edit alone opens direct edit — no cross-implication, so a role sees
+// exactly what it was granted.
 export const canViewAllRegularizations = (role) =>
-  role === "Admin" ||
-  roleHasPermission(role, "regularization:view-all") ||
-  roleHasPermission(role, "regularization:approve") ||
-  roleHasPermission(role, "regularization:direct-edit");
+  role === "Admin" || roleHasPermission(role, "regularization:view-all");
 
 export const canApproveRegularization = (role) =>
   role === "Admin" || roleHasPermission(role, "regularization:approve");
 
 export const canDirectEditRegularization = (role) =>
-  role === "Admin" ||
-  roleHasPermission(role, "regularization:approve") ||
-  roleHasPermission(role, "regularization:direct-edit");
+  role === "Admin" || roleHasPermission(role, "regularization:direct-edit");
 
 // Strict split: Mark / Correct Attendance needs attendance:mark only.
 // attendance:manage does NOT grant daily marking.
@@ -442,12 +459,6 @@ export const roleHasPermission = (role, permissionKey) => {
   if (permissionKey === "consultancy:view" && perms.includes("consultancy:manage")) return true;
   if (permissionKey === "departments:view" && perms.includes("departments:manage")) return true;
   if (
-    permissionKey === "regularization:view-all" &&
-    (perms.includes("regularization:approve") ||
-      perms.includes("regularization:direct-edit"))
-  )
-    return true;
-  if (
     permissionKey === "payroll:view" &&
     (perms.includes("payroll:manage") ||
       perms.includes("payroll:config") ||
@@ -535,7 +546,15 @@ export const fetchRolesCatalog = () => {
       if (!Array.isArray(backendRoles)) return null;
       return mergeBackendRoles(backendRoles);
     } catch {
-      /* backend unavailable — local catalog stays in charge */
+      // No roles:manage (regular users get 403 on the full catalog) — fall
+      // back to our own session so this browser still gates on fresh
+      // personal permissions instead of a stale cache.
+      try {
+        const session = await refreshSessionFromServer();
+        if (session) return loadRoles();
+      } catch {
+        /* ignore — local catalog stays in charge */
+      }
       return null;
     } finally {
       rolesSyncPromise = null;
@@ -550,4 +569,63 @@ export const syncRolesFromServer = async (force = false) => {
     const { saveRoles } = await import("./permissions");
     saveRoles(merged);
   }
+};
+
+let sessionRefreshPromise = null;
+
+// Pulls the caller's live session (role, modules, own permissions) and
+// applies it locally: an Administrator change (role reassignment, permission
+// edit) reflects on the employee's screen without requiring re-login.
+export const refreshSessionFromServer = () => {
+  if (sessionRefreshPromise) return sessionRefreshPromise;
+  sessionRefreshPromise = (async () => {
+    try {
+      const { getSession } = await import("../services/roleService");
+      const session = await getSession();
+      if (!session?.user) return null;
+      const stored = getStoredUser();
+      const userChanged =
+        !stored ||
+        stored.role !== session.user.role ||
+        JSON.stringify(stored.allowedModules ?? null) !==
+        JSON.stringify(session.user.allowedModules ?? null);
+      if (userChanged) {
+        localStorage.setItem(
+          "user",
+          JSON.stringify({ ...(stored || {}), ...session.user })
+        );
+      }
+      // Merge our own fresh permissions into the local catalog so gating
+      // stays correct even when the full catalog is not readable (403).
+      let catalogChanged = false;
+      if (session.roleName && Array.isArray(session.permissions)) {
+        const { saveRoles, loadRoles: loadStoredRoles } = await import("./permissions");
+        const catalog = { ...loadStoredRoles() };
+        const prev = catalog[session.roleName];
+        const next = {
+          ...(prev || {}),
+          displayName: prev?.displayName || session.roleName,
+          description: prev?.description ?? "",
+          permissions: session.permissions,
+        };
+        if (
+          rolesCatalogKey({ [session.roleName]: next }) !==
+          rolesCatalogKey({ [session.roleName]: prev })
+        ) {
+          catalog[session.roleName] = next;
+          saveRoles(catalog); // fires "roles-updated" → UI re-renders
+          catalogChanged = true;
+        }
+      }
+      if (userChanged && !catalogChanged) {
+        window.dispatchEvent(new Event("user-updated"));
+      }
+      return session;
+    } catch {
+      return null;
+    } finally {
+      sessionRefreshPromise = null;
+    }
+  })();
+  return sessionRefreshPromise;
 };

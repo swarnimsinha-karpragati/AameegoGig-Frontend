@@ -13,6 +13,12 @@ const apiErrorMessage = (error, fallback) => {
   return error?.message || fallback;
 };
 
+const departmentIdOf = (department) => {
+  if (!department) return "";
+  if (typeof department === "object") return String(department._id || department.id || "");
+  return "";
+};
+
 const departmentName = (department) => {
   if (!department) return "-";
   return typeof department === "object" ? department.name || "-" : department;
@@ -27,7 +33,28 @@ const netBreakdown = (gross, tdsPercent) => {
   return { gross: amount, tds, net: amount - tds };
 };
 
-export default function ConsultancyPayments({ refreshKey = 0, search = "", canManage = false }) {
+// Mirror of the backend employee-directory status filter (bug 255).
+const matchesEmployeeStatus = (employee = {}, statusKey = "") => {
+  const key = String(statusKey || "").toLowerCase();
+  if (!key) return true;
+  if (key === "active") return employee.isActive !== false && !employee.isDeleted;
+  if (key === "inactive") return employee.isActive === false && !employee.isDeleted;
+  if (key === "exited") return Boolean(employee.isExited) && !employee.isDeleted;
+  if (key === "probation") return employee.employmentStatus === "probation" && !employee.isDeleted;
+  if (key === "full-time" || key === "fulltime" || key === "confirmed") {
+    return employee.employmentStatus === "full-time" && !employee.isDeleted;
+  }
+  if (key === "deleted" || key === "existed") return Boolean(employee.isDeleted);
+  return true;
+};
+
+export default function ConsultancyPayments({
+  refreshKey = 0,
+  search = "",
+  departmentFilter = "",
+  employeeStatusFilter = "",
+  canManage = false,
+}) {
   const today = new Date();
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
@@ -42,8 +69,10 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "", canMa
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
+  // Bug 263: dynamic year window ending at the current year — never a fixed
+  // range, and never a future year.
   const yearOptions = useMemo(
-    () => Array.from({ length: 10 }, (_, index) => currentYear - index),
+    () => Array.from({ length: 16 }, (_, index) => currentYear - index),
     [currentYear]
   );
 
@@ -93,15 +122,32 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "", canMa
 
   const onYearChange = (year) => {
     const selectedYear = Number(year);
+    // Bug 263: selecting the current year clamps a future month back to now.
     const clampedMonth = selectedYear === currentYear && period.month > currentMonth ? currentMonth : period.month;
     setPeriod({ ...period, year: selectedYear, month: clampedMonth });
   };
 
   const rows = useMemo(() => {
     const term = String(search || "").trim().toLowerCase();
-    let filtered = data.rows;
+    let filtered = data.rows || [];
+    // Payment status filter (Paid/Pending).
     if (statusFilter !== "all") {
       filtered = filtered.filter((row) => row.payment.status === statusFilter);
+    }
+    // Bug 255: department + employee-status filters apply here too.
+    if (departmentFilter) {
+      filtered = filtered.filter((row) => {
+        const dept = row.employee?.department;
+        if (typeof dept === "object" && dept !== null) {
+          if (departmentIdOf(dept) && departmentIdOf(dept) === String(departmentFilter)) return true;
+          // Fallback: match by populated name when only names are available.
+          return false;
+        }
+        return String(dept || "") === String(departmentFilter);
+      });
+    }
+    if (employeeStatusFilter) {
+      filtered = filtered.filter((row) => matchesEmployeeStatus(row.employee, employeeStatusFilter));
     }
     if (!term) return filtered;
     return filtered.filter((row) => {
@@ -111,10 +157,33 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "", canMa
         row.employee.employeeCode,
         row.employee.designation,
         department,
-      ].filter(Boolean).join(" ").toLowerCase();
+      ].filter(Boolean).join(" ").toLocaleLowerCase();
       return haystack.includes(term);
     });
-  }, [data.rows, search, statusFilter]);
+  }, [data.rows, search, statusFilter, departmentFilter, employeeStatusFilter]);
+
+  // Bug 254: summary cards reflect the same filtered rows as the table.
+  const summary = useMemo(() => {
+    const result = {
+      totalConsultants: 0,
+      totalPayable: 0,
+      totalTDS: 0,
+      totalNetPayable: 0,
+      paidAmount: 0,
+      pendingAmount: 0,
+    };
+    rows.forEach((row) => {
+      const amount = Number(row.payment.amount) || 0;
+      const netAmount = Number(row.payment.netAmount ?? amount - (Number(row.payment.tdsAmount) || 0)) || 0;
+      result.totalConsultants += 1;
+      result.totalPayable += amount;
+      result.totalTDS += Number(row.payment.tdsAmount) || 0;
+      result.totalNetPayable += netAmount;
+      if (row.payment.status === "Paid") result.paidAmount += netAmount;
+      else result.pendingAmount += netAmount;
+    });
+    return result;
+  }, [rows]);
 
   const openModal = (row, mode) => {
     setModal({ row, mode });
@@ -184,7 +253,15 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "", canMa
   };
 
   const breakdown = netBreakdown(editForm.amount, editForm.tdsPercent);
-  const summary = data.summary || {};
+  // Bug 258: surface invalid pay/TDS in the preview instead of silently clamping.
+  const previewAmount = Number(editForm.amount);
+  const previewTds = editForm.tdsPercent === "" ? 0 : Number(editForm.tdsPercent);
+  const previewInvalid =
+    modal && (editForm.amount !== "" && (!Number.isFinite(previewAmount) || previewAmount < 0))
+      ? "Consultancy Pay cannot be negative."
+      : modal && editForm.tdsPercent !== "" && (!Number.isFinite(previewTds) || previewTds < 0 || previewTds > 100)
+        ? "TDS must be between 0% and 100%."
+        : "";
   return (
     <section className="consultancy-payments-panel">
       <div className="consultancy-payments-head">
@@ -229,7 +306,7 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "", canMa
                 const net = Number(row.payment.netAmount) || 0;
                 return (
                   <tr key={row.employee._id}>
-                    <td>{row.employee.name}<small>{row.employee.employeeCode}</small></td>
+                    <td>{row.employee.name}<small>{row.employee.employeeCode}{row.converted ? " · Converted to employee — history" : ""}</small></td>
                     <td>{departmentName(row.employee.department)}</td>
                     <td>{money(row.payment.amount)}</td>
                     <td>{Number(row.payment.tdsPercent) || 0}%</td>
@@ -237,7 +314,7 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "", canMa
                     <td><span className={`status-badge ${row.payment.status === "Paid" ? "active" : "inactive"}`}>{row.payment.status}</span></td>
                     {canManage ? (
                       <td>
-                        {row.payment.status === "Paid" ? (
+                        {row.payment.status === "Paid" || row.converted ? (
                           <span className="consultancy-status-locked">Payment locked</span>
                         ) : (
                           <div className="consultancy-payments-actions">
@@ -331,6 +408,9 @@ export default function ConsultancyPayments({ refreshKey = 0, search = "", canMa
                 <span>TDS ({breakdown.tds === 0 ? "0" : (Number(editForm.tdsPercent) || 0)}%): −{money(breakdown.tds)}</span>
                 <strong>Net payable: {money(breakdown.net)}</strong>
               </div>
+              {previewInvalid ? (
+                <p className="record-edit-error" role="alert">{previewInvalid}</p>
+              ) : null}
 
               <label className="record-edit-field record-edit-field--full">
                 <span>Transaction reference {modal.mode === "pay" ? "*" : ""}</span>

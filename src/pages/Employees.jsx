@@ -1,18 +1,23 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import {
-  addEmployee,
   buildEmployeePayload,
-  getEmployees,
-  bulkUploadEmployees,
-  updateEmployee,
-  deleteEmployee,
-  toggleAppLogin,
-  convertToEmployee,
-  resendCredentials,
+  convertToConsultant,
 } from "../services/employeeService";
+
+import {
+  useEmployees,
+  useAddEmployee,
+  useUpdateEmployee,
+  useDeleteEmployee,
+  useBulkUploadEmployees,
+  useToggleAppLogin,
+  useConvertToEmployee,
+  useResendCredentials,
+} from "../hooks/useEmployees";
+import { useDepartmentNames } from "../hooks/useDepartments";
 
 import {
   uploadEmployeeDocument,
@@ -42,12 +47,16 @@ import {
   UserCheck,
   Clock,
   ChevronDown,
+  Info,
 } from "lucide-react";
 import { getStoredUser, canManageEmployees, canManageProbation, roleHasPermission } from "../utils/roles";
+import { loadRoles } from "../utils/permissions";
 import {
   confirmProbationEmployee,
   extendProbationEmployee,
+  getEmployeeProbationHistory,
 } from "../services/probationService";
+import ProbationHistoryModal from "../components/ProbationHistoryModal";
 
 
 import {
@@ -63,7 +72,6 @@ import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
 import { saveEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
-import { getDepartmentName } from "../services/departmentService";
 import {
   DOC_TYPE_ACCEPT,
   DOC_TYPE_OPTIONS,
@@ -104,7 +112,7 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
       { key: "peopleManagerId", label: "People Manager", type: "people-manager" },
-      { key: "dateOfJoining", label: "Date of Joining", type: "date" },
+      { key: "dateOfJoining", label: "Date of Joining", type: "date", required: true },
       { key: "dob", label: "Date of Birth", type: "date" },
     ],
   },
@@ -169,7 +177,6 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Employment",
     fields: [
       { key: "client", label: "Client" },
-      { key: "employmentStatus", label: "Employment Status", type: "select-employment-status", hint: "New joiners start on probation by default" },
       { key: "probationEndDate", label: "Probation End Date", type: "date" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
       { key: "payType", label: "Pay Type", type: "select-paytype" },
@@ -215,6 +222,21 @@ const calculateNetConsultancy = (gross, tdsPercent) => {
   const tdsRate = Math.min(100, Math.max(0, Number(tdsPercent) || 0));
   const tds = Math.round((amount * tdsRate) / 100);
   return { gross: amount, tds, net: amount - tds };
+};
+
+// Bug 258: invalid pay/TDS must surface a validation message instead of a
+// silently clamped preview.
+const consultancyPreviewError = (gross, tdsPercent) => {
+  if (gross !== "" && gross !== null && gross !== undefined) {
+    const amount = Number(gross);
+    if (!Number.isFinite(amount) || amount < 0) return "Consultancy Pay cannot be negative.";
+    if (amount <= 0) return "Monthly Consultancy Pay must be greater than ₹0.";
+  }
+  if (tdsPercent !== "" && tdsPercent !== null && tdsPercent !== undefined) {
+    const rate = Number(tdsPercent);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) return "TDS must be between 0% and 100%.";
+  }
+  return "";
 };
 
 function FormSection({ title, description, children, fullWidth = false }) {
@@ -276,9 +298,7 @@ function EmployeeFormFields({
                 </option>
               ))}
           </select>
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
           {showTransferNotice ? (
             <p className="emp-transfer-notice">
               Transfer letter will be created and sent to the employee when saved.
@@ -301,9 +321,7 @@ function EmployeeFormFields({
             controlClassName="emp-field-input form-control"
             placeholder={`Select ${field.label.toLowerCase()} (optional)`}
           />
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -313,13 +331,15 @@ function EmployeeFormFields({
         field.key === "dob"
           ? { max: getMaxDateOfBirthInputValue() }
           : {};
+      // Full-time hone par Probation End Date change nahi ho sakta.
+      if (field.key === "probationEndDate" && values?.employmentStatus === "full-time") {
+        dateInputProps.disabled = true;
+      }
 
       return (
         <>
           <input {...common} {...dateInputProps} type="date" />
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -331,9 +351,7 @@ function EmployeeFormFields({
             <option value="probation">Probation</option>
             <option value="full-time">Full-time</option>
           </select>
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -349,9 +367,7 @@ function EmployeeFormFields({
             )}
           </select>
 
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -366,9 +382,7 @@ function EmployeeFormFields({
             <option value="Other">Other</option>
           </select>
 
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -394,7 +408,7 @@ function EmployeeFormFields({
             <option value="Guardian">Guardian</option>
             <option value="Other">Other</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -407,7 +421,7 @@ function EmployeeFormFields({
             <option value="Single">Single</option>
             <option value="Married">Married</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -455,7 +469,7 @@ function EmployeeFormFields({
 const DEFAULT_ROLE_OPTIONS = [
   { roleName: "Employee", displayName: "Employee" },
   { roleName: "Manager", displayName: "Manager" },
-  { roleName: "HR", displayName: "HR Manager" },
+  { roleName: "HR", displayName: "HR" },
 ];
 
 function AppLoginSection({
@@ -592,14 +606,12 @@ function Employees() {
 
   const [availableRoles, setAvailableRoles] = useState(DEFAULT_ROLE_OPTIONS);
 
-  const [employees, setEmployees] = useState([]);
   const [directoryType, setDirectoryType] = useState(() =>
     isConsultancyOnly ? "consultancy" : "employee"
   );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [pagination, setPagination] = useState({ total: 0, pages: 0 });
   const [consultancyRefreshKey, setConsultancyRefreshKey] = useState(0);
 
   const [uploadFile, setUploadFile] = useState(null);
@@ -607,12 +619,58 @@ function Employees() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const [department, setDepartment] = useState([]);
-  const [departmentFilter, setDepartmentFilter] = useState("");
-
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "";
   const [statusFilter, setStatusFilter] = useState(urlStatus);
+
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+
+  // Role options for access review: system roles + custom catalog roles.
+  // Read fresh every render so newly created roles appear immediately.
+  const roleFilterOptions = (() => {
+    const systemRoles = ["Admin", "HR", "Manager", "Employee"];
+    try {
+      const catalog = loadRoles();
+      const customs = Object.keys(catalog || {}).filter((key) => !systemRoles.includes(key));
+      return [...systemRoles, ...customs];
+    } catch {
+      return systemRoles;
+    }
+  })();
+
+  const { data: employeeData, refetch: refetchEmployees } = useEmployees({
+    departmentId: departmentFilter || undefined,
+    status: statusFilter || undefined,
+    role: roleFilter || undefined,
+    page,
+    limit,
+    search,
+    isConsultancy: directoryType === "consultancy",
+    isPagination: "true",
+  });
+
+  const employees = employeeData?.employees || [];
+  const pagination = employeeData?.pagination || { total: 0, pages: 0 };
+
+  const { data: department = [] } = useDepartmentNames(
+    (() => {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        const { vendorId } = JSON.parse(userData);
+        return vendorId;
+      }
+      return null;
+    })()
+  );
+
+  const addMutation = useAddEmployee();
+  const updateMutation = useUpdateEmployee();
+  const deleteMutation = useDeleteEmployee();
+  const bulkUploadMutation = useBulkUploadEmployees();
+  const toggleAppLoginMutation = useToggleAppLogin();
+  const convertToEmployeeMutation = useConvertToEmployee();
+  const resendCredentialsMutation = useResendCredentials();
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
   // Accordion: which menu category is open (one at a time)
@@ -646,6 +704,25 @@ function Employees() {
   const [extendEmp, setExtendEmp] = useState(null);
   const [extendMonths, setExtendMonths] = useState(1);
   const [extendRemark, setExtendRemark] = useState("");
+  const [extendErrors, setExtendErrors] = useState({});
+
+  const validateExtraMonths = (raw) => {
+    if (raw === "" || raw === null || raw === undefined) {
+      return "Enter a valid value between 1 and 12.";
+    }
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > 12) {
+      return "Enter a valid value between 1 and 12.";
+    }
+    return "";
+  };
+
+  const validateExtendRemark = (raw) => {
+    if (!String(raw || "").trim()) {
+      return "Reason for extension is required.";
+    }
+    return "";
+  };
 
   const handleConfirmProbation = (emp) => {
     setConfirmProbationTarget(emp);
@@ -657,7 +734,7 @@ function Employees() {
     try {
       await confirmProbationEmployee(confirmProbationTarget._id);
       setConfirmProbationTarget(null);
-      fetchEmployees();
+      refetchEmployees();
     } catch (e) {
       alert(e?.response?.data?.message || "Could not mark employee as full-time");
     } finally {
@@ -668,17 +745,23 @@ function Employees() {
   const handleExtendProbationSubmit = async () => {
     if (!extendEmp || probationActionLoading) return;
     const months = Number(extendMonths);
-    if (!months || months < 1 || months > 12) {
-      alert("Extension must be between 1 and 12 months");
+    const monthsError = validateExtraMonths(extendMonths);
+    const remarkError = validateExtendRemark(extendRemark);
+    if (monthsError || remarkError) {
+      setExtendErrors({
+        ...(monthsError ? { extendMonths: monthsError } : {}),
+        ...(remarkError ? { extendRemark: remarkError } : {}),
+      });
       return;
     }
     setProbationActionLoading(true);
     try {
-      await extendProbationEmployee(extendEmp._id, months, extendRemark);
+      await extendProbationEmployee(extendEmp._id, months, extendRemark.trim());
       setExtendEmp(null);
       setExtendMonths(1);
       setExtendRemark("");
-      fetchEmployees();
+      setExtendErrors({});
+      refetchEmployees();
     } catch (e) {
       alert(e?.response?.data?.message || "Could not extend probation");
     } finally {
@@ -686,9 +769,52 @@ function Employees() {
     }
   };
 
+  const isExtendFormValid =
+    !validateExtraMonths(extendMonths) && !validateExtendRemark(extendRemark);
+
+  // Probation history (HR view of selected employee)
+  const [showProbHist, setShowProbHist] = useState(false);
+  const [probHistData, setProbHistData] = useState(null);
+  const [probHistLoading, setProbHistLoading] = useState(false);
+  const [probHistError, setProbHistError] = useState("");
+
+  const openProbationHistory = async (emp) => {
+    if (!emp) return;
+    setShowProbHist(true);
+    setProbHistLoading(true);
+    setProbHistError("");
+    try {
+      const data = await getEmployeeProbationHistory(emp._id);
+      setProbHistData(data);
+    } catch (e) {
+      setProbHistError(e?.response?.data?.message || "Could not load probation history");
+    } finally {
+      setProbHistLoading(false);
+    }
+  };
+
   // Convert consultant → employee modal state
   const [convertTarget, setConvertTarget] = useState(null);
   const [converting, setConverting] = useState(false);
+
+  // Bug 265: reverse conversion (employee → consultant) modal state.
+  const [convertBackTarget, setConvertBackTarget] = useState(null);
+  const [convertBackPay, setConvertBackPay] = useState("");
+  const [convertBackTds, setConvertBackTds] = useState("");
+  const [convertBackErrors, setConvertBackErrors] = useState({});
+
+  // Bug 268: each directory tab keeps independent filter state — reset search
+  // and filters when switching tabs so stale values never leak across.
+  const switchDirectoryType = (next) => {
+    if (next === directoryType) return;
+    setDirectoryType(next);
+    setPage(1);
+    setSearch("");
+    setDepartmentFilter("");
+    setStatusFilter("");
+    setRoleFilter("");
+    setSearchParams({}, { replace: true });
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -839,36 +965,12 @@ function Employees() {
   const salaryEditorRef = useRef(null);
 
   /* =========================
-     FETCH EMPLOYEES
+     FETCH EMPLOYEES (via useEmployees hook)
   ========================= */
 
-  const fetchEmployees = useCallback(async () => {
-    try {
-      const res = await getEmployees({
-        departmentId: departmentFilter || undefined,
-        status: statusFilter || undefined,
-        page,
-        limit,
-        search,
-        isConsultancy: directoryType === "consultancy",
-        isPagination: "true",
-      });
-      setEmployees(res.data.employees || []);
-      if (res.data.pagination) {
-        setPagination({
-          total: res.data.pagination.total,
-          pages: res.data.pagination.pages,
-        });
-      }
-      setConsultancyRefreshKey((value) => value + 1);
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-    }
-  }, [departmentFilter, statusFilter, page, limit, search, directoryType]);
-
   useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
+    refetchEmployees();
+  }, [departmentFilter, statusFilter, page, limit, search, directoryType, refetchEmployees]);
 
   useEffect(() => {
     if (!canViewConsultancy && directoryType === "consultancy") {
@@ -887,22 +989,8 @@ function Employees() {
   }, [urlStatus]);
 
   useEffect(() => {
-    const loggedUser = localStorage.getItem("user");
-    if (!loggedUser) return;
-    const { vendorId } = JSON.parse(loggedUser);
-    fetchDepartment(vendorId);
-  }, []);
-
-  const fetchDepartment = async (vendorId) => {
-    try {
-      if (!vendorId) return
-      const res = await getDepartmentName(vendorId);
-      setDepartment(res.data)
-
-    } catch (err) {
-      console.log(err)
-    }
-  }
+    setConsultancyRefreshKey((prev) => prev + 1);
+  }, [employeeData]);
 
 
   const loadEmployeeDocuments =
@@ -952,6 +1040,18 @@ function Employees() {
         return next;
       });
     } catch (err) {
+      // Yup validateAt unknown path par hard throw karta hai
+      // ("The schema does not contain the path: X"). Ye validation error
+      // nahi hai, isliye field par dikhane ke bajaye ignore karo.
+      if (err?.message?.includes('does not contain the path')) {
+        setErrors((prev) => {
+          if (!prev[name]) return prev;
+          const next = { ...prev };
+          delete next[name];
+          return next;
+        });
+        return;
+      }
       setErrors((prev) => ({ ...prev, [name]: err.message }));
     }
   };
@@ -1058,7 +1158,7 @@ function Employees() {
     if (!employeeId || sendingCreds) return;
     setSendingCreds(true);
     try {
-      const res = await resendCredentials(employeeId);
+      const res = await resendCredentialsMutation.mutateAsync(employeeId);
       const data = res.data || {};
       if (!data.emailSent && data.loginInfo?.temporaryPassword) {
         downloadCredentialExcel({
@@ -1111,9 +1211,10 @@ function Employees() {
           setErrors({
             salaryStructure: structureErrors.join("; "),
           });
+          alert(structureErrors.join("; "));
+          setSubmitting(false)
           return;
         }
-
         // Manual component entry must add up to CTC / daily wage when no template used
         if (!salaryDraft.structureId) {
           const draftWt = String(salaryDraft.wageType || "").toUpperCase();
@@ -1125,6 +1226,9 @@ function Employees() {
                 : validateComponentsMatchCtc(salaryDraft);
           if (matchError) {
             setErrors({ salaryStructure: matchError });
+            alert(matchError);
+            setErrors({});
+            setSubmitting(false)
             return;
           }
         }
@@ -1132,7 +1236,7 @@ function Employees() {
 
       setErrors({});
       setSubmitting(true);
-      const res = await addEmployee(payload);
+      const res = await addMutation.mutateAsync(payload);
       const data = res.data;
       const newEmployeeId = data.employee?._id;
 
@@ -1186,12 +1290,35 @@ function Employees() {
       setForm(initialForm);
       setSalaryDraft(initialSalaryDraft);
       setShowAddModal(false);
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
-      setErrors({});
       console.error("Server/Network Error:", error);
 
-      const serverMessage = error.response?.data?.message || "Failed to add employee";
+      // Bug 253/267: surface duplicate email/phone/code on the field itself
+      // instead of failing silently behind a generic alert.
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Failed to add employee";
+      const field = serverData.field;
+      setSubmitting(false)
+      if (field) {
+        const mapped = { [field]: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/email/i.test(serverMessage)) {
+        const mapped = { email: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/phone/i.test(serverMessage)) {
+        const mapped = { phone: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/code/i.test(serverMessage)) {
+        const mapped = { employeeCode: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else {
+        setErrors({});
+      }
       alert(serverMessage);
     } finally {
       setSubmitting(false);
@@ -1303,7 +1430,7 @@ function Employees() {
     try {
       setLoading(true);
 
-      const res = await bulkUploadEmployees(uploadFile);
+      const res = await bulkUploadMutation.mutateAsync(uploadFile);
 
       const errorList = res.data.errors || [];
 
@@ -1323,7 +1450,7 @@ function Employees() {
       setUploadFile(null);
 
       // Refresh table
-      fetchEmployees();
+      refetchEmployees();
 
       // ❌ do not close the modal
       // setShowUploadModal(false);
@@ -1468,10 +1595,10 @@ function Employees() {
       setErrors({});
       setSubmitting(true);
 
-      const res = await updateEmployee(
-        selectedEmployee._id,
-        payload
-      );
+      const res = await updateMutation.mutateAsync({
+        id: selectedEmployee._id,
+        data: payload,
+      });
 
       if (salaryEditorRef.current?.hasUnsavedChanges) {
         try {
@@ -1505,12 +1632,20 @@ function Employees() {
       setIsEditing(false);
       setEnableLoginOnUpdate(false);
 
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
-      setErrors({});
       console.error("Server/Network Error:", error);
 
-      const serverMessage = error.response?.data?.message || "Failed to update employee";
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Failed to update employee";
+      const field = serverData.field;
+      if (field) {
+        const mapped = { [field]: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else {
+        setErrors({});
+      }
       alert(serverMessage);
     } finally {
       setSubmitting(false);
@@ -1525,15 +1660,64 @@ function Employees() {
     if (!convertTarget) return;
     setConverting(true);
     try {
-      const res = await convertToEmployee(convertTarget._id);
+      const res = await convertToEmployeeMutation.mutateAsync(convertTarget._id);
       alert(res.data?.message || `${convertTarget.name} is now an Employee.`);
       setConvertTarget(null);
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
       alert(
         error.response?.data?.message ||
         "Conversion failed"
       );
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  const openConvertBackModal = (emp) => {
+    setOpenDropdownId(null);
+    setConvertBackTarget(emp);
+    setConvertBackPay(emp.monthlyConsultancyPay || "");
+    setConvertBackTds(emp.tdsPercent ?? "");
+    setConvertBackErrors({});
+  };
+
+  const handleConfirmConvertToConsultant = async () => {
+    if (!convertBackTarget || converting) return;
+    // Inline field-level validation (same rules as Add/Edit Consultant).
+    const fieldErrors = {};
+    const pay = Number(convertBackPay);
+    if (convertBackPay === "" || !Number.isFinite(pay) || pay <= 0) {
+      fieldErrors.convertBackPay = "Monthly Consultancy Pay must be greater than ₹0.";
+    }
+    const tds = convertBackTds === "" ? 0 : Number(convertBackTds);
+    if (convertBackTds !== "" && (!Number.isFinite(tds) || tds < 0 || tds > 100)) {
+      fieldErrors.convertBackTds = "TDS must be between 0% and 100%.";
+    }
+    setConvertBackErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length) return;
+    setConverting(true);
+    try {
+      const res = await convertToConsultant(convertBackTarget._id, {
+        monthlyConsultancyPay: pay,
+        tdsPercent: tds,
+      });
+      alert(res.data?.message || `${convertBackTarget.name} is now a Consultant.`);
+      setConvertBackTarget(null);
+      setConvertBackPay("");
+      setConvertBackTds("");
+      setConvertBackErrors({});
+      refetchEmployees();
+    } catch (error) {
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Conversion failed";
+      // Map backend field errors onto the matching input.
+      if (serverData.field === "monthlyConsultancyPay") {
+        setConvertBackErrors({ convertBackPay: serverMessage });
+      } else if (serverData.field === "tdsPercent") {
+        setConvertBackErrors({ convertBackTds: serverMessage });
+      }
+      alert(serverMessage);
     } finally {
       setConverting(false);
     }
@@ -1552,14 +1736,14 @@ function Employees() {
     if (!confirmDelete) return;
 
     try {
-      await deleteEmployee(id);
+      await deleteMutation.mutateAsync(id);
 
       alert("Employee soft deleted successfully. Their details are archived.");
 
       if (employees.length <= 1 && page > 1) {
         setPage(page - 1);
       } else {
-        fetchEmployees();
+        refetchEmployees();
       }
     } catch (error) {
       alert(
@@ -1585,9 +1769,9 @@ function Employees() {
     if (!confirmToggle) return;
 
     try {
-      await toggleAppLogin(emp._id, enable);
+      await toggleAppLoginMutation.mutateAsync({ id: emp._id, enable });
       alert(enable ? "App login enabled." : "App login disabled.");
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
       alert(
         error.response?.data?.message ||
@@ -1773,7 +1957,7 @@ function Employees() {
         );
 
         setShowTerminationModal(false);
-        fetchEmployees();
+        refetchEmployees();
 
       } catch (error) {
         alert(
@@ -1832,7 +2016,7 @@ function Employees() {
         );
 
         setShowTerminationModal(false);
-        fetchEmployees();
+        refetchEmployees();
 
       } catch (error) {
         alert(
@@ -1916,13 +2100,13 @@ function Employees() {
 
         <div className="employee-directory-tabs" role="tablist" aria-label="People directory">
           {canViewEmployees ? (
-            <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => { setDirectoryType("employee"); setPage(1); }}>
+            <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => switchDirectoryType("employee")}>
               Employees
               {directoryType === "employee" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
             </button>
           ) : null}
           {canViewConsultancy ? (
-            <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => { setDirectoryType("consultancy"); setPage(1); }}>
+            <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => switchDirectoryType("consultancy")}>
               Consultancy
               {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
             </button>
@@ -1992,10 +2176,29 @@ function Employees() {
                 <option value="">All Employees</option>
                 <option value="active">Active Employees</option>
                 <option value="probation">Probation Employees</option>
+                <option value="expiring-soon">Probation Expiring Soon (30 days)</option>
                 <option value="full-time">Full-time Employees</option>
                 <option value="inactive">Inactive Employees</option>
                 <option value="exited">Exited Employees</option>
                 <option value="deleted">Deleted Employees</option>
+              </select>
+            </div>
+
+            <div className="employee-filter">
+              <select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Filter by role"
+              >
+                <option value="">All Roles</option>
+                {roleFilterOptions.map((roleName) => (
+                  <option key={roleName} value={roleName}>
+                    {roleName}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -2029,7 +2232,7 @@ function Employees() {
           </div>
         </div>
 
-        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} canManage={canManageConsultancy} /> : null}
+        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} departmentFilter={departmentFilter} employeeStatusFilter={statusFilter} canManage={canManageConsultancy} /> : null}
 
         <div className="employee-table-card">
           <div className="employee-table-scroll">
@@ -2135,10 +2338,10 @@ function Employees() {
                       <td>
                         <span
                           className={`login-chip ${emp.hasAppLogin
-                              ? emp.hasLoginEnabled
-                                ? "login-chip--on"
-                                : "login-chip--off"
-                              : "login-chip--none"
+                            ? emp.hasLoginEnabled
+                              ? "login-chip--on"
+                              : "login-chip--off"
+                            : "login-chip--none"
                             }`}
                           title={
                             emp.hasAppLogin
@@ -2178,9 +2381,30 @@ function Employees() {
                           </span>
                           {!emp.isDeleted && !emp.isExited ? (
                             emp.employmentStatus === "probation" ? (
-                              <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
-                                Probation
-                              </span>
+                              <>
+                                <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
+                                  Probation
+                                  <button
+                                    type="button"
+                                    className="emp-info-btn"
+                                    title="View probation history"
+                                    aria-label={`View probation history of ${emp.name}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openProbationHistory(emp);
+                                    }}
+                                  >
+                                    <Info size={12} />
+                                  </button>
+                                </span>
+                                {emp.probationEndDate ? (
+                                  <span className="emp-probation-date" title={`Probation ends ${new Date(emp.probationEndDate).toLocaleDateString()}`}>
+                                    Ends {new Date(emp.probationEndDate).toLocaleDateString()}
+                                  </span>
+                                ) : (
+                                  <span className="emp-probation-date emp-probation-date--none">End date —</span>
+                                )}
+                              </>
                             ) : (
                               <span className="status-badge full-time" title="Confirmed employee">
                                 Full-time
@@ -2269,6 +2493,7 @@ function Employees() {
                                           setExtendEmp(emp);
                                           setExtendMonths(1);
                                           setExtendRemark("");
+                                          setExtendErrors({});
                                         }}
                                       >
                                         <Clock size={16} /> Extend Probation
@@ -2413,6 +2638,17 @@ function Employees() {
                                 </button>
                               )}
 
+                              {directoryType === "employee" && canManage && renderMenuSectionToggle("convert", "Convert")}
+
+                              {directoryType === "employee" && canManage && expandedMenuSection === "convert" && (
+                                <button
+                                  type="button"
+                                  onClick={() => openConvertBackModal(emp)}
+                                >
+                                  <UserCheck size={16} /> Make it Consultant
+                                </button>
+                              )}
+
                               {(directoryType === "employee" ? canManage : canManageConsultancy) && renderMenuSectionToggle("danger", "Danger", true)}
 
                               {(directoryType === "employee" ? canManage : canManageConsultancy) && expandedMenuSection === "danger" && (
@@ -2491,7 +2727,7 @@ function Employees() {
                   form="add-employee-form"
                   disabled={hasFormErrors || submitting}
                 >
-                  {submitting ? "Creating..." : "Save Employee"}
+                  {submitting ? "Creating..." : form.isConsultancy ? "Save Consultant" : "Save Employee"}
                 </Button>
               </>
             }
@@ -2509,16 +2745,21 @@ function Employees() {
               {form.isConsultancy ? (
                 <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
                   <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
-                    <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" />
+                    <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
+                    <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
                   </FormField>
                   <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
-                    <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" />
+                    <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
+                    <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
                   </FormField>
                   <div className="consultancy-net-summary">
                     <span>Gross: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).gross.toLocaleString("en-IN")}</span>
                     <span>TDS ({form.tdsPercent || 0}%): −₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).tds.toLocaleString("en-IN")}</span>
                     <strong>Net Payable: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).net.toLocaleString("en-IN")}</strong>
                   </div>
+                  {consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent) ? (
+                    <p className="emp-field-error" role="alert">{consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent)}</p>
+                  ) : null}
                 </FormSection>
               ) : null}
               <FormSection title="App Access">
@@ -2680,16 +2921,21 @@ function Employees() {
                 {selectedEmployee.isConsultancy ? (
                   <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
                     <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
-                      <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" />
+                      <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
+                      <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
                     </FormField>
                     <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
-                      <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" />
+                      <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
+                      <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
                     </FormField>
                     <div className="consultancy-net-summary">
                       <span>Gross: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).gross.toLocaleString("en-IN")}</span>
                       <span>TDS ({selectedEmployee.tdsPercent || 0}%): −₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).tds.toLocaleString("en-IN")}</span>
                       <strong>Net Payable: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).net.toLocaleString("en-IN")}</strong>
                     </div>
+                    {consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent) ? (
+                      <p className="emp-field-error" role="alert">{consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent)}</p>
+                    ) : null}
                   </FormSection>
                 ) : null}
                 <FormSection title="App Access">
@@ -2806,11 +3052,22 @@ function Employees() {
                     <div>
                       <label>Employment Status</label>
                       <span>
+                        {selectedEmployee.employmentStatus === "probation"
+                          ? "Probation"
+                          : selectedEmployee.employmentStatus === "full-time"
+                            ? "Full-time"
+                            : "-"}
                         {selectedEmployee.employmentStatus === "probation" ? (
-                          <span className="status-badge probation">Probation</span>
-                        ) : (
-                          <span className="status-badge full-time">Full-time</span>
-                        )}
+                          <button
+                            type="button"
+                            className="emp-info-btn"
+                            title="View probation history"
+                            aria-label="View probation history"
+                            onClick={() => openProbationHistory(selectedEmployee)}
+                          >
+                            <Info size={12} />
+                          </button>
+                        ) : null}
                       </span>
                     </div>
 
@@ -2858,6 +3115,28 @@ function Employees() {
                     <div>
                       <label>PF Number</label>
                       <span>{selectedEmployee.pfNumber || "-"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-section">
+                  <h4>Access &amp; Login</h4>
+
+                  <div className="profile-grid">
+                    <div>
+                      <label>App Login</label>
+                      <span>
+                        {selectedEmployee.hasAppLogin
+                          ? selectedEmployee.hasLoginEnabled
+                            ? "Enabled"
+                            : "Disabled"
+                          : "No login"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Login Role</label>
+                      <span>{selectedEmployee.linkedUser?.role || selectedEmployee.userRole || "-"}</span>
                     </div>
                   </div>
                 </div>
@@ -3745,7 +4024,7 @@ function Employees() {
       {extendEmp ? (
         <EmpModal title={`Extend Probation — ${extendEmp.name}`} onClose={() => !probationActionLoading && setExtendEmp(null)}>
           <div className="probation-row">
-            <FormField label="Extra months" htmlFor="probation-extend-months">
+            <FormField label="Extra Months (1–12)" htmlFor="probation-extend-months" required hint="Valid range: 1–12">
               <input
                 id="probation-extend-months"
                 type="number"
@@ -3753,17 +4032,41 @@ function Employees() {
                 max={12}
                 step={1}
                 value={extendMonths}
-                onChange={(e) => setExtendMonths(e.target.value)}
+                onChange={(e) => {
+                  setExtendMonths(e.target.value);
+                  const msg = validateExtraMonths(e.target.value);
+                  setExtendErrors((prev) => {
+                    const next = { ...prev };
+                    if (msg) next.extendMonths = msg;
+                    else delete next.extendMonths;
+                    return next;
+                  });
+                }}
+                aria-invalid={Boolean(extendErrors.extendMonths)}
+                className={extendErrors.extendMonths ? "emp-field-input--error" : undefined}
               />
+              <p className={`emp-field-error${extendErrors.extendMonths ? "" : " emp-field-error--empty"}`} aria-live="polite" role={extendErrors.extendMonths ? "alert" : undefined}>{extendErrors.extendMonths || " "}</p>
             </FormField>
-            <FormField label="Remark (optional)" htmlFor="probation-extend-remark" fullWidth>
+            <FormField label="Reason for Extension" htmlFor="probation-extend-remark" required fullWidth>
               <input
                 id="probation-extend-remark"
                 type="text"
-                placeholder="Reason for extension"
+                placeholder="Enter reason for extension (required)"
                 value={extendRemark}
-                onChange={(e) => setExtendRemark(e.target.value)}
+                onChange={(e) => {
+                  setExtendRemark(e.target.value);
+                  const msg = validateExtendRemark(e.target.value);
+                  setExtendErrors((prev) => {
+                    const next = { ...prev };
+                    if (msg) next.extendRemark = msg;
+                    else delete next.extendRemark;
+                    return next;
+                  });
+                }}
+                aria-invalid={Boolean(extendErrors.extendRemark)}
+                className={extendErrors.extendRemark ? "emp-field-input--error" : undefined}
               />
+              <p className={`emp-field-error${extendErrors.extendRemark ? "" : " emp-field-error--empty"}`} aria-live="polite" role={extendErrors.extendRemark ? "alert" : undefined}>{extendErrors.extendRemark || " "}</p>
             </FormField>
           </div>
           {extendEmp.probationEndDate ? (
@@ -3772,10 +4075,10 @@ function Employees() {
             </p>
           ) : null}
           <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-            <Button type="button" disabled={probationActionLoading} onClick={handleExtendProbationSubmit}>
+            <Button type="button" disabled={probationActionLoading || !isExtendFormValid} onClick={handleExtendProbationSubmit}>
               {probationActionLoading ? "Saving…" : "Extend Probation"}
             </Button>
-            <Button type="button" variant="secondary" disabled={probationActionLoading} onClick={() => setExtendEmp(null)}>
+            <Button type="button" variant="secondary" disabled={probationActionLoading} onClick={() => { setExtendEmp(null); setExtendErrors({}); }}>
               Cancel
             </Button>
           </div>
@@ -3786,6 +4089,14 @@ function Employees() {
         isOpen={!!docPreviewUrl}
         onClose={() => setDocPreviewUrl(null)}
         url={docPreviewUrl}
+      />
+
+      <ProbationHistoryModal
+        open={showProbHist}
+        onClose={() => setShowProbHist(false)}
+        loading={probHistLoading}
+        error={probHistError}
+        data={probHistData}
       />
 
       <ConfirmModal
@@ -3825,7 +4136,8 @@ function Employees() {
                 <strong>After conversion:</strong>
                 <ul style={{ margin: "6px 0 0", paddingLeft: "18px" }}>
                   <li>Moves to the Employees list</li>
-                  <li>Consultancy pay / TDS is cleared</li>
+                  <li>Past consultancy payment history is preserved for audit</li>
+                  <li>Only future consultancy payments stop generating</li>
                   <li>Becomes payroll-eligible — assign department + salary structure next</li>
                 </ul>
               </div>
@@ -3833,6 +4145,78 @@ function Employees() {
           ) : null
         }
       />
+
+      {convertBackTarget ? (
+        <EmpModal title={`Make it Consultant — ${convertBackTarget.name}`} onClose={() => !converting && (setConvertBackTarget(null), setConvertBackErrors({}))}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <p className="emp-field-hint" style={{ margin: 0 }}>
+              {convertBackTarget.convertedFromConsultancy
+                ? "This employee was converted from consultancy — converting back restores monthly consultancy payments."
+                : "This employee will move to the Consultancy list and become payroll-excluded."}
+            </p>
+            <FormField label="Monthly Consultancy Pay" htmlFor="convert-back-pay" required>
+              <input
+                id="convert-back-pay"
+                type="number"
+                min="1"
+                step="any"
+                value={convertBackPay}
+                onChange={(e) => {
+                  setConvertBackPay(e.target.value);
+                  setConvertBackErrors((prev) => {
+                    if (!prev.convertBackPay) return prev;
+                    const next = { ...prev };
+                    delete next.convertBackPay;
+                    return next;
+                  });
+                }}
+                placeholder="Enter monthly amount"
+                className={convertBackErrors.convertBackPay ? "emp-field-input--error" : undefined}
+              />
+              <p className={`emp-field-error${convertBackErrors.convertBackPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{convertBackErrors.convertBackPay || " "}</p>
+            </FormField>
+            <FormField label="TDS %" htmlFor="convert-back-tds">
+              <input
+                id="convert-back-tds"
+                type="number"
+                min="0"
+                max="100"
+                step="any"
+                value={convertBackTds}
+                onChange={(e) => {
+                  setConvertBackTds(e.target.value);
+                  setConvertBackErrors((prev) => {
+                    if (!prev.convertBackTds) return prev;
+                    const next = { ...prev };
+                    delete next.convertBackTds;
+                    return next;
+                  });
+                }}
+                placeholder="e.g. 10"
+                className={convertBackErrors.convertBackTds ? "emp-field-input--error" : undefined}
+              />
+              <p className={`emp-field-error${convertBackErrors.convertBackTds ? "" : " emp-field-error--empty"}`} aria-live="polite">{convertBackErrors.convertBackTds || " "}</p>
+            </FormField>
+            {consultancyPreviewError(convertBackPay === "" ? null : convertBackPay, convertBackTds === "" ? null : convertBackTds) ? (
+              <p className="emp-field-error" role="alert">{consultancyPreviewError(convertBackPay === "" ? null : convertBackPay, convertBackTds === "" ? null : convertBackTds)}</p>
+            ) : (
+              <div className="consultancy-net-summary">
+                <span>Gross: ₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).gross.toLocaleString("en-IN")}</span>
+                <span>TDS ({convertBackTds || 0}%): −₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).tds.toLocaleString("en-IN")}</span>
+                <strong>Net Payable: ₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).net.toLocaleString("en-IN")}</strong>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Button type="button" disabled={converting} onClick={handleConfirmConvertToConsultant}>
+                {converting ? "Converting…" : "Convert to Consultant"}
+              </Button>
+              <Button type="button" variant="secondary" disabled={converting} onClick={() => { setConvertBackTarget(null); setConvertBackErrors({}); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </EmpModal>
+      ) : null}
     </MainLayout>
   );
 }

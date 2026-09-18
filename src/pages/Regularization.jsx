@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CheckCircle2,
   ClipboardList,
@@ -15,10 +15,10 @@ import ApprovalsList from "../components/regularization/ApprovalsList";
 import DirectEditPanel from "../components/regularization/DirectEditPanel";
 import { ToastProvider, useToast } from "../components/Toast";
 import {
-  cancelRegularizationRequest,
-  getRegularizationDashboard,
-  listRegularizationRequests,
-} from "../services/regularizationService";
+  useRegularizationDashboard,
+  useRegularizationRequests,
+  useCancelRegularizationRequest,
+} from "../hooks/useRegularization";
 import { validateField } from "../utils/inputValidation";
 import {
   getStoredUser,
@@ -29,13 +29,6 @@ import {
 } from "../utils/roles";
 import { buildRegularizationTabs } from "./regularizationTabs";
 import "./Regularization.css";
-
-const ROLE_SUBTITLES = {
-  Admin: "Correct records, review requests, and keep attendance and leave accurate.",
-  HR: "Manage correction requests across your organization in one place.",
-  Manager: "Request corrections and keep track of your team’s review queue.",
-  Employee: "Fix attendance or leave records and follow every decision.",
-};
 
 const apiError = (error, fallback) => buildApiErrorMessage(error, fallback);
 
@@ -50,6 +43,12 @@ function RegularizationInner() {
   const isAdminOrHr = canViewAllRegularizations(user?.role);
   const canDirectEdit = canDirectEditRegularization(user?.role);
   const canRequest = hasLinkedEmployeeProfile(user);
+  const dashboardQuery = useRegularizationDashboard();
+  const counts = dashboardQuery.data?.counts || {};
+  const hasTeam = Boolean(dashboardQuery.data?.hasTeam);
+  const teamCount = dashboardQuery.data?.teamCount || 0;
+  const teamPending = counts.teamPending || 0;
+  const teamApprovedThisMonth = counts.teamApprovedThisMonth || 0;
   const tabs = useMemo(
     () =>
       buildRegularizationTabs({
@@ -57,18 +56,21 @@ function RegularizationInner() {
         canApprove,
         canDirectEdit,
         isAdminOrHr,
+        hasTeam,
       }),
-    [canApprove, canDirectEdit, canRequest, isAdminOrHr]
+    [canApprove, canDirectEdit, canRequest, isAdminOrHr, hasTeam]
   );
   const [activeTab, setActiveTab] = useState(canRequest ? "request" : "mine");
-  const [counts, setCounts] = useState({
-    myPending: 0,
-    awaitingApproval: 0,
-    approvedThisMonth: 0,
+
+  const requestsQuery = useRegularizationRequests({
+    limit: 100,
+    ...(isAdminOrHr ? {} : { mine: 1 }),
   });
-  const [requests, setRequests] = useState([]);
-  const [approved, setApproved] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const approvedQuery = useRegularizationRequests({ status: "Approved", limit: 100 });
+  const cancelMutation = useCancelRegularizationRequest();
+
+  const requests = requestsQuery.data?.requests || [];
+  const loading = dashboardQuery.isLoading || requestsQuery.isLoading;
 
   const isApprovedThisMonth = (request) => {
     const decided = new Date(request?.decidedAt);
@@ -80,43 +82,7 @@ function RegularizationInner() {
     );
   };
 
-  const loadData = useCallback(
-    async ({ quiet = false } = {}) => {
-      if (!quiet) setLoading(true);
-      const [dashboardResult, requestsResult, approvedResult] =
-        await Promise.allSettled([
-          getRegularizationDashboard(),
-          listRegularizationRequests({
-            limit: 100,
-            ...(isAdminOrHr ? {} : { mine: 1 }),
-          }),
-          listRegularizationRequests({ status: "Approved", limit: 100 }),
-        ]);
-      if (dashboardResult.status === "fulfilled") {
-        setCounts(dashboardResult.value?.counts || {});
-      } else if (!quiet) {
-        toastError(apiError(dashboardResult.reason, "Failed to load regularization summary"));
-      }
-      if (requestsResult.status === "fulfilled") {
-        setRequests(requestsResult.value?.requests || []);
-      } else {
-        toastError(apiError(requestsResult.reason, "Failed to load requests"));
-      }
-      if (approvedResult.status === "fulfilled") {
-        setApproved(
-          (approvedResult.value?.requests || []).filter(isApprovedThisMonth)
-        );
-      } else if (!quiet) {
-        toastError(apiError(approvedResult.reason, "Failed to load approved requests"));
-      }
-      setLoading(false);
-    },
-    [isAdminOrHr, toastError]
-  );
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const approved = (approvedQuery.data?.requests || []).filter(isApprovedThisMonth);
 
   const handleCancel = async (id, cancelReason) => {
     const cancelError = validateField({
@@ -132,9 +98,8 @@ function RegularizationInner() {
       return false;
     }
     try {
-      const response = await cancelRegularizationRequest(id, cancelReason);
+      const response = await cancelMutation.mutateAsync({ id, cancelReason });
       toastSuccess(response?.message || "Regularization request cancelled");
-      await loadData({ quiet: true });
       return true;
     } catch (error) {
       toastError(apiError(error, "Failed to cancel request"));
@@ -181,11 +146,6 @@ function RegularizationInner() {
   return (
     <div className="regularization-page">
       <header className="regularization-header">
-        <div>
-          <span className="regularization-eyebrow">Attendance & leave</span>
-          <h1>Regularization hub</h1>
-          <p>{ROLE_SUBTITLES[user?.role] || ROLE_SUBTITLES.Employee}</p>
-        </div>
         <div className="regularization-header__badge">
           <ShieldCheck size={17} />
           <span>{user?.role || "Employee"} workspace</span>
@@ -226,7 +186,11 @@ function RegularizationInner() {
 
       <main className="regularization-content">
         {activeTab === "request" ? (
-          <RequestForm toast={toast} onSubmitted={() => loadData({ quiet: true })} />
+          <RequestForm toast={toast} onSubmitted={() => {
+            dashboardQuery.refetch();
+            requestsQuery.refetch();
+            approvedQuery.refetch();
+          }} />
         ) : null}
         {activeTab === "mine" ? (
           <MyRequestsList
@@ -256,8 +220,59 @@ function RegularizationInner() {
         {activeTab === "approvals" ? (
           <ApprovalsList
             toast={toast}
-            onChanged={() => loadData({ quiet: true })}
+            onChanged={() => {
+              dashboardQuery.refetch();
+              requestsQuery.refetch();
+              approvedQuery.refetch();
+            }}
           />
+        ) : null}
+        {activeTab === "team" ? (
+          <>
+            <div className="regularization-stats" aria-label="Team summary">
+              <article className="regularization-stat regularization-glass">
+                <span className="regularization-stat__icon amber">
+                  <Clock3 size={20} />
+                </span>
+                <div>
+                  <strong>{teamPending}</strong>
+                  <span>Team pending</span>
+                </div>
+              </article>
+              <article className="regularization-stat regularization-glass">
+                <span className="regularization-stat__icon green">
+                  <CheckCircle2 size={20} />
+                </span>
+                <div>
+                  <strong>{teamApprovedThisMonth}</strong>
+                  <span>Team approved this month</span>
+                </div>
+              </article>
+              <article className="regularization-stat regularization-glass">
+                <span className="regularization-stat__icon blue">
+                  <ClipboardList size={20} />
+                </span>
+                <div>
+                  <strong>{teamCount}</strong>
+                  <span>Team member{teamCount === 1 ? "" : "s"}</span>
+                </div>
+              </article>
+            </div>
+            <ApprovalsList
+              toast={toast}
+              onChanged={() => {
+                dashboardQuery.refetch();
+                requestsQuery.refetch();
+                approvedQuery.refetch();
+              }}
+              requestParams={{ team: 1, status: "Pending" }}
+              eyebrow={teamCount > 0 ? `My team — ${teamCount} member${teamCount === 1 ? "" : "s"}` : "My team"}
+              title="Team requests"
+              description="Review your team members' corrections and approve or reject them."
+              emptyTitle="No team requests waiting"
+              emptyText="Your team members' pending corrections will appear here."
+            />
+          </>
         ) : null}
         {activeTab === "approved" ? (
           <ApprovedList
@@ -269,7 +284,11 @@ function RegularizationInner() {
         {activeTab === "direct" ? (
           <DirectEditPanel
             toast={toast}
-            onChanged={() => loadData({ quiet: true })}
+            onChanged={() => {
+              dashboardQuery.refetch();
+              requestsQuery.refetch();
+              approvedQuery.refetch();
+            }}
           />
         ) : null}
       </main>

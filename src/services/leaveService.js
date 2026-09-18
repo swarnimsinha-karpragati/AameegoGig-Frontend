@@ -68,3 +68,8 @@ export const applyLeavePolicyTemplate = async (templateKey) => {
   const res = await API.post("/leave/policy/apply-template", { templateKey });
   return res.data;
 };
+
+export const runLeaveAccrual = async (payload) => {
+  const res = await API.post("/leave/accrual/run", payload || {});
+  return res.data;
+};
