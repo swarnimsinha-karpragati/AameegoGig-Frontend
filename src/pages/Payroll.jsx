@@ -459,7 +459,7 @@ export default function Payroll() {
     if (!payrollSummary.canDownloadWageSheet) {
       setStatusMessage({
         type: "error",
-        text: `Payroll for ${monthName} ${selectedYear} is not yet processed. Cannot download Wage Sheet.`,
+        text: `No payroll records found for ${monthName} ${selectedYear}. Generate payroll first, then download the Wage Sheet.`,
       });
       return;
     }
