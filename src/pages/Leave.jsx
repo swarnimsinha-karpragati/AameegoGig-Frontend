@@ -59,21 +59,43 @@ const leaveStatusClass = {
   Cancelled: "leave-status cancelled",
 };
 
+// IST date display: backend stores IST-midnight as UTC, so plain
+// toLocaleDateString() shows the previous day on UTC browsers.
+const formatDateIST = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  try {
+    return d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch {
+    return d.toLocaleDateString();
+  }
+};
+
 function LeaveSummaryCards({ summary, labels }) {
+  const wfhTaken = summary.wfhDaysThisMonth || 0;
+  const leaveTaken = summary.leaveDaysThisMonth || 0;
+  const balance = summary.totalBalance;
+  const balanceDisplay = balance == null ? "—" : balance;
+  const wfhQuota = summary.wfhQuota || null;
+  const wfhLeft = wfhQuota && wfhQuota.remaining != null ? wfhQuota.remaining : null;
+  const wfhTotal = wfhQuota && wfhQuota.total != null ? wfhQuota.total : null;
   const cards = [
     {
       key: "wfh",
       icon: Home,
       iconClassName: "blue",
-      value: summary.wfhDaysThisMonth || 0,
-      label: labels?.wfh || "WFH Days (This Month)",
+      value: wfhTaken,
+      label: labels?.wfh || "WFH Taken (This Month)",
+      sub: wfhTotal != null ? `Taken ${wfhTaken} of ${wfhTotal} • Left ${wfhLeft}` : `Taken ${wfhTaken} this month`,
     },
     {
       key: "leave",
       icon: Calendar,
       iconClassName: "green",
-      value: summary.leaveDaysThisMonth || 0,
-      label: labels?.leave || "Leave Days (This Month)",
+      value: leaveTaken,
+      label: labels?.leave || "Leave Taken (This Month)",
+      sub: balance == null ? `Taken ${leaveTaken} this month` : `Taken ${leaveTaken} • Balance ${balance}`,
     },
     {
       key: "pending",
@@ -81,19 +103,21 @@ function LeaveSummaryCards({ summary, labels }) {
       iconClassName: "orange",
       value: summary.pendingRequests || 0,
       label: labels?.pending || "Pending Requests",
+      sub: null,
     },
     {
       key: "balance",
       icon: UserCheck2,
       iconClassName: "purple",
-      value: summary.totalBalance || 0,
+      value: balanceDisplay,
       label: labels?.balance || "Total Balance",
+      sub: balance == null ? "No team data" : "Total remaining",
     },
   ];
 
   return (
     <div className="payroll-stats-grid">
-      {cards.map(({ key, icon: Icon, iconClassName, value, label }) => (
+      {cards.map(({ key, icon: Icon, iconClassName, value, label, sub }) => (
         <Card
           key={key}
           icon={<Icon size={22} strokeWidth={2} />}
@@ -102,6 +126,7 @@ function LeaveSummaryCards({ summary, labels }) {
         >
           <Card.Header>{label}</Card.Header>
           <Card.Body>{value}</Card.Body>
+          {sub ? <Card.Footer>{sub}</Card.Footer> : null}
         </Card>
       ))}
     </div>
@@ -554,6 +579,7 @@ function LeaveInner() {
   /* ── Handlers ── */
   const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
+    if (createLeaveMutation.isPending || createLeaveMultipartMutation.isPending) return;
     try {
       if (dateValidationError) {
         toast.error(dateValidationError.message);
@@ -985,9 +1011,9 @@ function LeaveInner() {
         <div className="leave-form-actions">
           <Button
             type="submit"
-            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile)}
+            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile) || createLeaveMutation.isPending || createLeaveMultipartMutation.isPending}
           >
-            Submit Request
+            {createLeaveMutation.isPending || createLeaveMultipartMutation.isPending ? "Submitting…" : "Submit Request"}
           </Button>
         </div>
       </form>
@@ -1009,8 +1035,8 @@ function LeaveInner() {
               <strong>{item.employeeId?.name}</strong>
               <p>
                 {leaveTypeDisplay(item)} •{" "}
-                {new Date(item.startDate).toLocaleDateString()} -{" "}
-                {new Date(item.endDate).toLocaleDateString()}
+                {formatDateIST(item.startDate)} -{" "}
+                {formatDateIST(item.endDate)}
               </p>
               <small>Approved by: {item.approverId?.name || "-"}</small>
             </div>
@@ -1061,8 +1087,8 @@ function LeaveInner() {
                     ) : null}
                     <td>{leaveTypeDisplay(item)}</td>
                     <td>
-                      {new Date(item.startDate).toLocaleDateString()} -{" "}
-                      {new Date(item.endDate).toLocaleDateString()} ({formatLeaveDays(item)})
+                      {formatDateIST(item.startDate)} -{" "}
+                      {formatDateIST(item.endDate)} ({formatLeaveDays(item)})
                     </td>
                     <td>{item.reason || "-"}</td>
 
@@ -1424,8 +1450,8 @@ function LeaveInner() {
                 <td>{item.employeeId?.name || "-"}</td>
                 <td>{leaveTypeDisplay(item)}</td>
                 <td>
-                  {new Date(item.startDate).toLocaleDateString()} -{" "}
-                  {new Date(item.endDate).toLocaleDateString()}
+                  {formatDateIST(item.startDate)} -{" "}
+                  {formatDateIST(item.endDate)}
                 </td>
                 <td>{formatLeaveDays(item)}</td>
                 <td>
@@ -1582,8 +1608,8 @@ function LeaveInner() {
       <LeaveSummaryCards
         summary={selfSummary}
         labels={{
-          wfh: "My WFH Days",
-          leave: "My Leave Days",
+          wfh: "My WFH Taken",
+          leave: "My Leave Taken",
           pending: "My Pending",
           balance: "My Balance",
         }}
