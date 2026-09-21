@@ -81,9 +81,6 @@ function LeaveSummaryCards({ summary, labels }) {
   const leaveTaken = summary.leaveDaysThisMonth || 0;
   const balance = summary.totalBalance;
   const balanceDisplay = balance == null ? "—" : balance;
-  const wfhQuota = summary.wfhQuota || null;
-  const wfhLeft = wfhQuota && wfhQuota.remaining != null ? wfhQuota.remaining : null;
-  const wfhTotal = wfhQuota && wfhQuota.total != null ? wfhQuota.total : null;
   const cards = [
     {
       key: "wfh",
