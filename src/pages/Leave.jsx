@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Info,
   Pencil,
+  Loader2,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
@@ -51,6 +52,9 @@ import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
+import Pagination from "../components/Pagination";
+
+const ALL_REQ_PAGE_SIZE = 10;
 
 const leaveStatusClass = {
   Approved: "leave-status approved",
@@ -59,21 +63,40 @@ const leaveStatusClass = {
   Cancelled: "leave-status cancelled",
 };
 
+// IST date display: backend stores IST-midnight as UTC, so plain
+// toLocaleDateString() shows the previous day on UTC browsers.
+const formatDateIST = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  try {
+    return d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch {
+    return d.toLocaleDateString();
+  }
+};
+
 function LeaveSummaryCards({ summary, labels }) {
+  const wfhTaken = summary.wfhDaysThisMonth || 0;
+  const leaveTaken = summary.leaveDaysThisMonth || 0;
+  const balance = summary.totalBalance;
+  const balanceDisplay = balance == null ? "—" : balance;
   const cards = [
     {
       key: "wfh",
       icon: Home,
       iconClassName: "blue",
-      value: summary.wfhDaysThisMonth || 0,
-      label: labels?.wfh || "WFH Days (This Month)",
+      value: wfhTaken,
+      label: labels?.wfh || "WFH Taken (This Month)",
+      // sub: wfhTotal != null ? `Taken ${wfhTaken} of ${wfhTotal} • Left ${wfhLeft}` : `Taken ${wfhTaken} this month`,
     },
     {
       key: "leave",
       icon: Calendar,
       iconClassName: "green",
-      value: summary.leaveDaysThisMonth || 0,
-      label: labels?.leave || "Leave Days (This Month)",
+      value: leaveTaken,
+      label: labels?.leave || "Leave Taken (This Month)",
+      // sub: balance == null ? `Taken ${leaveTaken} this month` : `Taken ${leaveTaken} • Balance ${balance}`,
     },
     {
       key: "pending",
@@ -81,19 +104,21 @@ function LeaveSummaryCards({ summary, labels }) {
       iconClassName: "orange",
       value: summary.pendingRequests || 0,
       label: labels?.pending || "Pending Requests",
+      sub: null,
     },
     {
       key: "balance",
       icon: UserCheck2,
       iconClassName: "purple",
-      value: summary.totalBalance || 0,
+      value: balanceDisplay,
       label: labels?.balance || "Total Balance",
+      // sub: balance == null ? "No team data" : "Total remaining",
     },
   ];
 
   return (
     <div className="payroll-stats-grid">
-      {cards.map(({ key, icon: Icon, iconClassName, value, label }) => (
+      {cards.map(({ key, icon: Icon, iconClassName, value, label, sub }) => (
         <Card
           key={key}
           icon={<Icon size={22} strokeWidth={2} />}
@@ -102,6 +127,7 @@ function LeaveSummaryCards({ summary, labels }) {
         >
           <Card.Header>{label}</Card.Header>
           <Card.Body>{value}</Card.Body>
+          {sub ? <Card.Footer>{sub}</Card.Footer> : null}
         </Card>
       ))}
     </div>
@@ -149,6 +175,25 @@ function LeaveInner() {
   const requestsQuery = useLeaveRequests();
   const balancesQuery = useLeaveBalances();
   const policyQuery = useLeavePolicy();
+
+  // Admin "All Requests": server-side search (name/email/phone/code) + pagination.
+  const [allReqPage, setAllReqPage] = useState(1);
+  const [allReqSearchInput, setAllReqSearchInput] = useState("");
+  const [allReqSearch, setAllReqSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAllReqSearch(allReqSearchInput.trim());
+      setAllReqPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [allReqSearchInput]);
+  const allRequestsQuery = useLeaveRequests(
+    { page: allReqPage, limit: ALL_REQ_PAGE_SIZE, search: allReqSearch || undefined },
+    { enabled: canViewOrgLeave(user?.role), keepPreviousData: true }
+  );
+  const allReqItems = useMemo(() => allRequestsQuery.data?.requests || [], [allRequestsQuery.data]);
+  const allReqTotal = allRequestsQuery.data?.total ?? 0;
+  const allReqTotalPages = allRequestsQuery.data?.totalPages ?? 0;
 
   const createLeaveMutation = useCreateLeaveRequest();
   const createLeaveMultipartMutation = useCreateLeaveRequestMultipart();
@@ -554,6 +599,7 @@ function LeaveInner() {
   /* ── Handlers ── */
   const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
+    if (createLeaveMutation.isPending || createLeaveMultipartMutation.isPending) return;
     try {
       if (dateValidationError) {
         toast.error(dateValidationError.message);
@@ -985,9 +1031,9 @@ function LeaveInner() {
         <div className="leave-form-actions">
           <Button
             type="submit"
-            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile)}
+            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile) || createLeaveMutation.isPending || createLeaveMultipartMutation.isPending}
           >
-            Submit Request
+            {createLeaveMutation.isPending || createLeaveMultipartMutation.isPending ? "Submitting…" : "Submit Request"}
           </Button>
         </div>
       </form>
@@ -1009,8 +1055,8 @@ function LeaveInner() {
               <strong>{item.employeeId?.name}</strong>
               <p>
                 {leaveTypeDisplay(item)} •{" "}
-                {new Date(item.startDate).toLocaleDateString()} -{" "}
-                {new Date(item.endDate).toLocaleDateString()}
+                {formatDateIST(item.startDate)} -{" "}
+                {formatDateIST(item.endDate)}
               </p>
               <small>Approved by: {item.approverId?.name || "-"}</small>
             </div>
@@ -1061,8 +1107,8 @@ function LeaveInner() {
                     ) : null}
                     <td>{leaveTypeDisplay(item)}</td>
                     <td>
-                      {new Date(item.startDate).toLocaleDateString()} -{" "}
-                      {new Date(item.endDate).toLocaleDateString()} ({formatLeaveDays(item)})
+                      {formatDateIST(item.startDate)} -{" "}
+                      {formatDateIST(item.endDate)} ({formatLeaveDays(item)})
                     </td>
                     <td>{item.reason || "-"}</td>
 
@@ -1393,10 +1439,25 @@ function LeaveInner() {
     );
   };
 
-  const renderAllRequestsTable = (items, title = "All Requests") => (
+  const renderAllRequestsTable = (items, title = "All Requests", opts = {}) => (
     <section className="leave-panel leave-glass leave-panel--wide">
-      <header className="leave-panel__head">
-        <h3>{title}</h3>
+      <header className="leave-panel__head leave-panel__head--split">
+        <h3>{title}{opts.total != null ? ` (${opts.total})` : ""}</h3>
+        {opts.showSearch ? (
+          <span className="leave-search-wrap">
+            <input
+              type="search"
+              className="leave-control leave-search"
+              placeholder="Name, Employee ID, email, phone…"
+              value={opts.searchValue ?? ""}
+              onChange={(e) => opts.onSearchChange?.(e.target.value)}
+              aria-label="Search requests by employee"
+            />
+            {opts.fetching ? (
+              <Loader2 size={14} className="leave-search-spinner" aria-label="Searching" />
+            ) : null}
+          </span>
+        ) : null}
       </header>
       <div className="leave-table-wrap">
         <table className="leave-table">
@@ -1412,7 +1473,13 @@ function LeaveInner() {
             </tr>
           </thead>
           <tbody>
-            {!loading && items.length === 0 ? (
+            {opts.loading ? (
+              <tr>
+                <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
+                  Loading…
+                </td>
+              </tr>
+            ) : !loading && items.length === 0 ? (
               <tr>
                 <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
                   No requests found
@@ -1424,8 +1491,8 @@ function LeaveInner() {
                 <td>{item.employeeId?.name || "-"}</td>
                 <td>{leaveTypeDisplay(item)}</td>
                 <td>
-                  {new Date(item.startDate).toLocaleDateString()} -{" "}
-                  {new Date(item.endDate).toLocaleDateString()}
+                  {formatDateIST(item.startDate)} -{" "}
+                  {formatDateIST(item.endDate)}
                 </td>
                 <td>{formatLeaveDays(item)}</td>
                 <td>
@@ -1485,6 +1552,15 @@ function LeaveInner() {
           </tbody>
         </table>
       </div>
+      {opts.showPagination && opts.totalPages > 1 ? (
+        <Pagination
+          currentPage={opts.page}
+          totalPages={opts.totalPages}
+          totalRecords={opts.total}
+          limit={opts.limit || ALL_REQ_PAGE_SIZE}
+          onPageChange={opts.onPageChange}
+        />
+      ) : null}
     </section>
   );
 
@@ -1506,14 +1582,14 @@ function LeaveInner() {
           labels={
             isAdminView
               ? {
-                wfh: "WFH Days (This Month)",
-                leave: "Leave Days (This Month)",
+                wfh: "WFH Taken (This Month)",
+                leave: "Leave Taken (This Month)",
                 pending: "Pending Requests",
                 balance: "Avg Balance",
               }
               : {
-                wfh: "WFH Days (Org)",
-                leave: "Leave Days (Org)",
+                wfh: "WFH Taken (Org)",
+                leave: "Leave Taken (Org)",
                 pending: "Pending (Org)",
                 balance: "Avg Balance (Org)",
               }
@@ -1537,8 +1613,20 @@ function LeaveInner() {
           {renderBalanceEditor(balances, false)}
         </div>
         {renderAllRequestsTable(
-          requests,
-          isAdminView ? "All Requests" : "All Requests — Organization"
+          allReqItems,
+          isAdminView ? "All Requests" : "All Requests — Organization",
+          {
+            showSearch: true,
+            searchValue: allReqSearchInput,
+            onSearchChange: setAllReqSearchInput,
+            showPagination: true,
+            loading: allRequestsQuery.isLoading,
+            page: allReqPage,
+            totalPages: allReqTotalPages,
+            total: allReqTotal,
+            limit: ALL_REQ_PAGE_SIZE,
+            onPageChange: setAllReqPage,
+          }
         )}
       </>
     );
@@ -1582,8 +1670,8 @@ function LeaveInner() {
       <LeaveSummaryCards
         summary={selfSummary}
         labels={{
-          wfh: "My WFH Days",
-          leave: "My Leave Days",
+          wfh: "My WFH Taken",
+          leave: "My Leave Taken",
           pending: "My Pending",
           balance: "My Balance",
         }}
