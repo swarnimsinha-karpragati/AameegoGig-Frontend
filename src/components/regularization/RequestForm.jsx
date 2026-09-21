@@ -203,6 +203,19 @@ export default function RequestForm({ toast, onSubmitted }) {
     [isCoLeave, isPresentLeave, leave.startDate, leave.endDate, workingDays]
   );
   const isExistingLeaveCorrection = Boolean(leave.leaveRequestId);
+  const selectedLeave = useMemo(
+    () => leaveRequests.find((item) => item._id === leave.leaveRequestId) || null,
+    [leaveRequests, leave.leaveRequestId]
+  );
+  // Original range of the leave being corrected. Editing is limited to this
+  // window so a correction can only shrink/trim the request, never widen it.
+  const existingLeaveRange = useMemo(() => {
+    if (!selectedLeave) return null;
+    const start = toDateInput(selectedLeave.startDate);
+    const end = toDateInput(selectedLeave.endDate);
+    if (!start || !end) return null;
+    return { start, end };
+  }, [selectedLeave]);
 
   const isSingleLeaveDay = Boolean(
     leave.startDate && leave.endDate && leave.startDate === leave.endDate
@@ -345,14 +358,33 @@ export default function RequestForm({ toast, onSubmitted }) {
         errors.checkOut = "Check-out must be on or after check-in";
       }
     }
-    if (leave.startDate && leave.startDate < bounds.min) {
-      errors.startDate = "Choose a start date within the last 60 days";
-    }
-    if (leave.startDate && leave.startDate > bounds.max) {
-      errors.startDate = "Start date cannot be in the future";
+    if (isExistingLeaveCorrection && existingLeaveRange) {
+      // A correction may only trim the original request, so validate against
+      // the request's own range instead of the 60-day window.
+      if (
+        leave.startDate &&
+        (leave.startDate < existingLeaveRange.start ||
+          leave.startDate > existingLeaveRange.end)
+      ) {
+        errors.startDate = "Date must stay within the original request";
+      }
+      if (
+        leave.endDate &&
+        (leave.endDate < existingLeaveRange.start ||
+          leave.endDate > existingLeaveRange.end)
+      ) {
+        errors.endDate = "Date must stay within the original request";
+      }
+    } else {
+      if (leave.startDate && leave.startDate < bounds.min) {
+        errors.startDate = "Choose a start date within the last 60 days";
+      }
+      if (leave.startDate && leave.startDate > bounds.max) {
+        errors.startDate = "Start date cannot be in the future";
+      }
     }
     return errors;
-  }, [leave, isCoLeave, isPresentLeave, workingDays, bounds]);
+  }, [leave, isCoLeave, isPresentLeave, workingDays, bounds, isExistingLeaveCorrection, existingLeaveRange]);
 
   const activeErrors = kind === "attendance" ? attendanceErrors : leaveErrors;
   const isValid = Object.keys(activeErrors).length === 0;
@@ -391,7 +423,9 @@ export default function RequestForm({ toast, onSubmitted }) {
   const selectLeaveRequest = (id) => {
     const selected = leaveRequests.find((item) => item._id === id);
     if (!selected) {
-      setLeave((previous) => ({ ...previous, leaveRequestId: "" }));
+      // Back to a fresh correction: clear the copied dates/type so the user
+      // can enter their own.
+      setLeave({ ...emptyLeave });
       return;
     }
     const selectedStart = toDateInput(selected.startDate);
@@ -592,6 +626,7 @@ export default function RequestForm({ toast, onSubmitted }) {
                 value={leave.leaveRequestId}
                 onChange={(event) => selectLeaveRequest(event.target.value)}
               >
+                <option value="">New leave correction</option>
                 {leaveRequests.map((item) => (
                   <option value={item._id} key={item._id}>
                     {getLeaveTypeLabel(item.leaveType)} · {formatRegDate(item.startDate)} to {formatRegDate(item.endDate)} · {item.status}
@@ -677,48 +712,43 @@ export default function RequestForm({ toast, onSubmitted }) {
                 </div>
               </>
             ) : null}
-            {isExistingLeaveCorrection ? (
-              <div className="regularization-field regularization-field--full">
-                <label>Leave dates (locked to the original request)</label>
-                <div className="regularization-readonly">
-                  {formatRegRange(leave.startDate, leave.endDate)}
-                </div>
-                <small>Dates cannot be changed when correcting an existing leave — pick “New leave correction” for different dates.</small>
+            <>
+              <div className="regularization-field">
+                <label htmlFor="reg-leave-start">Start date *</label>
+                <input
+                  id="reg-leave-start"
+                  type="date"
+                  min={isExistingLeaveCorrection && existingLeaveRange ? existingLeaveRange.start : bounds.min}
+                  max={isExistingLeaveCorrection && existingLeaveRange ? (leave.endDate || existingLeaveRange.end) : bounds.max}
+                  value={leave.startDate}
+                  onChange={(event) =>
+                    setLeave((previous) => ({ ...previous, startDate: event.target.value }))
+                  }
+                  aria-invalid={showErrors && Boolean(leaveErrors.startDate)}
+                  aria-describedby="regularization-date-feedback"
+                />
               </div>
-            ) : (
-              <>
-                <div className="regularization-field">
-                  <label htmlFor="reg-leave-start">Start date *</label>
-                  <input
-                    id="reg-leave-start"
-                    type="date"
-                    min={bounds.min}
-                    max={bounds.max}
-                    value={leave.startDate}
-                    onChange={(event) =>
-                      setLeave((previous) => ({ ...previous, startDate: event.target.value }))
-                    }
-                    aria-invalid={showErrors && Boolean(leaveErrors.startDate)}
-                    aria-describedby="regularization-date-feedback"
-                  />
-                </div>
-                <div className="regularization-field">
-                  <label htmlFor="reg-leave-end">End date *</label>
-                  <input
-                    id="reg-leave-end"
-                    type="date"
-                    min={leave.startDate || bounds.min}
-                    max={bounds.max}
-                    value={leave.endDate}
-                    onChange={(event) =>
-                      setLeave((previous) => ({ ...previous, endDate: event.target.value }))
-                    }
-                    aria-invalid={showErrors && Boolean(leaveErrors.endDate)}
-                    aria-describedby="regularization-date-feedback"
-                  />
-                </div>
-              </>
-            )}
+              <div className="regularization-field">
+                <label htmlFor="reg-leave-end">End date *</label>
+                <input
+                  id="reg-leave-end"
+                  type="date"
+                  min={leave.startDate || (isExistingLeaveCorrection && existingLeaveRange ? existingLeaveRange.start : bounds.min)}
+                  max={isExistingLeaveCorrection && existingLeaveRange ? existingLeaveRange.end : bounds.max}
+                  value={leave.endDate}
+                  onChange={(event) =>
+                    setLeave((previous) => ({ ...previous, endDate: event.target.value }))
+                  }
+                  aria-invalid={showErrors && Boolean(leaveErrors.endDate)}
+                  aria-describedby="regularization-date-feedback"
+                />
+              </div>
+              {isExistingLeaveCorrection && existingLeaveRange ? (
+                <small className="regularization-field--full">
+                  Pick only the day(s) you actually used within {formatRegRange(existingLeaveRange.start, existingLeaveRange.end)} — the rest is removed and the balance is returned automatically. Keep the leave type as {isPresentLeave ? "Present to mark those days present" : getLeaveTypeLabel(leave.leaveType)}.
+                </small>
+              ) : null}
+            </>
             {leave.startDate && leave.endDate ? (
               <div
                 id="regularization-date-feedback"
