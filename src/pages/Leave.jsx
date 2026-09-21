@@ -77,6 +77,59 @@ const formatDateIST = (value) => {
 };
 
 function LeaveSummaryCards({ summary, labels }) {
+  const requestCounts = summary.requestCounts || null;
+
+  // Team summary: show the request status counts (All / Pending / Approved /
+  // Cancelled) instead of the WFH/Leave/Pending/Balance tiles.
+  if (requestCounts) {
+    const statCards = [
+      {
+        key: "all",
+        icon: Calendar,
+        iconClassName: "blue",
+        value: requestCounts.total || 0,
+        label: "All Requests",
+      },
+      {
+        key: "pending",
+        icon: Clock3,
+        iconClassName: "orange",
+        value: requestCounts.pending || 0,
+        label: "Pending",
+      },
+      {
+        key: "approved",
+        icon: Check,
+        iconClassName: "green",
+        value: requestCounts.approved || 0,
+        label: "Approved",
+      },
+      {
+        key: "cancelled",
+        icon: X,
+        iconClassName: "red",
+        value: (requestCounts.cancelled || 0) + (requestCounts.rejected || 0),
+        label: "Cancelled / Rejected",
+      },
+    ];
+
+    return (
+      <div className="payroll-stats-grid">
+        {statCards.map(({ key, icon: Icon, iconClassName, value, label }) => (
+          <Card
+            key={key}
+            icon={<Icon size={22} strokeWidth={2} />}
+            iconClassName={iconClassName}
+            isInteractive
+          >
+            <Card.Header>{label}</Card.Header>
+            <Card.Body>{value}</Card.Body>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   const wfhTaken = summary.wfhDaysThisMonth || 0;
   const leaveTaken = summary.leaveDaysThisMonth || 0;
   const balance = summary.totalBalance;
@@ -241,7 +294,7 @@ function LeaveInner() {
   const [medicalDocFile, setMedicalDocFile] = useState(null);
   const [editLeaveRecord, setEditLeaveRecord] = useState(null);
 
-  const countWeekdaysInclusiveClient = (startStr, endStr) => {
+  const countDaysInclusiveClient = (startStr, endStr, weekdaysOnly) => {
     if (!startStr || !endStr) return null;
     const start = new Date(`${startStr}T00:00:00`);
     const end = new Date(`${endStr}T00:00:00`);
@@ -250,11 +303,21 @@ function LeaveInner() {
 
     let count = 0;
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const day = d.getDay(); // 0=Sun, 6=Sat
-      if (day !== 0 && day !== 6) count += 1;
+      if (!weekdaysOnly) {
+        count += 1;
+      } else {
+        const day = d.getDay(); // 0=Sun, 6=Sat
+        if (day !== 0 && day !== 6) count += 1;
+      }
     }
     return count;
   };
+
+  // Comp Off credit (earned) applies to off-days — weekends/holidays included.
+  const isCoCredit =
+    leaveForm.leaveType === "CO" &&
+    leaveForm.requestType !== "WFH" &&
+    coPurpose === "credit";
 
   const slRequiredWhenDaysGt = useMemo(() => {
     const sl = leavePolicy?.types?.find((t) => t?.code === "SL");
@@ -262,8 +325,13 @@ function LeaveInner() {
   }, [leavePolicy]);
 
   const computedLeaveDays = useMemo(
-    () => countWeekdaysInclusiveClient(leaveForm.startDate, leaveForm.endDate),
-    [leaveForm.startDate, leaveForm.endDate]
+    () =>
+      countDaysInclusiveClient(
+        leaveForm.startDate,
+        leaveForm.endDate,
+        !isCoCredit
+      ),
+    [leaveForm.startDate, leaveForm.endDate, isCoCredit]
   );
 
   // Backdate limit (mirrors backend getEarliestLeaveStartDate): earliest
@@ -727,6 +795,9 @@ function LeaveInner() {
         if (code === "WFH") {
           if (balanceForm.WFH?.total === "" || balanceForm.WFH?.total == null) return;
           payload.WFH = { total: Number(balanceForm.WFH.total) };
+          if (balanceForm.WFH?.used !== "" && balanceForm.WFH?.used != null) {
+            payload.WFH.used = Number(balanceForm.WFH.used);
+          }
           return;
         }
         payload[code] = {
@@ -1161,9 +1232,7 @@ function LeaveInner() {
                           item.status === "Pending";
                         const showCancel =
                           mode === "employee" &&
-                          item.status === "Pending" &&
-                          new Date(item.startDate).setHours(0, 0, 0, 0) >=
-                          new Date().setHours(0, 0, 0, 0);
+                          item.status === "Pending";
                         const showEdit =
                           canDirectEditLeave && item.status !== "Cancelled";
 
@@ -1310,6 +1379,16 @@ function LeaveInner() {
                         readOnly
                       />
                     </div>
+                    <div className="leave-field balance-row__field balance-row__remaining">
+                      <label>Remaining</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={item.remaining ?? ""}
+                        disabled
+                        readOnly
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1328,6 +1407,10 @@ function LeaveInner() {
             <div className="leave-balance-grid">
               {leaveBalanceTypes.map((type) => {
                 const isWfhRow = type === "WFH";
+                const field = balanceForm[type] || {};
+                const total = Number(field.total) || 0;
+                const used = Number(field.used) || 0;
+                const remaining = Math.max(0, total - used);
                 return (
                   <div key={type} className="balance-row" data-code={type}>
                     <span className="balance-row__type">{type}</span>
@@ -1357,13 +1440,23 @@ function LeaveInner() {
                         className="leave-control"
                         placeholder="0"
                         value={balanceForm[type]?.used ?? ""}
-                        title={isWfhRow ? "WFH used is auto-counted from Pending + Approved requests" : undefined}
+                        title={isWfhRow ? "WFH used override — if left blank, auto-counted from Pending + Approved requests" : undefined}
                         onChange={(e) =>
                           setBalanceForm((prev) => ({
                             ...prev,
                             [type]: { ...prev[type], used: e.target.value },
                           }))
                         }
+                      />
+                    </div>
+                    <div className="leave-field balance-row__field balance-row__remaining">
+                      <label>Remaining</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={remaining}
+                        readOnly
+                        disabled
                       />
                     </div>
                   </div>
