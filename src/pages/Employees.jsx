@@ -61,6 +61,7 @@ import ProbationHistoryModal from "../components/ProbationHistoryModal";
 import {
   generateAppointmentLetter,
   generateWarningLetter,
+  generateConsultancyAgreement,
 } from "../services/letterService";
 import { createTermination } from "../services/terminationService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
@@ -969,10 +970,31 @@ function Employees() {
     });
 
   const [
+    showConsultancyModal,
+    setShowConsultancyModal,
+  ] = useState(false);
+
+  const [consultancyData, setConsultancyData] =
+    useState({
+      employeeId: "",
+      consultantName: "",
+      employeeCode: "",
+      designation: "",
+      department: "",
+      effectiveDate: "",
+      tenure: "",
+      scopeOfWork: "",
+      consultancyFees: "",
+      paymentTerms: "",
+      workingHours: "",
+      leaveTerms: "",
+      noticePeriod: "30 days",
+    });
+
+  const [
     showTerminationModal,
     setShowTerminationModal,
   ] = useState(false);
-
   const [terminationData, setTerminationData] =
     useState({
       employeeId: "",
@@ -1898,13 +1920,60 @@ function Employees() {
     };
 
   /* =========================
+       GENERATE CONSULTANCY AGREEMENT
+     ========================= */
+
+  const handleGenerateConsultancy =
+    async () => {
+      if (
+        !consultancyData.consultantName ||
+        !consultancyData.designation ||
+        !consultancyData.effectiveDate
+      ) {
+        alert(
+          "Please fill all mandatory fields (consultant name, designation, and effective date)"
+        );
+        return;
+      }
+
+      try {
+        setLoading(true);
+        await generateConsultancyAgreement({
+          employeeId: consultancyData.employeeId,
+          consultantName: consultancyData.consultantName,
+          employeeCode: consultancyData.employeeCode,
+          designation: consultancyData.designation,
+          department: consultancyData.department,
+          effectiveDate: consultancyData.effectiveDate,
+          tenure: consultancyData.tenure,
+          scopeOfWork: consultancyData.scopeOfWork,
+          consultancyFees: consultancyData.consultancyFees,
+          paymentTerms: consultancyData.paymentTerms,
+          workingHours: consultancyData.workingHours,
+          leaveTerms: consultancyData.leaveTerms,
+          noticePeriod: consultancyData.noticePeriod,
+        });
+
+        alert("Consultancy Agreement Generated Successfully");
+
+        setShowConsultancyModal(false);
+      } catch (error) {
+        alert(
+          error.response?.data?.message ||
+          "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* =========================
        GENERATE TERMINATION LETTER
      ========================= */
 
   /* =========================
        TERMINATION FLOW
   ========================= */
-
   const formatDayAfterDate = (dateStr) => {
     if (!dateStr) return "Not scheduled";
     const d = new Date(dateStr);
@@ -2505,9 +2574,9 @@ function Employees() {
                                 </>
                               ) : null}
 
-                              {canLetters && renderMenuSectionToggle("letters", "Letters")}
+                              {(canLetters || (directoryType === "consultancy" && canManageConsultancy)) && renderMenuSectionToggle("letters", "Letters")}
 
-                              {canLetters && expandedMenuSection === "letters" && (
+                              {canLetters && !emp.isConsultancy && expandedMenuSection === "letters" && (
                                 <button
                                   type="button"
                                   disabled={!emp.isActive}
@@ -2530,6 +2599,36 @@ function Employees() {
                                   }}
                                 >
                                   <FileText size={16} /> Appointment Letter
+                                </button>
+                              )}
+
+                              {(canLetters || canManageConsultancy) && emp.isConsultancy && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setConsultancyData({
+                                      employeeId: emp._id,
+                                      consultantName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      effectiveDate: emp.dateOfJoining?.split("T")[0] || new Date().toISOString().split("T")[0],
+                                      tenure: "",
+                                      scopeOfWork: "",
+                                      consultancyFees: emp.monthlyConsultancyPay ? `₹${Number(emp.monthlyConsultancyPay).toLocaleString("en-IN")} per month` : "",
+                                      paymentTerms: "",
+                                      workingHours: "",
+                                      leaveTerms: "",
+                                      noticePeriod: "30 days",
+                                    });
+                                    setShowConsultancyModal(true);
+                                  }}
+                                >
+                                  <FileText size={16} /> Consultancy Agreement
                                 </button>
                               )}
 
@@ -3555,6 +3654,205 @@ function Employees() {
                       responsePeriod: e.target.value,
                     })
                   }
+                />
+              </FormField>
+            </FormSection>
+          </EmpModal>
+        ) : null}
+
+        {showConsultancyModal ? (
+          <EmpModal
+            title="Generate Consultancy Agreement"
+            onClose={() => setShowConsultancyModal(false)}
+            size="lg"
+            footer={
+              <>
+                <Button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setShowConsultancyModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  icon={<FileText size={16} />}
+                  onClick={handleGenerateConsultancy}
+                  disabled={loading}
+                >
+                  {loading ? "Generating…" : "Generate Consultancy Agreement"}
+                </Button>
+              </>
+            }
+          >
+            <FormSection
+              title="Consultant Details"
+              description="Auto-filled from the selected consultant"
+            >
+              <FormField label="Consultant Name" htmlFor="ca-name" required>
+                <input
+                  id="ca-name"
+                  required
+                  value={consultancyData.consultantName}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      consultantName: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Consultant ID" htmlFor="ca-code">
+                <input
+                  id="ca-code"
+                  value={consultancyData.employeeCode}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Designation / Role" htmlFor="ca-designation" required>
+                <input
+                  id="ca-designation"
+                  required
+                  value={consultancyData.designation}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      designation: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Department" htmlFor="ca-department">
+                <input
+                  id="ca-department"
+                  value={consultancyData.department}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      department: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Engagement Details"
+              description="Contract duration, fees and payment terms"
+            >
+              <FormField label="Effective Date" htmlFor="ca-effective" required>
+                <input
+                  id="ca-effective"
+                  required
+                  type="date"
+                  value={consultancyData.effectiveDate}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      effectiveDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Contract Duration / Tenure" htmlFor="ca-tenure">
+                <input
+                  id="ca-tenure"
+                  value={consultancyData.tenure}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      tenure: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 12 months, renewable"
+                />
+              </FormField>
+              <FormField label="Consultancy Fees" htmlFor="ca-fees">
+                <input
+                  id="ca-fees"
+                  value={consultancyData.consultancyFees}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      consultancyFees: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. ₹50,000 per month"
+                />
+              </FormField>
+              <FormField label="Notice Period" htmlFor="ca-notice">
+                <input
+                  id="ca-notice"
+                  value={consultancyData.noticePeriod}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      noticePeriod: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 30 days"
+                />
+              </FormField>
+              <FormField label="Payment Terms" htmlFor="ca-payment" fullWidth>
+                <textarea
+                  id="ca-payment"
+                  rows={2}
+                  value={consultancyData.paymentTerms}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      paymentTerms: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Monthly invoice, payable within 15 days, subject to TDS"
+                />
+              </FormField>
+              <FormField label="Working Hours / Engagement Terms" htmlFor="ca-hours" fullWidth>
+                <textarea
+                  id="ca-hours"
+                  rows={2}
+                  value={consultancyData.workingHours}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      workingHours: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 9 hours/day, 5 days a week, remote/hybrid"
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Scope & Terms"
+              description="Scope of work and leave terms (legal clauses use standard defaults)"
+            >
+              <FormField label="Scope of Work / Responsibilities" htmlFor="ca-scope" fullWidth>
+                <textarea
+                  id="ca-scope"
+                  rows={4}
+                  value={consultancyData.scopeOfWork}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      scopeOfWork: e.target.value,
+                    })
+                  }
+                  placeholder="Describe the consultant's responsibilities and deliverables"
+                />
+              </FormField>
+              <FormField label="Leave / Absence Terms" htmlFor="ca-leave" fullWidth>
+                <textarea
+                  id="ca-leave"
+                  rows={3}
+                  value={consultancyData.leaveTerms}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      leaveTerms: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Unpaid leave; prior intimation required"
                 />
               </FormField>
             </FormSection>

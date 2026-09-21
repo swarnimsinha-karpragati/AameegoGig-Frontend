@@ -15,3 +15,7 @@ export const generateTerminationLetter = async (data) => {
 export const generateTransferLetter = async (data) => {
   return API.post('/letters/transfer', data);
 };
+
+export const generateConsultancyAgreement = async (data) => {
+  return API.post('/letters/consultancy-agreement', data);
+};
