@@ -21,19 +21,19 @@ import {
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
+import { getRequestDetails } from "../services/advanceLoanService";
 import {
-    createAdvanceLoanRequest,
-    getMyRequests,
-    getAllRequests,
-    cancelRequest,
-    approveRequest,
-    rejectRequest,
-    recordPayment,
-    getStatistics,
-    getRequestDetails,
-    getLoanConfig,
-    deferDeduction,
-} from "../services/advanceLoanService";
+    useAdvanceLoanStatistics,
+    useAdvanceLoanAllRequests,
+    useAdvanceLoanMyRequests,
+    useCreateAdvanceLoanRequest,
+    useCancelAdvanceLoanRequest,
+    useApproveAdvanceLoanRequest,
+    useRejectAdvanceLoanRequest,
+    useDeferAdvanceLoanDeduction,
+    useRecordAdvanceLoanPayment,
+    useLoanConfig,
+} from "../hooks/useAdvanceLoan";
 import { useAllEmployees } from "../hooks/useEmployees";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
@@ -1224,7 +1224,6 @@ function AdvanceLoanInner() {
     const [dashboard, setDashboard] = useState(null);
     const [requests, setRequests] = useState([]);
     const { data: employees = [] } = useAllEmployees({ enabled: canApprove });
-    const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [, setError] = useState("");
     const [showRequestForm, setShowRequestForm] = useState(false);
@@ -1236,10 +1235,79 @@ function AdvanceLoanInner() {
     const [approveRequestData, setApproveRequestData] = useState(null);
     const [filterStatus, setFilterStatus] = useState("");
     const [filterType, setFilterType] = useState("");
-    const [loanConfig, setLoanConfig] = useState(null);
     const [payrollWarning, setPayrollWarning] = useState("");
     const [formApiError, setFormApiError] = useState("");
     const [openMenuId, setOpenMenuId] = useState(null);
+
+    const canViewAll = canViewAllAdvanceLoan(user?.role);
+    const { refetch: refetchStats } = useAdvanceLoanStatistics({ enabled: canViewAll });
+    const { refetch: refetchAll } = useAdvanceLoanAllRequests({}, { enabled: canViewAll });
+    const { refetch: refetchMy } = useAdvanceLoanMyRequests({}, { enabled: !canViewAll });
+    const { data: loanConfigRes, refetch: refetchLoanConfig } = useLoanConfig();
+    const loanConfig = loanConfigRes?.config || null;
+    const createAdvanceLoanRequestMutation = useCreateAdvanceLoanRequest();
+    const cancelRequestMutation = useCancelAdvanceLoanRequest();
+    const approveRequestMutation = useApproveAdvanceLoanRequest();
+    const rejectRequestMutation = useRejectAdvanceLoanRequest();
+    const deferDeductionMutation = useDeferAdvanceLoanDeduction();
+    const recordPaymentMutation = useRecordAdvanceLoanPayment();
+
+    const loadData = useCallback(async () => {
+        setError("");
+        setPayrollWarning("");
+        try {
+            if (canViewAll) {
+                const [statsSnap, reqSnap] = await Promise.all([refetchStats(), refetchAll()]);
+                const statsData = statsSnap.data;
+                const reqs = reqSnap.data?.requests || [];
+                setDashboard(statsData ? { statistics: statsData } : null);
+                setRequests(reqs);
+            } else {
+                const reqSnap = await refetchMy();
+                const myReqs = reqSnap.data?.requests || [];
+                const totalAmount = myReqs.reduce((sum, r) => sum + (r.amount || 0), 0);
+                const totalApprovedPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
+                const totalRemainingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
+                const totalRemainingPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + Math.max(0, (r.amount || 0) - (r.totalPaid || 0)), 0);
+                const totalPaid = myReqs.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
+                const totalRequests = myReqs.length;
+                const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
+                const approvedRequests = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).length;
+                const rejectedRequests = myReqs.filter(r => r.status === "REJECTED").length;
+                const cancelledRequests = myReqs.filter(r => r.status === "CANCELLED").length;
+                const fullyPaidRequests = myReqs.filter(r => r.status === "FULLY_PAID").length;
+                const pendingApprovalAmount = myReqs.filter(r => r.status === "PENDING").reduce((sum, r) => sum + (r.amount || 0), 0);
+                const rejectedAmount = myReqs.filter(r => r.status === "REJECTED").reduce((sum, r) => sum + (r.amount || 0), 0);
+                const cancelledAmount = myReqs.filter(r => r.status === "CANCELLED").reduce((sum, r) => sum + (r.amount || 0), 0);
+                const fullyPaidPrincipal = myReqs.filter(r => r.status === "FULLY_PAID").reduce((sum, r) => sum + (r.amount || 0), 0);
+                const recoveredTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.totalPaid || 0), 0);
+                const givenTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
+                setDashboard({
+                    statistics: {
+                        totalRequests, pendingRequests, approvedRequests, rejectedRequests,
+                        cancelledRequests, fullyPaidRequests,
+                        totalAmount, totalApprovedPrincipal, totalRemainingAmount, totalRemainingPrincipal, totalPaid,
+                        pendingApprovalAmount, rejectedAmount, cancelledAmount, fullyPaidPrincipal,
+                        recoveredTotal, givenTotal, outstandingTotal: Math.max(0, givenTotal - recoveredTotal),
+                    },
+                    recentRequests: myReqs.slice(0, 5),
+                });
+                setRequests(myReqs);
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || "Failed to load data");
+        }
+    }, [canViewAll, refetchStats, refetchAll, refetchMy, setError]);
+
+    useEffect(() => {
+        loadData();
+        refetchLoanConfig();
+    }, [loadData, refetchLoanConfig]);
+
+    // Refetch latest loan config whenever request form is opened - ensures dynamic admin value (e.g., 25) is shown
+    useEffect(() => {
+        if (showRequestForm) refetchLoanConfig();
+    }, [showRequestForm, refetchLoanConfig]);
 
     // Close the row action dropdown when clicking anywhere outside it.
     useEffect(() => {
@@ -1262,134 +1330,14 @@ function AdvanceLoanInner() {
 
     const summary = dashboard?.statistics || {};
 
-    const loadLoanConfig = useCallback(async () => {
-        try {
-            const res = await getLoanConfig();
-            if (res.config) setLoanConfig(res.config);
-        } catch { }
-    }, []);
-
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        setError("");
-        setPayrollWarning("");
-        try {
-            let dashRes = null;
-            let reqRes = null;
-
-            // Fix: Employee should call getMyRequests (self only), Manager/Admin/HR can call getAllRequests + getStatistics
-            // canViewAllAdvanceLoan = Admin|HR|Manager => team/org view; Employee => own view
-            const canViewAll = canViewAllAdvanceLoan(user?.role);
-
-            if (canViewAll) {
-                try {
-                    [dashRes, reqRes] = await Promise.all([getStatistics(), getAllRequests()]);
-                } catch (allErr) {
-                    // If Manager/HR fails due to permission, fallback to my requests for safety
-                    if (allErr.response?.status === 403) {
-                        reqRes = await getMyRequests();
-                        const myReqs = reqRes?.requests || [];
-                        // Total Requested = principal amount (what user applied for, no interest)
-                        const totalAmount = myReqs.reduce((sum, r) => sum + (r.amount || 0), 0);
-                        // Approved principal = sum of principal for approved/partially-paid requests
-                        const totalApprovedPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
-                        // Remaining to Pay = sum of remainingAmount for active loans (includes interest - for employee view)
-                        const totalRemainingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
-                        // Remaining principal only (without interest - for admin/manager view)
-                        const totalRemainingPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + Math.max(0, (r.amount || 0) - (r.totalPaid || 0)), 0);
-                        const totalPaid = myReqs.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
-                        const totalRequests = myReqs.length;
-                        const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
-                        const approvedRequests = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).length;
-                        const rejectedRequests = myReqs.filter(r => r.status === "REJECTED").length;
-                        const cancelledRequests = myReqs.filter(r => r.status === "CANCELLED").length;
-                        const fullyPaidRequests = myReqs.filter(r => r.status === "FULLY_PAID").length;
-                        const pendingApprovalAmount = myReqs.filter(r => r.status === "PENDING").reduce((sum, r) => sum + (r.amount || 0), 0);
-                        const rejectedAmount = myReqs.filter(r => r.status === "REJECTED").reduce((sum, r) => sum + (r.amount || 0), 0);
-                        const cancelledAmount = myReqs.filter(r => r.status === "CANCELLED").reduce((sum, r) => sum + (r.amount || 0), 0);
-                        const fullyPaidPrincipal = myReqs.filter(r => r.status === "FULLY_PAID").reduce((sum, r) => sum + (r.amount || 0), 0);
-                        const recoveredTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.totalPaid || 0), 0);
-                        const givenTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
-                        dashRes = {
-                            statistics: {
-                                totalRequests, pendingRequests, approvedRequests, rejectedRequests,
-                                cancelledRequests, fullyPaidRequests,
-                                totalAmount, totalApprovedPrincipal, totalRemainingAmount, totalRemainingPrincipal, totalPaid,
-                                pendingApprovalAmount, rejectedAmount, cancelledAmount, fullyPaidPrincipal,
-                                recoveredTotal, givenTotal, outstandingTotal: Math.max(0, givenTotal - recoveredTotal),
-                            },
-                            recentRequests: myReqs.slice(0, 5),
-                        };
-                    } else {
-                        throw allErr;
-                    }
-                }
-            } else {
-                reqRes = await getMyRequests();
-                const myReqs = reqRes?.requests || [];
-                // Total Requested = principal amount (what user applied for, no interest)
-                const totalAmount = myReqs.reduce((sum, r) => sum + (r.amount || 0), 0);
-                // Approved principal = sum of principal for approved/partially-paid requests
-                const totalApprovedPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
-                // Remaining to Pay = sum of remainingAmount for active loans (includes interest - for employee view)
-                const totalRemainingAmount = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.remainingAmount || 0), 0);
-                // Remaining principal only (without interest - for admin/manager view)
-                const totalRemainingPrincipal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).reduce((sum, r) => sum + Math.max(0, (r.amount || 0) - (r.totalPaid || 0)), 0);
-                const totalPaid = myReqs.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
-                const totalRequests = myReqs.length;
-                const pendingRequests = myReqs.filter(r => r.status === "PENDING").length;
-                const approvedRequests = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID"].includes(r.status)).length;
-                const rejectedRequests = myReqs.filter(r => r.status === "REJECTED").length;
-                const cancelledRequests = myReqs.filter(r => r.status === "CANCELLED").length;
-                const fullyPaidRequests = myReqs.filter(r => r.status === "FULLY_PAID").length;
-                const pendingApprovalAmount = myReqs.filter(r => r.status === "PENDING").reduce((sum, r) => sum + (r.amount || 0), 0);
-                const rejectedAmount = myReqs.filter(r => r.status === "REJECTED").reduce((sum, r) => sum + (r.amount || 0), 0);
-                const cancelledAmount = myReqs.filter(r => r.status === "CANCELLED").reduce((sum, r) => sum + (r.amount || 0), 0);
-                const fullyPaidPrincipal = myReqs.filter(r => r.status === "FULLY_PAID").reduce((sum, r) => sum + (r.amount || 0), 0);
-                const recoveredTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.totalPaid || 0), 0);
-                const givenTotal = myReqs.filter(r => ["APPROVED", "PARTIALLY_PAID", "FULLY_PAID"].includes(r.status)).reduce((sum, r) => sum + (r.amount || 0), 0);
-                dashRes = {
-                    statistics: {
-                        totalRequests, pendingRequests, approvedRequests, rejectedRequests,
-                        cancelledRequests, fullyPaidRequests,
-                        totalAmount, totalApprovedPrincipal, totalRemainingAmount, totalRemainingPrincipal, totalPaid,
-                        pendingApprovalAmount, rejectedAmount, cancelledAmount, fullyPaidPrincipal,
-                        recoveredTotal, givenTotal, outstandingTotal: Math.max(0, givenTotal - recoveredTotal),
-                    },
-                    recentRequests: myReqs.slice(0, 5),
-                };
-            }
-
-            setDashboard(dashRes);
-            setRequests(reqRes?.requests || []);
-        } catch (err) {
-            setError(err.response?.data?.message || "Failed to load data");
-        } finally {
-            setLoading(false);
-        }
-    }, [user?.role]);
-
-    useEffect(() => {
-        loadData();
-        loadLoanConfig();
-    }, [loadData, loadLoanConfig]);
-
-    // Refetch latest loan config whenever request form is opened - ensures dynamic admin value (e.g., 25) is shown
-    useEffect(() => {
-        if (showRequestForm) loadLoanConfig();
-    }, [showRequestForm, loadLoanConfig]);
-
-    // Data is now fetched by useAllEmployees hook
-
     const handleCreateRequest = async (formData) => {
         try {
-            await createAdvanceLoanRequest(formData);
+            await createAdvanceLoanRequestMutation.mutateAsync(formData);
             toast.success(`${formData.requestType} request submitted successfully`);
             setError("");
             setPayrollWarning("");
             setFormApiError("");
             setShowRequestForm(false);
-            loadData();
         } catch (err) {
             const msg = err.response?.data?.message || err.message || "Failed to submit request";
             // Always show API error inside modal + top + toast
@@ -1410,7 +1358,7 @@ function AdvanceLoanInner() {
             confirmLabel: "Cancel Request", variant: "danger",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await cancelRequest(id); setError(""); toast.success("Request cancelled successfully"); loadData(); }
+                try { await cancelRequestMutation.mutateAsync(id); setError(""); toast.success("Request cancelled successfully"); }
                 catch (err) { const msg = err.response?.data?.message || "Cancel failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
@@ -1438,7 +1386,7 @@ function AdvanceLoanInner() {
             inputLabel: "Reason (optional)", inputPlaceholder: "Why is this month being skipped?",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await deferDeduction(request._id, { comments: modalInputRef.current }); setError(""); toast.success("Deduction deferred to next month"); loadData(); }
+                try { await deferDeductionMutation.mutateAsync({ id: request._id, body: { comments: modalInputRef.current } }); setError(""); toast.success("Deduction deferred to next month"); }
                 catch (err) { const msg = err.response?.data?.message || "Defer failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
@@ -1449,12 +1397,11 @@ function AdvanceLoanInner() {
         if (!approveRequestData) return;
         setActionLoading(true);
         try {
-            await approveRequest(approveRequestData._id, data);
+            await approveRequestMutation.mutateAsync({ id: approveRequestData._id, body: data });
             setError("");
             toast.success("Request approved successfully");
             setShowApproveModal(false);
             setApproveRequestData(null);
-            loadData();
         } catch (err) {
             const msg = err.response?.data?.message || "Approve failed";
             setError(msg);
@@ -1477,7 +1424,7 @@ function AdvanceLoanInner() {
             inputLabel: "Rejection Reason *", inputPlaceholder: "Please provide a reason for rejection...",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await rejectRequest(request._id, { rejectionReason: modalInputRef.current }); setError(""); toast.warning("Request rejected"); loadData(); }
+                try { await rejectRequestMutation.mutateAsync({ id: request._id, body: { rejectionReason: modalInputRef.current } }); setError(""); toast.warning("Request rejected"); }
                 catch (err) { const msg = err.response?.data?.message || "Reject failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
@@ -1487,12 +1434,11 @@ function AdvanceLoanInner() {
     const handleRecordPayment = async (paymentData) => {
         if (!selectedRequest) return;
         try {
-            await recordPayment(selectedRequest._id, paymentData);
+            await recordPaymentMutation.mutateAsync({ id: selectedRequest._id, paymentData });
             setError("");
             toast.success("Payment recorded successfully");
             setShowPaymentModal(false);
             setSelectedRequest(null);
-            loadData();
         } catch (err) { const msg = err.response?.data?.message || "Failed to record payment"; setError(msg); toast.error(msg); }
     };
 
@@ -1783,9 +1729,9 @@ function AdvanceLoanInner() {
             <div className="advance-page">
                 {renderTabs()}
                 {/* {error ? <p className="advance-error">{error}</p> : null} */}
-                {loading && !dashboard ? <p className="advance-empty">Loading data...</p> : (
+                {!dashboard ? <p className="advance-empty">Loading data...</p> : (
                     activeTab === "config" && canManageLoanConfig ? (
-                        <LoanConfiguration initialConfig={loanConfig} onConfigUpdate={(cfg) => setLoanConfig(cfg)} />
+                        <LoanConfiguration initialConfig={loanConfig} />
                     ) : (
                         effectiveRequestView === "organization"
                             ? renderAdminView()
