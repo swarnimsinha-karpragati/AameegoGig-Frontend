@@ -16,17 +16,17 @@ import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
 import Pagination from "../components/Pagination";
+import { getReceiptUrl } from "../services/expenseService";
 import {
-  getExpenseDashboard,
-  getExpenses,
-  createExpense,
-  submitExpense,
-  approveExpense,
-  rejectExpense,
-  markReimbursed,
-  deleteExpense,
-  getReceiptUrl,
-} from "../services/expenseService";
+  useExpenseDashboard,
+  useExpenses,
+  useCreateExpense,
+  useSubmitExpense,
+  useApproveExpense,
+  useRejectExpense,
+  useMarkReimbursed,
+  useDeleteExpense,
+} from "../hooks/useExpense";
 import { useAllEmployees } from "../hooks/useEmployees";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
@@ -170,13 +170,24 @@ function ExpenseInner() {
   const activeTab = showMyTab ? expenseTab : "organization";
 
   /* ── State ── */
-  const [dashboard, setDashboard] = useState(null);
-  const [expenses, setExpenses] = useState([]);
-  const { data: employees = [] } = useAllEmployees({ enabled: canApprove });
-  const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState("");
   const [expPagination, setExpPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const { data: dashboard, isLoading: dashboardLoading, error: dashboardError } = useExpenseDashboard();
+  const { data: expRes } = useExpenses({ page: expPagination.page, limit: expPagination.limit });
+  const expenses = useMemo(() => expRes?.expenses || [], [expRes?.expenses]);
+  const { data: employees = [] } = useAllEmployees({ enabled: canApprove });
+  const [actionLoading, setActionLoading] = useState(false);
+  const createExpenseMutation = useCreateExpense();
+  const submitExpenseMutation = useSubmitExpense();
+  const approveExpenseMutation = useApproveExpense();
+  const rejectExpenseMutation = useRejectExpense();
+  const markReimbursedMutation = useMarkReimbursed();
+  const deleteExpenseMutation = useDeleteExpense();
+
+  useEffect(() => {
+    if (expRes?.pagination) {
+      setExpPagination(prev => ({ ...prev, total: expRes.pagination.total, pages: expRes.pagination.pages }));
+    }
+  }, [expRes?.pagination]);
 
   /* ── Confirm modal state ── */
   const [modal, setModal] = useState({
@@ -305,32 +316,6 @@ function ExpenseInner() {
     [expenses, isDirectReportee]
   );
 
-  /* ── Data Loading ── */
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [dashRes, expRes] = await Promise.all([
-        getExpenseDashboard(),
-        getExpenses({ page: expPagination.page, limit: expPagination.limit }),
-      ]);
-      setDashboard(dashRes);
-      setExpenses(expRes.expenses || []);
-      if (expRes.pagination) {
-        setExpPagination(prev => ({ ...prev, total: expRes.pagination.total, pages: expRes.pagination.pages }));
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to load expense data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => {
     if (employees.length > 0 && !form.employeeId) {
       setForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
@@ -361,7 +346,7 @@ function ExpenseInner() {
         fd.append("employeeId", form.employeeId);
       }
 
-      await createExpense(fd);
+      await createExpenseMutation.mutateAsync(fd);
       toast.success(
         form.submitDirectly
           ? "Expense submitted for approval"
@@ -375,7 +360,6 @@ function ExpenseInner() {
         receipt: null,
         expenseDate: new Date().toISOString().split("T")[0],
       }));
-      loadData();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to submit expense");
     }
@@ -390,9 +374,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await submitExpense(id);
+          await submitExpenseMutation.mutateAsync(id);
           toast.success("Expense submitted for approval");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Submit failed");
         } finally {
@@ -412,9 +395,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await approveExpense(id);
+          await approveExpenseMutation.mutateAsync({ id });
           toast.success("Expense approved successfully");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Approve failed");
         } finally {
@@ -436,9 +418,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await rejectExpense(id, modal.inputValue);
+          await rejectExpenseMutation.mutateAsync({ id, comment: modal.inputValue });
           toast.warning("Expense rejected");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Reject failed");
         } finally {
@@ -458,9 +439,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await markReimbursed(id);
+          await markReimbursedMutation.mutateAsync(id);
           toast.success("Expense marked as reimbursed");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Reimburse failed");
         } finally {
@@ -480,9 +460,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await deleteExpense(id);
+          await deleteExpenseMutation.mutateAsync(id);
           toast.success("Expense deleted");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Delete failed");
         } finally {
@@ -1086,7 +1065,7 @@ function ExpenseInner() {
       <div className="expense-page">
         <p className="expense-context-line">{tabSubtitle}</p>
 
-        {error ? <p className="expense-error">{error}</p> : null}
+        {dashboardError ? <p className="expense-error">{dashboardError.message || "Failed to load expense data"}</p> : null}
 
         {showMyTab && showOrgTab ? (
           <div className="expense-tabs" role="tablist" aria-label="Expense views">
@@ -1107,7 +1086,7 @@ function ExpenseInner() {
           </div>
         ) : null}
 
-        {loading && !dashboard ? (
+        {dashboardLoading ? (
           <p className="expense-empty">Loading expense data...</p>
         ) : activeTab === "my" && showMyTab ? (
           renderMyTab()

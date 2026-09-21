@@ -57,8 +57,8 @@ export default function PayslipsTab({
             disabled={downloadingWageSheet || !canDownloadWageSheet}
             title={
               !canDownloadWageSheet
-                ? `Payroll for ${availableMonths[selectedMonth - 1]?.label} ${selectedYear} is not yet processed.`
-                : "Download month-wise wage sheet (Excel)"
+                ? `No payroll records for ${availableMonths[selectedMonth - 1]?.label} ${selectedYear}. Generate payroll first.`
+                : "Download month-wise wage sheet (Excel) — available even before approval"
             }
           >
             {downloadingWageSheet ? "Preparing…" : "Wage sheet"}
