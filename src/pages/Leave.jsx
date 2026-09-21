@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Info,
   Pencil,
+  Loader2,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
@@ -51,6 +52,9 @@ import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
+import Pagination from "../components/Pagination";
+
+const ALL_REQ_PAGE_SIZE = 10;
 
 const leaveStatusClass = {
   Approved: "leave-status approved",
@@ -87,7 +91,7 @@ function LeaveSummaryCards({ summary, labels }) {
       iconClassName: "blue",
       value: wfhTaken,
       label: labels?.wfh || "WFH Taken (This Month)",
-      sub: wfhTotal != null ? `Taken ${wfhTaken} of ${wfhTotal} • Left ${wfhLeft}` : `Taken ${wfhTaken} this month`,
+      // sub: wfhTotal != null ? `Taken ${wfhTaken} of ${wfhTotal} • Left ${wfhLeft}` : `Taken ${wfhTaken} this month`,
     },
     {
       key: "leave",
@@ -95,7 +99,7 @@ function LeaveSummaryCards({ summary, labels }) {
       iconClassName: "green",
       value: leaveTaken,
       label: labels?.leave || "Leave Taken (This Month)",
-      sub: balance == null ? `Taken ${leaveTaken} this month` : `Taken ${leaveTaken} • Balance ${balance}`,
+      // sub: balance == null ? `Taken ${leaveTaken} this month` : `Taken ${leaveTaken} • Balance ${balance}`,
     },
     {
       key: "pending",
@@ -111,7 +115,7 @@ function LeaveSummaryCards({ summary, labels }) {
       iconClassName: "purple",
       value: balanceDisplay,
       label: labels?.balance || "Total Balance",
-      sub: balance == null ? "No team data" : "Total remaining",
+      // sub: balance == null ? "No team data" : "Total remaining",
     },
   ];
 
@@ -174,6 +178,25 @@ function LeaveInner() {
   const requestsQuery = useLeaveRequests();
   const balancesQuery = useLeaveBalances();
   const policyQuery = useLeavePolicy();
+
+  // Admin "All Requests": server-side search (name/email/phone/code) + pagination.
+  const [allReqPage, setAllReqPage] = useState(1);
+  const [allReqSearchInput, setAllReqSearchInput] = useState("");
+  const [allReqSearch, setAllReqSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAllReqSearch(allReqSearchInput.trim());
+      setAllReqPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [allReqSearchInput]);
+  const allRequestsQuery = useLeaveRequests(
+    { page: allReqPage, limit: ALL_REQ_PAGE_SIZE, search: allReqSearch || undefined },
+    { enabled: canViewOrgLeave(user?.role), keepPreviousData: true }
+  );
+  const allReqItems = useMemo(() => allRequestsQuery.data?.requests || [], [allRequestsQuery.data]);
+  const allReqTotal = allRequestsQuery.data?.total ?? 0;
+  const allReqTotalPages = allRequestsQuery.data?.totalPages ?? 0;
 
   const createLeaveMutation = useCreateLeaveRequest();
   const createLeaveMultipartMutation = useCreateLeaveRequestMultipart();
@@ -1419,10 +1442,25 @@ function LeaveInner() {
     );
   };
 
-  const renderAllRequestsTable = (items, title = "All Requests") => (
+  const renderAllRequestsTable = (items, title = "All Requests", opts = {}) => (
     <section className="leave-panel leave-glass leave-panel--wide">
-      <header className="leave-panel__head">
-        <h3>{title}</h3>
+      <header className="leave-panel__head leave-panel__head--split">
+        <h3>{title}{opts.total != null ? ` (${opts.total})` : ""}</h3>
+        {opts.showSearch ? (
+          <span className="leave-search-wrap">
+            <input
+              type="search"
+              className="leave-control leave-search"
+              placeholder="Name, Employee ID, email, phone…"
+              value={opts.searchValue ?? ""}
+              onChange={(e) => opts.onSearchChange?.(e.target.value)}
+              aria-label="Search requests by employee"
+            />
+            {opts.fetching ? (
+              <Loader2 size={14} className="leave-search-spinner" aria-label="Searching" />
+            ) : null}
+          </span>
+        ) : null}
       </header>
       <div className="leave-table-wrap">
         <table className="leave-table">
@@ -1438,7 +1476,13 @@ function LeaveInner() {
             </tr>
           </thead>
           <tbody>
-            {!loading && items.length === 0 ? (
+            {opts.loading ? (
+              <tr>
+                <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
+                  Loading…
+                </td>
+              </tr>
+            ) : !loading && items.length === 0 ? (
               <tr>
                 <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
                   No requests found
@@ -1511,6 +1555,15 @@ function LeaveInner() {
           </tbody>
         </table>
       </div>
+      {opts.showPagination && opts.totalPages > 1 ? (
+        <Pagination
+          currentPage={opts.page}
+          totalPages={opts.totalPages}
+          totalRecords={opts.total}
+          limit={opts.limit || ALL_REQ_PAGE_SIZE}
+          onPageChange={opts.onPageChange}
+        />
+      ) : null}
     </section>
   );
 
@@ -1532,14 +1585,14 @@ function LeaveInner() {
           labels={
             isAdminView
               ? {
-                wfh: "WFH Days (This Month)",
-                leave: "Leave Days (This Month)",
+                wfh: "WFH Taken (This Month)",
+                leave: "Leave Taken (This Month)",
                 pending: "Pending Requests",
                 balance: "Avg Balance",
               }
               : {
-                wfh: "WFH Days (Org)",
-                leave: "Leave Days (Org)",
+                wfh: "WFH Taken (Org)",
+                leave: "Leave Taken (Org)",
                 pending: "Pending (Org)",
                 balance: "Avg Balance (Org)",
               }
@@ -1563,8 +1616,20 @@ function LeaveInner() {
           {renderBalanceEditor(balances, false)}
         </div>
         {renderAllRequestsTable(
-          requests,
-          isAdminView ? "All Requests" : "All Requests — Organization"
+          allReqItems,
+          isAdminView ? "All Requests" : "All Requests — Organization",
+          {
+            showSearch: true,
+            searchValue: allReqSearchInput,
+            onSearchChange: setAllReqSearchInput,
+            showPagination: true,
+            loading: allRequestsQuery.isLoading,
+            page: allReqPage,
+            totalPages: allReqTotalPages,
+            total: allReqTotal,
+            limit: ALL_REQ_PAGE_SIZE,
+            onPageChange: setAllReqPage,
+          }
         )}
       </>
     );

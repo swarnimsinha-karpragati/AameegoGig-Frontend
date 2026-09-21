@@ -338,11 +338,10 @@ function Dashboard() {
               <div className="holiday-card">
                 <div className="section-head">
                   <h3>Upcoming Holidays</h3>
-                  <span className="section-count">Next 2 weeks</span>
                 </div>
 
                 {data.upcomingHolidays?.length === 0 ? (
-                  <p className="empty-hint">No upcoming holidays in the next 2 weeks.</p>
+                  <p className="empty-hint">No upcoming holidays.</p>
                 ) : (
                   data.upcomingHolidays.map((holiday) => (
                     <div className="holiday-item" key={holiday.id}>
