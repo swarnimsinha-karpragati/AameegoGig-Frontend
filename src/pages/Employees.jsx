@@ -986,8 +986,6 @@ function Employees() {
       scopeOfWork: "",
       consultancyFees: "",
       paymentTerms: "",
-      workingHours: "",
-      leaveTerms: "",
       noticePeriod: "30 days",
     });
 
@@ -1949,8 +1947,6 @@ function Employees() {
           scopeOfWork: consultancyData.scopeOfWork,
           consultancyFees: consultancyData.consultancyFees,
           paymentTerms: consultancyData.paymentTerms,
-          workingHours: consultancyData.workingHours,
-          leaveTerms: consultancyData.leaveTerms,
           noticePeriod: consultancyData.noticePeriod,
         });
 
@@ -2621,8 +2617,6 @@ function Employees() {
                                       scopeOfWork: "",
                                       consultancyFees: emp.monthlyConsultancyPay ? `₹${Number(emp.monthlyConsultancyPay).toLocaleString("en-IN")} per month` : "",
                                       paymentTerms: "",
-                                      workingHours: "",
-                                      leaveTerms: "",
                                       noticePeriod: "30 days",
                                     });
                                     setShowConsultancyModal(true);
@@ -3807,25 +3801,11 @@ function Employees() {
                   placeholder="e.g. Monthly invoice, payable within 15 days, subject to TDS"
                 />
               </FormField>
-              <FormField label="Working Hours / Engagement Terms" htmlFor="ca-hours" fullWidth>
-                <textarea
-                  id="ca-hours"
-                  rows={2}
-                  value={consultancyData.workingHours}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      workingHours: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 9 hours/day, 5 days a week, remote/hybrid"
-                />
-              </FormField>
             </FormSection>
 
             <FormSection
               title="Scope & Terms"
-              description="Scope of work and leave terms (legal clauses use standard defaults)"
+              description="Scope of work (legal clauses use standard defaults)"
             >
               <FormField label="Scope of Work / Responsibilities" htmlFor="ca-scope" fullWidth>
                 <textarea
@@ -3839,20 +3819,6 @@ function Employees() {
                     })
                   }
                   placeholder="Describe the consultant's responsibilities and deliverables"
-                />
-              </FormField>
-              <FormField label="Leave / Absence Terms" htmlFor="ca-leave" fullWidth>
-                <textarea
-                  id="ca-leave"
-                  rows={3}
-                  value={consultancyData.leaveTerms}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      leaveTerms: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. Unpaid leave; prior intimation required"
                 />
               </FormField>
             </FormSection>
