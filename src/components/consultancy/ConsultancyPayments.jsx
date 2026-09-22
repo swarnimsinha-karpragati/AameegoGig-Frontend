@@ -392,14 +392,19 @@ export default function ConsultancyPayments({
                 </label>
                 <label className="record-edit-field">
                   <span>Payment mode {modal.mode === "pay" ? "*" : ""}</span>
-                  <input
-                    type="text"
+                  <select
                     value={editForm.paymentMode}
                     onChange={(event) => setEditForm({ ...editForm, paymentMode: event.target.value })}
                     disabled={saving}
-                    placeholder="e.g. Bank transfer"
                     required={modal.mode === "pay"}
-                  />
+                  >
+                    <option value="">Select payment mode</option>
+                    <option value="Bank Transfer (NEFT/RTGS/IMPS)">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </label>
               </div>
 

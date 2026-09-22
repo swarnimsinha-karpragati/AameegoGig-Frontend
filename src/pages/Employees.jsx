@@ -5,6 +5,7 @@ import MainLayout from "../layouts/MainLayout";
 import {
   buildEmployeePayload,
   convertToConsultant,
+  exportEmployees,
 } from "../services/employeeService";
 
 import {
@@ -631,6 +632,7 @@ function Employees() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "";
@@ -986,8 +988,6 @@ function Employees() {
       scopeOfWork: "",
       consultancyFees: "",
       paymentTerms: "",
-      workingHours: "",
-      leaveTerms: "",
       noticePeriod: "30 days",
     });
 
@@ -1495,6 +1495,48 @@ function Employees() {
   };
 
   /* =========================
+     DOWNLOAD ALL (backend Excel, complete details + current filters)
+  ========================= */
+  const handleDownloadAll = async () => {
+    if (downloadingAll) return;
+    setDownloadingAll(true);
+    try {
+      const params = {
+        ...(search?.trim() ? { search: search.trim() } : {}),
+        ...(departmentFilter ? { departmentId: departmentFilter } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(roleFilter ? { role: roleFilter } : {}),
+        isConsultancy: directoryType === "consultancy" ? "true" : "false",
+      };
+      const res = await exportEmployees(params);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const contentDisposition = res.headers?.["content-disposition"] || "";
+      const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
+      const fileName =
+        fileNameMatch?.[1] ||
+        `${directoryType === "consultancy" ? "Consultants" : "Employees"}-Export-${new Date().toISOString().split("T")[0]}.xlsx`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      const serverMessage =
+        error.response?.data instanceof Blob
+          ? "No employees found for the selected filters"
+          : error.response?.data?.message || "Failed to download employees Excel";
+      alert(serverMessage);
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
+  /* =========================
      VIEW EMPLOYEE
   ========================= */
 
@@ -1949,8 +1991,6 @@ function Employees() {
           scopeOfWork: consultancyData.scopeOfWork,
           consultancyFees: consultancyData.consultancyFees,
           paymentTerms: consultancyData.paymentTerms,
-          workingHours: consultancyData.workingHours,
-          leaveTerms: consultancyData.leaveTerms,
           noticePeriod: consultancyData.noticePeriod,
         });
 
@@ -2288,6 +2328,20 @@ function Employees() {
               </Button>
             )}
 
+            {(directoryType === "employee" ? canViewEmployees || canManage : canViewConsultancy || canManageConsultancy) && (
+              <Button
+                variant="secondary"
+                icon={<Download size={16} />}
+                onClick={handleDownloadAll}
+                disabled={downloadingAll}
+                title={`Download all ${directoryType === "consultancy" ? "consultants" : "employees"} as Excel`}
+                aria-label={`Download all ${directoryType === "consultancy" ? "consultants" : "employees"} as Excel`}
+                className="emp-export-btn"
+              >
+                {downloadingAll ? "..." : "Export"}
+              </Button>
+            )}
+
             {(directoryType === "employee" ? canManage : canManageConsultancy) && (
               <Button
                 icon={<Plus size={18} />}
@@ -2621,8 +2675,6 @@ function Employees() {
                                       scopeOfWork: "",
                                       consultancyFees: emp.monthlyConsultancyPay ? `₹${Number(emp.monthlyConsultancyPay).toLocaleString("en-IN")} per month` : "",
                                       paymentTerms: "",
-                                      workingHours: "",
-                                      leaveTerms: "",
                                       noticePeriod: "30 days",
                                     });
                                     setShowConsultancyModal(true);
@@ -3807,25 +3859,11 @@ function Employees() {
                   placeholder="e.g. Monthly invoice, payable within 15 days, subject to TDS"
                 />
               </FormField>
-              <FormField label="Working Hours / Engagement Terms" htmlFor="ca-hours" fullWidth>
-                <textarea
-                  id="ca-hours"
-                  rows={2}
-                  value={consultancyData.workingHours}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      workingHours: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 9 hours/day, 5 days a week, remote/hybrid"
-                />
-              </FormField>
             </FormSection>
 
             <FormSection
               title="Scope & Terms"
-              description="Scope of work and leave terms (legal clauses use standard defaults)"
+              description="Scope of work (legal clauses use standard defaults)"
             >
               <FormField label="Scope of Work / Responsibilities" htmlFor="ca-scope" fullWidth>
                 <textarea
@@ -3839,20 +3877,6 @@ function Employees() {
                     })
                   }
                   placeholder="Describe the consultant's responsibilities and deliverables"
-                />
-              </FormField>
-              <FormField label="Leave / Absence Terms" htmlFor="ca-leave" fullWidth>
-                <textarea
-                  id="ca-leave"
-                  rows={3}
-                  value={consultancyData.leaveTerms}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      leaveTerms: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. Unpaid leave; prior intimation required"
                 />
               </FormField>
             </FormSection>

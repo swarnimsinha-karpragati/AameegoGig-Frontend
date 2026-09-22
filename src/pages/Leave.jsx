@@ -337,6 +337,17 @@ function LeaveInner() {
     [leaveForm.startDate, leaveForm.endDate, isCoCredit]
   );
 
+  // Raw number of dates picked in the range (independent of week-offs).
+  const selectedDaysTotal = useMemo(
+    () =>
+      countDaysInclusiveClient(
+        leaveForm.startDate,
+        leaveForm.endDate,
+        false
+      ),
+    [leaveForm.startDate, leaveForm.endDate]
+  );
+
   // Backdate limit (mirrors backend getEarliestLeaveStartDate): earliest
   // selectable date = 1st day of previous month (e.g. today 15 Feb → 1 Jan).
   const minLeaveDate = useMemo(() => {
@@ -578,12 +589,12 @@ function LeaveInner() {
     setServerDateError("");
   }, [leaveForm.startDate, leaveForm.endDate]);
 
-  // Inline feedback is in an error state for a bad range, a backend rejection,
-  // or a client-side count of zero working days (department week-offs unknown).
+  // Inline feedback is in an error state only for a bad range or a backend
+  // rejection. Working days depend on the department's week-offs, which the
+  // client doesn't know, so "no working days" is left to the server (the
+  // client's weekday count is just a hint).
   const hasDateFeedbackError =
-    Boolean(dateValidationError) ||
-    Boolean(serverDateError) ||
-    (computedLeaveDays != null && computedLeaveDays < 1);
+    Boolean(dateValidationError) || Boolean(serverDateError);
 
   const leaveApiErrorMessage = (err, fallback) => {
     const data = err?.response?.data;
@@ -1077,18 +1088,22 @@ function LeaveInner() {
                     {dateValidationError.message}
                   </p>
                 </>
-              ) : serverDateError || computedLeaveDays < 1 ? (
+              ) : serverDateError ? (
                 <>
                   <strong className="leave-date-feedback__title">
                     No working days in this range
                   </strong>
                   <p className="leave-date-feedback__text">
-                    {serverDateError ||
-                      "Selected dates have no working days. Submit to validate against your department's weekly offs."}
+                    {serverDateError}
                   </p>
-                  <p className="leave-date-feedback__meta">
-                    Working days selected: <strong>0</strong>
-                  </p>
+                </>
+              ) : computedLeaveDays != null && computedLeaveDays < 1 ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    {selectedDaysTotal === 1
+                      ? "1 day selected"
+                      : `${selectedDaysTotal} days selected`}
+                  </strong>
                 </>
               ) : (
                 <>

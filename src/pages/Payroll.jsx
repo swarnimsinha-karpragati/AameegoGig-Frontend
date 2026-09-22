@@ -23,6 +23,7 @@ import { payrollHasBreakdown, enrichPayrollRecord } from "../utils/payrollRecord
 import { downloadPayrollPdf } from "../utils/generateSalarySlipPdf";
 import PayrollManager from "../components/payroll/PayrollManager";
 import PayslipsTab from "../components/payroll/PayslipsTab";
+import ConsultancyPayslipsTab from "../components/payroll/ConsultancyPayslipsTab";
 import PayrollTabs from "../components/payroll/PayrollTabs";
 import PayrollBreakdownDrawer from "../components/PayrollBreakdownDrawer";
 import PayrollStatusBanner from "../components/payroll/PayrollStatusBanner";
@@ -30,8 +31,10 @@ import "./Payroll.css";
 import MainLayout from "../layouts/MainLayout";
 
 export default function Payroll() {
-  const user = getStoredUser();
-  const isAdminOrHR = canManagePayroll(user?.role);
+  const storedUser = getStoredUser();
+  const isAdminOrHR = canManagePayroll(storedUser?.role);
+  const [user, setUser] = useState(storedUser);
+  const isConsultancyUser = !isAdminOrHR && Boolean(user?.isConsultancy);
   const [searchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
 
@@ -183,7 +186,10 @@ export default function Payroll() {
     const bootstrap = async () => {
       try {
         const me = await getCurrentUser();
-        if (me?.user) localStorage.setItem("user", JSON.stringify(me.user));
+        if (me?.user) {
+          localStorage.setItem("user", JSON.stringify(me.user));
+          setUser(me.user);
+        }
       } catch {
         // keep stored user
       }
@@ -718,7 +724,11 @@ export default function Payroll() {
           />
         )}
 
-        {activeTab === "payslips" && (
+        {activeTab === "payslips" && isConsultancyUser && (
+          <ConsultancyPayslipsTab />
+        )}
+
+        {activeTab === "payslips" && !isConsultancyUser && (
           <PayslipsTab
             isAdminOrHR={isAdminOrHR}
             notLinkedToEmployee={notLinkedToEmployee}
