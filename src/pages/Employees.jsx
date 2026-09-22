@@ -5,6 +5,7 @@ import MainLayout from "../layouts/MainLayout";
 import {
   buildEmployeePayload,
   convertToConsultant,
+  exportEmployees,
 } from "../services/employeeService";
 
 import {
@@ -631,6 +632,7 @@ function Employees() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "";
@@ -1493,6 +1495,48 @@ function Employees() {
   };
 
   /* =========================
+     DOWNLOAD ALL (backend Excel, complete details + current filters)
+  ========================= */
+  const handleDownloadAll = async () => {
+    if (downloadingAll) return;
+    setDownloadingAll(true);
+    try {
+      const params = {
+        ...(search?.trim() ? { search: search.trim() } : {}),
+        ...(departmentFilter ? { departmentId: departmentFilter } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(roleFilter ? { role: roleFilter } : {}),
+        isConsultancy: directoryType === "consultancy" ? "true" : "false",
+      };
+      const res = await exportEmployees(params);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const contentDisposition = res.headers?.["content-disposition"] || "";
+      const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
+      const fileName =
+        fileNameMatch?.[1] ||
+        `${directoryType === "consultancy" ? "Consultants" : "Employees"}-Export-${new Date().toISOString().split("T")[0]}.xlsx`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      const serverMessage =
+        error.response?.data instanceof Blob
+          ? "No employees found for the selected filters"
+          : error.response?.data?.message || "Failed to download employees Excel";
+      alert(serverMessage);
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
+  /* =========================
      VIEW EMPLOYEE
   ========================= */
 
@@ -2281,6 +2325,20 @@ function Employees() {
                 }}
               >
                 Bulk Upload
+              </Button>
+            )}
+
+            {(directoryType === "employee" ? canViewEmployees || canManage : canViewConsultancy || canManageConsultancy) && (
+              <Button
+                variant="secondary"
+                icon={<Download size={16} />}
+                onClick={handleDownloadAll}
+                disabled={downloadingAll}
+                title={`Download all ${directoryType === "consultancy" ? "consultants" : "employees"} as Excel`}
+                aria-label={`Download all ${directoryType === "consultancy" ? "consultants" : "employees"} as Excel`}
+                className="emp-export-btn"
+              >
+                {downloadingAll ? "..." : "Export"}
               </Button>
             )}
 
