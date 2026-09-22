@@ -1,12 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./WeekOffManager.css";
 import { useDepartments } from "../hooks/useDepartments";
-import {
-  createWeekOff,
-  deleteWeekOff,
-  getWeekOffs,
-  updateWeekOff,
-} from "../services/settingService";
+import { useWeekOffs, useCreateWeekOff, useUpdateWeekOff, useDeleteWeekOff } from "../hooks/useSettings";
 import Button from "./Button";
 
 const DAYS_OF_WEEK = [
@@ -28,36 +23,23 @@ const WeekOffManager = ({ vendorId }) => {
   };
 
   const [configs, setConfigs] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [editingConfigId, setEditingConfigId] = useState(null);
   const [formData, setFormData] = useState(initialFormState);
   const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
 
   const { data: departments = [] } = useDepartments(vendorId);
-
-  const fetchWeekOffs = async () => {
-    if (!vendorId) return;
-    try {
-      setLoading(true);
-      const res = await getWeekOffs(vendorId);
-      const list = res?.data?.data || [];
-      setConfigs(Array.isArray(list) ? list : []);
-    } catch (error) {
-      console.error("Failed to load week-offs:", error);
-      setStatusMessage({
-        type: "error",
-        text: error?.response?.data?.message || "Unable to load week-off configurations.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: weekOffsData, isLoading: loading } = useWeekOffs(vendorId);
+  const createWeekOffMutation = useCreateWeekOff();
+  const updateWeekOffMutation = useUpdateWeekOff();
+  const deleteWeekOffMutation = useDeleteWeekOff();
 
   useEffect(() => {
-    fetchWeekOffs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorId]);
+    if (weekOffsData) {
+      const list = Array.isArray(weekOffsData) ? weekOffsData : [];
+      setConfigs(list);
+    }
+  }, [weekOffsData]);
 
   useEffect(() => {
     if (!statusMessage.text) return undefined;
@@ -103,8 +85,7 @@ const WeekOffManager = ({ vendorId }) => {
 
     try {
       setIsActionLoading(true);
-      await deleteWeekOff(config._id);
-      setConfigs((prev) => prev.filter((item) => item._id !== config._id));
+      await deleteWeekOffMutation.mutateAsync(config._id);
       if (editingConfigId === config._id) {
         resetForm();
       }
@@ -142,25 +123,11 @@ const WeekOffManager = ({ vendorId }) => {
       setStatusMessage({ type: "", text: "" });
 
       if (editingConfigId) {
-        const res = await updateWeekOff(editingConfigId, payload);
-        const updated = res?.data?.data;
-        if (updated) {
-          setConfigs((prev) =>
-            prev.map((item) => (item._id === editingConfigId ? updated : item))
-          );
-        } else {
-          await fetchWeekOffs();
-        }
+        await updateWeekOffMutation.mutateAsync({ id: editingConfigId, data: payload });
         setStatusMessage({ type: "success", text: "Week-off configuration updated." });
         resetForm();
       } else {
-        const res = await createWeekOff(payload);
-        const created = res?.data?.data;
-        if (created) {
-          setConfigs((prev) => [...prev, created]);
-        } else {
-          await fetchWeekOffs();
-        }
+        await createWeekOffMutation.mutateAsync(payload);
         setStatusMessage({ type: "success", text: "Week-off configuration created." });
         setFormData(initialFormState);
       }

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo} from 'react';
 import './OverTimePolicy.css';
-import { createOvertimePolicy, updateOvertimePolicy } from '../services/settingService';
+import { useCreateOvertimePolicy, useUpdateOvertimePolicy } from '../hooks/useSettings';
 import Button from './Button';
 
 export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel }) => {
+  const createOvertimePolicyMutation = useCreateOvertimePolicy();
+  const updateOvertimePolicyMutation = useUpdateOvertimePolicy();
   const initialFormState = useMemo(() => ({
     policyName: 'General',
     OverTimeAction: 'Incentive',
@@ -119,9 +121,9 @@ export const OverTimePolicy = ({ vendorId, editingPolicy, onSuccess, onCancel })
       let res;
       if (editingPolicy) {
         const policyId = editingPolicy._id || editingPolicy.id;
-        res = await updateOvertimePolicy(policyId, payload);
+        res = await updateOvertimePolicyMutation.mutateAsync({ id: policyId, data: payload });
       } else {
-        res = await createOvertimePolicy(payload);
+        res = await createOvertimePolicyMutation.mutateAsync(payload);
       }
 
       if (res?.status === 200 || res?.status === 201 || res?.success) {

@@ -9,9 +9,11 @@ import {
 } from "lucide-react";
 
 import "./NotificationsCard.css";
-import { getNotification, updateNotification } from "../services/settingService";
+import { useNotification, useUpdateNotification } from "../hooks/useSettings";
 
 export default function NotificationsCard() {
+  const { data: notifData } = useNotification();
+  const updateNotificationMutation = useUpdateNotification();
   const [notifications, setNotifications] = useState({
     emailAlert: false,
     pushNotification: false,
@@ -21,40 +23,23 @@ export default function NotificationsCard() {
   });
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const response = await getNotification();
-
-        // Safely extract data depending on how your service returns it
-        const fetchedData = response?.data?.data || response?.data || response;
-        if (fetchedData) {
-          setNotifications(fetchedData);
-        }
-      } catch (error) {
-        console.error("Failed to fetch notifications:", error);
-      }
-    };
-
-    fetchNotifications();
-  }, []);
+    if (notifData) {
+      setNotifications(notifData);
+    }
+  }, [notifData]);
 
   const handleToggle = async (key) => {
-    // 1. Calculate updated state locally first
     const updatedNotifications = {
       ...notifications,
       [key]: !notifications[key],
     };
 
-    // 2. Update UI state immediately
     setNotifications(updatedNotifications);
 
-    // 3. Send the updated payload to the backend
     try {
-      const response = await updateNotification(updatedNotifications);
-      console.log("Updated response:", response?.data);
+      await updateNotificationMutation.mutateAsync(updatedNotifications);
     } catch (error) {
       console.error("Failed to update notification settings:", error);
-      // Revert state if the API call fails
       setNotifications(notifications);
     }
   };
