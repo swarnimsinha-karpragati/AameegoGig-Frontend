@@ -293,6 +293,9 @@ function LeaveInner() {
 
   const [medicalDocFile, setMedicalDocFile] = useState(null);
   const [editLeaveRecord, setEditLeaveRecord] = useState(null);
+  // Backend validation error for the selected range (e.g. no working days
+  // for the employee's department week-offs). Surfaced inline.
+  const [serverDateError, setServerDateError] = useState("");
 
   const countDaysInclusiveClient = (startStr, endStr, weekdaysOnly) => {
     if (!startStr || !endStr) return null;
@@ -560,21 +563,27 @@ function LeaveInner() {
         message: "End date must be on or after start date",
       };
     }
-    if (computedLeaveDays < 1) {
-      const kind = leaveForm.requestType === "WFH" ? "WFH" : "leave";
-      return {
-        code: "weekend",
-        message: `Selected dates have no working days (weekends are excluded). Choose at least one weekday for this ${kind} request.`,
-      };
-    }
     return null;
   }, [
     leaveForm.startDate,
     leaveForm.endDate,
-    leaveForm.requestType,
     computedLeaveDays,
     minLeaveDate,
   ]);
+
+  // Department week-offs decide working days, so the "no working days" check
+  // is authoritative on the backend (POST /leave/requests). Clear any stale
+  // server error whenever the selected range changes.
+  useEffect(() => {
+    setServerDateError("");
+  }, [leaveForm.startDate, leaveForm.endDate]);
+
+  // Inline feedback is in an error state for a bad range, a backend rejection,
+  // or a client-side count of zero working days (department week-offs unknown).
+  const hasDateFeedbackError =
+    Boolean(dateValidationError) ||
+    Boolean(serverDateError) ||
+    (computedLeaveDays != null && computedLeaveDays < 1);
 
   const leaveApiErrorMessage = (err, fallback) => {
     const data = err?.response?.data;
@@ -725,7 +734,11 @@ function LeaveInner() {
       }));
       setMedicalDocFile(null);
     } catch (err) {
-      toast.error(leaveApiErrorMessage(err, "Failed to submit request"));
+      const message = leaveApiErrorMessage(err, "Failed to submit request");
+      if (/no working days/i.test(message)) {
+        setServerDateError(message);
+      }
+      toast.error(message);
     }
   };
 
@@ -1012,15 +1025,15 @@ function LeaveInner() {
         {leaveForm.startDate && leaveForm.endDate ? (
           <div
             id="leave-date-feedback"
-            className={`leave-date-feedback leave-field--full${dateValidationError
+            className={`leave-date-feedback leave-field--full${hasDateFeedbackError
               ? " leave-date-feedback--error"
               : " leave-date-feedback--ok"
               }`}
-            role={dateValidationError ? "alert" : "status"}
+            role={hasDateFeedbackError ? "alert" : "status"}
             aria-live="polite"
           >
             <span className="leave-date-feedback__icon" aria-hidden="true">
-              {dateValidationError ? (
+              {hasDateFeedbackError ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.75" />
                   <path
@@ -1055,14 +1068,23 @@ function LeaveInner() {
                     dates to continue.
                   </p>
                 </>
-              ) : dateValidationError ? (
+              ) : dateValidationError?.code === "backdate" ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    Start date too old
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    {dateValidationError.message}
+                  </p>
+                </>
+              ) : serverDateError || computedLeaveDays < 1 ? (
                 <>
                   <strong className="leave-date-feedback__title">
                     No working days in this range
                   </strong>
                   <p className="leave-date-feedback__text">
-                    Saturdays and Sundays are not counted for leave or WFH.
-                    Choose dates that include at least one weekday (Mon–Fri).
+                    {serverDateError ||
+                      "Selected dates have no working days. Submit to validate against your department's weekly offs."}
                   </p>
                   <p className="leave-date-feedback__meta">
                     Working days selected: <strong>0</strong>
@@ -1078,7 +1100,7 @@ function LeaveInner() {
                         : `${computedLeaveDays} working days`}
                   </strong>
                   <p className="leave-date-feedback__text">
-                    Weekends are excluded from the day count automatically.
+                    Weekly offs are excluded from the day count automatically.
                   </p>
                 </>
               )}
