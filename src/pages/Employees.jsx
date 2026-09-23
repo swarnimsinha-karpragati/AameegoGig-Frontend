@@ -68,7 +68,7 @@ import Pagination from "../components/Pagination";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import EmployeeSalaryStructureView from "../components/EmployeeSalaryStructureView";
 import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
-import { saveEmployeeStructure } from "../services/salaryComponentService";
+import { saveEmployeeStructure, getEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
 import {
@@ -945,9 +945,11 @@ function Employees() {
       monthlySalary: "",
       workLocation: "Gurgaon",
       salaryComponents: [],
+      structureName: "",
     });
 
   const [letterEmployeeId, setLetterEmployeeId] = useState(null);
+  const [letterStructureLoading, setLetterStructureLoading] = useState(false);
 
   const [
     showWarningModal,
@@ -1815,7 +1817,10 @@ function Employees() {
         return;
       }
 
-
+      if (!letterData.structureName) {
+        alert("Cannot generate appointment letter: This employee does not have an active salary structure. Please create a salary structure for this employee first.");
+        return;
+      }
 
       try {
         setLoading(true);
@@ -2512,21 +2517,44 @@ function Employees() {
                                   type="button"
                                   disabled={!emp.isActive}
                                   className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (!emp.isActive) return;
                                     setOpenDropdownId(null);
                                     setLetterEmployeeId(emp._id);
-                                    setLetterData({
-                                      employeeId: emp._id,
-                                      employeeName: emp.name || "",
-                                      designation: emp.designation || "",
-                                      joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                                      annualCTC: "",
-                                      monthlySalary: "",
-                                      workLocation: emp.location || "Gurgaon",
-                                      salaryComponents: [],
-                                    });
-                                    setShowLetterModal(true);
+                                    setLetterStructureLoading(true);
+                                    try {
+                                      const structRes = await getEmployeeStructure(emp._id);
+                                      const structData = structRes.data?.data;
+                                      if (!structData || !structData._id) {
+                                        alert("Cannot generate appointment letter: This employee does not have an active salary structure. Please create a salary structure for this employee first.");
+                                        setLetterStructureLoading(false);
+                                        return;
+                                      }
+                                      const structureName = structData.salaryStructure?.name || "";
+                                      setLetterData({
+                                        employeeId: emp._id,
+                                        employeeName: emp.name || "",
+                                        designation: emp.designation || "",
+                                        joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                                        annualCTC: structData.ctcAnnual || "",
+                                        monthlySalary: structData.monthlyGross || "",
+                                        workLocation: emp.location || "Gurgaon",
+                                        structureName,
+                                        salaryComponents: structData.components?.map((c) => ({
+                                          code: c.code,
+                                          componentName: c.name,
+                                          name: c.name,
+                                          category: c.category,
+                                          monthly: c.monthlyAmount || 0,
+                                          annual: (c.monthlyAmount || 0) * 12,
+                                        })) || [],
+                                      });
+                                      setShowLetterModal(true);
+                                    } catch (err) {
+                                      alert("Failed to load employee salary structure. Please try again.");
+                                    } finally {
+                                      setLetterStructureLoading(false);
+                                    }
                                   }}
                                 >
                                   <FileText size={16} /> Appointment Letter
@@ -3301,6 +3329,7 @@ function Employees() {
             onClose={() => {
               setShowLetterModal(false);
               setLetterEmployeeId(null);
+              setLetterStructureLoading(false);
             }}
             size="xl"
             footer={
@@ -3311,6 +3340,7 @@ function Employees() {
                   onClick={() => {
                     setShowLetterModal(false);
                     setLetterEmployeeId(null);
+                    setLetterStructureLoading(false);
                   }}
                 >
                   Cancel
@@ -3318,115 +3348,122 @@ function Employees() {
                 <Button
                   type="button"
                   onClick={handleGenerateLetter}
-                  disabled={loading}
+                  disabled={loading || letterStructureLoading}
                 >
                   {loading ? "Generating…" : "Generate Letter"}
                 </Button>
               </>
             }
           >
-            <FormSection
-              title="Employee Details"
-              description="Information printed on the appointment letter"
-            >
-              <FormField label="Employee Name" htmlFor="letter-name" required>
-                <input
-                  id="letter-name"
-                  required
-                  value={letterData.employeeName}
-                  onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
-                      employeeName: e.target.value,
-                    })
-                  }
-                  placeholder="Full name"
-                />
-              </FormField>
-              <FormField label="Designation" htmlFor="letter-designation" required>
-                <input
-                  id="letter-designation"
-                  required
-                  value={letterData.designation}
-                  onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
-                      designation: e.target.value,
-                    })
-                  }
-                  placeholder="Job title"
-                />
-              </FormField>
-              <FormField label="Joining Date" htmlFor="letter-joining" required>
-                <input
-                  id="letter-joining"
-                  required
-                  type="date"
-                  value={letterData.joiningDate}
-                  onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
-                      joiningDate: e.target.value,
-                    })
-                  }
-                />
-              </FormField>
-              <FormField label="Work Location" htmlFor="letter-location" required>
-                <input
-                  id="letter-location"
-                  required
-                  value={letterData.workLocation}
-                  onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
-                      workLocation: e.target.value,
-                    })
-                  }
-                  placeholder="City / office"
-                />
-              </FormField>
-              <FormField label="Annual CTC" htmlFor="letter-ctc" required>
-                <input
-                  id="letter-ctc"
-                  required
-                  type="number"
-                  value={letterData.annualCTC}
-                  onChange={(e) =>
-                    patchLetterData({
-                      annualCTC: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 600000"
-                />
-              </FormField>
-              <FormField label="Monthly Salary" htmlFor="letter-monthly" required>
-                <input
-                  id="letter-monthly"
-                  required
-                  type="number"
-                  value={letterData.monthlySalary}
-                  onChange={(e) =>
-                    patchLetterData({
-                      monthlySalary: e.target.value,
-                    })
-                  }
-                  placeholder="Auto-filled from components"
-                  readOnly
-                />
-              </FormField>
-            </FormSection>
+            {letterStructureLoading && (
+              <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>Loading salary structure…</div>
+            )}
+            {!letterStructureLoading && (
+              <FormSection
+                  title="Employee Details"
+                  description="Information printed on the appointment letter"
+                >
+                  <FormField label="Employee Name" htmlFor="letter-name" required>
+                    <input
+                      id="letter-name"
+                      required
+                      value={letterData.employeeName}
+                      onChange={(e) =>
+                        setLetterData({
+                          ...letterData,
+                          employeeName: e.target.value,
+                        })
+                      }
+                      placeholder="Full name"
+                    />
+                  </FormField>
+                  <FormField label="Designation" htmlFor="letter-designation" required>
+                    <input
+                      id="letter-designation"
+                      required
+                      value={letterData.designation}
+                      onChange={(e) =>
+                        setLetterData({
+                          ...letterData,
+                          designation: e.target.value,
+                        })
+                      }
+                      placeholder="Job title"
+                    />
+                  </FormField>
+                  <FormField label="Joining Date" htmlFor="letter-joining" required>
+                    <input
+                      id="letter-joining"
+                      required
+                      type="date"
+                      value={letterData.joiningDate}
+                      onChange={(e) =>
+                        setLetterData({
+                          ...letterData,
+                          joiningDate: e.target.value,
+                        })
+                      }
+                    />
+                  </FormField>
+                  <FormField label="Work Location" htmlFor="letter-location" required>
+                    <input
+                      id="letter-location"
+                      required
+                      value={letterData.workLocation}
+                      onChange={(e) =>
+                        setLetterData({
+                          ...letterData,
+                          workLocation: e.target.value,
+                        })
+                      }
+                      placeholder="City / office"
+                    />
+                  </FormField>
+                  <FormField label="Annual CTC" htmlFor="letter-ctc" required>
+                    <input
+                      id="letter-ctc"
+                      required
+                      type="number"
+                      value={letterData.annualCTC}
+                      onChange={(e) =>
+                        patchLetterData({
+                          annualCTC: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. 600000"
+                      disabled={!!letterData.structureName}
+                      style={!!letterData.structureName ? { backgroundColor: "#f1f5f9", cursor: "not-allowed" } : {}}
+                    />
+                  </FormField>
+                  <FormField label="Monthly Salary" htmlFor="letter-monthly" required>
+                    <input
+                      id="letter-monthly"
+                      required
+                      type="number"
+                      value={letterData.monthlySalary}
+                      onChange={(e) =>
+                        patchLetterData({
+                          monthlySalary: e.target.value,
+                        })
+                      }
+                      placeholder="Auto-filled from components"
+                      disabled={!!letterData.structureName}
+                      style={!!letterData.structureName ? { backgroundColor: "#f1f5f9", cursor: "not-allowed" } : {}}
+                    />
+                  </FormField>
 
-            <FormSection
-              title="Salary Structure"
-              description="From your organization component library — split from CTC or apply to employee record"
-              fullWidth
-            >
-              <AppointmentLetterSalary
-                employeeId={letterEmployeeId}
-                letterData={letterData}
-                onChange={patchLetterData}
-              />
-            </FormSection>
+                </FormSection>
+            )}
+            {!letterStructureLoading && (
+              <FormSection
+                title="Salary Structure"
+                fullWidth
+              >
+                <AppointmentLetterSalary
+                  employeeId={letterEmployeeId}
+                />
+              </FormSection>
+            )}
           </EmpModal>
         ) : null}
 

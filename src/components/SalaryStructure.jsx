@@ -231,7 +231,7 @@ const SalaryStructure = () => {
     };
 
     const handleDelete = async (struct) => {
-        if (!window.confirm(`Are you sure you want to delete the structure "${struct.name}"? If it is assigned to employees, it will be disabled (soft-deleted) to prevent payslip issues.`)) {
+        if (!window.confirm(`Are you sure you want to delete the structure "${struct.name}"? It can only be deleted if it is not currently assigned to any active employees.`)) {
             return;
         }
         try {
