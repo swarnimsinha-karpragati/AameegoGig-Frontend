@@ -16,10 +16,16 @@ const toMinutes = (value) => {
   return Number(match[1]) * 60 + Number(match[2]);
 };
 
-export const formatAttendanceHours = (checkIn, checkOut) => {
+export const formatAttendanceHours = (checkIn, checkOut, options = {}) => {
   const start = toMinutes(checkIn);
-  const end = toMinutes(checkOut);
-  if (start === null || end === null || end < start) return "—";
+  let end = toMinutes(checkOut);
+  if (start === null || end === null) return "—";
+  // Shift-aware: overnight shift (e.g. 16:00-02:00) me check-out agle din
+  // ka hota hai. Day shift pe purana behaviour ("—").
+  if (end < start) {
+    if (!options.allowOvernight) return "—";
+    end += 24 * 60;
+  }
   const minutes = end - start;
   return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
 };

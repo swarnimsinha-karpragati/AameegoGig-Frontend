@@ -55,4 +55,45 @@ describe("regularization approval helpers", () => {
       requested: "Present · 09:30 / 18:00 · Total 8h 30m",
     });
   });
+
+  test("shows overnight total when the request employee is on night shift", () => {
+    const request = {
+      kind: "attendance",
+      previous: null,
+      requested: { date: "2026-09-21", status: "Present", checkIn: "16:00", checkOut: "02:00" },
+      employeeShift: { shiftName: "General night check", startTime: "16:00", endTime: "02:00", isOvernight: true },
+    };
+    expect(describeApprovalChange(request)).toEqual({
+      previous: "No record · — / — · Total —",
+      requested: "Present · 16:00 / 02:00 · Total 10h 00m",
+    });
+  });
+
+  test("keeps dash for overnight times without night shift info", () => {
+    const request = {
+      kind: "attendance",
+      previous: null,
+      requested: { date: "2026-09-21", status: "Present", checkIn: "16:00", checkOut: "02:00" },
+    };
+    expect(describeApprovalChange(request).requested).toContain("Total —");
+  });
+
+  test("shows grouped multi-day range in approval period", () => {
+    const request = {
+      kind: "attendance",
+      previous: [null, { status: "Absent" }],
+      requested: {
+        status: "Present",
+        checkIn: "09:30",
+        checkOut: "18:00",
+        startDate: "2026-09-01",
+        endDate: "2026-09-02",
+        dates: ["2026-09-01", "2026-09-02"],
+        isBulk: true,
+      },
+    };
+    expect(approvalPeriod(request)).toContain("2 days");
+    expect(describeApprovalChange(request).requested).toContain("2 days");
+    expect(describeApprovalChange(request).previous).toContain("1/2 records found");
+  });
 });

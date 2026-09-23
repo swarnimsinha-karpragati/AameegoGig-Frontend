@@ -30,25 +30,52 @@ const leaveRange = (value = {}) => formatRegRange(value.startDate, value.endDate
 
 export const formatTime = formatRegTime;
 
-export const approvalPeriod = (request) =>
-  request.kind === "attendance"
-    ? formatRegDate(request.requested?.date)
-    : leaveRange(request.requested);
+export const approvalPeriod = (request) => {
+  if (request.kind === "attendance") {
+    const r = request.requested || {};
+    const dates = Array.isArray(r.dates) ? r.dates : null;
+    if ((r.isBulk || (dates && dates.length > 1)) && (r.startDate || dates?.length)) {
+      const start = r.startDate || dates[0];
+      const end = r.endDate || dates[dates.length - 1];
+      const count = dates?.length || null;
+      return `${formatRegRange(start, end)}${count ? ` · ${count} day${count === 1 ? "" : "s"}` : ""}`;
+    }
+    return formatRegDate(r.date);
+  }
+  return leaveRange(request.requested);
+};
+
+const bulkDateCount = (request) => {
+  const r = request?.requested || {};
+  if (Array.isArray(r.dates) && r.dates.length > 1) return r.dates.length;
+  return null;
+};
 
 export const describeApprovalChange = (request) => {
   if (request?.kind === "attendance") {
+    const allowOvernight = Boolean(request?.employeeShift?.isOvernight);
+    const count = bulkDateCount(request);
     const describe = (value) => {
       const snapshot = value && typeof value === "object" ? value : {};
+      // Grouped request ka previous har date ka snapshot array hota hai.
+      if (Array.isArray(snapshot)) {
+        const found = snapshot.filter(Boolean).length;
+        return `${found}/${snapshot.length} records found`;
+      }
       return `${snapshot.status || "No record"} · ${formatTime(
         snapshot.checkIn
       )} / ${formatTime(snapshot.checkOut)} · Total ${formatAttendanceHours(
         snapshot.checkIn,
-        snapshot.checkOut
-      )}`;
+        snapshot.checkOut,
+        { allowOvernight }
+      )}${count ? ` · ${count} days` : ""}`;
     };
+    const requestedSnapshot = count
+      ? { ...(request.requested || {}) }
+      : request.requested;
     return {
       previous: describe(request.previous),
-      requested: describe(request.requested),
+      requested: describe(requestedSnapshot),
     };
   }
   const describe = (value) => {
@@ -141,7 +168,7 @@ export default function ApprovalsList({
           : await rejectMutation.mutateAsync({ id: decision.request._id, comment: trimmedComment });
       toastSuccess(
         response?.message ||
-          `Regularization request ${decision.action === "approve" ? "approved" : "rejected"}`
+        `Regularization request ${decision.action === "approve" ? "approved" : "rejected"}`
       );
       setDecision(null);
       setComment("");
@@ -284,8 +311,8 @@ export default function ApprovalsList({
         message={
           decision
             ? `${decision.request.employeeId?.name || "This employee"} · ${approvalPeriod(
-                decision.request
-              )}`
+              decision.request
+            )}`
             : ""
         }
         confirmLabel={decision?.action === "approve" ? "Approve request" : "Reject request"}

@@ -388,6 +388,23 @@
   font-size: 13px;
 }
 
+.regularization-shift-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
+  padding: 9px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  color: #1e40af;
+  background: #eff6ff;
+  font-size: 13px;
+}
+
+.regularization-shift-hint strong {
+  font-weight: 700;
+}
+
 .regularization-comparison {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);

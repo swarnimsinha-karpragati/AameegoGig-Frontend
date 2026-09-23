@@ -3,7 +3,17 @@ import { getDayPartLabel, getLeaveTypeLabel, isHalfDayPart } from "../../utils/l
 import { formatRegDate, formatRegRange } from "../../utils/regularizationFormatters";
 
 const requestPeriod = (request) => {
-  if (request.kind === "attendance") return formatRegDate(request.requested?.date);
+  if (request.kind === "attendance") {
+    const r = request.requested || {};
+    const dates = Array.isArray(r.dates) ? r.dates : null;
+    if ((r.isBulk || (dates && dates.length > 1)) && (r.startDate || dates?.length)) {
+      const start = r.startDate || dates[0];
+      const end = r.endDate || dates[dates.length - 1];
+      const count = dates?.length || null;
+      return `${formatRegRange(start, end)}${count ? ` · ${count} day${count === 1 ? "" : "s"}` : ""}`;
+    }
+    return formatRegDate(r.date);
+  }
   return formatRegRange(request.requested?.startDate, request.requested?.endDate);
 };
 

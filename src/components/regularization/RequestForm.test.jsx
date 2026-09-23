@@ -2,7 +2,10 @@ import {
   buildApiErrorMessage,
   countCalendarDaysInclusive,
   countWeekdaysInclusive,
+  expandAttendanceRange,
+  formatShiftTime,
   validateAttendanceRequest,
+  validateBulkAttendanceRequest,
 } from "./RequestForm";
 
 describe("regularization request helpers", () => {
@@ -127,5 +130,81 @@ describe("regularization request helpers", () => {
       bounds
     );
     expect(errors.checkOut).toMatch(/on or after check-in/i);
+  });
+
+  test("allows overnight check-out when the shift is overnight", () => {
+    const bounds = { min: "2026-07-10", max: "2026-09-08" };
+    const errors = validateAttendanceRequest(
+      {
+        date: "2026-09-08",
+        status: "Present",
+        checkIn: "16:00",
+        checkOut: "02:00",
+        reason: "Night shift correction",
+      },
+      bounds,
+      { allowOvernight: true }
+    );
+    expect(errors.checkOut).toBeUndefined();
+  });
+
+  test("formats shift times for display", () => {
+    expect(formatShiftTime("16:00")).toBe("04:00 PM");
+    expect(formatShiftTime("02:00")).toBe("02:00 AM");
+    expect(formatShiftTime("09:30")).toBe("09:30 AM");
+  });
+
+  test("expands a multi-day attendance range", () => {
+    expect(expandAttendanceRange("2026-09-01", "2026-09-03")).toEqual([
+      "2026-09-01",
+      "2026-09-02",
+      "2026-09-03",
+    ]);
+    expect(expandAttendanceRange("2026-09-03", "2026-09-01")).toBeNull();
+  });
+
+  test("validates a multi-day Present range", () => {
+    const bounds = { min: "2026-07-10", max: "2026-09-08" };
+    const errors = validateBulkAttendanceRequest(
+      {
+        status: "Present",
+        startDate: "2026-09-01",
+        endDate: "2026-09-03",
+        checkIn: "09:30",
+        checkOut: "18:00",
+      },
+      bounds
+    );
+    expect(errors).toEqual({});
+  });
+
+  test("rejects bulk range for non-Present status", () => {
+    const bounds = { min: "2026-07-10", max: "2026-09-08" };
+    const errors = validateBulkAttendanceRequest(
+      {
+        status: "Late",
+        startDate: "2026-09-01",
+        endDate: "2026-09-03",
+        checkIn: "09:30",
+        checkOut: "18:00",
+      },
+      bounds
+    );
+    expect(errors.status).toMatch(/only for Present/i);
+  });
+
+  test("rejects end date before start date in bulk range", () => {
+    const bounds = { min: "2026-07-10", max: "2026-09-08" };
+    const errors = validateBulkAttendanceRequest(
+      {
+        status: "Present",
+        startDate: "2026-09-03",
+        endDate: "2026-09-01",
+        checkIn: "09:30",
+        checkOut: "18:00",
+      },
+      bounds
+    );
+    expect(errors.endDate).toMatch(/on or after start/i);
   });
 });

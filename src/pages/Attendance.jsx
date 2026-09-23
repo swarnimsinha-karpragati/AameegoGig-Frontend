@@ -271,6 +271,45 @@ function Attendance() {
             String(user.employeeId)) ||
           row.name?.toLowerCase() === user?.name?.toLowerCase()
       );
+      const hasOpenToday =
+        Boolean(mine?.isCheckedIn) ||
+        (mine?.sessions || []).some((s) => s?.isOpen);
+      if (hasOpenToday) {
+        setTodaySelfRow(mine ? { ...EMPTY_MY_ROW, ...mine } : EMPTY_MY_ROW);
+        return;
+      }
+      // Overnight support (e.g. 4PM check-in, 2AM checkout): date badalne
+      // ke baad aaj ka record khaali dikhega, to kal ke record me open
+      // session ho to wahi dikhao taaki Check Out button enable rahe.
+      // Day shift pe kal ka session normally closed hota hai, isliye
+      // purana behaviour unchanged rahega.
+      try {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        const yStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+        const yRes = await getAttendanceList({
+          target: "self",
+          filterType: "custom",
+          startDate: yStr,
+          endDate: yStr,
+        });
+        const yMine = (yRes.rows || []).find(
+          (row) =>
+            (user?.employeeId &&
+              String(row.employeeId?._id || row.employeeId) ===
+              String(user.employeeId)) ||
+            row.name?.toLowerCase() === user?.name?.toLowerCase()
+        );
+        const hasOpenYesterday =
+          Boolean(yMine?.isCheckedIn) ||
+          (yMine?.sessions || []).some((s) => s?.isOpen);
+        if (hasOpenYesterday) {
+          setTodaySelfRow({ ...EMPTY_MY_ROW, ...yMine });
+          return;
+        }
+      } catch {
+        // Yesterday lookup fail ho to aaj ka record hi dikhao.
+      }
       setTodaySelfRow(mine ? { ...EMPTY_MY_ROW, ...mine } : EMPTY_MY_ROW);
     } catch (err) {
       if (err.response?.status === 403) return;
@@ -669,7 +708,11 @@ function Attendance() {
       const checkInMinutes = timeToMinutes(markForm.checkIn);
       const checkOutMinutes = timeToMinutes(markForm.checkOut);
 
-      if (checkOutMinutes <= checkInMinutes) {
+      // Overnight shift support (e.g. 16:00-02:00): checkout agle din ka
+      // ho sakta hai, isliye sirf tab roko jab duration invalid ho.
+      let duration = checkOutMinutes - checkInMinutes;
+      if (duration < 0) duration += 24 * 60;
+      if (duration <= 0 || duration > 24 * 60) {
         toast.warning("Check-out time must be later than Check-in time.");
         return;
       }

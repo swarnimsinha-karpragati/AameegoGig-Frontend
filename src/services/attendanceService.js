@@ -79,6 +79,11 @@ export const getAttendanceList = async (params) => {
   return res.data;
 };
 
+export const getMyShift = async () => {
+  const res = await API.get("/attendance/my-shift");
+  return res.data;
+};
+
 export const downloadAttendanceReport = async (params) => {
   const res = await API.get("/attendance/download", { params, responseType: "blob" });
   return res.data;

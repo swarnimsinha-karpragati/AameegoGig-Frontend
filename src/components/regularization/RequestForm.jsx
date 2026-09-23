@@ -8,7 +8,7 @@ import {
   Loader2,
 } from "lucide-react";
 import Button from "../Button";
-import { getAttendanceList } from "../../services/attendanceService";
+import { getAttendanceList, getMyShift } from "../../services/attendanceService";
 import { getLeaveRequests } from "../../services/leaveService";
 import { useCreateRegularizationRequest } from "../../hooks/useRegularization";
 import { validateFields } from "../../utils/inputValidation";
@@ -39,11 +39,16 @@ const minutesFromTime = (value) => {
 
 const emptyAttendance = {
   date: "",
+  // Grouped multi-day Present (sirf Present status): kab se kab tak.
+  startDate: "",
+  endDate: "",
   status: "Present",
   checkIn: "",
   checkOut: "",
   reason: "",
 };
+// Ek grouped request me max kitne din (backend MAX_BULK_DAYS ke barabar).
+const MAX_BULK_DAYS = 31;
 const emptyLeave = {
   leaveRequestId: "",
   leaveType: "CL",
@@ -108,8 +113,19 @@ const getDateBounds = () => {
   return { min: toDateInput(minimum), max: toDateInput(today) };
 };
 
-export const validateAttendanceRequest = (attendance, bounds) => {
-  const requiresTimes = STATUSES_REQUIRING_TIMES.includes(attendance.status);
+// "16:00" (24h) -> "04:00 PM" so shift times read clearly.
+export const formatShiftTime = (value) => {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return String(value || "—");
+  let hours = Number(match[1]);
+  const minutes = match[2];
+  const meridiem = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${String(hours).padStart(2, "0")}:${minutes} ${meridiem}`;
+};
+
+export const validateAttendanceRequest = (attendance, bounds, options = {}) => {  const requiresTimes = STATUSES_REQUIRING_TIMES.includes(attendance.status);
+  const allowOvernight = Boolean(options.allowOvernight);
   const { errors } = validateFields([
     {
       name: "date",
@@ -157,10 +173,70 @@ export const validateAttendanceRequest = (attendance, bounds) => {
   }
   const checkInMinutes = minutesFromTime(attendance.checkIn);
   const checkOutMinutes = minutesFromTime(attendance.checkOut);
+  // Shift-aware: on an overnight shift (e.g. 16:00-02:00) check-out can
+  // fall on the next day. Day shifts keep the strict check.
   if (
     checkInMinutes !== null &&
     checkOutMinutes !== null &&
-    checkOutMinutes < checkInMinutes
+    checkOutMinutes < checkInMinutes &&
+    !allowOvernight
+  ) {
+    errors.checkOut = "Check-out must be on or after check-in";
+  }
+  return errors;
+};
+
+// "2026-09-01".."2026-09-03" -> ["2026-09-01","2026-09-02","2026-09-03"].
+// Invalid range ya MAX_BULK_DAYS se badi range par null.
+export const expandAttendanceRange = (startValue, endValue, maxDays = MAX_BULK_DAYS) => {
+  if (!startValue || !endValue || endValue < startValue) return null;
+  const start = new Date(`${startValue}T00:00:00`);
+  const end = new Date(`${endValue}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const dates = [];
+  for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+    dates.push(toDateInput(day));
+    if (dates.length > maxDays) return null;
+  }
+  return dates;
+};
+
+// Grouped multi-day Present (sirf Present): start/end range + times ka validation.
+// Baaki status single-date flow me rehte hain.
+export const validateBulkAttendanceRequest = (attendance, bounds, options = {}) => {
+  const errors = {};
+  if (attendance.status !== "Present") {
+    errors.status = "Multi-day regularization is allowed only for Present status";
+    return errors;
+  }
+  if (!attendance.startDate) errors.startDate = "Start date is required";
+  if (!attendance.endDate) errors.endDate = "End date is required";
+  if (attendance.startDate && attendance.endDate) {
+    if (attendance.endDate < attendance.startDate) {
+      errors.endDate = "End date must be on or after start date";
+      return errors;
+    }
+    const dates = expandAttendanceRange(attendance.startDate, attendance.endDate);
+    if (!dates) {
+      errors.endDate = `You can request up to ${MAX_BULK_DAYS} days in one request`;
+      return errors;
+    }
+    for (const date of dates) {
+      if (date < bounds.min || date > bounds.max) {
+        errors.startDate = "Choose dates within the last 60 days";
+        break;
+      }
+    }
+  }
+  if (!attendance.checkIn) errors.checkIn = "Check-in is required";
+  if (!attendance.checkOut) errors.checkOut = "Check-out is required";
+  const checkInMinutes = minutesFromTime(attendance.checkIn);
+  const checkOutMinutes = minutesFromTime(attendance.checkOut);
+  if (
+    checkInMinutes !== null &&
+    checkOutMinutes !== null &&
+    checkOutMinutes < checkInMinutes &&
+    !options.allowOvernight
   ) {
     errors.checkOut = "Check-out must be on or after check-in";
   }
@@ -174,6 +250,24 @@ const SnapshotCard = ({ title, tone, children }) => (
   </div>
 );
 
+// The employee's assigned shift time — shown while raising a
+// regularization so the right In/Out can be entered. Hidden when no shift
+// is found.
+const ShiftHint = ({ shift }) => {
+  if (!shift?.startTime || !shift?.endTime) return null;
+  return (
+    <p className="regularization-shift-hint regularization-field--full" role="status">
+      <Clock3 size={15} />
+      <span>
+        Your shift: <strong>{shift.shiftName || "General"}</strong>
+        {" · "}
+        {formatShiftTime(shift.startTime)} – {formatShiftTime(shift.endTime)}
+        {shift.isOvernight ? " (next day)" : ""}
+      </span>
+    </p>
+  );
+};
+
 export default function RequestForm({ toast, onSubmitted }) {
   const user = getStoredUser();
   const userEmployeeId = String(user?.employeeId?._id || user?.employeeId || "");
@@ -182,6 +276,7 @@ export default function RequestForm({ toast, onSubmitted }) {
   const [leave, setLeave] = useState(emptyLeave);
   const [currentAttendance, setCurrentAttendance] = useState(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [myShift, setMyShift] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [touched, setTouched] = useState(false);
   const bounds = useMemo(getDateBounds, []);
@@ -189,6 +284,15 @@ export default function RequestForm({ toast, onSubmitted }) {
   const submitting = createMutation.isPending;
   const isCoLeave = leave.leaveType === "CO";
   const isPresentLeave = leave.leaveType === "Present";
+  // Grouped multi-day: sirf attendance + Present status me date-range.
+  const isBulkPresent = kind === "attendance" && attendance.status === "Present";
+  const bulkDates = useMemo(
+    () =>
+      isBulkPresent && attendance.startDate && attendance.endDate
+        ? expandAttendanceRange(attendance.startDate, attendance.endDate)
+        : null,
+    [isBulkPresent, attendance.startDate, attendance.endDate]
+  );
   const workingDays = useMemo(
     () => countWeekdaysInclusive(leave.startDate, leave.endDate),
     [leave.startDate, leave.endDate]
@@ -234,6 +338,20 @@ export default function RequestForm({ toast, onSubmitted }) {
 
   useEffect(() => {
     let active = true;
+    getMyShift()
+      .then((data) => {
+        if (active) setMyShift(data || null);
+      })
+      .catch(() => {
+        if (active) setMyShift(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     getLeaveRequests()
       .then((data) => {
         if (!active) return;
@@ -254,6 +372,11 @@ export default function RequestForm({ toast, onSubmitted }) {
   }, [userEmployeeId]);
 
   useEffect(() => {
+    // Bulk range me single-record preview nahi — range summary dikhta hai.
+    if (isBulkPresent) {
+      setCurrentAttendance(null);
+      return undefined;
+    }
     if (!attendance.date) {
       setCurrentAttendance(null);
       return undefined;
@@ -280,11 +403,18 @@ export default function RequestForm({ toast, onSubmitted }) {
     return () => {
       active = false;
     };
-  }, [attendance.date]);
+  }, [attendance.date, isBulkPresent]);
 
   const attendanceErrors = useMemo(() => {
-    return validateAttendanceRequest(attendance, bounds);
-  }, [attendance, bounds]);
+    if (isBulkPresent) {
+      return validateBulkAttendanceRequest(attendance, bounds, {
+        allowOvernight: myShift?.isOvernight,
+      });
+    }
+    return validateAttendanceRequest(attendance, bounds, {
+      allowOvernight: myShift?.isOvernight,
+    });
+  }, [attendance, bounds, myShift?.isOvernight, isBulkPresent]);
 
   const leaveErrors = useMemo(() => {
     const { errors } = validateFields([
@@ -354,7 +484,12 @@ export default function RequestForm({ toast, onSubmitted }) {
     if (isPresentLeave && leave.checkIn && leave.checkOut) {
       const inMinutes = minutesFromTime(leave.checkIn);
       const outMinutes = minutesFromTime(leave.checkOut);
-      if (inMinutes !== null && outMinutes !== null && outMinutes < inMinutes) {
+      if (
+        inMinutes !== null &&
+        outMinutes !== null &&
+        outMinutes < inMinutes &&
+        !myShift?.isOvernight
+      ) {
         errors.checkOut = "Check-out must be on or after check-in";
       }
     }
@@ -384,7 +519,7 @@ export default function RequestForm({ toast, onSubmitted }) {
       }
     }
     return errors;
-  }, [leave, isCoLeave, isPresentLeave, workingDays, bounds, isExistingLeaveCorrection, existingLeaveRange]);
+  }, [leave, isCoLeave, isPresentLeave, workingDays, bounds, isExistingLeaveCorrection, existingLeaveRange, myShift?.isOvernight]);
 
   const activeErrors = kind === "attendance" ? attendanceErrors : leaveErrors;
   const isValid = Object.keys(activeErrors).length === 0;
@@ -394,7 +529,9 @@ export default function RequestForm({ toast, onSubmitted }) {
   const isFormDirty = useMemo(() => {
     const values =
       kind === "attendance"
-        ? [attendance.date, attendance.checkIn, attendance.checkOut, attendance.reason]
+        ? isBulkPresent
+          ? [attendance.startDate, attendance.endDate, attendance.checkIn, attendance.checkOut, attendance.reason]
+          : [attendance.date, attendance.checkIn, attendance.checkOut, attendance.reason]
         : [
             leave.leaveRequestId,
             // leaveType defaults to CL — only a real change counts.
@@ -406,7 +543,7 @@ export default function RequestForm({ toast, onSubmitted }) {
             leave.checkOut,
           ];
     return values.some((v) => String(v || "").trim() !== "");
-  }, [kind, attendance, leave]);
+  }, [kind, attendance, leave, isBulkPresent]);
   const showErrors = touched || isFormDirty;
 
   const updateAttendance = (field, value) => {
@@ -415,6 +552,21 @@ export default function RequestForm({ toast, onSubmitted }) {
       if (field === "status" && ["Absent", "Leave"].includes(value)) {
         next.checkIn = "";
         next.checkOut = "";
+      }
+      // Present <-> baaki status switch par date fields sync rakho.
+      if (field === "status" && value === "Present") {
+        if (previous.date && !previous.startDate && !previous.endDate) {
+          next.startDate = previous.date;
+          next.endDate = previous.date;
+        }
+        next.date = "";
+      }
+      if (field === "status" && value !== "Present") {
+        if (!previous.date && previous.startDate) {
+          next.date = previous.startDate;
+        }
+        next.startDate = "";
+        next.endDate = "";
       }
       return next;
     });
@@ -457,18 +609,35 @@ export default function RequestForm({ toast, onSubmitted }) {
       toast.error(Object.values(activeErrors)[0] || "Please check the request");
       return;
     }
+    const isBulkSubmit = kind === "attendance" && attendance.status === "Present";
+    const bulkSubmitDates =
+      isBulkSubmit && attendance.startDate && attendance.endDate
+        ? expandAttendanceRange(attendance.startDate, attendance.endDate)
+        : null;
     const payload =
       kind === "attendance"
-        ? {
-          kind,
-          reason: attendance.reason.trim(),
-          requested: {
-            date: attendance.date,
-            status: attendance.status,
-            checkIn: attendance.checkIn || null,
-            checkOut: attendance.checkOut || null,
-          },
-        }
+        ? isBulkSubmit && bulkSubmitDates && bulkSubmitDates.length > 1
+          ? {
+            kind,
+            reason: attendance.reason.trim(),
+            requested: {
+              status: attendance.status,
+              checkIn: attendance.checkIn || null,
+              checkOut: attendance.checkOut || null,
+              startDate: attendance.startDate,
+              endDate: attendance.endDate,
+            },
+          }
+          : {
+            kind,
+            reason: attendance.reason.trim(),
+            requested: {
+              date: bulkSubmitDates?.[0] || attendance.date || attendance.startDate,
+              status: attendance.status,
+              checkIn: attendance.checkIn || null,
+              checkOut: attendance.checkOut || null,
+            },
+          }
         : {
             kind,
             reason: leave.reason.trim(),
@@ -533,19 +702,6 @@ export default function RequestForm({ toast, onSubmitted }) {
         {kind === "attendance" ? (
           <>
             <div className="regularization-field">
-              <label htmlFor="reg-attendance-date">Attendance date *</label>
-              <input
-                id="reg-attendance-date"
-                type="date"
-                min={bounds.min}
-                max={bounds.max}
-                value={attendance.date}
-                onChange={(event) => updateAttendance("date", event.target.value)}
-                aria-invalid={showErrors && Boolean(attendanceErrors.date)}
-              />
-              <small>Requests can be raised for the last 60 days.</small>
-            </div>
-            <div className="regularization-field">
               <label htmlFor="reg-attendance-status">Requested status *</label>
               <select
                 id="reg-attendance-status"
@@ -556,9 +712,82 @@ export default function RequestForm({ toast, onSubmitted }) {
                   <option key={status}>{status}</option>
                 ))}
               </select>
+              {attendance.status === "Present" ? (
+                <small>You can select multiple days at once for Present.</small>
+              ) : null}
             </div>
+            {isBulkPresent ? (
+              <>
+                <div className="regularization-field">
+                  <label htmlFor="reg-attendance-start">Start date *</label>
+                  <input
+                    id="reg-attendance-start"
+                    type="date"
+                    min={bounds.min}
+                    max={bounds.max}
+                    value={attendance.startDate}
+                    onChange={(event) => updateAttendance("startDate", event.target.value)}
+                    aria-invalid={showErrors && Boolean(attendanceErrors.startDate)}
+                  />
+                  {showErrors && attendanceErrors.startDate ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {attendanceErrors.startDate}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="regularization-field">
+                  <label htmlFor="reg-attendance-end">End date *</label>
+                  <input
+                    id="reg-attendance-end"
+                    type="date"
+                    min={attendance.startDate || bounds.min}
+                    max={bounds.max}
+                    value={attendance.endDate}
+                    onChange={(event) => updateAttendance("endDate", event.target.value)}
+                    aria-invalid={showErrors && Boolean(attendanceErrors.endDate)}
+                  />
+                  {showErrors && attendanceErrors.endDate ? (
+                    <p className="regularization-inline-error" role="alert">
+                      {attendanceErrors.endDate}
+                    </p>
+                  ) : null}
+                </div>
+                {attendance.startDate && attendance.endDate && bulkDates ? (
+                  <div
+                    className="regularization-date-feedback regularization-date-feedback--ok regularization-field--full"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <CheckCircle2 size={18} />
+                    <div>
+                      <strong>
+                        {bulkDates.length} day{bulkDates.length === 1 ? "" : "s"} will be marked Present
+                      </strong>
+                      <p>
+                        {formatRegRange(attendance.startDate, attendance.endDate)} — all {bulkDates.length} day{bulkDates.length === 1 ? "" : "s"} will go in a single request and be approved together.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="regularization-field">
+                <label htmlFor="reg-attendance-date">Attendance date *</label>
+                <input
+                  id="reg-attendance-date"
+                  type="date"
+                  min={bounds.min}
+                  max={bounds.max}
+                  value={attendance.date}
+                  onChange={(event) => updateAttendance("date", event.target.value)}
+                  aria-invalid={showErrors && Boolean(attendanceErrors.date)}
+                />
+                <small>Requests can be raised for the last 60 days.</small>
+              </div>
+            )}
             {!["Absent", "Leave"].includes(attendance.status) ? (
               <>
+                <ShiftHint shift={myShift} />
                 <div className="regularization-field">
                   <label htmlFor="reg-check-in">Check-in *</label>
                   <input
@@ -593,13 +822,19 @@ export default function RequestForm({ toast, onSubmitted }) {
             ) : null}
             <div className="regularization-comparison regularization-field--full">
               <SnapshotCard title="Current record" tone="current">
-                {attendanceLoading ? (
+                {isBulkPresent ? (
+                  <p className="regularization-muted">
+                    {bulkDates
+                      ? `A range of ${bulkDates.length} day${bulkDates.length === 1 ? "" : "s"} — every date will be marked Present on approval`
+                      : "Select a range"}
+                  </p>
+                ) : attendanceLoading ? (
                   <p className="regularization-muted"><Loader2 size={15} className="spin" /> Loading record…</p>
                 ) : currentAttendance ? (
                   <dl>
                     <div><dt>Status</dt><dd>{currentAttendance.status || "—"}</dd></div>
                     <div><dt>In / Out</dt><dd>{currentAttendance.checkIn || "—"} / {currentAttendance.checkOut || "—"}</dd></div>
-                    <div><dt>Total hours</dt><dd>{formatAttendanceHours(currentAttendance.checkIn, currentAttendance.checkOut)}</dd></div>
+                    <div><dt>Total hours</dt><dd>{formatAttendanceHours(currentAttendance.checkIn, currentAttendance.checkOut, { allowOvernight: myShift?.isOvernight })}</dd></div>
                   </dl>
                 ) : (
                   <p className="regularization-muted">
@@ -611,8 +846,11 @@ export default function RequestForm({ toast, onSubmitted }) {
               <SnapshotCard title="Requested update" tone="requested">
                 <dl>
                   <div><dt>Status</dt><dd>{attendance.status}</dd></div>
+                  {isBulkPresent && bulkDates ? (
+                    <div><dt>Dates</dt><dd>{formatRegRange(attendance.startDate, attendance.endDate)} · {bulkDates.length} day{bulkDates.length === 1 ? "" : "s"}</dd></div>
+                  ) : null}
                   <div><dt>In / Out</dt><dd>{attendance.checkIn || "—"} / {attendance.checkOut || "—"}</dd></div>
-                  <div><dt>Total hours</dt><dd>{formatAttendanceHours(attendance.checkIn, attendance.checkOut)}</dd></div>
+                  <div><dt>Total hours</dt><dd>{formatAttendanceHours(attendance.checkIn, attendance.checkOut, { allowOvernight: myShift?.isOvernight })}</dd></div>
                 </dl>
               </SnapshotCard>
             </div>
@@ -676,6 +914,7 @@ export default function RequestForm({ toast, onSubmitted }) {
             ) : null}
             {isPresentLeave ? (
               <>
+                <ShiftHint shift={myShift} />
                 <div className="regularization-field">
                   <label htmlFor="reg-present-check-in">Check-in *</label>
                   <input
