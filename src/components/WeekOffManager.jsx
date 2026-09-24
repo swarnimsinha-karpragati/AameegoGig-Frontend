@@ -106,8 +106,8 @@ const WeekOffManager = ({ vendorId }) => {
       alert("Vendor configuration not found.");
       return;
     }
-    if (!formData.weekOffDays.length) {
-      setStatusMessage({ type: "error", text: "Select at least one week-off day." });
+    if (formData.weekOffDays.length >= 7) {
+      setStatusMessage({ type: "error", text: "At least one working day must remain." });
       return;
     }
     if (isActionLoading) return;
@@ -196,11 +196,15 @@ const WeekOffManager = ({ vendorId }) => {
                     </td>
                     <td>
                       <div className="weekoff-day-badges">
-                        {config.weekOffDays?.map((day) => (
-                          <span key={day} className="weekoff-day-badge">
-                            {day}
-                          </span>
-                        ))}
+                        {config.weekOffDays?.length ? (
+                          config.weekOffDays.map((day) => (
+                            <span key={day} className="weekoff-day-badge">
+                              {day}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="weekoff-day-badge">No week-off</span>
+                        )}
                       </div>
                     </td>
                     <td className="weekoff-actions">

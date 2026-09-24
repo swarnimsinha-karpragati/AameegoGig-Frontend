@@ -5,6 +5,7 @@ import MainLayout from "../layouts/MainLayout";
 import {
   buildEmployeePayload,
   convertToConsultant,
+  exportEmployees,
 } from "../services/employeeService";
 
 import {
@@ -61,6 +62,7 @@ import ProbationHistoryModal from "../components/ProbationHistoryModal";
 import {
   generateAppointmentLetter,
   generateWarningLetter,
+  generateConsultancyAgreement,
 } from "../services/letterService";
 import { createTermination } from "../services/terminationService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
@@ -630,6 +632,7 @@ function Employees() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "";
@@ -648,16 +651,18 @@ function Employees() {
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
 
-  // Role options for access review: system roles + custom catalog roles.
-  // Read fresh every render so newly created roles appear immediately.
+  // Role options for the listing filter: system roles + custom catalog
+  // roles, but Admin is never offered here. Read fresh every render so
+  // newly created roles appear immediately.
   const roleFilterOptions = (() => {
     const systemRoles = ["Admin", "HR", "Manager", "Employee"];
+    const withoutAdmin = (roles) => (roles || []).filter((role) => role !== "Admin");
     try {
       const catalog = loadRoles();
       const customs = Object.keys(catalog || {}).filter((key) => !systemRoles.includes(key));
-      return [...systemRoles, ...customs];
+      return withoutAdmin([...systemRoles, ...customs]);
     } catch {
-      return systemRoles;
+      return withoutAdmin(systemRoles);
     }
   })();
 
@@ -971,10 +976,29 @@ function Employees() {
     });
 
   const [
+    showConsultancyModal,
+    setShowConsultancyModal,
+  ] = useState(false);
+
+  const [consultancyData, setConsultancyData] =
+    useState({
+      employeeId: "",
+      consultantName: "",
+      employeeCode: "",
+      designation: "",
+      department: "",
+      effectiveDate: "",
+      tenure: "",
+      scopeOfWork: "",
+      consultancyFees: "",
+      paymentTerms: "",
+      noticePeriod: "30 days",
+    });
+
+  const [
     showTerminationModal,
     setShowTerminationModal,
   ] = useState(false);
-
   const [terminationData, setTerminationData] =
     useState({
       employeeId: "",
@@ -1475,6 +1499,48 @@ function Employees() {
   };
 
   /* =========================
+     DOWNLOAD ALL (backend Excel, complete details + current filters)
+  ========================= */
+  const handleDownloadAll = async () => {
+    if (downloadingAll) return;
+    setDownloadingAll(true);
+    try {
+      const params = {
+        ...(search?.trim() ? { search: search.trim() } : {}),
+        ...(departmentFilter ? { departmentId: departmentFilter } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(roleFilter ? { role: roleFilter } : {}),
+        isConsultancy: directoryType === "consultancy" ? "true" : "false",
+      };
+      const res = await exportEmployees(params);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const contentDisposition = res.headers?.["content-disposition"] || "";
+      const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
+      const fileName =
+        fileNameMatch?.[1] ||
+        `${directoryType === "consultancy" ? "Consultants" : "Employees"}-Export-${new Date().toISOString().split("T")[0]}.xlsx`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      const serverMessage =
+        error.response?.data instanceof Blob
+          ? "No employees found for the selected filters"
+          : error.response?.data?.message || "Failed to download employees Excel";
+      alert(serverMessage);
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
+  /* =========================
      VIEW EMPLOYEE
   ========================= */
 
@@ -1903,13 +1969,58 @@ function Employees() {
     };
 
   /* =========================
+       GENERATE CONSULTANCY AGREEMENT
+     ========================= */
+
+  const handleGenerateConsultancy =
+    async () => {
+      if (
+        !consultancyData.consultantName ||
+        !consultancyData.designation ||
+        !consultancyData.effectiveDate
+      ) {
+        alert(
+          "Please fill all mandatory fields (consultant name, designation, and effective date)"
+        );
+        return;
+      }
+
+      try {
+        setLoading(true);
+        await generateConsultancyAgreement({
+          employeeId: consultancyData.employeeId,
+          consultantName: consultancyData.consultantName,
+          employeeCode: consultancyData.employeeCode,
+          designation: consultancyData.designation,
+          department: consultancyData.department,
+          effectiveDate: consultancyData.effectiveDate,
+          tenure: consultancyData.tenure,
+          scopeOfWork: consultancyData.scopeOfWork,
+          consultancyFees: consultancyData.consultancyFees,
+          paymentTerms: consultancyData.paymentTerms,
+          noticePeriod: consultancyData.noticePeriod,
+        });
+
+        alert("Consultancy Agreement Generated Successfully");
+
+        setShowConsultancyModal(false);
+      } catch (error) {
+        alert(
+          error.response?.data?.message ||
+          "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* =========================
        GENERATE TERMINATION LETTER
      ========================= */
 
   /* =========================
        TERMINATION FLOW
   ========================= */
-
   const formatDayAfterDate = (dateStr) => {
     if (!dateStr) return "Not scheduled";
     const d = new Date(dateStr);
@@ -2224,6 +2335,20 @@ function Employees() {
               </Button>
             )}
 
+            {(directoryType === "employee" ? canViewEmployees || canManage : canViewConsultancy || canManageConsultancy) && (
+              <Button
+                variant="secondary"
+                icon={<Download size={16} />}
+                onClick={handleDownloadAll}
+                disabled={downloadingAll}
+                title={`Download all ${directoryType === "consultancy" ? "consultants" : "employees"} as Excel`}
+                aria-label={`Download all ${directoryType === "consultancy" ? "consultants" : "employees"} as Excel`}
+                className="emp-export-btn"
+              >
+                {downloadingAll ? "..." : "Export"}
+              </Button>
+            )}
+
             {(directoryType === "employee" ? canManage : canManageConsultancy) && (
               <Button
                 icon={<Plus size={18} />}
@@ -2510,9 +2635,9 @@ function Employees() {
                                 </>
                               ) : null}
 
-                              {canLetters && renderMenuSectionToggle("letters", "Letters")}
+                              {(canLetters || (directoryType === "consultancy" && canManageConsultancy)) && renderMenuSectionToggle("letters", "Letters")}
 
-                              {canLetters && expandedMenuSection === "letters" && (
+                              {canLetters && !emp.isConsultancy && expandedMenuSection === "letters" && (
                                 <button
                                   type="button"
                                   disabled={!emp.isActive}
@@ -2558,6 +2683,34 @@ function Employees() {
                                   }}
                                 >
                                   <FileText size={16} /> Appointment Letter
+                                </button>
+                              )}
+
+                              {(canLetters || canManageConsultancy) && emp.isConsultancy && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setConsultancyData({
+                                      employeeId: emp._id,
+                                      consultantName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      effectiveDate: emp.dateOfJoining?.split("T")[0] || new Date().toISOString().split("T")[0],
+                                      tenure: "",
+                                      scopeOfWork: "",
+                                      consultancyFees: emp.monthlyConsultancyPay ? `₹${Number(emp.monthlyConsultancyPay).toLocaleString("en-IN")} per month` : "",
+                                      paymentTerms: "",
+                                      noticePeriod: "30 days",
+                                    });
+                                    setShowConsultancyModal(true);
+                                  }}
+                                >
+                                  <FileText size={16} /> Consultancy Agreement
                                 </button>
                               )}
 
@@ -3592,6 +3745,177 @@ function Employees() {
                       responsePeriod: e.target.value,
                     })
                   }
+                />
+              </FormField>
+            </FormSection>
+          </EmpModal>
+        ) : null}
+
+        {showConsultancyModal ? (
+          <EmpModal
+            title="Generate Consultancy Agreement"
+            onClose={() => setShowConsultancyModal(false)}
+            size="lg"
+            footer={
+              <>
+                <Button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setShowConsultancyModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  icon={<FileText size={16} />}
+                  onClick={handleGenerateConsultancy}
+                  disabled={loading}
+                >
+                  {loading ? "Generating…" : "Generate Consultancy Agreement"}
+                </Button>
+              </>
+            }
+          >
+            <FormSection
+              title="Consultant Details"
+              description="Auto-filled from the selected consultant"
+            >
+              <FormField label="Consultant Name" htmlFor="ca-name" required>
+                <input
+                  id="ca-name"
+                  required
+                  value={consultancyData.consultantName}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      consultantName: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Consultant ID" htmlFor="ca-code">
+                <input
+                  id="ca-code"
+                  value={consultancyData.employeeCode}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Designation / Role" htmlFor="ca-designation" required>
+                <input
+                  id="ca-designation"
+                  required
+                  value={consultancyData.designation}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      designation: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Department" htmlFor="ca-department">
+                <input
+                  id="ca-department"
+                  value={consultancyData.department}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      department: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Engagement Details"
+              description="Contract duration, fees and payment terms"
+            >
+              <FormField label="Effective Date" htmlFor="ca-effective" required>
+                <input
+                  id="ca-effective"
+                  required
+                  type="date"
+                  value={consultancyData.effectiveDate}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      effectiveDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Contract Duration / Tenure" htmlFor="ca-tenure">
+                <input
+                  id="ca-tenure"
+                  value={consultancyData.tenure}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      tenure: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 12 months, renewable"
+                />
+              </FormField>
+              <FormField label="Consultancy Fees" htmlFor="ca-fees">
+                <input
+                  id="ca-fees"
+                  value={consultancyData.consultancyFees}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      consultancyFees: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. ₹50,000 per month"
+                />
+              </FormField>
+              <FormField label="Notice Period" htmlFor="ca-notice">
+                <input
+                  id="ca-notice"
+                  value={consultancyData.noticePeriod}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      noticePeriod: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 30 days"
+                />
+              </FormField>
+              <FormField label="Payment Terms" htmlFor="ca-payment" fullWidth>
+                <textarea
+                  id="ca-payment"
+                  rows={2}
+                  value={consultancyData.paymentTerms}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      paymentTerms: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Monthly invoice, payable within 15 days, subject to TDS"
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Scope & Terms"
+              description="Scope of work (legal clauses use standard defaults)"
+            >
+              <FormField label="Scope of Work / Responsibilities" htmlFor="ca-scope" fullWidth>
+                <textarea
+                  id="ca-scope"
+                  rows={4}
+                  value={consultancyData.scopeOfWork}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      scopeOfWork: e.target.value,
+                    })
+                  }
+                  placeholder="Describe the consultant's responsibilities and deliverables"
                 />
               </FormField>
             </FormSection>

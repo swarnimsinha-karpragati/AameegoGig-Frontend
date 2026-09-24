@@ -22,6 +22,7 @@ import {
   useExpenses,
   useCreateExpense,
   useSubmitExpense,
+  useCancelExpense,
   useApproveExpense,
   useRejectExpense,
   useMarkReimbursed,
@@ -178,6 +179,7 @@ function ExpenseInner() {
   const [actionLoading, setActionLoading] = useState(false);
   const createExpenseMutation = useCreateExpense();
   const submitExpenseMutation = useSubmitExpense();
+  const cancelExpenseMutation = useCancelExpense();
   const approveExpenseMutation = useApproveExpense();
   const rejectExpenseMutation = useRejectExpense();
   const markReimbursedMutation = useMarkReimbursed();
@@ -378,6 +380,28 @@ function ExpenseInner() {
           toast.success("Expense submitted for approval");
         } catch (err) {
           toast.error(err.response?.data?.message || "Submit failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
+  };
+
+  const handleCancel = (id) => {
+    openModal({
+      title: "Cancel Expense",
+      message:
+        "This will withdraw the expense from approval and move it back to your drafts. You can edit and resubmit it later.",
+      confirmLabel: "Cancel Expense",
+      variant: "warning",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await cancelExpenseMutation.mutateAsync(id);
+          toast.success("Expense cancelled and moved to drafts");
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Cancel failed");
         } finally {
           setActionLoading(false);
           closeModal();
@@ -607,8 +631,15 @@ function ExpenseInner() {
         </label>
 
         <div className="expense-form-actions">
-          <Button type="submit">
-            {form.submitDirectly ? "Submit Expense" : "Save as Draft"}
+          <Button
+            type="submit"
+            disabled={createExpenseMutation.isPending}
+          >
+            {createExpenseMutation.isPending
+              ? "Submitting…"
+              : form.submitDirectly
+                ? "Submit Expense"
+                : "Save as Draft"}
           </Button>
         </div>
       </form>
@@ -753,9 +784,16 @@ function ExpenseInner() {
                         ) : null}
 
                         {actionMode === "owner" && exp.status === "Pending" ? (
-                          <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>
-                            Awaiting approval
-                          </span>
+                          <div className="expense-pending-cancel">
+                            <Button
+                              className="action-btn-edit cancel-expense-btn"
+                              icon={<X size={14} />}
+                              title="Cancel expense"
+                              onClick={() => handleCancel(exp._id)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
                         ) : null}
 
                         {/* Approver: Pending actions — never on own expense */}

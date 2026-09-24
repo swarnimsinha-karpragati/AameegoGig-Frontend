@@ -6,6 +6,7 @@ import {
   createExpense,
   updateExpense,
   submitExpense,
+  cancelExpense,
   approveExpense,
   rejectExpense,
   markReimbursed,
@@ -81,6 +82,18 @@ export function useSubmitExpense() {
 
   return useMutation({
     mutationFn: (id) => submitExpense(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [EXPENSE_DASHBOARD_KEY] });
+      queryClient.invalidateQueries({ queryKey: [EXPENSE_LIST_KEY] });
+    },
+  });
+}
+
+export function useCancelExpense() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id) => cancelExpense(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [EXPENSE_DASHBOARD_KEY] });
       queryClient.invalidateQueries({ queryKey: [EXPENSE_LIST_KEY] });

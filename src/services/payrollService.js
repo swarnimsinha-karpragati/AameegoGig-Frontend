@@ -24,6 +24,16 @@ export const getMyPayrollRecords = async () => {
   return API.get("/payroll/my-payroll");
 };
 
+export const getMyConsultancyPayments = async (params) => {
+  return API.get("/consultancy-payments/my", { params });
+};
+
+export const downloadConsultancyPayslip = async (id) => {
+  return API.get(`/consultancy-payments/payslip/${id}`, {
+    responseType: "blob",
+  });
+};
+
 export const getPayrollByEmployee = async (employeeCode) => {
   return API.get(`/payroll/employee/${employeeCode}`);
 };
