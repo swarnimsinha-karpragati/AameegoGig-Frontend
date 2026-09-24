@@ -4,7 +4,8 @@ import SessionList from "./SessionList";
 import SessionLocationLink from "./SessionLocationLink";
 import SelfieModal from "./SelfieModal";
 import AttendanceEditModal from "./AttendanceEditModal";
-import { getCheckInSelfieUrl, downloadAttendanceReport } from "../../services/attendanceService";
+import { getCheckInSelfieUrl } from "../../services/attendanceService";
+import { useDownloadAttendanceReport } from "../../hooks/useAttendance";
 import { normalizeRecord, statusTextClass } from "./attendanceUtils";
 import { useToast } from "../Toast";
 import "./TodayAttendanceTable.css";
@@ -15,6 +16,8 @@ function TodayAttendanceTable({
   loading,
   showActions = false,
   canEdit = false,
+  // Org-report download needs attendance:manage; self/team download stays open.
+  canDownload = true,
   onRecordEdited,
   filters,
   onFilterChange,
@@ -31,6 +34,7 @@ function TodayAttendanceTable({
   const [localSearch, setLocalSearch] = useState(filters.search);
   const [isSearching, setIsSearching] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const downloadMutation = useDownloadAttendanceReport();
   const toast = useToast();
   const columnCount = canEdit ? 13 : 12;
 
@@ -72,7 +76,7 @@ function TodayAttendanceTable({
         month: filters.month,
         year: filters.year,
       };
-      const blob = await downloadAttendanceReport(params);
+      const blob = await downloadMutation.mutateAsync(params);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -174,10 +178,12 @@ function TodayAttendanceTable({
                   30 Days
                 </button>
 
-                <button className="attendance-download-btn" onClick={downloadAttendance} disabled={downloading}>
-                  <Download size={16} />
-                  <span>{downloading ? "Downloading..." : "Download"}</span>
-                </button>
+                {canDownload ? (
+                  <button className="attendance-download-btn" onClick={downloadAttendance} disabled={downloading}>
+                    <Download size={16} />
+                    <span>{downloading ? "Downloading..." : "Download"}</span>
+                  </button>
+                ) : null}
               </div>
             </div>
           )}

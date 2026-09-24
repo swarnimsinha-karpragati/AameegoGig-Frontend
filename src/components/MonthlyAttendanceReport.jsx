@@ -3,7 +3,7 @@ import Button from './Button';
 import './MonthlyAttendanceReport.css';
 import {X} from "lucide-react";
 import { getStoredUser } from '../utils/roles';
-import { monthReport } from '../services/attendanceService';
+import { useMonthReport } from '../hooks/useAttendance';
 
 const MonthlyAttendanceReport = ({ handleReportModalClose }) => {
     const handleClose = () => {
@@ -46,11 +46,12 @@ const MonthlyAttendanceReport = ({ handleReportModalClose }) => {
         }
     };
     const [loading,setLoading] = useState(false)
+    const monthReportMutation = useMonthReport();
 
     const handleDownload = async () => {
         try {
             setLoading(true);
-            const blobData = await monthReport(user?.vendorId, reportMonth, reportYear);
+            const blobData = await monthReportMutation.mutateAsync({ vendorId: user?.vendorId, reportMonth, reportYear });
 
             const url = window.URL.createObjectURL(new Blob([blobData]));
             const link = document.createElement('a');

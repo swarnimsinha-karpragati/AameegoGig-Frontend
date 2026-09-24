@@ -8,7 +8,10 @@ export const signupUser = async (payload) => {
 };
 
 export const loginUser = async (payload) => {
-  const response = await API.post(authPath('login'), payload);
+  // skipAuthRedirect: a failed login (401) must reach the form's catch block
+  // to show the inline error — the global 401 redirect would hard-reload
+  // the page and wipe the error.
+  const response = await API.post(authPath('login'), payload, { skipAuthRedirect: true });
   return response.data;
 };
 
@@ -23,7 +26,7 @@ export const sendOtp = async (payload) => {
 };
 
 export const verifyOtp = async ({emailOrPhone,otp,vendorCode}) => {
-  const res = await API.get(authPath(`verify-otp?emailOrPhone=${emailOrPhone}&otp=${otp}&vendorCode=${vendorCode}`));
+  const res = await API.get(authPath(`verify-otp?emailOrPhone=${emailOrPhone}&otp=${otp}&vendorCode=${vendorCode}`), { skipAuthRedirect: true });
   return res.data;
 };
 

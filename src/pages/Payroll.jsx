@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   previewPayroll,
@@ -15,14 +15,15 @@ import {
   removePayrollAdjustment,
   downloadWageSheet,
 } from "../services/payrollService";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
 import { getCurrentUser } from "../services/authService";
-import { getStoredUser } from "../utils/roles";
+import { getStoredUser, canManagePayroll } from "../utils/roles";
 import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER, getAvailableMonths } from "../utils/payrollConstants";
 import { payrollHasBreakdown, enrichPayrollRecord } from "../utils/payrollRecord";
 import { downloadPayrollPdf } from "../utils/generateSalarySlipPdf";
 import PayrollManager from "../components/payroll/PayrollManager";
 import PayslipsTab from "../components/payroll/PayslipsTab";
+import ConsultancyPayslipsTab from "../components/payroll/ConsultancyPayslipsTab";
 import PayrollTabs from "../components/payroll/PayrollTabs";
 import PayrollBreakdownDrawer from "../components/PayrollBreakdownDrawer";
 import PayrollStatusBanner from "../components/payroll/PayrollStatusBanner";
@@ -30,19 +31,43 @@ import "./Payroll.css";
 import MainLayout from "../layouts/MainLayout";
 
 export default function Payroll() {
-  const user = getStoredUser();
-  const isAdminOrHR = user?.role === "Admin" || user?.role === "HR";
+  const storedUser = getStoredUser();
+  const isAdminOrHR = canManagePayroll(storedUser?.role);
+  const [user, setUser] = useState(storedUser);
+  const isConsultancyUser = !isAdminOrHR && Boolean(user?.isConsultancy);
   const [searchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
 
   const [activeTab, setActiveTab] = useState(tabFromUrl || (isAdminOrHR ? "payroll" : "payslips"));
+  // Records / Payslips period filter
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  // Calculator period (independent of records filter)
+  const [calcMonth, setCalcMonth] = useState(new Date().getMonth() + 1);
+  const [calcYear, setCalcYear] = useState(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [payrollPagination, setPayrollPagination] = useState({
+    page: 1,
+    limit: 25,
+    total: 0,
+    pages: 0,
+  });
+  const [payrollSummary, setPayrollSummary] = useState({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    totalGross: 0,
+    totalNet: 0,
+    totalDeductions: 0,
+    canDownloadWageSheet: false,
+  });
+  const [payrollReviewFilter, setPayrollReviewFilter] = useState("all");
+  const [payslipTypeFilter, setPayslipTypeFilter] = useState("all");
+  const [listLoading, setListLoading] = useState(false);
 
-  const [employees, setEmployees] = useState([]);
+  const { data: employees = [] } = useAllEmployees({ enabled: isAdminOrHR });
   const [payrolls, setPayrolls] = useState([]);
-  const [reviewPayrolls, setReviewPayrolls] = useState([]);
   const [notLinkedToEmployee, setNotLinkedToEmployee] = useState(false);
 
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -67,56 +92,127 @@ export default function Payroll() {
     });
   };
 
+  const handleCalcYearChange = (newYear) => {
+    setCalcYear(newYear);
+    const available = getAvailableMonths(newYear);
+    setCalcMonth((prev) => {
+      const maxMonth = available[available.length - 1]?.value || 12;
+      return prev > maxMonth ? maxMonth : prev;
+    });
+  };
+
   const closeDetailsPopup = () => {
     setShowDetailsPopup(false);
     setBreakdownLoading(false);
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPayrollPagination((p) => ({ ...p, page: 1 }));
+  }, [debouncedSearch, selectedMonth, selectedYear, activeTab, payrollReviewFilter, payslipTypeFilter]);
+
+  const loadPayrollList = useCallback(
+    async (clearMessage = true) => {
+      if (!user) return;
+      if (clearMessage) {
+        setStatusMessage({ type: "", text: "" });
+        setBulkResult(null);
+      }
+
+      setListLoading(true);
+      try {
+        const params = {
+          month: MONTH_NUMBER_TO_NAME[selectedMonth],
+          year: selectedYear,
+          page: payrollPagination.page,
+          limit: payrollPagination.limit,
+        };
+        if (debouncedSearch) params.search = debouncedSearch;
+        if (activeTab === "payroll" && isAdminOrHR && payrollReviewFilter !== "all") {
+          params.reviewStatus = payrollReviewFilter;
+        }
+        if (activeTab === "payslips" && payslipTypeFilter !== "all") {
+          params.payrollType = payslipTypeFilter;
+        }
+
+        const payrollRes = await getAllPayrollRecords(params);
+        setPayrolls(payrollRes.data?.data || []);
+        setNotLinkedToEmployee(Boolean(payrollRes.data?.notLinked));
+
+        const pag = payrollRes.data?.pagination;
+        if (pag) {
+          setPayrollPagination((prev) => ({
+            ...prev,
+            page: pag.page,
+            limit: pag.limit,
+            total: pag.total,
+            pages: pag.pages,
+          }));
+        }
+        if (payrollRes.data?.summary) {
+          setPayrollSummary(payrollRes.data.summary);
+        }
+      } catch (error) {
+        console.error("Error loading payroll data:", error);
+        setStatusMessage({ type: "error", text: "Failed to load payroll data. Please refresh." });
+      } finally {
+        setListLoading(false);
+      }
+    },
+    [
+      user,
+      selectedMonth,
+      selectedYear,
+      debouncedSearch,
+      payrollPagination.page,
+      payrollPagination.limit,
+      activeTab,
+      isAdminOrHR,
+      payrollReviewFilter,
+      payslipTypeFilter,
+    ]
+  );
+
   const loadData = async (clearMessage = true) => {
-    if (!user) return;
-    if (clearMessage) {
-      setStatusMessage({ type: "", text: "" });
-      setBulkResult(null);
-    }
-
-    try {
-      if (isAdminOrHR) {
-        const empRes = await getEmployees();
-        setEmployees(empRes.data?.employees || []);
-      }
-
-      // Employees get the same period filter as admins; the backend scopes the
-      // result to the logged-in employee's own released records.
-      const params = { month: MONTH_NUMBER_TO_NAME[selectedMonth], year: selectedYear };
-      const payrollRes = await getAllPayrollRecords(params);
-      setPayrolls(payrollRes.data?.data || []);
-      setNotLinkedToEmployee(Boolean(payrollRes.data?.notLinked));
-
-      if (isAdminOrHR) {
-        const reviewRes = await getAllPayrollRecords();
-        setReviewPayrolls(reviewRes.data?.data || []);
-      }
-    } catch (error) {
-      console.error("Error loading payroll data:", error);
-      setStatusMessage({ type: "error", text: "Failed to load payroll data. Please refresh." });
-    }
+    await loadPayrollList(clearMessage);
   };
 
   useEffect(() => {
+    if (isAdminOrHR) return;
     const bootstrap = async () => {
-      if (!isAdminOrHR) {
-        try {
-          const me = await getCurrentUser();
-          if (me?.user) localStorage.setItem("user", JSON.stringify(me.user));
-        } catch {
-          // keep stored user
+      try {
+        const me = await getCurrentUser();
+        if (me?.user) {
+          localStorage.setItem("user", JSON.stringify(me.user));
+          setUser(me.user);
         }
+      } catch {
+        // keep stored user
       }
-      loadData();
     };
     bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear, user?.vendorId, user?.employeeCode]);
+  }, []);
+
+  useEffect(() => {
+    loadPayrollList(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedMonth,
+    selectedYear,
+    debouncedSearch,
+    payrollPagination.page,
+    payrollPagination.limit,
+    activeTab,
+    payrollReviewFilter,
+    payslipTypeFilter,
+    user?.vendorId,
+    user?.employeeCode,
+  ]);
 
   useEffect(() => {
     if (tabFromUrl && isAdminOrHR) setActiveTab(tabFromUrl);
@@ -366,15 +462,10 @@ export default function Payroll() {
 
   const handleDownloadWageSheet = async () => {
     const monthName = MONTH_NUMBER_TO_NAME[selectedMonth];
-    // Frontend guard: disable/toast when payroll is Pending or Gross/Net is ₹0
-    const hasProcessedPayroll = payrolls.some(
-      (p) => (p.status === "Processed" || p.approvalStatus === "Approved") && (Number(p.netSalary) > 0 || Number(p.totalEarnings) > 0)
-    );
-    const hasAnyPayroll = payrolls.length > 0 && payrolls.some((p) => Number(p.netSalary) > 0 || Number(p.totalEarnings) > 0);
-    if (!payrolls.length || !hasAnyPayroll || !hasProcessedPayroll) {
+    if (!payrollSummary.canDownloadWageSheet) {
       setStatusMessage({
         type: "error",
-        text: `Payroll for ${monthName} ${selectedYear} is not yet processed. Cannot download Wage Sheet.`,
+        text: `No payroll records found for ${monthName} ${selectedYear}. Generate payroll first, then download the Wage Sheet.`,
       });
       return;
     }
@@ -491,16 +582,6 @@ export default function Payroll() {
     });
   };
 
-  const filteredHistory = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return payrolls;
-    return payrolls.filter(
-      (item) =>
-        (item.employeeName || "").toLowerCase().includes(query) ||
-        (item.employeeCode || "").toLowerCase().includes(query)
-    );
-  }, [payrolls, searchQuery]);
-
   // const metrics = useMemo(() => {
   //   let totalPayroll = 0, earnings = 0, deductions = 0;
   //   filteredHistory.forEach((item) => {
@@ -514,17 +595,6 @@ export default function Payroll() {
   return (
     <MainLayout>
       <main className="payroll-page">
-        <div className="payroll-header-banner">
-          <div>
-            <h1 className="payroll-title">Payroll</h1>
-            <p className="payroll-subtitle">
-              {isAdminOrHR
-                ? "Calculate, approve and release employee payroll"
-                : "View your payslips and earnings"}
-            </p>
-          </div>
-        </div>
-
         <PayrollStatusBanner
           message={statusMessage}
           onDismiss={() => setStatusMessage({ type: "", text: "" })}
@@ -625,12 +695,24 @@ export default function Payroll() {
           <PayrollManager
             employees={employees}
             payrolls={payrolls}
-            reviewPayrolls={reviewPayrolls}
+            payrollSummary={payrollSummary}
+            listLoading={listLoading}
+            searchQuery={searchQuery}
+            reviewFilter={payrollReviewFilter}
+            pagination={payrollPagination}
             actionLoading={actionLoading}
-            selectedMonth={selectedMonth}
-            selectedYear={selectedYear}
-            onMonthChange={setSelectedMonth}
-            onYearChange={handleYearChange}
+            listMonth={selectedMonth}
+            listYear={selectedYear}
+            onListMonthChange={setSelectedMonth}
+            onListYearChange={handleYearChange}
+            calcMonth={calcMonth}
+            calcYear={calcYear}
+            onCalcMonthChange={setCalcMonth}
+            onCalcYearChange={handleCalcYearChange}
+            onSearchChange={setSearchQuery}
+            onReviewFilterChange={setPayrollReviewFilter}
+            onPageChange={(page) => setPayrollPagination((p) => ({ ...p, page }))}
+            onPageSizeChange={(limit) => setPayrollPagination((p) => ({ ...p, limit, page: 1 }))}
             onPreview={handlePreview}
             onCalculateSingle={handleCalculateSingle}
             onBulkCalculate={handleBulkCalculate}
@@ -642,20 +724,30 @@ export default function Payroll() {
           />
         )}
 
-        {activeTab === "payslips" && (
+        {activeTab === "payslips" && isConsultancyUser && (
+          <ConsultancyPayslipsTab />
+        )}
+
+        {activeTab === "payslips" && !isConsultancyUser && (
           <PayslipsTab
             isAdminOrHR={isAdminOrHR}
             notLinkedToEmployee={notLinkedToEmployee}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             searchQuery={searchQuery}
-            filteredHistory={filteredHistory}
-            payrolls={payrolls}
+            records={payrolls}
+            listLoading={listLoading}
+            payrollSummary={payrollSummary}
+            typeFilter={payslipTypeFilter}
+            pagination={payrollPagination}
             actionLoading={actionLoading}
             downloadingId={downloadingId}
             onMonthChange={setSelectedMonth}
             onYearChange={handleYearChange}
             onSearchChange={setSearchQuery}
+            onTypeFilterChange={setPayslipTypeFilter}
+            onPageChange={(page) => setPayrollPagination((p) => ({ ...p, page }))}
+            onPageSizeChange={(limit) => setPayrollPagination((p) => ({ ...p, limit, page: 1 }))}
             onDownloadPdf={handleDownloadPDF}
             onDownloadWageSheet={handleDownloadWageSheet}
             downloadingWageSheet={downloadingWageSheet}

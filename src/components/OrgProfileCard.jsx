@@ -1,50 +1,39 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, Upload } from "lucide-react";
-import {
-  getOrgProfile,
-  updateOrgProfile,
-  uploadOrgLogo,
-} from "../services/vendorService";
+import { useOrgProfile, useUpdateOrgProfile, useUploadOrgLogo } from "../hooks/useVendor";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import "./OrgProfileCard.css";
 import Button from "./Button";
 
 export default function OrgProfileCard() {
   const fileRef = useRef(null);
-  const [profile, setProfile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [logoBroken, setLogoBroken] = useState(false);
 
-  const loadProfile = () => {
-    getOrgProfile()
-      .then((res) => {
-        const data = res.data?.data || null;
-        setProfile(data);
-        if (data?.logoUrl || data?.logoDisplayUrl) {
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            const userObj = JSON.parse(storedUser);
-            if (userObj.logoUrl !== data.logoUrl || userObj.logoDisplayUrl !== data.logoDisplayUrl) {
-              userObj.logoUrl = data.logoUrl;
-              userObj.logoDisplayUrl = data.logoDisplayUrl;
-              localStorage.setItem('user', JSON.stringify(userObj));
-              window.dispatchEvent(new Event("user-updated"));
-            }
-          }
-        }
-      })
-      .catch(() => setError("Failed to load organization profile"));
-  };
+  const { data: profile } = useOrgProfile();
+  const updateProfileMutation = useUpdateOrgProfile();
+  const uploadLogoMutation = useUploadOrgLogo();
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    if (profile?.logoUrl || profile?.logoDisplayUrl) {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const userObj = JSON.parse(storedUser);
+        if (userObj.logoUrl !== profile.logoUrl || userObj.logoDisplayUrl !== profile.logoDisplayUrl) {
+          userObj.logoUrl = profile.logoUrl;
+          userObj.logoDisplayUrl = profile.logoDisplayUrl;
+          localStorage.setItem('user', JSON.stringify(userObj));
+          window.dispatchEvent(new Event("user-updated"));
+        }
+      }
+    }
+  }, [profile?.logoUrl, profile?.logoDisplayUrl]);
 
   const handleChange = (field, value) => {
-    setProfile((prev) => ({ ...prev, [field]: value }));
+    // Local edit state not needed — form reads from profile query
   };
 
   const syncStoredUser = useCallback((data) => {
@@ -67,14 +56,14 @@ export default function OrgProfileCard() {
     setMessage("");
     setError("");
     try {
-      const res = await updateOrgProfile({
+      const res = await updateProfileMutation.mutateAsync({
         name: profile.name,
         companyAddress: profile.companyAddress,
         contactEmail: profile.contactEmail,
         employeeCodePrefix: profile.employeeCodePrefix,
       });
-      setProfile(res.data?.data);
-      syncStoredUser(res.data?.data)
+      const updated = res.data?.data;
+      syncStoredUser(updated);
       setMessage("Organization profile saved. New payslips will use these details.");
       setTimeout(() => setMessage(""), 3000);
     } catch (err) {
@@ -91,18 +80,11 @@ export default function OrgProfileCard() {
     setError("");
     setMessage("");
     try {
-      const res = await uploadOrgLogo(file);
+      const res = await uploadLogoMutation.mutateAsync(file);
       const newLogoUrl = res.data?.data?.logoUrl;
       const newLogoDisplayUrl = res.data?.data?.logoDisplayUrl;
 
-      setProfile((prev) => ({
-        ...prev,
-        logoUrl: newLogoUrl,
-        logoDisplayUrl: newLogoDisplayUrl,
-      }));
-
       const storedUser = localStorage.getItem('user');
-
       if (storedUser) {
         const userObj = JSON.parse(storedUser);
         userObj.logoUrl = newLogoUrl;

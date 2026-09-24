@@ -40,7 +40,7 @@ export const employeeValidationSchema = Yup.object().shape({
 
   departmentId: Yup.string()
     .trim()
-    .required("Site/Department is required"),
+    .required("Department is required."),
 
   location: Yup.string().trim().default(""),
 
@@ -174,7 +174,32 @@ export const employeeValidationSchema = Yup.object().shape({
   // ---- Employment ----
   client: Yup.string().trim().default(""),
 
-  dateOfJoining: Yup.date().nullable().default(null),
+  monthlyConsultancyPay: Yup.number()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .nullable()
+    .min(0, "Amount must be 0 or greater.")
+    .test(
+      "consultancy-pay-required",
+      "Monthly Consultancy Pay must be greater than ₹0.",
+      function (value) {
+        const { isConsultancy } = this.parent || {};
+        if (!isConsultancy) return true;
+        return Number.isFinite(Number(value)) && Number(value) > 0;
+      }
+    )
+    .default(null),
+
+  tdsPercent: Yup.number()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .nullable()
+    .min(0, "TDS must be between 0% and 100%.")
+    .max(100, "TDS must be between 0% and 100%.")
+    .default(null),
+
+  dateOfJoining: Yup.date()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .required("Date of joining is required")
+    .default(null),
 
   relievingDate: Yup.date()
     .nullable()
@@ -182,6 +207,29 @@ export const employeeValidationSchema = Yup.object().shape({
     .default(null),
 
   payType: Yup.string()
-    .oneOf(["MONTHLY", "DAILY"], "Invalid pay type")
+    .oneOf(["MONTHLY", "DAILY", "CALENDAR_DAILY"], "Invalid pay type")
     .default("MONTHLY"),
+
+  // ---- Probation / Employment status ----
+  // Ye keys form + payload me hain. validateAt(name) inke bina
+  // "The schema does not contain the path" throw karta hai,
+  // isliye yahan explicitly define karna zaroori hai.
+  employmentStatus: Yup.string()
+    .oneOf(["probation", "full-time", ""], "Invalid employment status")
+    .default("probation"),
+
+  probationStartDate: Yup.date()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
+
+  probationEndDate: Yup.date()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
+
+  confirmationDate: Yup.date()
+    .nullable()
+    .transform((value, originalValue) => (originalValue === "" ? null : value))
+    .default(null),
 });

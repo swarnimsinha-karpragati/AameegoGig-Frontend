@@ -2,6 +2,9 @@
 
 /* Calendar day cells */
 .calendar-day {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   min-height: 58px;
   border-radius: 10px;
   display: flex;
@@ -92,6 +95,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  min-width: 0;
   margin-bottom: 0;
   padding-bottom: 0;
   border-bottom: none;
@@ -102,11 +107,14 @@
   font-size: 15px;
   font-weight: 700;
   color: #0f172a;
+  min-width: 0;
+  flex: 1;
 }
 
 .calendar-nav {
   display: flex;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .calendar-nav button {
@@ -129,8 +137,11 @@
 .calendar-weekdays,
 .calendar-days {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .calendar-weekdays span {
@@ -312,4 +323,69 @@
 
 .legend-dot.week-off {
   background: #94a3b8;
+}
+
+/* Card shell never exceeds screen width */
+.attendance-calendar-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+/* ============================================================
+   RESPONSIVE ADD-ONS — CSS only (no logic change)
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .calendar-weekdays,
+  .calendar-days {
+    gap: 4px;
+  }
+
+  .calendar-day {
+    min-height: 44px;
+    padding: 4px 2px;
+    border-radius: 8px;
+  }
+
+  .calendar-day-num {
+    font-size: 12px;
+  }
+
+  .calendar-day-holiday,
+  .calendar-day-leave,
+  .calendar-day-wfh {
+    font-size: 0.52rem;
+  }
+
+  .calendar-day-sessions {
+    min-width: 15px;
+    height: 15px;
+    font-size: 9px;
+  }
+
+  .calendar-legend {
+    gap: 8px 12px;
+  }
+
+  .calendar-legend-hint {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 400px) {
+  .calendar-toolbar h2 {
+    font-size: 13px;
+  }
+
+  .calendar-nav button {
+    width: 30px;
+    height: 30px;
+  }
+
+  .calendar-weekdays span {
+    font-size: 9px;
+  }
 }

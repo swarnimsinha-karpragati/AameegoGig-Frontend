@@ -16,6 +16,7 @@ export const LIMITS = {
   ANNUAL_CTC_MAX: 100_000_000,
   RATE_MAX: 1,
   EMAIL_MAX: 254,
+  ATTENDANCE_DAYS_MAX: 31,
 };
 
 export const PATTERNS = {
@@ -43,6 +44,7 @@ const LABEL_KIND_RULES = [
   { test: (t) => /\buan\b/i.test(t), kind: "uan" },
   { test: (t) => /\besic\b/i.test(t), kind: "esic" },
   { test: (t) => /account\s*(number|no)/i.test(t), kind: "bank_account" },
+  { test: (t) => /working\s*days|incentive\s*days|paid\s*days/i.test(t), kind: "attendance_days" },
   { test: (t) => /annual\s*ctc|\bctc\b|cost to company/i.test(t), kind: "currency_annual" },
   { test: (t) => /monthly|per month|\/mo|salary|amount|\(₹\)|rupee/i.test(t), kind: "currency_monthly" },
   { test: (t) => /percentage|\brate\b|percent/i.test(t), kind: "rate" },
@@ -70,6 +72,9 @@ const NAME_KIND_MAP = {
   monthlySalary: "currency_monthly",
   monthlyAmount: "currency_monthly",
   defaultValue: "currency_monthly",
+  totalWorkingDays: "attendance_days",
+  incentiveDays: "attendance_days",
+  paidDays: "attendance_days",
   rate: "rate",
   dob: "date_dob",
   dateOfJoining: "date",
@@ -97,6 +102,11 @@ const isBlank = (value) =>
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
 
 const formatInr = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
+
+export const normalizeAttendanceDays = (value) => Math.round(Number(value) * 2) / 2;
+
+const isHalfDayIncrement = (n) =>
+  Number.isFinite(n) && Math.abs(n - normalizeAttendanceDays(n)) < 1e-8;
 
 export const validateSafeText = (value, label, { maxLength = LIMITS.TEXT_SHORT } = {}) => {
   if (isBlank(value)) return null;
@@ -193,6 +203,19 @@ export const validateByKind = (kind, value, label, options = {}) => {
       const n = Number(value);
       if (min != null && n < Number(min)) return `${label} cannot be less than ${min}`;
       if (max != null && n > Number(max)) return `${label} cannot exceed ${max}`;
+      return null;
+    }
+    case "attendance_days": {
+      if (!isFiniteNumber(value)) return `${label} must be a valid number`;
+      const n = Number(value);
+      const floor = min != null ? Number(min) : 0;
+      const ceiling = max != null ? Number(max) : LIMITS.ATTENDANCE_DAYS_MAX;
+      if (n < floor || n > ceiling) {
+        return `${label} must be between ${floor} and ${ceiling}`;
+      }
+      if (!isHalfDayIncrement(n)) {
+        return `${label} can include half days (for example 27 or 27.5)`;
+      }
       return null;
     }
     case "date":

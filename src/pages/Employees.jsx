@@ -1,20 +1,29 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import * as XLSX from "xlsx";
+import { useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import {
-  addEmployee,
   buildEmployeePayload,
-  getEmployees,
-  bulkUploadEmployees,
-  updateEmployee,
-  deleteEmployee,
+  convertToConsultant,
+  exportEmployees,
 } from "../services/employeeService";
 
 import {
-  uploadEmployeeDocument,
-  getEmployeeDocuments,
+  useEmployees,
+  useAddEmployee,
+  useUpdateEmployee,
+  useDeleteEmployee,
+  useBulkUploadEmployees,
+  useToggleAppLogin,
+  useConvertToEmployee,
+  useResendCredentials,
+} from "../hooks/useEmployees";
+import { useDepartmentNames } from "../hooks/useDepartments";
+
+import {
   getDocumentViewUrl,
 } from "../services/documentService";
+import { useEmployeeDocuments, useUploadEmployeeDocument } from "../hooks/useDocuments";
 
 import {
   Search,
@@ -28,16 +37,34 @@ import {
   FolderOpen,
   Download,
   MoreVertical,
+  Lock,
+  LockOpen,
+  Mail,
+  Copy,
+  Check,
   TriangleAlert,
-  OctagonX
+  OctagonX,
+  UserCheck,
+  Clock,
+  ChevronDown,
+  Info,
 } from "lucide-react";
+import { getStoredUser, canManageEmployees, canManageProbation, roleHasPermission } from "../utils/roles";
+import { loadRoles } from "../utils/permissions";
+import {
+  confirmProbationEmployee,
+  extendProbationEmployee,
+  getEmployeeProbationHistory,
+} from "../services/probationService";
+import ProbationHistoryModal from "../components/ProbationHistoryModal";
 
 
 import {
   generateAppointmentLetter,
   generateWarningLetter,
-  generateTerminationLetter,
+  generateConsultancyAgreement,
 } from "../services/letterService";
+import { createTermination } from "../services/terminationService";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
 import Pagination from "../components/Pagination";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
@@ -46,7 +73,6 @@ import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
 import { saveEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
-import { getDepartmentName } from "../services/departmentService";
 import {
   DOC_TYPE_ACCEPT,
   DOC_TYPE_OPTIONS,
@@ -58,11 +84,16 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, sumLetterMonthlyGross } from "../utils/salaryValidation";
+import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, validateComponentsMatchCalendarDaily, sumLetterMonthlyGross } from "../utils/salaryValidation";
 import Button from "../components/Button";
+import ConfirmModal from "../components/ConfirmModal";
 import DocumentPreview from "../components/DocumentPreview";
-import { isSiteVendor } from "../utils/vendorIdhelper";
-import { defaultSelectedModules, grantableModulesForRole } from "../utils/roles";
+import { isSiteVendor, canUseCalendarDailyPay } from "../utils/vendorIdhelper";
+import { defaultSelectedModules } from "../utils/roles";
+import { downloadCredentialExcel } from "../utils/credentialExcel";
+import { getRoles } from "../services/roleService";
+import ConsultancyPayments from "../components/consultancy/ConsultancyPayments";
+import "../components/consultancy/ConsultancyPayments.css";
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
@@ -82,7 +113,7 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "location", label: "Work Location" },
       { key: "managerId", label: "Reporting Manager", type: "manager" },
       { key: "peopleManagerId", label: "People Manager", type: "people-manager" },
-      { key: "dateOfJoining", label: "Date of Joining", type: "date" },
+      { key: "dateOfJoining", label: "Date of Joining", type: "date", required: true },
       { key: "dob", label: "Date of Birth", type: "date" },
     ],
   },
@@ -147,6 +178,7 @@ const EMPLOYEE_FORM_SECTIONS = [
     title: "Employment",
     fields: [
       { key: "client", label: "Client" },
+      { key: "probationEndDate", label: "Probation End Date", type: "date" },
       { key: "relievingDate", label: "Relieving Date", type: "date" },
       { key: "payType", label: "Pay Type", type: "select-paytype" },
     ],
@@ -185,6 +217,28 @@ function EmpModal({ title, onClose, size = "lg", children, footer }) {
     </div>
   );
 }
+
+const calculateNetConsultancy = (gross, tdsPercent) => {
+  const amount = Number(gross) || 0;
+  const tdsRate = Math.min(100, Math.max(0, Number(tdsPercent) || 0));
+  const tds = Math.round((amount * tdsRate) / 100);
+  return { gross: amount, tds, net: amount - tds };
+};
+
+// Bug 258: invalid pay/TDS must surface a validation message instead of a
+// silently clamped preview.
+const consultancyPreviewError = (gross, tdsPercent) => {
+  if (gross !== "" && gross !== null && gross !== undefined) {
+    const amount = Number(gross);
+    if (!Number.isFinite(amount) || amount < 0) return "Consultancy Pay cannot be negative.";
+    if (amount <= 0) return "Monthly Consultancy Pay must be greater than ₹0.";
+  }
+  if (tdsPercent !== "" && tdsPercent !== null && tdsPercent !== undefined) {
+    const rate = Number(tdsPercent);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) return "TDS must be between 0% and 100%.";
+  }
+  return "";
+};
 
 function FormSection({ title, description, children, fullWidth = false }) {
   return (
@@ -245,9 +299,7 @@ function EmployeeFormFields({
                 </option>
               ))}
           </select>
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
           {showTransferNotice ? (
             <p className="emp-transfer-notice">
               Transfer letter will be created and sent to the employee when saved.
@@ -270,9 +322,7 @@ function EmployeeFormFields({
             controlClassName="emp-field-input form-control"
             placeholder={`Select ${field.label.toLowerCase()} (optional)`}
           />
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -282,13 +332,32 @@ function EmployeeFormFields({
         field.key === "dob"
           ? { max: getMaxDateOfBirthInputValue() }
           : {};
+      // Full-time hone par Probation End Date change nahi ho sakta.
+      if (field.key === "probationEndDate" && values?.employmentStatus === "full-time") {
+        dateInputProps.disabled = true;
+      }
+      // Full-time employee ka DOJ change nahi ho sakta — lekin sirf tab
+      // disable karo jab value pehle se ho; empty ho to enable rahega.
+      if (field.key === "dateOfJoining" && values?.employmentStatus === "full-time" && values?.dateOfJoining) {
+        dateInputProps.disabled = true;
+      }
 
       return (
         <>
           <input {...common} {...dateInputProps} type="date" />
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
+        </>
+      );
+    }
+
+    if (field.type === "select-employment-status") {
+      return (
+        <>
+          <select {...common} value={values.employmentStatus || "probation"}>
+            <option value="probation">Probation</option>
+            <option value="full-time">Full-time</option>
+          </select>
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -299,11 +368,12 @@ function EmployeeFormFields({
           <select {...common} value={values.payType || ""}>
             <option value="MONTHLY">Monthly</option>
             <option value="DAILY">Daily</option>
+            {(canUseCalendarDailyPay() || values.payType === "CALENDAR_DAILY") && (
+              <option value="CALENDAR_DAILY">Calendar Daily</option>
+            )}
           </select>
 
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -318,9 +388,7 @@ function EmployeeFormFields({
             <option value="Other">Other</option>
           </select>
 
-          {fieldError(field.key) ? (
-            <p className="emp-field-error">{fieldError(field.key)}</p>
-          ) : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -346,7 +414,7 @@ function EmployeeFormFields({
             <option value="Guardian">Guardian</option>
             <option value="Other">Other</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -359,7 +427,7 @@ function EmployeeFormFields({
             <option value="Single">Single</option>
             <option value="Married">Married</option>
           </select>
-          {fieldError(field.key) ? <p className="emp-field-error">{fieldError(field.key)}</p> : null}
+          <p className={`emp-field-error${fieldError(field.key) ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldError(field.key) || " "}</p>
         </>
       );
     }
@@ -378,7 +446,15 @@ function EmployeeFormFields({
     );
   };
 
-  return sections.map((section) => (
+  // Consultants have no probation — Probation End Date never shows for them.
+  const visibleSections = values?.isConsultancy
+    ? sections.map((section) => ({
+        ...section,
+        fields: section.fields.filter((field) => field.key !== "probationEndDate"),
+      }))
+    : sections;
+
+  return visibleSections.map((section) => (
     <FormSection
       key={section.id}
       title={section.title}
@@ -394,7 +470,7 @@ function EmployeeFormFields({
           hint={
             field.key === "email" && emailRequired
               ? "Required for app login"
-              : undefined
+              : field.hint
           }
         >
           {renderInput(field)}
@@ -404,38 +480,11 @@ function EmployeeFormFields({
   ));
 }
 
-function ModuleAccessFields({ role, selected = [], onChange, idPrefix = "emp-mod" }) {
-  const options = grantableModulesForRole(role);
-
-  const toggle = (key) => {
-    const next = selected.includes(key)
-      ? selected.filter((item) => item !== key)
-      : [...selected, key];
-    onChange(next);
-  };
-
-  return (
-    <div className="emp-module-access">
-      <p className="emp-module-access__label">Module access</p>
-      <p className="emp-module-access__hint">
-        Uncheck a module to hide it for this login. Dashboard and Settings stay available.
-      </p>
-      <div className="emp-module-access__grid">
-        {options.map((item) => (
-          <label key={item.key} className="emp-module-access__item" htmlFor={`${idPrefix}-${item.key}`}>
-            <input
-              id={`${idPrefix}-${item.key}`}
-              type="checkbox"
-              checked={selected.includes(item.key)}
-              onChange={() => toggle(item.key)}
-            />
-            {item.label}
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
+const DEFAULT_ROLE_OPTIONS = [
+  { roleName: "Employee", displayName: "Employee" },
+  { roleName: "Manager", displayName: "Manager" },
+  { roleName: "HR", displayName: "HR" },
+];
 
 function AppLoginSection({
   enabled,
@@ -446,23 +495,40 @@ function AppLoginSection({
   onPasswordChange,
   alreadyEnabled,
   linkedEmail,
-  allowedModules,
-  onModulesChange,
+  roles = DEFAULT_ROLE_OPTIONS,
   modulesIdPrefix,
 }) {
+  const currentRole = userRole || "Employee";
+  const hasRole = roles.some((role) => role.roleName === currentRole);
+  const roleOptions = hasRole
+    ? roles
+    : [{ roleName: currentRole, displayName: currentRole }, ...roles];
+
+  const renderRoleField = (
+    <FormField label="Login role" htmlFor={`${modulesIdPrefix}-user-role`}>
+      <select
+        id={`${modulesIdPrefix}-user-role`}
+        value={currentRole}
+        onChange={onRoleChange}
+      >
+        {roleOptions.map((role) => (
+          <option key={role._id || role.roleName} value={role.roleName}>
+            {role.displayName || role.roleName}
+          </option>
+        ))}
+      </select>
+    </FormField>
+  );
+
   if (alreadyEnabled) {
     return (
       <div className="emp-login-card emp-field--full">
         <p className="emp-field-hint" style={{ margin: 0 }}>
           App login is enabled
-          {linkedEmail ? ` for ${linkedEmail}` : ""}.
+          {linkedEmail ? ` for ${linkedEmail}` : ""}. Choose the role for this
+          login below.
         </p>
-        <ModuleAccessFields
-          role={userRole}
-          selected={allowedModules}
-          onChange={onModulesChange}
-          idPrefix={modulesIdPrefix}
-        />
+        <div className="emp-login-card__fields">{renderRoleField}</div>
       </div>
     );
   }
@@ -482,17 +548,7 @@ function AppLoginSection({
             Password is shown once after saving. Email must be filled above.
           </p>
           <div className="emp-login-card__fields">
-            <FormField label="Login role" htmlFor={`${modulesIdPrefix}-user-role`}>
-              <select
-                id={`${modulesIdPrefix}-user-role`}
-                value={userRole}
-                onChange={onRoleChange}
-              >
-                <option value="Employee">Employee</option>
-                <option value="Manager">Manager</option>
-                <option value="HR">HR</option>
-              </select>
-            </FormField>
+            {renderRoleField}
             <FormField
               label="Password"
               htmlFor={`${modulesIdPrefix}-user-password`}
@@ -507,12 +563,6 @@ function AppLoginSection({
               />
             </FormField>
           </div>
-          <ModuleAccessFields
-            role={userRole}
-            selected={allowedModules}
-            onChange={onModulesChange}
-            idPrefix={modulesIdPrefix}
-          />
         </>
       ) : null}
     </div>
@@ -524,9 +574,25 @@ function Employees() {
      STATES
   ========================= */
 
+  const user = getStoredUser();
+  const canManage = canManageEmployees(user?.role);
+  const canViewEmployees =
+    user?.role === "Admin" || roleHasPermission(user?.role, "employees:view");
+  const canViewConsultancy =
+    user?.role === "Admin" ||
+    roleHasPermission(user?.role, "consultancy:view") ||
+    roleHasPermission(user?.role, "consultancy:manage");
+  const canManageConsultancy =
+    user?.role === "Admin" || roleHasPermission(user?.role, "consultancy:manage");
+  const canLetters = roleHasPermission(user?.role, "employees:letters");
+  // Consultancy lives inside Employees page: consultancy-only users get
+  // Employees menu access but must see only the Consultancy tab.
+  const isConsultancyOnly = !canViewEmployees && !canManage && canViewConsultancy;
+
   const initialForm = {
     name: "", email: "", phone: "",
     designation: "", departmentId: "", location: "",
+    isConsultancy: false, monthlyConsultancyPay: "", tdsPercent: "",
     dob: "", bloodGroup: "", emergencyContact: "",
 
     gender: "",
@@ -552,21 +618,236 @@ function Employees() {
 
   const [form, setForm] = useState(initialForm);
 
-  const [employees, setEmployees] = useState([]);
+  const [availableRoles, setAvailableRoles] = useState(DEFAULT_ROLE_OPTIONS);
+
+  const [directoryType, setDirectoryType] = useState(() =>
+    isConsultancyOnly ? "consultancy" : "employee"
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [pagination, setPagination] = useState({ total: 0, pages: 0 });
+  const [consultancyRefreshKey, setConsultancyRefreshKey] = useState(0);
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
-  const [department, setDepartment] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStatus = searchParams.get("status") || "";
+  const isPageReload = (() => {
+    try {
+      const nav = performance.getEntriesByType("navigation")[0];
+      if (nav && nav.type) return nav.type === "reload";
+      if (performance.navigation) return performance.navigation.type === 1;
+    } catch {
+      /* ignore — deep-link apply hoga */
+    }
+    return false;
+  })();
+  const [statusFilter, setStatusFilter] = useState(isPageReload ? "" : urlStatus);
+
   const [departmentFilter, setDepartmentFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+
+  // Role options for the listing filter: system roles + custom catalog
+  // roles, but Admin is never offered here. Read fresh every render so
+  // newly created roles appear immediately.
+  const roleFilterOptions = (() => {
+    const systemRoles = ["Admin", "HR", "Manager", "Employee"];
+    const withoutAdmin = (roles) => (roles || []).filter((role) => role !== "Admin");
+    try {
+      const catalog = loadRoles();
+      const customs = Object.keys(catalog || {}).filter((key) => !systemRoles.includes(key));
+      return withoutAdmin([...systemRoles, ...customs]);
+    } catch {
+      return withoutAdmin(systemRoles);
+    }
+  })();
+
+  const { data: employeeData, refetch: refetchEmployees } = useEmployees({
+    departmentId: departmentFilter || undefined,
+    status: statusFilter || undefined,
+    role: roleFilter || undefined,
+    page,
+    limit,
+    search,
+    isConsultancy: directoryType === "consultancy",
+    isPagination: "true",
+  });
+
+  const employees = employeeData?.employees || [];
+  const pagination = employeeData?.pagination || { total: 0, pages: 0 };
+
+  const { data: department = [] } = useDepartmentNames(
+    (() => {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        const { vendorId } = JSON.parse(userData);
+        return vendorId;
+      }
+      return null;
+    })()
+  );
+
+  const addMutation = useAddEmployee();
+  const updateMutation = useUpdateEmployee();
+  const deleteMutation = useDeleteEmployee();
+  const bulkUploadMutation = useBulkUploadEmployees();
+  const toggleAppLoginMutation = useToggleAppLogin();
+  const convertToEmployeeMutation = useConvertToEmployee();
+  const resendCredentialsMutation = useResendCredentials();
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  // Accordion: which menu category is open (one at a time)
+  const [expandedMenuSection, setExpandedMenuSection] = useState("general");
+
+  const toggleMenuSection = (key) => {
+    setExpandedMenuSection((prev) => (prev === key ? null : key));
+  };
+
+  const renderMenuSectionToggle = (key, label, danger = false) => (
+    <button
+      type="button"
+      className={`dropdown-section-toggle${danger ? " dropdown-section-toggle--danger" : ""}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        toggleMenuSection(key);
+      }}
+      aria-expanded={expandedMenuSection === key}
+    >
+      <span>{label}</span>
+      <ChevronDown
+        size={14}
+        className={expandedMenuSection === key ? "open" : ""}
+      />
+    </button>
+  );
+
+  // Probation confirm / extend state
+  const [confirmProbationTarget, setConfirmProbationTarget] = useState(null);
+  const [probationActionLoading, setProbationActionLoading] = useState(false);
+  const [extendEmp, setExtendEmp] = useState(null);
+  const [extendMonths, setExtendMonths] = useState(1);
+  const [extendRemark, setExtendRemark] = useState("");
+  const [extendErrors, setExtendErrors] = useState({});
+
+  const validateExtraMonths = (raw) => {
+    if (raw === "" || raw === null || raw === undefined) {
+      return "Enter a valid value between 1 and 12.";
+    }
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > 12) {
+      return "Enter a valid value between 1 and 12.";
+    }
+    return "";
+  };
+
+  const validateExtendRemark = (raw) => {
+    if (!String(raw || "").trim()) {
+      return "Reason for extension is required.";
+    }
+    return "";
+  };
+
+  const handleConfirmProbation = (emp) => {
+    setConfirmProbationTarget(emp);
+  };
+
+  const handleConfirmProbationSubmit = async () => {
+    if (!confirmProbationTarget || probationActionLoading) return;
+    setProbationActionLoading(true);
+    try {
+      await confirmProbationEmployee(confirmProbationTarget._id);
+      setConfirmProbationTarget(null);
+      refetchEmployees();
+    } catch (e) {
+      alert(e?.response?.data?.message || "Could not mark employee as full-time");
+    } finally {
+      setProbationActionLoading(false);
+    }
+  };
+
+  const handleExtendProbationSubmit = async () => {
+    if (!extendEmp || probationActionLoading) return;
+    const months = Number(extendMonths);
+    const monthsError = validateExtraMonths(extendMonths);
+    const remarkError = validateExtendRemark(extendRemark);
+    if (monthsError || remarkError) {
+      setExtendErrors({
+        ...(monthsError ? { extendMonths: monthsError } : {}),
+        ...(remarkError ? { extendRemark: remarkError } : {}),
+      });
+      return;
+    }
+    setProbationActionLoading(true);
+    try {
+      await extendProbationEmployee(extendEmp._id, months, extendRemark.trim());
+      setExtendEmp(null);
+      setExtendMonths(1);
+      setExtendRemark("");
+      setExtendErrors({});
+      refetchEmployees();
+    } catch (e) {
+      alert(e?.response?.data?.message || "Could not extend probation");
+    } finally {
+      setProbationActionLoading(false);
+    }
+  };
+
+  const isExtendFormValid =
+    !validateExtraMonths(extendMonths) && !validateExtendRemark(extendRemark);
+
+  // Probation history (HR view of selected employee)
+  const [showProbHist, setShowProbHist] = useState(false);
+  const [probHistData, setProbHistData] = useState(null);
+  const [probHistLoading, setProbHistLoading] = useState(false);
+  const [probHistError, setProbHistError] = useState("");
+
+  const openProbationHistory = async (emp) => {
+    if (!emp) return;
+    setShowProbHist(true);
+    setProbHistLoading(true);
+    setProbHistError("");
+    try {
+      const data = await getEmployeeProbationHistory(emp._id);
+      setProbHistData(data);
+    } catch (e) {
+      setProbHistError(e?.response?.data?.message || "Could not load probation history");
+    } finally {
+      setProbHistLoading(false);
+    }
+  };
+
+  // Convert consultant → employee modal state
+  const [convertTarget, setConvertTarget] = useState(null);
+  const [converting, setConverting] = useState(false);
+
+  // Bug 265: reverse conversion (employee → consultant) modal state.
+  const [convertBackTarget, setConvertBackTarget] = useState(null);
+  const [convertBackPay, setConvertBackPay] = useState("");
+  const [convertBackTds, setConvertBackTds] = useState("");
+  const [convertBackErrors, setConvertBackErrors] = useState({});
+
+  // Bug 268: each directory tab keeps independent filter state — reset search
+  // and filters when switching tabs so stale values never leak across.
+  const switchDirectoryType = (next) => {
+    if (next === directoryType) return;
+    setDirectoryType(next);
+    setPage(1);
+    setSearch("");
+    setDepartmentFilter("");
+    setStatusFilter("");
+    setRoleFilter("");
+    setSearchParams({}, { replace: true });
+  };
+
+  // Reload par URL ka ?status= bhi saaf karo (chipka filter na rahe).
+  useEffect(() => {
+    if (isPageReload) setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -578,20 +859,40 @@ function Employees() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    getRoles()
+      .then((roles) => {
+        if (mounted && Array.isArray(roles)) {
+          const selectable = roles.filter((role) => !role.isAdmin);
+          if (selectable.length) setAvailableRoles(selectable);
+        }
+      })
+      .catch(() => {
+        /* fall back to default role options */
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const [
     showDocumentsModal,
     setShowDocumentsModal,
   ] = useState(false);
 
   const [
-    employeeDocuments,
-    setEmployeeDocuments,
-  ] = useState([]);
-
-  const [
     selectedEmployeeForDocs,
     setSelectedEmployeeForDocs,
   ] = useState(null);
+
+  const { data: empDocsRes } = useEmployeeDocuments(
+    selectedEmployeeForDocs?._id,
+    {},
+    { enabled: !!selectedEmployeeForDocs?._id && showDocumentsModal }
+  );
+  const employeeDocuments = empDocsRes?.data?.documents || [];
+  const uploadDocMutation = useUploadEmployeeDocument();
 
   const [
     documentType,
@@ -620,6 +921,10 @@ function Employees() {
 
   const [loginCredentials, setLoginCredentials] =
     useState(null);
+
+  const [sendingCreds, setSendingCreds] = useState(false);
+
+  const [copiedKey, setCopiedKey] = useState(null);
 
   const [showAddModal, setShowAddModal] =
     useState(false);
@@ -669,10 +974,29 @@ function Employees() {
     });
 
   const [
+    showConsultancyModal,
+    setShowConsultancyModal,
+  ] = useState(false);
+
+  const [consultancyData, setConsultancyData] =
+    useState({
+      employeeId: "",
+      consultantName: "",
+      employeeCode: "",
+      designation: "",
+      department: "",
+      effectiveDate: "",
+      tenure: "",
+      scopeOfWork: "",
+      consultancyFees: "",
+      paymentTerms: "",
+      noticePeriod: "30 days",
+    });
+
+  const [
     showTerminationModal,
     setShowTerminationModal,
   ] = useState(false);
-
   const [terminationData, setTerminationData] =
     useState({
       employeeId: "",
@@ -687,81 +1011,42 @@ function Employees() {
       client: "",
       settlementDate: "",
       noticeClause: "7(B)",
+      isExperienceLetterIssued: false,
+      isRelievingLetterIssued: false,
+      deleteEmployeeAccount: false,
+      hrMail: "",
     });
 
   const salaryEditorRef = useRef(null);
 
   /* =========================
-     FETCH EMPLOYEES
+     FETCH EMPLOYEES (via useEmployees hook)
   ========================= */
 
-  const fetchEmployees = useCallback(async () => {
-    try {
-      const res = await getEmployees({
-        departmentId: departmentFilter || undefined,
-        page,
-        limit,
-        search,
-        isPagination: "true",
-      });
-      setEmployees(res.data.employees || []);
-      if (res.data.pagination) {
-        setPagination({
-          total: res.data.pagination.total,
-          pages: res.data.pagination.pages,
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-    }
-  }, [departmentFilter, page, limit, search]);
+  useEffect(() => {
+    refetchEmployees();
+  }, [departmentFilter, statusFilter, page, limit, search, directoryType, refetchEmployees]);
 
   useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
+    if (!canViewConsultancy && directoryType === "consultancy") {
+      setDirectoryType("employee");
+      setPage(1);
+    }
+    if (isConsultancyOnly && directoryType === "employee") {
+      setDirectoryType("consultancy");
+      setPage(1);
+    }
+  }, [canViewConsultancy, isConsultancyOnly, directoryType]);
 
   useEffect(() => {
-    const loggedUser = localStorage.getItem("user");
-    if (!loggedUser) return;
-    const { vendorId } = JSON.parse(loggedUser);
-    fetchDepartment(vendorId);
-  }, []);
+    setStatusFilter(urlStatus);
+    setPage(1);
+  }, [urlStatus]);
 
-  const fetchDepartment = async (vendorId) => {
-    try {
-      if (!vendorId) return
-      const res = await getDepartmentName(vendorId);
-      setDepartment(res.data)
+  useEffect(() => {
+    setConsultancyRefreshKey((prev) => prev + 1);
+  }, [employeeData]);
 
-    } catch (err) {
-      console.log(err)
-    }
-  }
-
-
-  const loadEmployeeDocuments =
-    async (employeeId) => {
-      try {
-
-        const response =
-          await getEmployeeDocuments(
-            employeeId
-          );
-
-        console.log(
-          "DOCUMENT RESPONSE",
-          response.data
-        );
-
-        setEmployeeDocuments(
-          response.data.documents || []
-        );
-
-      } catch (error) {
-
-        console.error(error);
-      }
-    };
   /* =========================
      HANDLE INPUT CHANGE
   ========================= */
@@ -786,6 +1071,18 @@ function Employees() {
         return next;
       });
     } catch (err) {
+      // Yup validateAt unknown path par hard throw karta hai
+      // ("The schema does not contain the path: X"). Ye validation error
+      // nahi hai, isliye field par dikhane ke bajaye ignore karo.
+      if (err?.message?.includes('does not contain the path')) {
+        setErrors((prev) => {
+          if (!prev[name]) return prev;
+          const next = { ...prev };
+          delete next[name];
+          return next;
+        });
+        return;
+      }
       setErrors((prev) => ({ ...prev, [name]: err.message }));
     }
   };
@@ -843,14 +1140,39 @@ function Employees() {
     );
   };
 
+  // Contact (email/phone) copy — inline tick feedback, no alert popup
+  const handleCopyContact = async (empId, field, value) => {
+    if (!value) return;
+    const key = `${empId}-${field}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = value;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedKey(key);
+      setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 1500);
+    } catch (error) {
+      console.error("Copy failed", error);
+    }
+  };
+
   /* =========================
      ADD EMPLOYEE
   ========================= */
 
-  const showLoginCredentials = (employeeName, loginInfo) => {
+  const showLoginCredentials = (employeeName, loginInfo, employeeId) => {
     if (!loginInfo) return;
 
     setLoginCredentials({
+      employeeId: employeeId || loginInfo.employeeId || null,
       employeeName,
       email: loginInfo.email,
       role: loginInfo.role,
@@ -859,6 +1181,34 @@ function Employees() {
       linkedExisting: Boolean(loginInfo.linkedExisting),
       phone: loginInfo.phone,
     });
+  };
+
+  // Resend credentials — no modal. Email hai to mail chala jayega,
+  // sirf phone hai to direct Excel download ho jayega.
+  const handleResendCredentials = async (employeeId, employeeName) => {
+    if (!employeeId || sendingCreds) return;
+    setSendingCreds(true);
+    try {
+      const res = await resendCredentialsMutation.mutateAsync(employeeId);
+      const data = res.data || {};
+      if (!data.emailSent && data.loginInfo?.temporaryPassword) {
+        downloadCredentialExcel({
+          employeeName: employeeName || data.loginInfo.name,
+          email: data.loginInfo.email,
+          phone: data.loginInfo.phone,
+          role: data.loginInfo.role,
+          organizationCode: data.loginInfo.organizationCode,
+          temporaryPassword: data.loginInfo.temporaryPassword,
+        });
+      }
+      alert(data.message || "Credentials sent.");
+    } catch (error) {
+      alert(
+        error.response?.data?.message || "Failed to send credentials"
+      );
+    } finally {
+      setSendingCreds(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -892,17 +1242,24 @@ function Employees() {
           setErrors({
             salaryStructure: structureErrors.join("; "),
           });
+          alert(structureErrors.join("; "));
+          setSubmitting(false)
           return;
         }
-
         // Manual component entry must add up to CTC / daily wage when no template used
         if (!salaryDraft.structureId) {
-          const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || (Number(salaryDraft.dailyWage) > 0);
-          const matchError = isDailyDraft
-            ? validateComponentsMatchDailyWage(salaryDraft)
-            : validateComponentsMatchCtc(salaryDraft);
+          const draftWt = String(salaryDraft.wageType || "").toUpperCase();
+          const matchError =
+            draftWt === "CALENDAR_DAILY"
+              ? validateComponentsMatchCalendarDaily(salaryDraft)
+              : draftWt === "DAILY" || (Number(salaryDraft.dailyWage) > 0 && draftWt !== "MONTHLY")
+                ? validateComponentsMatchDailyWage(salaryDraft)
+                : validateComponentsMatchCtc(salaryDraft);
           if (matchError) {
             setErrors({ salaryStructure: matchError });
+            alert(matchError);
+            setErrors({});
+            setSubmitting(false)
             return;
           }
         }
@@ -910,22 +1267,38 @@ function Employees() {
 
       setErrors({});
       setSubmitting(true);
-      const res = await addEmployee(payload);
+      const res = await addMutation.mutateAsync(payload);
       const data = res.data;
       const newEmployeeId = data.employee?._id;
 
       if (newEmployeeId && hasSalaryData(salaryDraft)) {
         try {
-          const isDailyDraft = String(salaryDraft.wageType || "").toUpperCase() === "DAILY" || Number(salaryDraft.dailyWage) > 0;
-          await saveEmployeeStructure(newEmployeeId, isDailyDraft ? {
-            wageType: "DAILY",
-            dailyWage: Number(salaryDraft.dailyWage) || 0,
-            components: salaryDraft.components,
-          } : {
-            wageType: "MONTHLY",
-            ctcAnnual: Number(salaryDraft.ctcAnnual) || 0,
-            components: salaryDraft.components,
-          });
+          const draftWt = String(salaryDraft.wageType || "").toUpperCase();
+          let structurePayload;
+          if (draftWt === "CALENDAR_DAILY") {
+            structurePayload = {
+              wageType: "CALENDAR_DAILY",
+              dailyWage: Number(salaryDraft.dailyWage) || 0,
+              monthlyGross: salaryDraft.components
+                ?.filter((c) => c.category === "Earning")
+                .reduce((s, c) => s + (Number(c.monthlyAmount) || 0), 0),
+              structureId: salaryDraft.structureId,
+              components: salaryDraft.components,
+            };
+          } else if (draftWt === "DAILY" || (Number(salaryDraft.dailyWage) > 0 && draftWt !== "MONTHLY")) {
+            structurePayload = {
+              wageType: "DAILY",
+              dailyWage: Number(salaryDraft.dailyWage) || 0,
+              components: salaryDraft.components,
+            };
+          } else {
+            structurePayload = {
+              wageType: "MONTHLY",
+              ctcAnnual: Number(salaryDraft.ctcAnnual) || 0,
+              components: salaryDraft.components,
+            };
+          }
+          await saveEmployeeStructure(newEmployeeId, structurePayload);
         } catch (structureError) {
           alert(
             structureError.response?.data?.message ||
@@ -935,7 +1308,7 @@ function Employees() {
       }
 
       if (data.loginInfo) {
-        showLoginCredentials(form.name, data.loginInfo);
+        showLoginCredentials(form.name, data.loginInfo, newEmployeeId);
       } else if (form.createAppLogin) {
         alert(
           data.message ||
@@ -948,12 +1321,35 @@ function Employees() {
       setForm(initialForm);
       setSalaryDraft(initialSalaryDraft);
       setShowAddModal(false);
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
-      setErrors({});
       console.error("Server/Network Error:", error);
 
-      const serverMessage = error.response?.data?.message || "Failed to add employee";
+      // Bug 253/267: surface duplicate email/phone/code on the field itself
+      // instead of failing silently behind a generic alert.
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Failed to add employee";
+      const field = serverData.field;
+      setSubmitting(false)
+      if (field) {
+        const mapped = { [field]: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/email/i.test(serverMessage)) {
+        const mapped = { email: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/phone/i.test(serverMessage)) {
+        const mapped = { phone: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else if (/code/i.test(serverMessage)) {
+        const mapped = { employeeCode: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else {
+        setErrors({});
+      }
       alert(serverMessage);
     } finally {
       setSubmitting(false);
@@ -1065,7 +1461,7 @@ function Employees() {
     try {
       setLoading(true);
 
-      const res = await bulkUploadEmployees(uploadFile);
+      const res = await bulkUploadMutation.mutateAsync(uploadFile);
 
       const errorList = res.data.errors || [];
 
@@ -1085,9 +1481,9 @@ function Employees() {
       setUploadFile(null);
 
       // Refresh table
-      fetchEmployees();
+      refetchEmployees();
 
-      // ❌ modal close mat karo
+      // ❌ do not close the modal
       // setShowUploadModal(false);
 
     } catch (error) {
@@ -1097,6 +1493,48 @@ function Employees() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  /* =========================
+     DOWNLOAD ALL (backend Excel, complete details + current filters)
+  ========================= */
+  const handleDownloadAll = async () => {
+    if (downloadingAll) return;
+    setDownloadingAll(true);
+    try {
+      const params = {
+        ...(search?.trim() ? { search: search.trim() } : {}),
+        ...(departmentFilter ? { departmentId: departmentFilter } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(roleFilter ? { role: roleFilter } : {}),
+        isConsultancy: directoryType === "consultancy" ? "true" : "false",
+      };
+      const res = await exportEmployees(params);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const contentDisposition = res.headers?.["content-disposition"] || "";
+      const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
+      const fileName =
+        fileNameMatch?.[1] ||
+        `${directoryType === "consultancy" ? "Consultants" : "Employees"}-Export-${new Date().toISOString().split("T")[0]}.xlsx`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      const serverMessage =
+        error.response?.data instanceof Blob
+          ? "No employees found for the selected filters"
+          : error.response?.data?.message || "Failed to download employees Excel";
+      alert(serverMessage);
+    } finally {
+      setDownloadingAll(false);
     }
   };
 
@@ -1128,6 +1566,10 @@ function Employees() {
       emp.relievingDate
         ? emp.relievingDate.split("T")[0]
         : "",
+    employmentStatus: emp.employmentStatus || "probation",
+    probationStartDate: emp.probationStartDate ? emp.probationStartDate.split("T")[0] : "",
+    probationEndDate: emp.probationEndDate ? emp.probationEndDate.split("T")[0] : "",
+    confirmationDate: emp.confirmationDate ? emp.confirmationDate.split("T")[0] : "",
     basicSalary: emp.basicSalary ?? "",
     hra: emp.hra ?? "",
     conveyanceAllowance: emp.conveyanceAllowance ?? "",
@@ -1161,6 +1603,9 @@ function Employees() {
     esicNumber: emp.esicNumber || "",
     userRole: emp.linkedUser?.role || emp.userRole || "Employee",
     payType: emp.payType || "MONTHLY",
+    isConsultancy: Boolean(emp.isConsultancy),
+    monthlyConsultancyPay: emp.monthlyConsultancyPay ?? "",
+    tdsPercent: emp.tdsPercent ?? "",
     allowedModules: defaultSelectedModules(
       emp.linkedUser?.role || emp.userRole || "Employee",
       emp.linkedUser?.allowedModules
@@ -1188,8 +1633,22 @@ function Employees() {
         return;
       }
       const payload = buildEmployeePayload(selectedEmployee, {
+        // Only create a new login when the user explicitly enabled it.
+        // Normal edits of employees that already had login used to return loginInfo
+        // again, which reopened the "App Login Details" modal every time.
         createAppLogin: enableLoginOnUpdate,
       });
+
+      // When login is already enabled, send role/modules/password explicitly for sync
+      // so the backend updates without triggering the loginInfo modal.
+      if (selectedEmployee.hasAppLogin && !enableLoginOnUpdate) {
+        if (selectedEmployee.userRole) {
+          payload.userRole = selectedEmployee.userRole;
+        }
+        if (selectedEmployee.userPassword?.trim()) {
+          payload.userPassword = selectedEmployee.userPassword.trim();
+        }
+      }
 
       const formErrors = await collectEmployeeFormErrors(payload);
       if (Object.keys(formErrors).length) {
@@ -1209,10 +1668,10 @@ function Employees() {
       setErrors({});
       setSubmitting(true);
 
-      const res = await updateEmployee(
-        selectedEmployee._id,
-        payload
-      );
+      const res = await updateMutation.mutateAsync({
+        id: selectedEmployee._id,
+        data: payload,
+      });
 
       if (salaryEditorRef.current?.hasUnsavedChanges) {
         try {
@@ -1225,8 +1684,14 @@ function Employees() {
         }
       }
 
-      if (res.data?.loginInfo) {
-        showLoginCredentials(selectedEmployee.name, res.data.loginInfo);
+      // Show the modal only when a new login was created or the password was reset.
+      // Plain edits don't return loginInfo from the backend / created+password stays empty.
+      if (res.data?.loginInfo?.created || res.data?.loginInfo?.temporaryPassword) {
+        showLoginCredentials(
+          selectedEmployee.name,
+          res.data.loginInfo,
+          selectedEmployee._id
+        );
       } else if (enableLoginOnUpdate) {
         alert(
           res.data?.message ||
@@ -1240,15 +1705,94 @@ function Employees() {
       setIsEditing(false);
       setEnableLoginOnUpdate(false);
 
-      fetchEmployees();
+      refetchEmployees();
     } catch (error) {
-      setErrors({});
       console.error("Server/Network Error:", error);
 
-      const serverMessage = error.response?.data?.message || "Failed to update employee";
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Failed to update employee";
+      const field = serverData.field;
+      if (field) {
+        const mapped = { [field]: serverMessage };
+        setErrors(mapped);
+        scrollToFirstError(mapped);
+      } else {
+        setErrors({});
+      }
       alert(serverMessage);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  /* =========================
+     CONVERT CONSULTANCY → EMPLOYEE (via info modal + dedicated API)
+  ========================= */
+
+  const handleConfirmConvertToEmployee = async () => {
+    if (!convertTarget) return;
+    setConverting(true);
+    try {
+      const res = await convertToEmployeeMutation.mutateAsync(convertTarget._id);
+      alert(res.data?.message || `${convertTarget.name} is now an Employee.`);
+      setConvertTarget(null);
+      refetchEmployees();
+    } catch (error) {
+      alert(
+        error.response?.data?.message ||
+        "Conversion failed"
+      );
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  const openConvertBackModal = (emp) => {
+    setOpenDropdownId(null);
+    setConvertBackTarget(emp);
+    setConvertBackPay(emp.monthlyConsultancyPay || "");
+    setConvertBackTds(emp.tdsPercent ?? "");
+    setConvertBackErrors({});
+  };
+
+  const handleConfirmConvertToConsultant = async () => {
+    if (!convertBackTarget || converting) return;
+    // Inline field-level validation (same rules as Add/Edit Consultant).
+    const fieldErrors = {};
+    const pay = Number(convertBackPay);
+    if (convertBackPay === "" || !Number.isFinite(pay) || pay <= 0) {
+      fieldErrors.convertBackPay = "Monthly Consultancy Pay must be greater than ₹0.";
+    }
+    const tds = convertBackTds === "" ? 0 : Number(convertBackTds);
+    if (convertBackTds !== "" && (!Number.isFinite(tds) || tds < 0 || tds > 100)) {
+      fieldErrors.convertBackTds = "TDS must be between 0% and 100%.";
+    }
+    setConvertBackErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length) return;
+    setConverting(true);
+    try {
+      const res = await convertToConsultant(convertBackTarget._id, {
+        monthlyConsultancyPay: pay,
+        tdsPercent: tds,
+      });
+      alert(res.data?.message || `${convertBackTarget.name} is now a Consultant.`);
+      setConvertBackTarget(null);
+      setConvertBackPay("");
+      setConvertBackTds("");
+      setConvertBackErrors({});
+      refetchEmployees();
+    } catch (error) {
+      const serverData = error.response?.data || {};
+      const serverMessage = serverData.message || "Conversion failed";
+      // Map backend field errors onto the matching input.
+      if (serverData.field === "monthlyConsultancyPay") {
+        setConvertBackErrors({ convertBackPay: serverMessage });
+      } else if (serverData.field === "tdsPercent") {
+        setConvertBackErrors({ convertBackTds: serverMessage });
+      }
+      alert(serverMessage);
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -1259,26 +1803,52 @@ function Employees() {
   const handleDelete = async (id) => {
     const confirmDelete =
       window.confirm(
-        "Are you sure you want to delete this employee?"
+        "Are you sure you want to delete this employee? This is a soft delete — their details will be archived and hidden from default views."
       );
 
     if (!confirmDelete) return;
 
     try {
-      await deleteEmployee(id);
+      await deleteMutation.mutateAsync(id);
 
-      alert("Employee deleted successfully");
+      alert("Employee soft deleted successfully. Their details are archived.");
 
       if (employees.length <= 1 && page > 1) {
         setPage(page - 1);
       } else {
-        fetchEmployees();
+        refetchEmployees();
       }
     } catch (error) {
       alert(
         error.response?.data
           ?.message ||
         "Delete failed"
+      );
+    }
+  };
+
+  /* =====================================
+     Toggle App Login Access (Enable / Disable)
+  ======================================== */
+
+  const handleToggleAppLogin = async (emp) => {
+    const enable = !emp.hasLoginEnabled;
+    const confirmToggle = window.confirm(
+      enable
+        ? `Enable app login for ${emp.name}? They will be able to log in again.`
+        : `Disable app login for ${emp.name}? They will not be able to log in until re-enabled.`
+    );
+
+    if (!confirmToggle) return;
+
+    try {
+      await toggleAppLoginMutation.mutateAsync({ id: emp._id, enable });
+      alert(enable ? "App login enabled." : "App login disabled.");
+      refetchEmployees();
+    } catch (error) {
+      alert(
+        error.response?.data?.message ||
+        "Failed to update app login access"
       );
     }
   };
@@ -1394,26 +1964,93 @@ function Employees() {
     };
 
   /* =========================
-       GENERATE TERMINATION LETTER
+       GENERATE CONSULTANCY AGREEMENT
      ========================= */
 
-  const handleGenerateTermination =
+  const handleGenerateConsultancy =
     async () => {
       if (
-        !terminationData.employeeName ||
-        !terminationData.designation ||
-        !terminationData.terminationDate ||
-        !terminationData.reason?.trim()
+        !consultancyData.consultantName ||
+        !consultancyData.designation ||
+        !consultancyData.effectiveDate
       ) {
         alert(
-          "Please fill all mandatory fields (employee, designation, termination date, and reason)"
+          "Please fill all mandatory fields (consultant name, designation, and effective date)"
         );
         return;
       }
 
       try {
         setLoading(true);
-        await generateTerminationLetter({
+        await generateConsultancyAgreement({
+          employeeId: consultancyData.employeeId,
+          consultantName: consultancyData.consultantName,
+          employeeCode: consultancyData.employeeCode,
+          designation: consultancyData.designation,
+          department: consultancyData.department,
+          effectiveDate: consultancyData.effectiveDate,
+          tenure: consultancyData.tenure,
+          scopeOfWork: consultancyData.scopeOfWork,
+          consultancyFees: consultancyData.consultancyFees,
+          paymentTerms: consultancyData.paymentTerms,
+          noticePeriod: consultancyData.noticePeriod,
+        });
+
+        alert("Consultancy Agreement Generated Successfully");
+
+        setShowConsultancyModal(false);
+      } catch (error) {
+        alert(
+          error.response?.data?.message ||
+          "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  /* =========================
+       GENERATE TERMINATION LETTER
+     ========================= */
+
+  /* =========================
+       TERMINATION FLOW
+  ========================= */
+  const formatDayAfterDate = (dateStr) => {
+    if (!dateStr) return "Not scheduled";
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + 1);
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const handleGenerateTermination =
+    async () => {
+      const missingFields = [];
+      if (!terminationData.employeeId) missingFields.push("Employee");
+      if (!terminationData.designation) missingFields.push("Designation");
+      if (!terminationData.terminationDate) missingFields.push("Termination date");
+      if (!terminationData.reason?.trim()) missingFields.push("Reason");
+
+      if (missingFields.length > 0) {
+        alert(`Please fill mandatory fields: ${missingFields.join(", ")}`);
+        return;
+      }
+
+      const confirmGenerate = window.confirm(
+        `Are you sure you want to terminate ${terminationData.employeeName} effective ${terminationData.terminationDate}? The Termination Letter will be generated immediately, and the exit process (experience/relieving letters + F&F) will follow automatically.`
+      );
+
+      if (!confirmGenerate) return;
+
+      try {
+        setLoading(true);
+
+        await createTermination({
           employeeId: terminationData.employeeId,
           employeeName: terminationData.employeeName,
           employeeCode: terminationData.employeeCode,
@@ -1426,19 +2063,84 @@ function Employees() {
           client: terminationData.client,
           settlementDate: terminationData.settlementDate,
           noticeClause: terminationData.noticeClause,
+          isExperienceLetterIssued: terminationData.isExperienceLetterIssued,
+          isRelievingLetterIssued: terminationData.isRelievingLetterIssued,
+          deleteEmployeeAccount: terminationData.deleteEmployeeAccount,
+          hrMail: terminationData.hrMail,
+          generateAndSend: true,
         });
 
         alert(
-          "Termination Letter Generated Successfully"
+          "Termination recorded and letter generated successfully. Exit process will follow automatically."
         );
 
         setShowTerminationModal(false);
+        refetchEmployees();
 
       } catch (error) {
         alert(
           error.response?.data
             ?.message ||
           "Generation failed"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  const handleSaveTermination =
+    async () => {
+      const missingFields = [];
+      if (!terminationData.employeeId) missingFields.push("Employee");
+      if (!terminationData.terminationDate) missingFields.push("Termination date");
+      if (!terminationData.reason?.trim()) missingFields.push("Reason");
+
+      if (missingFields.length > 0) {
+        alert(`Please fill mandatory fields: ${missingFields.join(", ")}`);
+        return;
+      }
+
+      const confirmSave = window.confirm(
+        `Save termination details for ${terminationData.employeeName} without generating the letter yet? You can generate it later.`
+      );
+
+      if (!confirmSave) return;
+
+      try {
+        setLoading(true);
+
+        await createTermination({
+          employeeId: terminationData.employeeId,
+          employeeName: terminationData.employeeName,
+          employeeCode: terminationData.employeeCode,
+          designation: terminationData.designation,
+          department: terminationData.department,
+          terminationDate: terminationData.terminationDate,
+          reason: terminationData.reason,
+          noticePeriod: terminationData.noticePeriod,
+          workLocation: terminationData.workLocation,
+          client: terminationData.client,
+          settlementDate: terminationData.settlementDate,
+          noticeClause: terminationData.noticeClause,
+          isExperienceLetterIssued: terminationData.isExperienceLetterIssued,
+          isRelievingLetterIssued: terminationData.isRelievingLetterIssued,
+          deleteEmployeeAccount: terminationData.deleteEmployeeAccount,
+          hrMail: terminationData.hrMail,
+          generateAndSend: false,
+        });
+
+        alert(
+          "Termination details saved. Click Generate & Send when ready to start the exit process."
+        );
+
+        setShowTerminationModal(false);
+        refetchEmployees();
+
+      } catch (error) {
+        alert(
+          error.response?.data
+            ?.message ||
+          "Failed to save termination"
         );
       } finally {
         setLoading(false);
@@ -1490,11 +2192,7 @@ function Employees() {
           documentType
         );
 
-        await uploadEmployeeDocument(
-          formData
-        );
-
-        loadEmployeeDocuments(selectedEmployeeForDocs._id);
+        await uploadDocMutation.mutateAsync(formData);
 
         alert(
           "Document uploaded successfully"
@@ -1514,9 +2212,24 @@ function Employees() {
     <MainLayout>
       <div className="employee-page">
 
-        <p className="employee-page__count">
-          Total employees: <strong>{pagination?.total || 0}</strong>
-        </p>
+        <div className="employee-directory-tabs" role="tablist" aria-label="People directory">
+          {canViewEmployees ? (
+            <button type="button" className={`employee-directory-tab ${directoryType === "employee" ? "active" : ""}`} onClick={() => switchDirectoryType("employee")}>
+              Employees
+              {directoryType === "employee" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
+            </button>
+          ) : null}
+          {canViewConsultancy ? (
+            <button type="button" className={`employee-directory-tab ${directoryType === "consultancy" ? "active" : ""}`} onClick={() => switchDirectoryType("consultancy")}>
+              Consultancy
+              {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
+            </button>
+          ) : null}
+        </div>
+
+        {/* <p className="employee-page__count">
+          Total {directoryType === "consultancy" ? "consultants" : "employees"}: <strong>{pagination?.total || 0}</strong>
+        </p> */}
 
         <div className="employee-toolbar">
 
@@ -1557,31 +2270,97 @@ function Employees() {
               </select>
             </div>
 
-            <Button
-              variant="secondary"
-              icon={<Upload size={18} />}
-              onClick={() => {
-                setShowUploadModal(true)
-                setUploadMessage("")
-                setUploadFile(null)
-              }}
-            >
-              Bulk Upload
-            </Button>
+            <div className="employee-filter">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                  setSearchParams(
+                    (prev) => {
+                      const next = new URLSearchParams(prev);
+                      if (e.target.value) next.set("status", e.target.value);
+                      else next.delete("status");
+                      return next;
+                    },
+                    { replace: true }
+                  );
+                }}
+              >
+                <option value="">All Employees</option>
+                <option value="active">Active Employees</option>
+                <option value="probation">Probation Employees</option>
+                <option value="expiring-soon">Probation Expiring Soon (30 days)</option>
+                <option value="full-time">Full-time Employees</option>
+                <option value="inactive">Inactive Employees</option>
+                <option value="exited">Exited Employees</option>
+                <option value="deleted">Deleted Employees</option>
+              </select>
+            </div>
 
-            <Button
-              icon={<Plus size={18} />}
-              onClick={() => {
-                setForm({ ...initialForm });
-                setSalaryDraft(initialSalaryDraft);
-                setErrors({});
-                setShowAddModal(true);
-              }}
-            >
-              Add Employee
-            </Button>
+            <div className="employee-filter">
+              <select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Filter by role"
+              >
+                <option value="">All Roles</option>
+                {roleFilterOptions.map((roleName) => (
+                  <option key={roleName} value={roleName}>
+                    {roleName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {directoryType === "employee" && canManage && (
+              <Button
+                variant="secondary"
+                icon={<Upload size={18} />}
+                onClick={() => {
+                  setShowUploadModal(true)
+                  setUploadMessage("")
+                  setUploadFile(null)
+                }}
+              >
+                Bulk Upload
+              </Button>
+            )}
+
+            {(directoryType === "employee" ? canViewEmployees || canManage : canViewConsultancy || canManageConsultancy) && (
+              <Button
+                variant="secondary"
+                icon={<Download size={16} />}
+                onClick={handleDownloadAll}
+                disabled={downloadingAll}
+                title={`Download all ${directoryType === "consultancy" ? "consultants" : "employees"} as Excel`}
+                aria-label={`Download all ${directoryType === "consultancy" ? "consultants" : "employees"} as Excel`}
+                className="emp-export-btn"
+              >
+                {downloadingAll ? "..." : "Export"}
+              </Button>
+            )}
+
+            {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+              <Button
+                icon={<Plus size={18} />}
+                onClick={() => {
+                  setForm({ ...initialForm, isConsultancy: directoryType === "consultancy" });
+                  setSalaryDraft(initialSalaryDraft);
+                  setErrors({});
+                  setShowAddModal(true);
+                }}
+              >
+                Add {directoryType === "consultancy" ? "Consultant" : "Employee"}
+              </Button>
+            )}
           </div>
         </div>
+
+        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} departmentFilter={departmentFilter} employeeStatusFilter={statusFilter} canManage={canManageConsultancy} /> : null}
 
         <div className="employee-table-card">
           <div className="employee-table-scroll">
@@ -1590,7 +2369,7 @@ function Employees() {
                 <tr>
                   <th>Code</th>
                   <th>Name</th>
-                  <th>Phone</th>
+                  <th>Contact</th>
                   <th>Designation</th>
                   <th>{name} name</th>
                   <th>Reporting Manager</th>
@@ -1610,7 +2389,56 @@ function Employees() {
                       <td title={emp.name}>{emp.name}</td>
 
                       <td>
-                        {emp.phone || "-"}
+                        <div className="emp-contact-cell">
+                          <div
+                            className="emp-contact-line"
+                            title={emp.email || ""}
+                          >
+                            <span className="emp-contact-text">
+                              {emp.email || "-"}
+                            </span>
+                            {emp.email ? (
+                              <button
+                                type="button"
+                                className="emp-copy-btn"
+                                title="Copy email"
+                                onClick={() =>
+                                  handleCopyContact(emp._id, "email", emp.email)
+                                }
+                              >
+                                {copiedKey === `${emp._id}-email` ? (
+                                  <Check size={12} />
+                                ) : (
+                                  <Copy size={12} />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                          <div
+                            className="emp-contact-line emp-contact-line--phone"
+                            title={emp.phone || ""}
+                          >
+                            <span className="emp-contact-text">
+                              {emp.phone || "-"}
+                            </span>
+                            {emp.phone ? (
+                              <button
+                                type="button"
+                                className="emp-copy-btn"
+                                title="Copy phone"
+                                onClick={() =>
+                                  handleCopyContact(emp._id, "phone", emp.phone)
+                                }
+                              >
+                                {copiedKey === `${emp._id}-phone` ? (
+                                  <Check size={12} />
+                                ) : (
+                                  <Copy size={12} />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
                       </td>
 
                       <td title={emp.designation}>
@@ -1618,37 +2446,100 @@ function Employees() {
                       </td>
 
                       <td title={emp.department}>
-                        {emp.department || "-"}
+                        <span className="emp-truncate emp-truncate--dept">
+                          {emp.department || "-"}
+                        </span>
                       </td>
 
                       <td title={emp.managerId?.name}>
-                        {emp.managerId?.name || "-"}
+                        <span className="emp-truncate emp-truncate--manager">
+                          {emp.managerId?.name || "-"}
+                        </span>
                       </td>
 
                       <td title={emp.stateName}>
-                        {emp.stateName || "-"}
-                      </td>
-
-                      <td>
-                        <span
-                          className={`status-badge ${emp.hasAppLogin ? "active" : "inactive"
-                            }`}
-                        >
-                          {emp.hasAppLogin ? "Login enabled" : "No login"}
+                        <span className="emp-truncate emp-truncate--state">
+                          {emp.stateName || "-"}
                         </span>
                       </td>
 
                       <td>
                         <span
-                          className={`status-badge ${emp.isActive
-                            ? "active"
-                            : "inactive"
+                          className={`login-chip ${emp.hasAppLogin
+                            ? emp.hasLoginEnabled
+                              ? "login-chip--on"
+                              : "login-chip--off"
+                            : "login-chip--none"
                             }`}
+                          title={
+                            emp.hasAppLogin
+                              ? emp.hasLoginEnabled
+                                ? "App login enabled"
+                                : "App login disabled"
+                              : "No app login"
+                          }
                         >
-                          {emp.isActive
-                            ? "Active"
-                            : "Inactive"}
+                          {emp.hasAppLogin
+                            ? emp.hasLoginEnabled
+                              ? "Enabled"
+                              : "Disabled"
+                            : "No login"}
                         </span>
+                      </td>
+
+                      <td>
+                        <div className="emp-status-cell">
+                          <span
+                            className={`status-badge ${emp.isDeleted
+                              ? "deleted"
+                              : emp.isExited
+                                ? "exited"
+                                : emp.isActive
+                                  ? "active"
+                                  : "inactive"
+                              }`}
+                          >
+                            {emp.isDeleted
+                              ? "Deleted"
+                              : emp.isExited
+                                ? "Exited"
+                                : emp.isActive
+                                  ? "Active"
+                                  : "Inactive"}
+                          </span>
+                          {!emp.isDeleted && !emp.isExited && !emp.isConsultancy ? (
+                            emp.employmentStatus === "probation" ? (
+                              <>
+                                <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
+                                  Probation
+                                  <button
+                                    type="button"
+                                    className="emp-info-btn"
+                                    title="View probation history"
+                                    aria-label={`View probation history of ${emp.name}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openProbationHistory(emp);
+                                    }}
+                                  >
+                                    <Info size={12} />
+                                  </button>
+                                </span>
+                                {emp.probationEndDate ? (
+                                  <span className="emp-probation-date" title={`Probation ends ${new Date(emp.probationEndDate).toLocaleDateString()}`}>
+                                    Ends {new Date(emp.probationEndDate).toLocaleDateString()}
+                                  </span>
+                                ) : (
+                                  <span className="emp-probation-date emp-probation-date--none">End date —</span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="status-badge full-time" title="Confirmed employee">
+                                Full-time
+                              </span>
+                            )
+                          ) : null}
+                        </div>
                       </td>
 
                       <td>
@@ -1657,6 +2548,9 @@ function Employees() {
                             className="emp-grid-btn dropdown-toggle"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (openDropdownId !== emp._id) {
+                                setExpandedMenuSection("general");
+                              }
                               setOpenDropdownId(
                                 openDropdownId === emp._id ? null : emp._id
                               );
@@ -1667,126 +2561,263 @@ function Employees() {
 
                           {openDropdownId === emp._id && (
                             <div className="action-dropdown-menu">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleView(emp);
-                                }}
-                              >
-                                <Eye size={16} /> View Profile
-                              </button>
+                              {renderMenuSectionToggle("general", "General")}
+                              {expandedMenuSection === "general" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleView(emp);
+                                    }}
+                                  >
+                                    <Eye size={16} /> View Profile
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleEdit(emp);
-                                }}
-                              >
-                                <Pencil size={16} /> Edit Details
-                              </button>
+                                  {(directoryType === "employee" ? canManage : canManageConsultancy) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenDropdownId(null);
+                                        handleEdit(emp);
+                                      }}
+                                    >
+                                      <Pencil size={16} /> Edit Details
+                                    </button>
+                                  )}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setLetterEmployeeId(emp._id);
-                                  setLetterData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    designation: emp.designation || "",
-                                    joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                                    annualCTC: "",
-                                    monthlySalary: "",
-                                    workLocation: emp.location || "Gurgaon",
-                                    salaryComponents: [],
-                                  });
-                                  setShowLetterModal(true);
-                                }}
-                              >
-                                <FileText size={16} /> Appointment Letter
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      setSelectedEmployeeForDocs(emp);
+                                      setShowDocumentsModal(true);
+                                    }}
+                                  >
+                                    <FolderOpen size={16} /> Documents
+                                  </button>
+                                </>
+                              )}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setWarningData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    employeeCode: emp.employeeCode || "",
-                                    designation: emp.designation || "",
-                                    department: emp.department || "",
-                                    incidentDate: new Date().toISOString().split("T")[0],
-                                    reason: "",
-                                    severity: "First",
-                                    actionTaken: "",
-                                    responsePeriod: "5",
-                                  });
-                                  setShowWarningModal(true);
-                                }}
-                              >
-                                <TriangleAlert size={16} /> Warning Letter
-                              </button>
+                              {directoryType === "employee" && canManageProbation(user?.role) && !emp.isConsultancy && emp.employmentStatus === "probation" && !emp.isDeleted && !emp.isExited ? (
+                                <>
+                                  {renderMenuSectionToggle("probation", "Probation")}
+                                  {expandedMenuSection === "probation" && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenDropdownId(null);
+                                          handleConfirmProbation(emp);
+                                        }}
+                                      >
+                                        <UserCheck size={16} /> Mark Full-time
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenDropdownId(null);
+                                          setExtendEmp(emp);
+                                          setExtendMonths(1);
+                                          setExtendRemark("");
+                                          setExtendErrors({});
+                                        }}
+                                      >
+                                        <Clock size={16} /> Extend Probation
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : null}
 
-                              <button
-                                type="button"
-                                disabled={!emp.isActive}
-                                className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                onClick={() => {
-                                  if (!emp.isActive) return;
-                                  setOpenDropdownId(null);
-                                  setTerminationData({
-                                    employeeId: emp._id,
-                                    employeeName: emp.name || "",
-                                    employeeCode: emp.employeeCode || "",
-                                    designation: emp.designation || "",
-                                    department: emp.department || "",
-                                    terminationDate: new Date().toISOString().split("T")[0],
-                                    reason: "",
-                                    noticePeriod: "",
-                                    workLocation: emp.location || "",
-                                    client: emp.client || "",
-                                    settlementDate: new Date().toISOString().split("T")[0],
-                                    noticeClause: "7(B)",
-                                  });
-                                  setShowTerminationModal(true);
-                                }}
-                              >
-                                <OctagonX size={16} /> Termination Letter
-                              </button>
+                              {(canLetters || (directoryType === "consultancy" && canManageConsultancy)) && renderMenuSectionToggle("letters", "Letters")}
 
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  setOpenDropdownId(null);
-                                  setSelectedEmployeeForDocs(emp);
-                                  await loadEmployeeDocuments(emp._id);
-                                  setShowDocumentsModal(true);
-                                }}
-                              >
-                                <FolderOpen size={16} /> Documents
-                              </button>
+                              {canLetters && !emp.isConsultancy && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setLetterEmployeeId(emp._id);
+                                    setLetterData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      designation: emp.designation || "",
+                                      joiningDate: emp.dateOfJoining?.split("T")[0] || "",
+                                      annualCTC: "",
+                                      monthlySalary: "",
+                                      workLocation: emp.location || "Gurgaon",
+                                      salaryComponents: [],
+                                    });
+                                    setShowLetterModal(true);
+                                  }}
+                                >
+                                  <FileText size={16} /> Appointment Letter
+                                </button>
+                              )}
 
-                              <div className="dropdown-divider"></div>
+                              {(canLetters || canManageConsultancy) && emp.isConsultancy && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setConsultancyData({
+                                      employeeId: emp._id,
+                                      consultantName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      effectiveDate: emp.dateOfJoining?.split("T")[0] || new Date().toISOString().split("T")[0],
+                                      tenure: "",
+                                      scopeOfWork: "",
+                                      consultancyFees: emp.monthlyConsultancyPay ? `₹${Number(emp.monthlyConsultancyPay).toLocaleString("en-IN")} per month` : "",
+                                      paymentTerms: "",
+                                      noticePeriod: "30 days",
+                                    });
+                                    setShowConsultancyModal(true);
+                                  }}
+                                >
+                                  <FileText size={16} /> Consultancy Agreement
+                                </button>
+                              )}
 
-                              <button
-                                type="button"
-                                className="dropdown-item-danger"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleDelete(emp._id);
-                                }}
-                              >
-                                <Trash2 size={16} /> Delete Employee
-                              </button>
+                              {canLetters && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setWarningData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      incidentDate: new Date().toISOString().split("T")[0],
+                                      reason: "",
+                                      severity: "First",
+                                      actionTaken: "",
+                                      responsePeriod: "5",
+                                    });
+                                    setShowWarningModal(true);
+                                  }}
+                                >
+                                  <TriangleAlert size={16} /> Warning Letter
+                                </button>
+                              )}
+
+                              {canLetters && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  disabled={!emp.isActive}
+                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
+                                  onClick={() => {
+                                    if (!emp.isActive) return;
+                                    setOpenDropdownId(null);
+                                    setTerminationData({
+                                      employeeId: emp._id,
+                                      employeeName: emp.name || "",
+                                      employeeCode: emp.employeeCode || "",
+                                      designation: emp.designation || "",
+                                      department: emp.department || "",
+                                      terminationDate: new Date().toISOString().split("T")[0],
+                                      reason: "",
+                                      noticePeriod: "",
+                                      workLocation: emp.location || "",
+                                      client: emp.client || "",
+                                      settlementDate: new Date().toISOString().split("T")[0],
+                                      noticeClause: "7(B)",
+                                      isExperienceLetterIssued: false,
+                                      isRelievingLetterIssued: false,
+                                      deleteEmployeeAccount: false,
+                                      hrMail: "",
+                                    });
+                                    setShowTerminationModal(true);
+                                  }}
+                                >
+                                  <OctagonX size={16} /> Termination Letter
+                                </button>
+                              )}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && renderMenuSectionToggle("access", "Access")}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && emp.hasAppLogin && expandedMenuSection === "access" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleToggleAppLogin(emp);
+                                    }}
+                                  >
+                                    {emp.hasLoginEnabled ? (
+                                      <>
+                                        <Lock size={16} /> Disable App Login
+                                      </>
+                                    ) : (
+                                      <>
+                                        <LockOpen size={16} /> Enable App Login
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      handleResendCredentials(emp._id, emp.name);
+                                    }}
+                                  >
+                                    <Mail size={16} /> Send Credentials
+                                  </button>
+                                </>
+                              )}
+
+                              {directoryType === "consultancy" && canManageConsultancy && renderMenuSectionToggle("convert", "Convert")}
+
+                              {directoryType === "consultancy" && canManageConsultancy && expandedMenuSection === "convert" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    setConvertTarget(emp);
+                                  }}
+                                >
+                                  <UserCheck size={16} /> Make it Employee
+                                </button>
+                              )}
+
+                              {directoryType === "employee" && canManage && renderMenuSectionToggle("convert", "Convert")}
+
+                              {directoryType === "employee" && canManage && expandedMenuSection === "convert" && (
+                                <button
+                                  type="button"
+                                  onClick={() => openConvertBackModal(emp)}
+                                >
+                                  <UserCheck size={16} /> Make it Consultant
+                                </button>
+                              )}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && renderMenuSectionToggle("danger", "Danger", true)}
+
+                              {(directoryType === "employee" ? canManage : canManageConsultancy) && expandedMenuSection === "danger" && (
+                                <button
+                                  type="button"
+                                  className="dropdown-item-danger"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    handleDelete(emp._id);
+                                  }}
+                                >
+                                  <Trash2 size={16} /> Delete {directoryType === "consultancy" ? "Consultant" : "Employee"}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1796,7 +2827,7 @@ function Employees() {
                 ) : (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="10"
                       className="empty-row"
                     >
                       No employees found.
@@ -1826,7 +2857,7 @@ function Employees() {
         {/* ================= ADD EMPLOYEE MODAL ================= */}
         {showAddModal ? (
           <EmpModal
-            title="Add Employee"
+            title={`Add ${form.isConsultancy ? "Consultant" : "Employee"}`}
             onClose={() => {
               setShowAddModal(false);
               setSalaryDraft(initialSalaryDraft);
@@ -1851,7 +2882,7 @@ function Employees() {
                   form="add-employee-form"
                   disabled={hasFormErrors || submitting}
                 >
-                  {submitting ? "Creating..." : "Save Employee"}
+                  {submitting ? "Creating..." : form.isConsultancy ? "Save Consultant" : "Save Employee"}
                 </Button>
               </>
             }
@@ -1866,6 +2897,26 @@ function Employees() {
                 department={department}
                 errors={errors}
               />
+              {form.isConsultancy ? (
+                <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
+                  <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
+                    <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
+                    <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
+                  </FormField>
+                  <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
+                    <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
+                    <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
+                  </FormField>
+                  <div className="consultancy-net-summary">
+                    <span>Gross: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).gross.toLocaleString("en-IN")}</span>
+                    <span>TDS ({form.tdsPercent || 0}%): −₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).tds.toLocaleString("en-IN")}</span>
+                    <strong>Net Payable: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).net.toLocaleString("en-IN")}</strong>
+                  </div>
+                  {consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent) ? (
+                    <p className="emp-field-error" role="alert">{consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent)}</p>
+                  ) : null}
+                </FormSection>
+              ) : null}
               <FormSection title="App Access">
                 <AppLoginSection
                   enabled={form.createAppLogin}
@@ -1891,14 +2942,11 @@ function Employees() {
                   onPasswordChange={(e) =>
                     setForm({ ...form, userPassword: e.target.value })
                   }
-                  allowedModules={form.allowedModules}
-                  onModulesChange={(allowedModules) =>
-                    setForm({ ...form, allowedModules })
-                  }
+                  roles={availableRoles}
                   modulesIdPrefix="add-emp-mod"
                 />
               </FormSection>
-              <FormSection
+              {!form.isConsultancy ? <FormSection
                 title="Salary Structure"
                 description="Set earnings and deductions from your organization component library"
                 fullWidth
@@ -1913,7 +2961,7 @@ function Employees() {
                   onDraftChange={setSalaryDraft}
                   hideActions
                 />
-              </FormSection>
+              </FormSection> : null}
             </form>
           </EmpModal>
         ) : null}
@@ -1982,7 +3030,7 @@ function Employees() {
         {/* ================= VIEW / EDIT MODAL ================= */}
         {selectedEmployee ? (
           <EmpModal
-            title={isEditing ? "Edit Employee" : "Employee Details"}
+            title={isEditing ? `Edit ${selectedEmployee.isConsultancy ? "Consultant" : "Employee"}` : `${selectedEmployee.isConsultancy ? "Consultant" : "Employee"} Details`}
             onClose={() => setSelectedEmployee(null)}
             size="lg"
             footer={
@@ -2022,9 +3070,29 @@ function Employees() {
                     !!selectedEmployee?.departmentId &&
                     !!originalDepartmentId &&
                     String(selectedEmployee.departmentId) !==
-                      String(originalDepartmentId)
+                    String(originalDepartmentId)
                   }
                 />
+                {selectedEmployee.isConsultancy ? (
+                  <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
+                    <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
+                      <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
+                      <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
+                    </FormField>
+                    <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
+                      <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
+                      <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
+                    </FormField>
+                    <div className="consultancy-net-summary">
+                      <span>Gross: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).gross.toLocaleString("en-IN")}</span>
+                      <span>TDS ({selectedEmployee.tdsPercent || 0}%): −₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).tds.toLocaleString("en-IN")}</span>
+                      <strong>Net Payable: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).net.toLocaleString("en-IN")}</strong>
+                    </div>
+                    {consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent) ? (
+                      <p className="emp-field-error" role="alert">{consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent)}</p>
+                    ) : null}
+                  </FormSection>
+                ) : null}
                 <FormSection title="App Access">
                   <AppLoginSection
                     enabled={enableLoginOnUpdate}
@@ -2052,23 +3120,17 @@ function Employees() {
                     }
                     alreadyEnabled={selectedEmployee.hasAppLogin}
                     linkedEmail={selectedEmployee.linkedUser?.email}
-                    allowedModules={selectedEmployee.allowedModules}
-                    onModulesChange={(allowedModules) =>
-                      setSelectedEmployee({
-                        ...selectedEmployee,
-                        allowedModules,
-                      })
-                    }
+                    roles={availableRoles}
                     modulesIdPrefix="edit-emp-mod"
                   />
                 </FormSection>
-                <FormSection
+                {!selectedEmployee.isConsultancy ? <FormSection
                   title="Salary Structure"
                   description="Dynamic earnings and deductions from your organization library"
                   fullWidth
                 >
                   <EmployeeSalaryStructureEditor ref={salaryEditorRef} employeeId={selectedEmployee._id} payType={selectedEmployee.payType} />
-                </FormSection>
+                </FormSection> : null}
               </>
             ) : (
               <div className="emp-view-body">
@@ -2142,6 +3204,52 @@ function Employees() {
                       </span>
                     </div>
 
+                    {!selectedEmployee.isConsultancy ? (
+                      <div>
+                        <label>Employment Status</label>
+                        <span>
+                          {selectedEmployee.employmentStatus === "probation"
+                            ? "Probation"
+                            : selectedEmployee.employmentStatus === "full-time"
+                              ? "Full-time"
+                              : "-"}
+                          {selectedEmployee.employmentStatus === "probation" ? (
+                            <button
+                              type="button"
+                              className="emp-info-btn"
+                              title="View probation history"
+                              aria-label="View probation history"
+                              onClick={() => openProbationHistory(selectedEmployee)}
+                            >
+                              <Info size={12} />
+                            </button>
+                          ) : null}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {!selectedEmployee.isConsultancy ? (
+                      <div>
+                        <label>Probation End Date</label>
+                        <span>
+                          {selectedEmployee.probationEndDate
+                            ? new Date(
+                              selectedEmployee.probationEndDate
+                            ).toLocaleDateString()
+                            : "-"}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {!selectedEmployee.isConsultancy && selectedEmployee.confirmationDate ? (
+                      <div>
+                        <label>Confirmation Date</label>
+                        <span>
+                          {new Date(selectedEmployee.confirmationDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ) : null}
+
                     <div>
                       <label>Relieving Date</label>
                       <span>
@@ -2166,6 +3274,28 @@ function Employees() {
                     <div>
                       <label>PF Number</label>
                       <span>{selectedEmployee.pfNumber || "-"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-section">
+                  <h4>Access &amp; Login</h4>
+
+                  <div className="profile-grid">
+                    <div>
+                      <label>App Login</label>
+                      <span>
+                        {selectedEmployee.hasAppLogin
+                          ? selectedEmployee.hasLoginEnabled
+                            ? "Enabled"
+                            : "Disabled"
+                          : "No login"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label>Login Role</label>
+                      <span>{selectedEmployee.linkedUser?.role || selectedEmployee.userRole || "-"}</span>
                     </div>
                   </div>
                 </div>
@@ -2584,21 +3714,203 @@ function Employees() {
           </EmpModal>
         ) : null}
 
+        {showConsultancyModal ? (
+          <EmpModal
+            title="Generate Consultancy Agreement"
+            onClose={() => setShowConsultancyModal(false)}
+            size="lg"
+            footer={
+              <>
+                <Button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setShowConsultancyModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  icon={<FileText size={16} />}
+                  onClick={handleGenerateConsultancy}
+                  disabled={loading}
+                >
+                  {loading ? "Generating…" : "Generate Consultancy Agreement"}
+                </Button>
+              </>
+            }
+          >
+            <FormSection
+              title="Consultant Details"
+              description="Auto-filled from the selected consultant"
+            >
+              <FormField label="Consultant Name" htmlFor="ca-name" required>
+                <input
+                  id="ca-name"
+                  required
+                  value={consultancyData.consultantName}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      consultantName: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Consultant ID" htmlFor="ca-code">
+                <input
+                  id="ca-code"
+                  value={consultancyData.employeeCode}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Designation / Role" htmlFor="ca-designation" required>
+                <input
+                  id="ca-designation"
+                  required
+                  value={consultancyData.designation}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      designation: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Department" htmlFor="ca-department">
+                <input
+                  id="ca-department"
+                  value={consultancyData.department}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      department: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Engagement Details"
+              description="Contract duration, fees and payment terms"
+            >
+              <FormField label="Effective Date" htmlFor="ca-effective" required>
+                <input
+                  id="ca-effective"
+                  required
+                  type="date"
+                  value={consultancyData.effectiveDate}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      effectiveDate: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+              <FormField label="Contract Duration / Tenure" htmlFor="ca-tenure">
+                <input
+                  id="ca-tenure"
+                  value={consultancyData.tenure}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      tenure: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 12 months, renewable"
+                />
+              </FormField>
+              <FormField label="Consultancy Fees" htmlFor="ca-fees">
+                <input
+                  id="ca-fees"
+                  value={consultancyData.consultancyFees}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      consultancyFees: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. ₹50,000 per month"
+                />
+              </FormField>
+              <FormField label="Notice Period" htmlFor="ca-notice">
+                <input
+                  id="ca-notice"
+                  value={consultancyData.noticePeriod}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      noticePeriod: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. 30 days"
+                />
+              </FormField>
+              <FormField label="Payment Terms" htmlFor="ca-payment" fullWidth>
+                <textarea
+                  id="ca-payment"
+                  rows={2}
+                  value={consultancyData.paymentTerms}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      paymentTerms: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Monthly invoice, payable within 15 days, subject to TDS"
+                />
+              </FormField>
+            </FormSection>
+
+            <FormSection
+              title="Scope & Terms"
+              description="Scope of work (legal clauses use standard defaults)"
+            >
+              <FormField label="Scope of Work / Responsibilities" htmlFor="ca-scope" fullWidth>
+                <textarea
+                  id="ca-scope"
+                  rows={4}
+                  value={consultancyData.scopeOfWork}
+                  onChange={(e) =>
+                    setConsultancyData({
+                      ...consultancyData,
+                      scopeOfWork: e.target.value,
+                    })
+                  }
+                  placeholder="Describe the consultant's responsibilities and deliverables"
+                />
+              </FormField>
+            </FormSection>
+          </EmpModal>
+        ) : null}
+
         {showTerminationModal ? (
           <EmpModal
             title="Generate Termination Letter"
             onClose={() => setShowTerminationModal(false)}
             size="md"
             footer={
-              <Button
-                type="button"
-                icon={<OctagonX size={16} />}
-                onClick={handleGenerateTermination}
-                disabled={loading}
-                style={{ flex: 1 }}
-              >
-                {loading ? "Generating…" : "Generate Termination Letter"}
-              </Button>
+              <div style={{ display: "flex", gap: 10, width: "100%" }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleSaveTermination}
+                  disabled={loading}
+                  style={{ flex: 1 }}
+                >
+                  Save Details
+                </Button>
+                <Button
+                  type="button"
+                  icon={<OctagonX size={16} />}
+                  onClick={handleGenerateTermination}
+                  disabled={loading}
+                  style={{ flex: 1 }}
+                >
+                  {loading ? "Processing…" : "Generate & Send"}
+                </Button>
+              </div>
             }
           >
             <FormSection
@@ -2735,6 +4047,98 @@ function Employees() {
                 />
               </FormField>
             </FormSection>
+
+            <FormSection
+              title="Exit Process Setup"
+              description="Auto-run schedule after your sign-off — mirrors the resignation flow:"
+            >
+              <div className="termination-schedule-box">
+                <div className="termination-schedule-row">
+                  <span>Termination Letter</span>
+                  <strong>On "Generate &amp; Send"</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Employee deactivated (Exited)</span>
+                  <strong>{terminationData.terminationDate || "Not scheduled"}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Experience / Relieving Letters</span>
+                  <strong>{formatDayAfterDate(terminationData.terminationDate)}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Final Salary Slips + F&amp;F Statement</span>
+                  <strong>{formatDayAfterDate(terminationData.settlementDate)}</strong>
+                </div>
+                <div className="termination-schedule-row">
+                  <span>Status update</span>
+                  <strong>Auto-updates to "Released" after F&amp;F</strong>
+                </div>
+              </div>
+
+              <FormField label="Documents to auto-generate" fullWidth>
+                <div className="termination-exit-list">
+                  <label className="termination-exit-label">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.isExperienceLetterIssued}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          isExperienceLetterIssued: e.target.checked,
+                        })
+                      }
+                    />
+                    <strong>Experience Certificate</strong>
+                  </label>
+                  <label className="termination-exit-label">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.isRelievingLetterIssued}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          isRelievingLetterIssued: e.target.checked,
+                        })
+                      }
+                    />
+                    <strong>Relieving Letter</strong>
+                  </label>
+                </div>
+              </FormField>
+
+              <FormField label="HR Email (for exit/F&F notifications)" htmlFor="term-hrmail" fullWidth>
+                <input
+                  id="term-hrmail"
+                  type="email"
+                  value={terminationData.hrMail}
+                  onChange={(e) =>
+                    setTerminationData({
+                      ...terminationData,
+                      hrMail: e.target.value,
+                    })
+                  }
+                  placeholder="hr@company.com (optional)"
+                />
+              </FormField>
+
+              <FormField label="Account after settlement" fullWidth>
+                <div className="termination-exit-list">
+                  <label className="termination-exit-label termination-exit-label--danger">
+                    <input
+                      type="checkbox"
+                      checked={terminationData.deleteEmployeeAccount}
+                      onChange={(e) =>
+                        setTerminationData({
+                          ...terminationData,
+                          deleteEmployeeAccount: e.target.checked,
+                        })
+                      }
+                    />
+                    Archive (soft-delete) employee after F&amp;F is dispatched
+                  </label>
+                </div>
+              </FormField>
+            </FormSection>
           </EmpModal>
         ) : null}
 
@@ -2849,13 +4253,41 @@ function Employees() {
           onClose={() => setLoginCredentials(null)}
           size="md"
           footer={
-            <button
-              type="button"
-              className="emp-btn emp-btn--primary emp-btn--block"
-              onClick={() => setLoginCredentials(null)}
-            >
-              Done
-            </button>
+            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+              {loginCredentials.email ? (
+                <button
+                  type="button"
+                  className="emp-btn emp-btn--secondary"
+                  style={{ flex: 1 }}
+                  disabled={sendingCreds}
+                  onClick={() =>
+                    handleResendCredentials(
+                      loginCredentials.employeeId,
+                      loginCredentials.employeeName
+                    )
+                  }
+                >
+                  <Mail size={14} />{" "}
+                  {sendingCreds ? "Sending..." : "Send on Email"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="emp-btn emp-btn--secondary"
+                style={{ flex: 1 }}
+                onClick={() => downloadCredentialExcel(loginCredentials)}
+              >
+                <Download size={14} /> Download Excel
+              </button>
+              <button
+                type="button"
+                className="emp-btn emp-btn--primary"
+                style={{ flex: 1 }}
+                onClick={() => setLoginCredentials(null)}
+              >
+                Done
+              </button>
+            </div>
           }
         >
           <div className="credentials-body">
@@ -2901,11 +4333,220 @@ function Employees() {
         </EmpModal>
       ) : null}
 
+      <ConfirmModal
+        open={!!confirmProbationTarget}
+        title="Mark as Full-time?"
+        variant="success"
+        confirmLabel="Mark Full-time"
+        loading={probationActionLoading}
+        onCancel={() => !probationActionLoading && setConfirmProbationTarget(null)}
+        onConfirm={handleConfirmProbationSubmit}
+        message={
+          confirmProbationTarget ? (
+            <span>
+              {confirmProbationTarget.name} ({confirmProbationTarget.employeeCode})
+              will be confirmed and marked as <strong>full-time</strong>.
+            </span>
+          ) : null
+        }
+      />
+
+      {extendEmp ? (
+        <EmpModal title={`Extend Probation — ${extendEmp.name}`} onClose={() => !probationActionLoading && setExtendEmp(null)}>
+          <div className="probation-row">
+            <FormField label="Extra Months (1–12)" htmlFor="probation-extend-months" required hint="Valid range: 1–12">
+              <input
+                id="probation-extend-months"
+                type="number"
+                min={1}
+                max={12}
+                step={1}
+                value={extendMonths}
+                onChange={(e) => {
+                  setExtendMonths(e.target.value);
+                  const msg = validateExtraMonths(e.target.value);
+                  setExtendErrors((prev) => {
+                    const next = { ...prev };
+                    if (msg) next.extendMonths = msg;
+                    else delete next.extendMonths;
+                    return next;
+                  });
+                }}
+                aria-invalid={Boolean(extendErrors.extendMonths)}
+                className={extendErrors.extendMonths ? "emp-field-input--error" : undefined}
+              />
+              <p className={`emp-field-error${extendErrors.extendMonths ? "" : " emp-field-error--empty"}`} aria-live="polite" role={extendErrors.extendMonths ? "alert" : undefined}>{extendErrors.extendMonths || " "}</p>
+            </FormField>
+            <FormField label="Reason for Extension" htmlFor="probation-extend-remark" required fullWidth>
+              <input
+                id="probation-extend-remark"
+                type="text"
+                placeholder="Enter reason for extension (required)"
+                value={extendRemark}
+                onChange={(e) => {
+                  setExtendRemark(e.target.value);
+                  const msg = validateExtendRemark(e.target.value);
+                  setExtendErrors((prev) => {
+                    const next = { ...prev };
+                    if (msg) next.extendRemark = msg;
+                    else delete next.extendRemark;
+                    return next;
+                  });
+                }}
+                aria-invalid={Boolean(extendErrors.extendRemark)}
+                className={extendErrors.extendRemark ? "emp-field-input--error" : undefined}
+              />
+              <p className={`emp-field-error${extendErrors.extendRemark ? "" : " emp-field-error--empty"}`} aria-live="polite" role={extendErrors.extendRemark ? "alert" : undefined}>{extendErrors.extendRemark || " "}</p>
+            </FormField>
+          </div>
+          {extendEmp.probationEndDate ? (
+            <p className="emp-field-hint">
+              Current end: {new Date(extendEmp.probationEndDate).toLocaleDateString()}
+            </p>
+          ) : null}
+          <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+            <Button type="button" disabled={probationActionLoading || !isExtendFormValid} onClick={handleExtendProbationSubmit}>
+              {probationActionLoading ? "Saving…" : "Extend Probation"}
+            </Button>
+            <Button type="button" variant="secondary" disabled={probationActionLoading} onClick={() => { setExtendEmp(null); setExtendErrors({}); }}>
+              Cancel
+            </Button>
+          </div>
+        </EmpModal>
+      ) : null}
+
       <DocumentPreview
         isOpen={!!docPreviewUrl}
         onClose={() => setDocPreviewUrl(null)}
         url={docPreviewUrl}
       />
+
+      <ProbationHistoryModal
+        open={showProbHist}
+        onClose={() => setShowProbHist(false)}
+        loading={probHistLoading}
+        error={probHistError}
+        data={probHistData}
+      />
+
+      <ConfirmModal
+        open={!!convertTarget}
+        title="Make it Employee"
+        variant="success"
+        confirmLabel="Convert to Employee"
+        loading={converting}
+        onCancel={() => !converting && setConvertTarget(null)}
+        onConfirm={handleConfirmConvertToEmployee}
+        message={
+          convertTarget ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", textAlign: "left" }}>
+              <div className="credentials-body" style={{ margin: 0 }}>
+                <div className="credentials-row">
+                  <span>Name</span>
+                  <strong>{convertTarget.name || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Employee code</span>
+                  <strong>{convertTarget.employeeCode || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Designation</span>
+                  <strong>{convertTarget.designation || "-"}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>Monthly consultancy pay</span>
+                  <strong>₹{Number(convertTarget.monthlyConsultancyPay || 0).toLocaleString("en-IN")}</strong>
+                </div>
+                <div className="credentials-row">
+                  <span>TDS</span>
+                  <strong>{convertTarget.tdsPercent || 0}%</strong>
+                </div>
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#475569", lineHeight: 1.6 }}>
+                <strong>After conversion:</strong>
+                <ul style={{ margin: "6px 0 0", paddingLeft: "18px" }}>
+                  <li>Moves to the Employees list</li>
+                  <li>Past consultancy payment history is preserved for audit</li>
+                  <li>Only future consultancy payments stop generating</li>
+                  <li>Becomes payroll-eligible — assign department + salary structure next</li>
+                </ul>
+              </div>
+            </div>
+          ) : null
+        }
+      />
+
+      {convertBackTarget ? (
+        <EmpModal title={`Make it Consultant — ${convertBackTarget.name}`} onClose={() => !converting && (setConvertBackTarget(null), setConvertBackErrors({}))}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <p className="emp-field-hint" style={{ margin: 0 }}>
+              {convertBackTarget.convertedFromConsultancy
+                ? "This employee was converted from consultancy — converting back restores monthly consultancy payments."
+                : "This employee will move to the Consultancy list and become payroll-excluded."}
+            </p>
+            <FormField label="Monthly Consultancy Pay" htmlFor="convert-back-pay" required>
+              <input
+                id="convert-back-pay"
+                type="number"
+                min="1"
+                step="any"
+                value={convertBackPay}
+                onChange={(e) => {
+                  setConvertBackPay(e.target.value);
+                  setConvertBackErrors((prev) => {
+                    if (!prev.convertBackPay) return prev;
+                    const next = { ...prev };
+                    delete next.convertBackPay;
+                    return next;
+                  });
+                }}
+                placeholder="Enter monthly amount"
+                className={convertBackErrors.convertBackPay ? "emp-field-input--error" : undefined}
+              />
+              <p className={`emp-field-error${convertBackErrors.convertBackPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{convertBackErrors.convertBackPay || " "}</p>
+            </FormField>
+            <FormField label="TDS %" htmlFor="convert-back-tds">
+              <input
+                id="convert-back-tds"
+                type="number"
+                min="0"
+                max="100"
+                step="any"
+                value={convertBackTds}
+                onChange={(e) => {
+                  setConvertBackTds(e.target.value);
+                  setConvertBackErrors((prev) => {
+                    if (!prev.convertBackTds) return prev;
+                    const next = { ...prev };
+                    delete next.convertBackTds;
+                    return next;
+                  });
+                }}
+                placeholder="e.g. 10"
+                className={convertBackErrors.convertBackTds ? "emp-field-input--error" : undefined}
+              />
+              <p className={`emp-field-error${convertBackErrors.convertBackTds ? "" : " emp-field-error--empty"}`} aria-live="polite">{convertBackErrors.convertBackTds || " "}</p>
+            </FormField>
+            {consultancyPreviewError(convertBackPay === "" ? null : convertBackPay, convertBackTds === "" ? null : convertBackTds) ? (
+              <p className="emp-field-error" role="alert">{consultancyPreviewError(convertBackPay === "" ? null : convertBackPay, convertBackTds === "" ? null : convertBackTds)}</p>
+            ) : (
+              <div className="consultancy-net-summary">
+                <span>Gross: ₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).gross.toLocaleString("en-IN")}</span>
+                <span>TDS ({convertBackTds || 0}%): −₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).tds.toLocaleString("en-IN")}</span>
+                <strong>Net Payable: ₹{calculateNetConsultancy(convertBackPay || 0, convertBackTds || 0).net.toLocaleString("en-IN")}</strong>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Button type="button" disabled={converting} onClick={handleConfirmConvertToConsultant}>
+                {converting ? "Converting…" : "Convert to Consultant"}
+              </Button>
+              <Button type="button" variant="secondary" disabled={converting} onClick={() => { setConvertBackTarget(null); setConvertBackErrors({}); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </EmpModal>
+      ) : null}
     </MainLayout>
   );
 }

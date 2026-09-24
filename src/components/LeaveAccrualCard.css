@@ -1,0 +1,155 @@
+/* Admin-only monthly accrual popup inside Leave Policy settings.
+   Form primitives (lp-input, lp-banner, lp-field-row) come from
+   LeavePolicyManager.css — overlay/modal + result list live here.
+   Overlay stays below ConfirmModal (z-index 1100) so the run
+   confirmation always appears on top. */
+
+.la-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  overflow-y: auto;
+}
+
+.la-modal {
+  position: relative;
+  width: 100%;
+  max-width: 620px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.25);
+}
+
+.la-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+}
+
+.la-close:hover:not(:disabled) {
+  background: #eef2f7;
+}
+
+.la-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.la-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.la-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.la-fields {
+  align-items: flex-end;
+}
+
+.la-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.la-run {
+  margin-left: auto;
+}
+
+.la-counts {
+  display: inline;
+}
+
+.la-details {
+  margin-top: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #f8fafc;
+}
+
+.la-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: #334155;
+}
+
+.la-list {
+  list-style: none;
+  margin: 8px 0 4px;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.la-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+}
+
+.la-emp {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.la-status {
+  color: #475569;
+  text-align: right;
+}
+
+.la-row.la-credited .la-status {
+  color: #15803d;
+}
+
+.la-row.la-already-credited .la-status {
+  color: #a16207;
+}
+
+.la-row.la-skipped .la-status {
+  color: #64748b;
+}
+
+@media (max-width: 640px) {
+  .la-run {
+    margin-left: 0;
+    width: 100%;
+  }
+}

@@ -22,9 +22,12 @@ import ForgotPassword from './pages/ForgotPassword';
 import Resignations from './pages/Resignations';
 import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
+import { syncRolesFromServer } from './utils/roles';
+import queryClient from './queryClient';
 import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
 import AdvanceLoanRequest from './components/AdvanceLoan';
+import Roles from './pages/Roles';
 
 function App() {
   const token = localStorage.getItem("token");
@@ -39,12 +42,14 @@ function App() {
 
   useEffect(() => {
     if (isError) {
+      queryClient.clear();
       localStorage.removeItem("user");
       localStorage.removeItem("token");
     }
     if (isSuccess && data?.user) {
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("user-updated"));
+      syncRolesFromServer();
     }
 
     const path = window.location.pathname;
@@ -84,6 +89,7 @@ function App() {
         <Route path=":vendor/regularization" element={<ProtectedRoute><Regularization /></ProtectedRoute>} />
         <Route path=":vendor/expenses" element={<ProtectedRoute><Expense /></ProtectedRoute>} />
         <Route path=":vendor/advance-loan" element={<ProtectedRoute><AdvanceLoanRequest /></ProtectedRoute>} />
+        <Route path=":vendor/roles" element={<ProtectedRoute><Roles /></ProtectedRoute>} />
         <Route path=":vendor/resignation" element={<ProtectedRoute><Resignations /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>

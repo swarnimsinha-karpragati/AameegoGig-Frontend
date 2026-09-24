@@ -270,3 +270,38 @@
   background: #d1fae5;
   border-color: #6ee7b7;
 }
+
+/* ============================================================
+   RESPONSIVE ADD-ONS — CSS only (no logic change)
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .attendance-timeline-times {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-timeline-card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .attendance-timeline-item {
+    grid-template-columns: 22px 1fr;
+    gap: 10px;
+  }
+
+  .attendance-session-row {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .attendance-session-hours {
+    text-align: left;
+  }
+
+  .attendance-sessions-total {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}

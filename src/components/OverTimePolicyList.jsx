@@ -1,49 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import './OverTimePolicy.css';
-import { deleteOvertimePolicy, getOvertimePolicies } from '../services/settingService';
+import { useOvertimePolicies, useDeleteOvertimePolicy } from '../hooks/useSettings';
 import Button from './Button';
 
 export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) => {
+  const { data: policiesRes, isLoading: isLoadingQuery, refetch } = useOvertimePolicies(vendorId);
+  const deleteOvertimePolicyMutation = useDeleteOvertimePolicy();
   const [policies, setPolicies] = useState({ success: false, count: 0, data: [] });
-  const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchPolicies = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      const res = await getOvertimePolicies(vendorId);
-      
-      if (res?.status === 200 || res?.success) {
-        if (res.data && Array.isArray(res.data)) {
-          setPolicies({
-            success: true,
-            count: res.data.length,
-            data: res.data
-          });
-        } else if (res?.data?.data) {
-          setPolicies(res.data);
-        } else {
-          setPolicies({ success: true, count: 0, data: [] });
-        }
-      } else {
-        throw new Error(res?.data?.message || 'Failed to fetch overtime policies.');
-      }
-    } catch (err) {
-      console.error('Error fetching policies:', err);
-      setError(err.response?.data?.message || err.message || 'Unable to load policies.');
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    if (policiesRes) {
+      setPolicies(policiesRes);
     }
-  };
+  }, [policiesRes]);
 
   useEffect(() => {
-    if (vendorId) {
-      fetchPolicies();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorId, refreshTrigger]);
+    if (refreshTrigger > 0) refetch();
+  }, [refreshTrigger, refetch]);
 
   const handleDelete = async (policyId) => {
     if (!window.confirm('Are you sure you want to delete this overtime policy?')) return;
@@ -52,17 +27,7 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
     try {
       setIsActionLoading(true);
       setError('');
-      
-      const res = await deleteOvertimePolicy(policyId);
-
-      if (res?.status === 200 || res?.success) {
-        setPolicies(prev => ({
-          ...prev,
-          count: (prev?.count || 1) - 1,
-          data: prev?.data?.filter(p => (p._id || p.id) !== policyId) || []
-        }));
-      }
-      
+      await deleteOvertimePolicyMutation.mutateAsync(policyId);
     } catch (err) {
       console.error('Error deleting policy:', err);
       setError(err.response?.data?.message || err.message || 'Failed to delete policy.');
@@ -87,7 +52,7 @@ export const OverTimePolicyList = ({ vendorId, onEditPolicy, refreshTrigger }) =
         </div>
       )}
 
-      {isLoading ? (
+      {isLoadingQuery ? (
         <div className="ot-list-loading">Loading policies...</div>
       ) : !policies?.data || policies.data.length === 0 ? (
         <div className="ot-list-empty">

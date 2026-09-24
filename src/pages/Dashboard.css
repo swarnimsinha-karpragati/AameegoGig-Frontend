@@ -196,10 +196,12 @@ body {
   gap: 16px;
 
   flex-shrink: 0;
+  position: -webkit-sticky;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 120;
   min-width: 0;
+  width: 100%;
 }
 
 .topbar h2 {
@@ -1055,6 +1057,18 @@ body {
   color: #dc2626;
 }
 
+.status-badge.exited {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+}
+
+.status-badge.deleted {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px dashed #cbd5e1;
+}
+
 /* ACTION BUTTONS */
 
 .action-buttons {
@@ -1262,7 +1276,7 @@ body {
 ========================= */
 
 .documents-page {
-  padding: 24px 28px;
+  padding: 0 0 24px;
 }
 
 .documents-header {
@@ -1341,7 +1355,7 @@ body {
 }
 
 .upload-modal {
-  width: 560px;   /* pehle bahut bada tha */
+  width: 560px;   /* was too wide before */
   background: white;
   border-radius: 24px;
   padding: 32px;
@@ -2142,4 +2156,305 @@ body {
   width: 220px;
   height: 48px;
   font-weight: 600;
+}
+
+/* ============================================================
+   RESPONSIVE SHELL + SIDEBAR DRAWER/COLLAPSE
+   - Page kabhi side-scroll nahi karega (overflow-x: clip).
+   - Desktop: sidebar collapse -> icon rail, hamburger se reopen.
+   - Mobile (<=900px): sidebar drawer + overlay + hamburger.
+   ============================================================ */
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.dashboard-layout,
+.dashboard-layout .main-area,
+.dashboard-layout .page-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* NOTE: .dashboard-layout par overflow mat lagao — topbar ka
+   position: sticky uske ancestor chain me kisi bhi non-visible
+   overflow se toot jata hai (scroll par topbar gayab ho jata hai).
+   Side-scroll guard body/page-content/cards par hi hai, jo kaafi hai
+   (sidebar fixed hai, main-area max 100% hai). */
+
+.dashboard-layout .page-content {
+  overflow-x: clip;
+}
+
+.brand-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar-toggle-wrap {
+  display: flex;
+  align-items: center;
+  padding-top: 12px;
+}
+
+.sidebar-toggle-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.2s ease;
+}
+
+.sidebar-toggle-btn:hover {
+  background: #eef2f7;
+}
+
+.sidebar-toggle-btn .flip {
+  transform: rotate(180deg);
+}
+
+.sidebar-toggle-btn.hamburger {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+/* Desktop collapsed -> icon rail */
+.dashboard-layout.sidebar-collapsed {
+  --sidebar-width: 84px;
+}
+
+.dashboard-layout.sidebar-collapsed .sidebar {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.dashboard-layout.sidebar-collapsed .brand p,
+.dashboard-layout.sidebar-collapsed .client-info,
+.dashboard-layout.sidebar-collapsed .menu-item span,
+.dashboard-layout.sidebar-collapsed .user-meta {
+  display: none;
+}
+
+.dashboard-layout.sidebar-collapsed .brand-row {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Collapsed desktop me sidebar ke andar wala toggle (org tile ke neeche)
+   hata do — reopen ke liye topbar wala hamburger hi kaafi hai. */
+.dashboard-layout.sidebar-collapsed .sidebar-toggle-wrap {
+  display: none;
+}
+
+/* Wide (landscape) org logo collapsed rail me strip na lage —
+   isliye use 56x44 ke neat tile me contain karke dikhate hain.
+   (User ki photo/initial wala avatar neeche sidebar-user me
+   pehle se dikhta hai — wahi dusri identity hai.) */
+.dashboard-layout.sidebar-collapsed .brand img {
+  width: 56px !important;
+  max-width: 100%;
+  height: 44px !important;
+  object-fit: contain;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 4px !important;
+}
+
+.dashboard-layout.sidebar-collapsed .sidebar-menu {
+  align-items: center;
+}
+
+.dashboard-layout.sidebar-collapsed .menu-item {
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
+  height: 52px;
+  margin: 0 auto;
+  padding: 0 !important;
+  gap: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  border-radius: 16px;
+}
+
+.dashboard-layout.sidebar-collapsed .menu-item svg {
+  display: block;
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+.dashboard-layout.sidebar-collapsed .sidebar-user {
+  justify-content: center;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+
+  .dashboard-layout .topbar {
+    padding: 0 20px;
+  }
+
+  .dashboard-layout .page-content {
+    padding: 16px 18px 28px;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-layout .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    height: 100dvh;
+    width: min(300px, 84vw);
+    z-index: 200;
+    border-right: 1px solid #e5e7eb;
+    border-bottom: none;
+    padding: 16px 14px 14px;
+    transform: translateX(-105%);
+    transition: transform 0.25s ease;
+    box-shadow: none;
+  }
+
+  .dashboard-layout.mobile-nav-open .sidebar {
+    transform: translateX(0);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  }
+
+  .dashboard-layout .sidebar-menu {
+    overflow-y: auto;
+  }
+
+  .dashboard-layout .main-area {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .dashboard-layout .topbar {
+    height: auto;
+    min-height: 64px;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .dashboard-layout .page-content {
+    padding: 14px 14px 24px;
+  }
+
+  .bottom-grid,
+  .approvals-grid,
+  .dashboard-mid-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-layout .topbar {
+    align-items: center;
+  }
+
+  .dashboard-layout .topbar h2 {
+    font-size: 15px;
+  }
+
+  .dashboard-layout .topbar p {
+    font-size: 11px;
+  }
+
+  .logout-btn {
+    height: 40px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-card,
+  .leave-card,
+  .holiday-card,
+  .chart-card,
+  .summary-card {
+    padding: 18px 16px;
+    border-radius: 16px;
+  }
+
+  .holiday-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .holiday-date-badge {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .employee-form {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-form button {
+    grid-column: span 1;
+  }
+
+  .profile-grid,
+  .salary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .large-modal,
+  .upload-modal {
+    width: 100%;
+    padding: 18px 16px;
+    border-radius: 16px;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .cancel-btn,
+  .modal-actions .upload-btn {
+    width: 100%;
+  }
+
+  .documents-page {
+    padding: 0 0 16px;
+  }
 }

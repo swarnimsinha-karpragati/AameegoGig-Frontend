@@ -38,6 +38,11 @@ export const submitExpense = async (id) => {
   return res.data;
 };
 
+export const cancelExpense = async (id) => {
+  const res = await API.patch(`/expenses/${id}/cancel`);
+  return res.data;
+};
+
 export const approveExpense = async (id, comment = "") => {
   const res = await API.patch(`/expenses/${id}/approve`, { comment });
   return res.data;

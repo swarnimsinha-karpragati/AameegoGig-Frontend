@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, X } from "lucide-react";
 import Button from "../Button";
-import { directEditAttendance } from "../../services/regularizationService";
+import { useDirectEditAttendance } from "../../hooks/useRegularization";
 import { useToast } from "../Toast";
 import "./RecordEditModal.css";
 
@@ -16,17 +16,23 @@ const ATTENDANCE_STATUSES = [
 
 const WORKED_STATUSES = new Set(["Present", "Late", "Half Day", "WFH"]);
 
-export const toDateInputValue = (value) => {
+export const toDateInputValue = (value, timeZone = "Asia/Kolkata") => {
   if (!value) return "";
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
-    return value.slice(0, 10);
-  }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
 };
 
 export const toTimeInputValue = (value) => {
@@ -73,8 +79,9 @@ export default function AttendanceEditModal({
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [auditNote, setAuditNote] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const editMutation = useDirectEditAttendance();
+  const saving = editMutation.isPending;
 
   useEffect(() => {
     if (!open || !record) return;
@@ -116,10 +123,9 @@ export default function AttendanceEditModal({
       return;
     }
 
-    setSaving(true);
     setError("");
     try {
-      await directEditAttendance({
+      await editMutation.mutateAsync({
         employeeId,
         date,
         status,
@@ -134,8 +140,6 @@ export default function AttendanceEditModal({
       const message = apiErrorMessage(err, "Failed to update attendance");
       setError(message);
       toast.error(message);
-    } finally {
-      setSaving(false);
     }
   };
 

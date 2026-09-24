@@ -83,3 +83,30 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ============================================================
+   RESPONSIVE ADD-ONS — CSS only (no logic change)
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .attendance-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 16px 16px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .attendance-metrics-grid {
+    grid-template-columns: 1fr;
+    padding: 14px 14px 8px;
+  }
+
+  .attendance-metric-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .attendance-metric-value {
+    font-size: 16px;
+  }
+}

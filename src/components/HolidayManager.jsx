@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./HolidayManager.css";
-import { getDepartments } from "../services/departmentService";
+import { useDepartments } from "../hooks/useDepartments";
 import {
   createHoliday,
   deleteHoliday,
@@ -85,7 +85,6 @@ const HolidayManager = ({ vendorId }) => {
   };
 
   const [holidays, setHolidays] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [filterYear, setFilterYear] = useState(currentYear);
   const [loading, setLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -102,16 +101,7 @@ const HolidayManager = ({ vendorId }) => {
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState("");
   const [isErrorViewerOpen, setIsErrorViewerOpen] = useState(false);
 
-  const fetchDepartments = async () => {
-    if (!vendorId) return;
-    try {
-      const res = await getDepartments(vendorId);
-      const list = res?.data?.departments || res?.data?.data || res?.data || [];
-      setDepartments(Array.isArray(list) ? list : []);
-    } catch (error) {
-      console.error("Failed to load departments:", error);
-    }
-  };
+  const { data: departments = [] } = useDepartments(vendorId);
 
   const fetchHolidays = async () => {
     if (!vendorId) return;
@@ -130,11 +120,6 @@ const HolidayManager = ({ vendorId }) => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchDepartments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorId]);
 
   useEffect(() => {
     fetchHolidays();
@@ -307,7 +292,7 @@ const HolidayManager = ({ vendorId }) => {
       { wch: 35 }  // Description
     ];
 
-    // Instructions ko 6 columns tak merge karna taaki text neat dikhe
+    // Merge the instructions across 6 columns so the text looks neat
     ws["!merges"] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // Row 1
       { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }, // Row 2

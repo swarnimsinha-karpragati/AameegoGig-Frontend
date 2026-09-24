@@ -1,0 +1,214 @@
+.probhist-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1200;
+}
+
+.probhist-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+}
+
+.probhist-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #eef2f5;
+}
+
+.probhist-header h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.probhist-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.probhist-close {
+  border: none;
+  background: #f1f5f9;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.probhist-close:hover {
+  background: #e2e8f0;
+}
+
+.probhist-body {
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+}
+
+.probhist-loading,
+.probhist-empty {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #64748b;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.probhist-error {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.probhist-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.probhist-item {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 10px;
+  position: relative;
+  padding-bottom: 14px;
+}
+
+.probhist-item:last-child {
+  padding-bottom: 0;
+}
+
+.probhist-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 16px;
+  bottom: 0;
+  width: 2px;
+  background: #e2e8f0;
+}
+
+.probhist-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  margin-top: 2px;
+  background: #94a3b8;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px #cbd5e1;
+  z-index: 1;
+}
+
+.probhist-dot--created {
+  background: #2563eb;
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+
+.probhist-dot--extended {
+  background: #d97706;
+  box-shadow: 0 0 0 2px #fde68a;
+}
+
+.probhist-dot--confirmed,
+.probhist-dot--auto-confirmed {
+  background: #059669;
+  box-shadow: 0 0 0 2px #a7f3d0;
+}
+
+.probhist-dot--reopened {
+  background: #7c3aed;
+  box-shadow: 0 0 0 2px #ddd6fe;
+}
+
+.probhist-card {
+  background: #f8fafc;
+  border: 1px solid #e8eef3;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.probhist-row1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.probhist-date {
+  font-size: 0.78rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.probhist-months {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.probhist-remark {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.probhist-by {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+/* Small circular "i" button used next to Employment Status */
+.emp-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: pointer;
+  margin-left: 6px;
+  vertical-align: middle;
+  padding: 0;
+}
+
+.emp-info-btn:hover {
+  background: #dbeafe;
+}

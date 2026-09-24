@@ -19,22 +19,27 @@ import { ToastProvider, useToast } from "../components/Toast";
 import Pagination from "../components/Pagination";
 import SelfieCapture from "../components/SelfieCapture";
 import Button from "../components/Button";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
+import {
+  useMarkAttendance,
+  useMarkMonthAttendance,
+  useCheckIn,
+  useCheckOut,
+  useBulkUploadMonthAttendance,
+} from "../hooks/useAttendance";
 import {
   getMonthlyAttendance,
   getAttendanceList,
-  markAttendance,
-  checkInAttendance,
-  checkOutAttendance,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
-  markMonthAttendance,
-  bulkUploadMonthAttendance,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
   getStoredUser,
   hasLinkedEmployeeProfile,
+  canMarkAttendance,
+  canViewOrgAttendance,
+  roleHasPermission,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
@@ -45,13 +50,13 @@ import AttendanceCalendar from "../components/attendance/AttendanceCalendar";
 import TodayAttendanceTable from "../components/attendance/TodayAttendanceTable";
 import {
   normalizeRecord,
-  ROLE_DESCRIPTIONS,
   statusTextClass,
   EMPTY_STATS,
   EMPTY_MY_ROW,
   FILTER_LABELS,
 } from "../components/attendance/attendanceUtils";
 import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
+import { validateField } from "../utils/inputValidation";
 
 function Attendance() {
   const user = getStoredUser();
@@ -76,11 +81,10 @@ function Attendance() {
   const [selfStats, setSelfStats] = useState(EMPTY_STATS);
   const [orgRows, setOrgRows] = useState([]);
   const [orgStats, setOrgStats] = useState(EMPTY_STATS);
-  const [teamRows, setTeamRows] = useState([]);
+  const [teamRows] = useState([]);
   const [todaySelfRow, setTodaySelfRow] = useState(EMPTY_MY_ROW);
   const [hasTeam, setHasTeam] = useState(false);
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSelfieModal, setShowSelfieModal] = useState(false);
@@ -133,8 +137,19 @@ function Attendance() {
   const toast = useToast();
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
-  const canMarkForOthers = user?.role === "Admin" || user?.role === "HR";
+  const canMarkForOthers = canMarkAttendance(user?.role);
+  const { data: employees = [] } = useAllEmployees({ enabled: canMarkForOthers });
+  const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
   const canSelfCheckIn = hasLinkedEmployeeProfile(user);
+  // Org section (stats/table/calendar): attendance:view-org or manage.
+  // Mark permission alone does NOT unlock org data.
+  const canViewOrg = canViewOrgAttendance(user?.role);
+
+  const markAttendanceMutation = useMarkAttendance();
+  const markMonthAttendanceMutation = useMarkMonthAttendance();
+  const checkInMutation = useCheckIn();
+  const checkOutMutation = useCheckOut();
+  const bulkUploadMutation = useBulkUploadMonthAttendance();
 
   const personalMonthLabel = personalViewDate.toLocaleString("en-US", {
     month: "long",
@@ -215,7 +230,7 @@ function Attendance() {
   };
 
   const loadOrgData = async () => {
-    if (!canMarkForOthers) return;
+    if (!canViewOrg) return;
     try {
       const year = orgViewDate.getFullYear();
       const month = orgViewDate.getMonth() + 1;
@@ -242,21 +257,6 @@ function Attendance() {
     }
   };
 
-  const loadTeamData = async () => {
-    if (!hasTeam) return;
-    try {
-      const params = buildListParams("team", personalViewDate, null, teamFilters, teamPagination);
-      const listRes = await getAttendanceList(params);
-      setTeamRows(listRes.rows || []);
-      if (listRes.pagination) {
-        setTeamPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
-      }
-    } catch (err) {
-      if (err.response?.status === 403) return;
-      setError(err.response?.data?.message || "Failed to load team attendance");
-    }
-  };
-
   const loadTodaySelf = async () => {
     if (!canSelfCheckIn) return;
     try {
@@ -277,38 +277,25 @@ function Attendance() {
     }
   };
 
-  const loadEmployees = async () => {
-    if (!canMarkForOthers) return;
-    try {
-      const res = await getEmployees();
-      const list = res.data?.employees || [];
-      setEmployees(list);
-      if ((!markForm.employeeId || !markMonthForm.employeeId) && list.length > 0) {
-        setMarkForm((prev) => ({ ...prev, employeeId: list[0]._id }));
-        setMarkMonthForm((prev) => ({ ...prev, employeeId: list[0]._id }));
-      }
-    } catch {
-      // non-blocking
-    }
-  };
-
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([loadSelfData(), loadOrgData(), loadTeamData()])
-      .catch(() => { })
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line
-  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, teamFilters, hasTeam]);
-
   useEffect(() => {
     loadTodaySelf();
     // eslint-disable-next-line
   }, [user?.role]);
 
+  // Initial + filter/page/month change loads. 
   useEffect(() => {
-    loadEmployees();
+    loadSelfData();
+    loadOrgData();
     // eslint-disable-next-line
-  }, [user?.role]);
+  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role]);
+
+  useEffect(() => {
+    if (employees.length > 0 && (!markForm.employeeId || !markMonthForm.employeeId)) {
+      setMarkForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
+      setMarkMonthForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employees]);
 
   const applyFilterUpdate = (key, value) => {
     if (key === "clearDates") {
@@ -331,6 +318,7 @@ function Attendance() {
       setSelectedPersonalDay(null);
     }
     setSelfFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+    setSelfPagination((p) => ({ ...p, page: 1 }));
   };
 
   const handleOrgFilterChange = (key, value) => {
@@ -338,18 +326,22 @@ function Attendance() {
       setSelectedOrgDay(null);
     }
     setOrgFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+    setOrgPagination((p) => ({ ...p, page: 1 }));
   };
 
   const handleTeamFilterChange = (key, value) => {
     setTeamFilters((prev) => ({ ...prev, ...applyFilterUpdate(key, value) }));
+    setTeamPagination((p) => ({ ...p, page: 1 }));
   };
 
   const handlePersonalDaySelect = (day) => {
     setSelectedPersonalDay((prev) => (prev === day ? null : day));
+    setSelfPagination((p) => ({ ...p, page: 1 }));
   };
 
   const handleOrgDaySelect = (day) => {
     setSelectedOrgDay((prev) => (prev === day ? null : day));
+    setOrgPagination((p) => ({ ...p, page: 1 }));
   };
 
   const buildCalendarCells = (viewDateObj, calendarData) => {
@@ -477,6 +469,7 @@ function Attendance() {
     );
     setPersonalViewDate(newDate);
     setSelectedPersonalDay(null);
+    setSelfPagination((p) => ({ ...p, page: 1 }));
   };
 
   const shiftOrgMonth = (delta) => {
@@ -487,6 +480,7 @@ function Attendance() {
     );
     setOrgViewDate(newDate);
     setSelectedOrgDay(null);
+    setOrgPagination((p) => ({ ...p, page: 1 }));
   };
 
   const formatTimeForApi = (time24) => {
@@ -532,20 +526,19 @@ function Attendance() {
       newErrors.month = 'Please select an attendance month.';
     }
 
-    const validateDays = (field, label, { integer = false, required = false } = {}) => {
-      const value = markMonthForm[field];
-      const days = Number(value);
-      if (required && (value === '' || value === null || value === undefined)) {
-        newErrors[field] = `${label} is required.`;
-      } else if (value !== '' && (!Number.isFinite(days) || days < 0 || days > 31)) {
-        newErrors[field] = `${label} must be between 0 and 31.`;
-      } else if (value !== '' && integer && !Number.isInteger(days)) {
-        newErrors[field] = `${label} must be a whole number.`;
-      }
+    const validateDays = (field, label, { required = false } = {}) => {
+      const err = validateField({
+        name: field,
+        label,
+        value: markMonthForm[field],
+        required,
+        kind: "attendance_days",
+      });
+      if (err) newErrors[field] = err;
     };
 
-    validateDays('totalWorkingDays', 'Total working days', { integer: true, required: true });
-    validateDays('incentiveDays', 'Incentive days');
+    validateDays("totalWorkingDays", "Total working days", { required: true });
+    validateDays("incentiveDays", "Incentive days");
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -561,7 +554,7 @@ function Attendance() {
     setIsSubmitting(true);
 
     try {
-      const res = await markMonthAttendance(markMonthForm);
+      const res = await markMonthAttendanceMutation.mutateAsync(markMonthForm);
       alert(res.message);
       setMarkMonthForm((prev) => ({
         ...prev,
@@ -591,12 +584,8 @@ function Attendance() {
     setMonthlyUploadLoading(true);
     setMonthlyUploadResult(null);
     try {
-      const result = await bulkUploadMonthAttendance(monthlyUploadFile);
+      const result = await bulkUploadMutation.mutateAsync(monthlyUploadFile);
       setMonthlyUploadResult(result);
-      if (result.uploaded > 0) {
-        loadSelfData();
-        loadOrgData();
-      }
     } catch (uploadError) {
       setMonthlyUploadResult({
         errors: [{ message: uploadError.response?.data?.message || "Monthly attendance upload failed." }],
@@ -646,11 +635,11 @@ function Attendance() {
       ["INSTRUCTIONS FOR MONTHLY ATTENDANCE BULK UPLOAD"],
       ["1. Employee Code (Required): Use the exact employee code, e.g. GRV-0026."],
       ["2. Month and Year (Required): Use full month name, e.g. August, and a four-digit year."],
-      ["3. Total Working Days (Required): Total Working Days must be a whole number"],
+      ["3. Total Working Days (Required): Use whole or half days, e.g. 27 or 27.5."],
       ["4. Incentive Days and Notes (Optional): Incentive Days can include 0.5. Leave it blank to use 0."],
       [],
       ["Employee Code", "Month", "Year", "Total Working Days", "Incentive Days", "Notes"],
-      ["GRV-0026", "August", 2026, 22, 0, "Monthly attendance upload"],
+      ["GRV-0026", "August", 2026, 27.5, 0, "Monthly attendance upload"],
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     worksheet["!cols"] = [
@@ -687,7 +676,7 @@ function Attendance() {
     }
 
     try {
-      await markAttendance({
+      await markAttendanceMutation.mutateAsync({
         ...markForm,
         checkIn: markForm.checkIn ? formatTimeForApi(markForm.checkIn) : "",
         checkOut: markForm.checkOut ? formatTimeForApi(markForm.checkOut) : "",
@@ -724,9 +713,9 @@ function Attendance() {
 
       let res;
       if (attendanceAction === "checkin") {
-        res = await checkInAttendance(selfieBlob, location);
+        res = await checkInMutation.mutateAsync({ selfieFile: selfieBlob, options: location });
       } else {
-        res = await checkOutAttendance(selfieBlob, location);
+        res = await checkOutMutation.mutateAsync({ selfieFile: selfieBlob, location });
       }
 
       const successMsg =
@@ -1128,7 +1117,8 @@ function Attendance() {
               type="number"
               min="0"
               max="31"
-              placeholder="e.g., 22"
+              step="0.5"
+              placeholder="e.g., 27.5"
               className="month-mark-control"
               value={markMonthForm.totalWorkingDays}
               onChange={(e) => handleMonthMarkChange('totalWorkingDays', e.target.value)}
@@ -1210,8 +1200,9 @@ function Attendance() {
   const renderOrganizationView = () => (
     <>
       <AttendanceStats stats={orgStats} />
+      <h1 className="attendance-title">Organization Attendance</h1>
       {canMarkForOthers ? renderMarkForm(employees, "Mark Attendance") : null}
-      {renderMarkMonthForm(employees, "Mark / Month Attendance")}
+      {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
       {renderCalendarSection({
         title: `${orgMonthLabel} — Organization`,
         viewDateObj: orgViewDate,
@@ -1246,7 +1237,7 @@ function Attendance() {
         holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
         weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
         isCalendarSelection={selectedOrgDay !== null}
-        onClearSelectedDay={() => setSelectedOrgDay(null)}
+        onClearSelectedDay={() => { setSelectedOrgDay(null); setOrgPagination((p) => ({ ...p, page: 1 })); }}
       />
 
       {orgPagination.pages > 1 && (
@@ -1295,7 +1286,7 @@ function Attendance() {
         holiday={selectedPersonalDay !== null ? selfCalendar.holidays[selectedPersonalDay] : null}
         weekOff={selectedPersonalDay !== null ? selfCalendar.weekOffs[selectedPersonalDay] : null}
         isCalendarSelection={selectedPersonalDay !== null}
-        onClearSelectedDay={() => setSelectedPersonalDay(null)}
+        onClearSelectedDay={() => { setSelectedPersonalDay(null); setSelfPagination((p) => ({ ...p, page: 1 })); }}
       />
 
       {selfPagination.pages > 1 && (
@@ -1309,48 +1300,99 @@ function Attendance() {
           onPageSizeChange={limit => setSelfPagination(p => ({ ...p, limit, page: 1 }))}
         />
       )}
-      <h1 className="attendance-title">Organization Attendance</h1>
-      {renderMarkForm(employees, "Mark / Correct Attendance")}
-      {renderMarkMonthForm(employees, "Mark / Month Attendance")}
 
-      <TodayAttendanceTable
-        key={
-          selectedOrgDay
-            ? `org-day-${selectedOrgDay}`
-            : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}`
-        }
-        title={getTableTitle(
-          `${getFilterDefaultTitle(orgFilters)} — All Employees`,
-          selectedOrgDay,
-          orgViewDate,
-          orgFilters
-        )}
-        rows={displayedOrgRows}
-        loading={loading}
-        showActions
-        canEdit={canMarkForOthers}
-        onRecordEdited={loadOrgData}
-        target="org"
-        downloadParams={buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, { page: 1, limit: 10 })}
-        filters={orgFilters}
-        onFilterChange={handleOrgFilterChange}
-        holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
-        weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
-        isCalendarSelection={selectedOrgDay !== null}
-        onClearSelectedDay={() => setSelectedOrgDay(null)}
-      />
+      {/* Whoever has reportees working under them always sees their team
+          (backend hasTeam flag), in every non-admin view. */}
+      {hasTeam ? (
+        <div>
+          <TodayAttendanceTable
+            key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}`}
+            title={`${getFilterDefaultTitle(teamFilters)} — My Team`}
+            rows={displayedTeamRows}
+            loading={loading}
+            target="team"
+            downloadParams={buildListParams("team", personalViewDate, null, teamFilters, { page: 1, limit: 10 })}
+            filters={teamFilters}
+            onFilterChange={handleTeamFilterChange}
+          />
 
-      {orgPagination.pages > 1 && (
-        <Pagination
-          currentPage={orgPagination.page}
-          totalPages={orgPagination.pages}
-          totalRecords={orgPagination.total}
-          limit={orgPagination.limit}
-          onPageChange={setPage => setOrgPagination(p => ({ ...p, page: setPage }))}
-          showPageSize
-          onPageSizeChange={limit => setOrgPagination(p => ({ ...p, limit, page: 1 }))}
-        />
-      )}
+          {teamPagination.pages > 1 && (
+            <Pagination
+              currentPage={teamPagination.page}
+              totalPages={teamPagination.pages}
+              totalRecords={teamPagination.total}
+              limit={teamPagination.limit}
+              onPageChange={setPage => setTeamPagination(p => ({ ...p, page: setPage }))}
+              showPageSize
+              onPageSizeChange={limit => setTeamPagination(p => ({ ...p, limit, page: 1 }))}
+            />
+          )}
+        </div>
+      ) : null}
+      {(canViewOrg || canMarkForOthers || canManageAttendance) ? (
+        <>
+          <h1 className="attendance-title">Organization Attendance</h1>
+          {/* Separate permissions: Mark/Correct needs attendance:mark,
+              Mark/Month needs attendance:manage. Both live only in here. */}
+          {canMarkForOthers ? renderMarkForm(employees, "Mark / Correct Attendance") : null}
+          {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
+
+          {/* Today's Attendance — All Employees (table + calendar) needs
+              attendance:view-org (manage also unlocks it). */}
+          {canViewOrg ? (
+            <>
+              {renderCalendarSection({
+                title: `${orgMonthLabel} — Organization`,
+                viewDateObj: orgViewDate,
+                calendarDays: orgCalendarDays,
+                selectedDay: selectedOrgDay,
+                onDaySelect: handleOrgDaySelect,
+                onPrev: () => shiftOrgMonth(-1),
+                onNext: () => shiftOrgMonth(1),
+                showLeaveWfh: false,
+              })}
+              <TodayAttendanceTable
+                key={
+                  selectedOrgDay
+                    ? `org-day-${selectedOrgDay}`
+                    : `org-filter-${orgFilters.filterType}-${orgFilters.startDate}-${orgFilters.endDate}`
+                }
+                title={getTableTitle(
+                  `${getFilterDefaultTitle(orgFilters)} — All Employees`,
+                  selectedOrgDay,
+                  orgViewDate,
+                  orgFilters
+                )}
+                rows={displayedOrgRows}
+                loading={loading}
+                showActions
+                canEdit={canMarkForOthers}
+                onRecordEdited={loadOrgData}
+                target="org"
+                downloadParams={buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, { page: 1, limit: 10 })}
+                filters={orgFilters}
+                onFilterChange={handleOrgFilterChange}
+                holiday={selectedOrgDay !== null ? orgCalendar.holidays[selectedOrgDay] : null}
+                weekOff={selectedOrgDay !== null ? orgCalendar.weekOffs[selectedOrgDay] : null}
+                isCalendarSelection={selectedOrgDay !== null}
+                onClearSelectedDay={() => { setSelectedOrgDay(null); setOrgPagination((p) => ({ ...p, page: 1 })); }}
+              />
+
+              {orgPagination.pages > 1 && (
+                <Pagination
+                  currentPage={orgPagination.page}
+                  totalPages={orgPagination.pages}
+                  totalRecords={orgPagination.total}
+                  limit={orgPagination.limit}
+                  onPageChange={setPage => setOrgPagination(p => ({ ...p, page: setPage }))}
+                  showPageSize
+                  onPageSizeChange={limit => setOrgPagination(p => ({ ...p, limit, page: 1 }))}
+                />
+              )}
+            </>
+          ) : null}
+        </>
+      ) : null}
     </>
   );
 
@@ -1384,7 +1426,7 @@ function Attendance() {
         holiday={selectedPersonalDay !== null ? selfCalendar.holidays[selectedPersonalDay] : null}
         weekOff={selectedPersonalDay !== null ? selfCalendar.weekOffs[selectedPersonalDay] : null}
         isCalendarSelection={selectedPersonalDay !== null}
-        onClearSelectedDay={() => setSelectedPersonalDay(null)}
+        onClearSelectedDay={() => { setSelectedPersonalDay(null); setSelfPagination((p) => ({ ...p, page: 1 })); }}
       />
 
       {selfPagination.pages > 1 && (
@@ -1437,13 +1479,6 @@ function Attendance() {
   return (
     <MainLayout>
       <div className="attendance-page">
-        <div className="attendance-header-banner">
-          <div>
-            <h1 className="attendance-title">Attendance</h1>
-            <p className="attendance-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
-          </div>
-        </div>
-
         {error ? <p className="attendance-alert attendance-alert--error">{error}</p> : null}
         {roleViews[viewRole]?.()}
 

@@ -12,44 +12,49 @@ import {
   ShieldCheck,
   Info,
   Pencil,
+  Loader2,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import LeaveEditModal from "../components/leave/LeaveEditModal";
 import { ToastProvider, useToast } from "../components/Toast";
-import { getEmployees } from "../services/employeeService";
+import { useAllEmployees } from "../hooks/useEmployees";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
-  approveLeaveRequest,
-  cancelLeaveRequest,
-  createLeaveRequest,
-  createLeaveRequestMultipart,
-  getLeaveBalances,
-  getLeaveDashboard,
-  getLeavePolicy,
-  getLeaveRequests,
-  rejectLeaveRequest,
-  updateLeaveBalances,
-} from "../services/leaveService";
+  useLeaveDashboard,
+  useLeaveRequests,
+  useCreateLeaveRequest,
+  useCreateLeaveRequestMultipart,
+  useApproveLeaveRequest,
+  useRejectLeaveRequest,
+  useCancelLeaveRequest,
+  useLeaveBalances,
+  useUpdateLeaveBalances,
+  useLeavePolicy,
+} from "../hooks/useLeave";
+import { getLeaveBalances } from "../services/leaveService";
 import {
   getLeaveViewKey,
   getStoredUser,
-  canMarkAttendance as roleCanManageLeaveRequests,
+  canApproveLeave as roleCanManageLeaveRequests,
+  canViewOrgLeave,
   canEditLeaveBalances,
+  roleHasPermission,
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
+import {
+  formatLeaveDays,
+  getDayPartLabel,
+  isHalfDayPart,
+} from "../utils/leaveLabels";
 import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
+import Pagination from "../components/Pagination";
 
-const ROLE_DESCRIPTIONS = {
-  Organization: "Organization-wide leave overview and management",
-  HR: "HR leave policies, balances, and org-wide approvals",
-  Manager: "Review and approve leave requests for your team",
-  Employee: "Apply for leave and track your personal balance",
-};
+const ALL_REQ_PAGE_SIZE = 10;
 
 const leaveStatusClass = {
   Approved: "leave-status approved",
@@ -58,21 +63,93 @@ const leaveStatusClass = {
   Cancelled: "leave-status cancelled",
 };
 
+// IST date display: backend stores IST-midnight as UTC, so plain
+// toLocaleDateString() shows the previous day on UTC browsers.
+const formatDateIST = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  try {
+    return d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch {
+    return d.toLocaleDateString();
+  }
+};
+
 function LeaveSummaryCards({ summary, labels }) {
+  const requestCounts = summary.requestCounts || null;
+
+  // Team summary: show the request status counts (All / Pending / Approved /
+  // Cancelled) instead of the WFH/Leave/Pending/Balance tiles.
+  if (requestCounts) {
+    const statCards = [
+      {
+        key: "all",
+        icon: Calendar,
+        iconClassName: "blue",
+        value: requestCounts.total || 0,
+        label: "All Requests",
+      },
+      {
+        key: "pending",
+        icon: Clock3,
+        iconClassName: "orange",
+        value: requestCounts.pending || 0,
+        label: "Pending",
+      },
+      {
+        key: "approved",
+        icon: Check,
+        iconClassName: "green",
+        value: requestCounts.approved || 0,
+        label: "Approved",
+      },
+      {
+        key: "cancelled",
+        icon: X,
+        iconClassName: "red",
+        value: (requestCounts.cancelled || 0) + (requestCounts.rejected || 0),
+        label: "Cancelled / Rejected",
+      },
+    ];
+
+    return (
+      <div className="payroll-stats-grid">
+        {statCards.map(({ key, icon: Icon, iconClassName, value, label }) => (
+          <Card
+            key={key}
+            icon={<Icon size={22} strokeWidth={2} />}
+            iconClassName={iconClassName}
+            isInteractive
+          >
+            <Card.Header>{label}</Card.Header>
+            <Card.Body>{value}</Card.Body>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  const wfhTaken = summary.wfhDaysThisMonth || 0;
+  const leaveTaken = summary.leaveDaysThisMonth || 0;
+  const balance = summary.totalBalance;
+  const balanceDisplay = balance == null ? "—" : balance;
   const cards = [
     {
       key: "wfh",
       icon: Home,
       iconClassName: "blue",
-      value: summary.wfhDaysThisMonth || 0,
-      label: labels?.wfh || "WFH Days (This Month)",
+      value: wfhTaken,
+      label: labels?.wfh || "WFH Taken (This Month)",
+      // sub: wfhTotal != null ? `Taken ${wfhTaken} of ${wfhTotal} • Left ${wfhLeft}` : `Taken ${wfhTaken} this month`,
     },
     {
       key: "leave",
       icon: Calendar,
       iconClassName: "green",
-      value: summary.leaveDaysThisMonth || 0,
-      label: labels?.leave || "Leave Days (This Month)",
+      value: leaveTaken,
+      label: labels?.leave || "Leave Taken (This Month)",
+      // sub: balance == null ? `Taken ${leaveTaken} this month` : `Taken ${leaveTaken} • Balance ${balance}`,
     },
     {
       key: "pending",
@@ -80,19 +157,21 @@ function LeaveSummaryCards({ summary, labels }) {
       iconClassName: "orange",
       value: summary.pendingRequests || 0,
       label: labels?.pending || "Pending Requests",
+      sub: null,
     },
     {
       key: "balance",
       icon: UserCheck2,
       iconClassName: "purple",
-      value: summary.totalBalance || 0,
+      value: balanceDisplay,
       label: labels?.balance || "Total Balance",
+      // sub: balance == null ? "No team data" : "Total remaining",
     },
   ];
 
   return (
     <div className="payroll-stats-grid">
-      {cards.map(({ key, icon: Icon, iconClassName, value, label }) => (
+      {cards.map(({ key, icon: Icon, iconClassName, value, label, sub }) => (
         <Card
           key={key}
           icon={<Icon size={22} strokeWidth={2} />}
@@ -101,14 +180,27 @@ function LeaveSummaryCards({ summary, labels }) {
         >
           <Card.Header>{label}</Card.Header>
           <Card.Body>{value}</Card.Body>
+          {sub ? <Card.Footer>{sub}</Card.Footer> : null}
         </Card>
       ))}
     </div>
   );
 }
 
-const getRequestKind = (leaveType, requestType) =>
-  leaveType === "WFH" || requestType === "WFH" ? "WFH" : "Leave";
+const getRequestKind = (leaveType, requestType, isCoCredit = false) => {
+  if (leaveType === "WFH" || requestType === "WFH") return "WFH";
+  if (isCoCredit || leaveType === "CO-Credit") return "CO Credit";
+  return "Leave";
+};
+
+const coTypeLabel = (item) =>
+  item?.isCoCredit ? "CO (Credit)" : item?.leaveType;
+
+// Day Type is a separate field — halves show alongside the type/duration.
+const leaveTypeDisplay = (item) =>
+  isHalfDayPart(item?.dayPart)
+    ? `${coTypeLabel(item)} · ${getDayPartLabel(item.dayPart)}`
+    : coTypeLabel(item);
 
 /* ===========================
    INNER COMPONENT (uses useToast)
@@ -119,22 +211,72 @@ function LeaveInner() {
   const { vendor } = useParams();
   const user = getStoredUser();
   const viewRole = getLeaveViewKey(user?.role);
+  // Top tabs like Employees (Employees/Consultancy): Employee tab shows self
+  // + team; Organization tab (org permission only) shows Organization Leave.
+  const showEmployeeTab = user?.role !== "Admin";
+  const showOrgTab = canViewOrgLeave(user?.role);
+  const [leaveTab, setLeaveTab] = useState(() =>
+    user?.role === "Admin" ? "organization" : "employee"
+  );
+  const activeTab = showEmployeeTab ? leaveTab : "organization";
 
-  const [dashboard, setDashboard] = useState(null);
-  const [requests, setRequests] = useState([]);
-  const [balances, setBalances] = useState([]);
-  const [leavePolicy, setLeavePolicy] = useState(null);
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const canManageLeave = roleCanManageLeaveRequests(user?.role);
+
+  const { data: employees = [] } = useAllEmployees({ enabled: canManageLeave });
+
+  const dashboardQuery = useLeaveDashboard();
+  const requestsQuery = useLeaveRequests();
+  const balancesQuery = useLeaveBalances();
+  const policyQuery = useLeavePolicy();
+
+  // Admin "All Requests": server-side search (name/email/phone/code) + pagination.
+  const [allReqPage, setAllReqPage] = useState(1);
+  const [allReqSearchInput, setAllReqSearchInput] = useState("");
+  const [allReqSearch, setAllReqSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAllReqSearch(allReqSearchInput.trim());
+      setAllReqPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [allReqSearchInput]);
+  const allRequestsQuery = useLeaveRequests(
+    { page: allReqPage, limit: ALL_REQ_PAGE_SIZE, search: allReqSearch || undefined },
+    { enabled: canViewOrgLeave(user?.role), keepPreviousData: true }
+  );
+  const allReqItems = useMemo(() => allRequestsQuery.data?.requests || [], [allRequestsQuery.data]);
+  const allReqTotal = allRequestsQuery.data?.total ?? 0;
+  const allReqTotalPages = allRequestsQuery.data?.totalPages ?? 0;
+
+  const createLeaveMutation = useCreateLeaveRequest();
+  const createLeaveMultipartMutation = useCreateLeaveRequestMultipart();
+  const approveLeaveMutation = useApproveLeaveRequest();
+  const rejectLeaveMutation = useRejectLeaveRequest();
+  const cancelLeaveMutation = useCancelLeaveRequest();
+  const updateBalancesMutation = useUpdateLeaveBalances();
+
+  const dashboard = dashboardQuery.data;
+  const requests = useMemo(() => requestsQuery.data?.requests || [], [requestsQuery.data]);
+  const balances = useMemo(() => Array.isArray(balancesQuery.data?.balances) ? balancesQuery.data.balances : [], [balancesQuery.data]);
+  const leavePolicy = policyQuery.data?.policy || policyQuery.data || null;
+
+  const loading = dashboardQuery.isLoading || requestsQuery.isLoading;
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState("");
   const [selectedBalanceEmployee, setSelectedBalanceEmployee] = useState("");
+  // Team balance viewer (view-only): selected employee to look up, same
+  // layout as admin — but every field disabled, no save, nothing editable.
+  const [selectedTeamBalanceId, setSelectedTeamBalanceId] = useState("");
   const [balanceForm, setBalanceForm] = useState({
     CL: { total: "", used: "" },
     SL: { total: "", used: "" },
     EL: { total: "", used: "" },
     CO: { total: "", used: "" },
+    WFH: { total: "", used: "" },
   });
+  // Per-employee WFH quota (monthlyLimit/annualLimit based) for the employee
+  // currently selected in Manage Leave Balances. The org-wide balances list
+  // only carries CL/SL/EL/CO buckets, so this is fetched separately.
+  const [, setSelectedWfhQuota] = useState(null);
 
   const [leaveForm, setLeaveForm] = useState({
     employeeId: "",
@@ -143,12 +285,19 @@ function LeaveInner() {
     startDate: "",
     endDate: "",
     reason: "",
+    dayPart: "full",
   });
+  // CO purpose: "leave" (take comp-off) vs "credit" (worked on an off-day,
+  // earn comp-off on approval). Only used when leaveType === CO.
+  const [coPurpose, setCoPurpose] = useState("leave");
 
   const [medicalDocFile, setMedicalDocFile] = useState(null);
   const [editLeaveRecord, setEditLeaveRecord] = useState(null);
+  // Backend validation error for the selected range (e.g. no working days
+  // for the employee's department week-offs). Surfaced inline.
+  const [serverDateError, setServerDateError] = useState("");
 
-  const countWeekdaysInclusiveClient = (startStr, endStr) => {
+  const countDaysInclusiveClient = (startStr, endStr, weekdaysOnly) => {
     if (!startStr || !endStr) return null;
     const start = new Date(`${startStr}T00:00:00`);
     const end = new Date(`${endStr}T00:00:00`);
@@ -157,11 +306,21 @@ function LeaveInner() {
 
     let count = 0;
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const day = d.getDay(); // 0=Sun, 6=Sat
-      if (day !== 0 && day !== 6) count += 1;
+      if (!weekdaysOnly) {
+        count += 1;
+      } else {
+        const day = d.getDay(); // 0=Sun, 6=Sat
+        if (day !== 0 && day !== 6) count += 1;
+      }
     }
     return count;
   };
+
+  // Comp Off credit (earned) applies to off-days — weekends/holidays included.
+  const isCoCredit =
+    leaveForm.leaveType === "CO" &&
+    leaveForm.requestType !== "WFH" &&
+    coPurpose === "credit";
 
   const slRequiredWhenDaysGt = useMemo(() => {
     const sl = leavePolicy?.types?.find((t) => t?.code === "SL");
@@ -169,9 +328,59 @@ function LeaveInner() {
   }, [leavePolicy]);
 
   const computedLeaveDays = useMemo(
-    () => countWeekdaysInclusiveClient(leaveForm.startDate, leaveForm.endDate),
+    () =>
+      countDaysInclusiveClient(
+        leaveForm.startDate,
+        leaveForm.endDate,
+        !isCoCredit
+      ),
+    [leaveForm.startDate, leaveForm.endDate, isCoCredit]
+  );
+
+  // Raw number of dates picked in the range (independent of week-offs).
+  const selectedDaysTotal = useMemo(
+    () =>
+      countDaysInclusiveClient(
+        leaveForm.startDate,
+        leaveForm.endDate,
+        false
+      ),
     [leaveForm.startDate, leaveForm.endDate]
   );
+
+  // Leave window (mirrors backend getEarliestLeaveStartDate /
+  // getLatestLeaveEndDate): earliest selectable date = 1st day of the month
+  // 2 months ago, latest = last day of the month 2 months ahead
+  // (e.g. today 15 Apr → 01 Feb … 30 Jun). Formatted locally (YYYY-MM-DD)
+  // so the picker bound never shifts by timezone.
+  const toLocalInputDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+  const minLeaveDate = useMemo(() => {
+    const now = new Date();
+    return toLocalInputDate(new Date(now.getFullYear(), now.getMonth() - 2, 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const maxLeaveDate = useMemo(() => {
+    const now = new Date();
+    // Day 0 of (month+3) = last day of the month 2 months ahead.
+    return toLocalInputDate(new Date(now.getFullYear(), now.getMonth() + 3, 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Day Type halves exist only when a single day is selected — multi-day
+  // ranges are always full days, so the field resets automatically.
+  const isSingleDayLeave = computedLeaveDays === 1;
+  useEffect(() => {
+    if (computedLeaveDays !== 1) {
+      setLeaveForm((prev) =>
+        prev.dayPart === "full" ? prev : { ...prev, dayPart: "full" }
+      );
+    }
+  }, [computedLeaveDays]);
 
   const isMedicalDocRequired =
     leaveForm.leaveType === "SL" &&
@@ -192,13 +401,13 @@ function LeaveInner() {
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
   const openModal = (config) => setModal({ open: true, ...config });
 
-  const canManageLeave =
-    roleCanManageLeaveRequests(user?.role) || dashboard?.scope === "team";
   const canApprove = canManageLeave;
   const canEditBalances = canEditLeaveBalances(user?.role);
-  const canDirectEditLeave = user?.role === "Admin" || user?.role === "HR";
+  const canDirectEditLeave =
+    roleHasPermission(user?.role, "leave:direct-edit") ||
+    roleHasPermission(user?.role, "leave:approve-all");
   const canApplyForSelf = hasLinkedEmployeeProfile(user);
-  const canConfigurePolicy = user?.role === "Admin" || user?.role === "HR";
+  const canConfigurePolicy = roleHasPermission(user?.role, "leave:policy");
 
   const summary = dashboard?.summary || {};
   const selfSummary = dashboard?.selfSummary || summary;
@@ -209,17 +418,36 @@ function LeaveInner() {
     [dashboard?.upcoming]
   );
   const pendingApprovals = dashboard?.pendingApprovals || [];
+  // Team visibility never depends on permission: backend reports reportees
+  // directly (hasTeam), so the block survives any role/permission combo.
+  const hasTeam = Boolean(dashboard?.hasTeam || dashboard?.scope === "team");
+  // Team-only pending list (reportee-based from server when present).
+  const teamPendingList =
+    hasTeam && Array.isArray(dashboard?.teamPendingApprovals)
+      ? dashboard.teamPendingApprovals
+      : pendingApprovals;
 
-  const teamMembers = useMemo(() => {
-    if (!user?.employeeId) return employees;
+  // Direct reportees only (reporting manager = me). The banner count must
+  // use this — the employee directory list is scoped (org-wide for
+  // HR/Admin), so "all minus self" over-counts. Backend teamCount is
+  // authoritative.
+  const directTeamMembers = useMemo(() => {
+    if (!user?.employeeId) return [];
     const userEmpId =
       typeof user?.employeeId === "object"
         ? user?.employeeId?._id
         : user?.employeeId;
-    return employees.filter(
-      (emp) => String(emp._id) !== String(userEmpId)
-    );
+    return employees.filter((emp) => {
+      const mgr = emp.managerId;
+      const mgrId = mgr?._id || mgr;
+      return mgrId && String(mgrId) === String(userEmpId);
+    });
   }, [employees, user?.employeeId]);
+
+  const displayTeamCount =
+    typeof dashboard?.teamCount === "number"
+      ? dashboard.teamCount
+      : directTeamMembers.length;
 
   const matchesUser = useCallback(
     (item) => {
@@ -252,6 +480,34 @@ function LeaveInner() {
     return requests.filter((item) => !matchesUser(item));
   }, [requests, matchesUser]);
 
+  // True direct reportees (reporting manager = me), for org-wide views where
+  // teamRequests would otherwise mean "everyone else".
+  const isDirectReportee = useCallback(
+    (item) => {
+      const userEmpId =
+        typeof user?.employeeId === "object"
+          ? user?.employeeId?._id
+          : user?.employeeId;
+      const mgr = item.employeeId?.managerId;
+      const mgrId = mgr?._id || mgr;
+      return Boolean(
+        userEmpId && mgrId && String(mgrId) === String(userEmpId)
+      );
+    },
+    [user?.employeeId]
+  );
+
+  const teamOnlyRequests = useMemo(() => {
+    return requests.filter(isDirectReportee);
+  }, [requests, isDirectReportee]);
+
+  // Team tables must show direct reportees only. teamRequests (all non-self)
+  // over-counts for org-scoped viewers; teamOnlyRequests is exact. Fall back
+  // to teamRequests when the direct filter is empty (e.g. team-scoped list
+  // without populated managerId).
+  const teamRequestsForBlock =
+    hasTeam && teamOnlyRequests.length > 0 ? teamOnlyRequests : teamRequests;
+
   const myRecentRequests = useMemo(() => myRequests.slice(0, 6), [myRequests]);
 
   const myUpcoming = useMemo(() => {
@@ -262,6 +518,16 @@ function LeaveInner() {
     if (!leavePolicy?.types?.length) return true;
     return leavePolicy.types.some((t) => t?.code === "WFH" && t?.enabled);
   }, [leavePolicy]);
+
+  // WFH quota from dashboard (single monthly balance + usage).
+  // Monthly quota resets on the 1st, annual quota at leave-year start.
+  const wfhQuota = useMemo(() => {
+    return (
+      dashboard?.selfSummary?.wfhQuota ||
+      dashboard?.summary?.wfhQuota ||
+      null
+    );
+  }, [dashboard]);
 
   const leaveTypeOptions = useMemo(() => {
     const fallback = [
@@ -281,9 +547,9 @@ function LeaveInner() {
       const enabled = leavePolicy.types.filter((t) => t?.enabled);
       options = enabled.length
         ? enabled.map((t) => ({
-            code: t.code,
-            label: t.name || t.code,
-          }))
+          code: t.code,
+          label: t.name || t.code,
+        }))
         : fallback;
     }
 
@@ -299,32 +565,57 @@ function LeaveInner() {
     const enabled = leavePolicy?.types
       ?.filter((t) => t?.enabled && t?.hasBalance)
       ?.map((t) => t.code);
-    if (!enabled || enabled.length === 0) return ["CL", "SL", "EL", "CO"];
-    return enabled;
-  }, [leavePolicy]);
+    const base =
+      !enabled || enabled.length === 0 ? ["CL", "SL", "EL", "CO"] : [...enabled];
+    // WFH never has hasBalance=true (quota runs on monthlyLimit/annualLimit),
+    // but HR/Admin still need a Manage row for it — otherwise an employee
+    // showing "WFH 1/2" has no editable row after selection.
+    if (wfhEnabled && !base.includes("WFH")) base.push("WFH");
+    return base;
+  }, [leavePolicy, wfhEnabled]);
 
   const dateValidationError = useMemo(() => {
     if (!leaveForm.startDate || !leaveForm.endDate) return null;
+    if (leaveForm.startDate < minLeaveDate) {
+      return {
+        code: "backdate",
+        message: `Leave can be applied only from ${minLeaveDate} onwards (up to 2 months back). Older dates are not allowed.`,
+      };
+    }
+    if (leaveForm.startDate > maxLeaveDate || leaveForm.endDate > maxLeaveDate) {
+      return {
+        code: "future",
+        message: `Leave can be applied only up to ${maxLeaveDate} (up to 2 months in advance). Future dates beyond this are not allowed.`,
+      };
+    }
     if (computedLeaveDays == null) {
       return {
         code: "range",
         message: "End date must be on or after start date",
       };
     }
-    if (computedLeaveDays < 1) {
-      const kind = leaveForm.requestType === "WFH" ? "WFH" : "leave";
-      return {
-        code: "weekend",
-        message: `Selected dates have no working days (weekends are excluded). Choose at least one weekday for this ${kind} request.`,
-      };
-    }
     return null;
   }, [
     leaveForm.startDate,
     leaveForm.endDate,
-    leaveForm.requestType,
     computedLeaveDays,
+    minLeaveDate,
+    maxLeaveDate,
   ]);
+
+  // Department week-offs decide working days, so the "no working days" check
+  // is authoritative on the backend (POST /leave/requests). Clear any stale
+  // server error whenever the selected range changes.
+  useEffect(() => {
+    setServerDateError("");
+  }, [leaveForm.startDate, leaveForm.endDate]);
+
+  // Inline feedback is in an error state only for a bad range or a backend
+  // rejection. Working days depend on the department's week-offs, which the
+  // client doesn't know, so "no working days" is left to the server (the
+  // client's weekday count is just a hint).
+  const hasDateFeedbackError =
+    Boolean(dateValidationError) || Boolean(serverDateError);
 
   const leaveApiErrorMessage = (err, fallback) => {
     const data = err?.response?.data;
@@ -344,108 +635,80 @@ function LeaveInner() {
     return fallback;
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [dashResult, reqResult, balResult, policyResult] =
-        await Promise.allSettled([
-          getLeaveDashboard(),
-          getLeaveRequests(),
-          getLeaveBalances(),
-          getLeavePolicy(),
-        ]);
-
-      if (dashResult.status === "rejected") {
-        throw dashResult.reason;
+  useEffect(() => {
+    if (employees.length > 0) {
+      if (!leaveForm.employeeId) {
+        setLeaveForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
       }
-      if (reqResult.status === "rejected") {
-        throw reqResult.reason;
+      if (!selectedBalanceEmployee) {
+        setSelectedBalanceEmployee(employees[0]._id);
       }
-
-      setDashboard(dashResult.value);
-      setRequests(reqResult.value.requests || []);
-
-      if (policyResult.status === "fulfilled") {
-        const pol = policyResult.value.policy || policyResult.value;
-        setLeavePolicy(pol || null);
-
-        const enabledCodes = (pol?.types || [])
-          .filter((t) => t?.enabled)
-          .map((t) => t.code);
-
-        const desiredLeaveType = enabledCodes.includes("CL")
-          ? "CL"
-          : enabledCodes[0] || "CL";
-
-        setLeaveForm((prev) => ({
-          ...prev,
-          leaveType: desiredLeaveType,
-          requestType: desiredLeaveType === "WFH" ? "WFH" : "Leave",
-        }));
-      }
-
-      if (balResult.status === "fulfilled") {
-        const balRes = balResult.value;
-        setBalances(Array.isArray(balRes.balances) ? balRes.balances : []);
-      } else {
-        setBalances([]);
-        const balanceMessage =
-          balResult.reason?.response?.data?.message ||
-          balResult.reason?.message;
-        if (balanceMessage && balanceMessage !== "Route not found") {
-          console.warn("Leave balances unavailable:", balanceMessage);
-        }
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to load leave data");
-    } finally {
-      setLoading(false);
     }
-  };
-
-  const loadEmployees = async () => {
-    if (!canManageLeave) return;
-    try {
-      const res = await getEmployees();
-      const list = res.data?.employees || [];
-      setEmployees(list);
-      if (!leaveForm.employeeId && list.length > 0) {
-        setLeaveForm((prev) => ({ ...prev, employeeId: list[0]._id }));
-      }
-      if (!selectedBalanceEmployee && list.length > 0) {
-        setSelectedBalanceEmployee(list[0]._id);
-      }
-    } catch {
-      // non-blocking
-    }
-  };
-
-  useEffect(() => {
-    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [employees]);
 
   useEffect(() => {
-    loadEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.role]);
-
-  useEffect(() => {
-    const selected = balances.find(
-      (b) => b.employeeId === selectedBalanceEmployee
+    if (!selectedBalanceEmployee) return;
+    const selected = (balances || []).find(
+      (b) => String(b.employeeId) === String(selectedBalanceEmployee)
     );
-    if (!selected) return;
-    const nextForm = {};
-    selected.balances.forEach((item) => {
-      nextForm[item.type] = { total: item.total, used: item.used };
-    });
-    setBalanceForm((prev) => ({ ...prev, ...nextForm }));
+    if (selected && Array.isArray(selected.balances)) {
+      const nextForm = {};
+      selected.balances.forEach((item) => {
+        nextForm[item.type] = { total: item.total, used: item.used };
+      });
+      setBalanceForm((prev) => ({ ...prev, ...nextForm }));
+      return;
+    }
+    // Selected employee not in the cached org list (e.g. newly added
+    // employee while the list is stale, or a single-employee list shape).
+    // Fetch their balances directly so the rows below always follow the
+    // dropdown selection instead of staying stuck on the previous values.
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getLeaveBalances(selectedBalanceEmployee);
+        if (cancelled) return;
+        const rows = Array.isArray(res?.balances) ? res.balances : [];
+        if (!rows.length && !res?.wfhQuota) return;
+        const nextForm = {};
+        rows.forEach((item) => {
+          if (item?.type) nextForm[item.type] = { total: item.total ?? "", used: item.used ?? "" };
+        });
+        if (res?.wfhQuota && res.wfhQuota.total != null) {
+          nextForm.WFH = { total: res.wfhQuota.total ?? "", used: res.wfhQuota.used ?? "" };
+        }
+        setBalanceForm((prev) => ({ ...prev, ...nextForm }));
+      } catch {
+        // non-blocking: rows keep previous values
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [balances, selectedBalanceEmployee]);
+
+  const wfhQuotaQuery = useLeaveBalances(selectedBalanceEmployee, {
+    enabled: Boolean(selectedBalanceEmployee && canEditBalances),
+  });
+
+  useEffect(() => {
+    const res = wfhQuotaQuery.data;
+    if (!res) return;
+    const quota = res?.wfhQuota || null;
+    setSelectedWfhQuota(quota);
+    if (quota && quota.total != null) {
+      setBalanceForm((prev) => ({
+        ...prev,
+        WFH: { total: quota.total ?? "", used: quota.used ?? "" },
+      }));
+    }
+  }, [wfhQuotaQuery.data]);
 
   /* ── Handlers ── */
   const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
+    if (createLeaveMutation.isPending || createLeaveMultipartMutation.isPending) return;
     try {
       if (dateValidationError) {
         toast.error(dateValidationError.message);
@@ -466,7 +729,12 @@ function LeaveInner() {
       if (payload.requestType === "WFH") {
         payload.leaveType = "WFH";
       }
-      if (forSelf || !canManageLeave || user?.role === "Employee") {
+      const isCoCreditSubmit =
+        payload.leaveType === "CO" && payload.requestType !== "WFH" && coPurpose === "credit";
+      if (isCoCreditSubmit) {
+        payload.isCoCredit = true;
+      }
+      if (forSelf || !canManageLeave) {
         delete payload.employeeId;
       }
 
@@ -476,12 +744,13 @@ function LeaveInner() {
           if (v !== undefined && v !== null) formData.append(k, v);
         });
         formData.append("file", medicalDocFile);
-        await createLeaveRequestMultipart(formData);
+        await createLeaveMultipartMutation.mutateAsync(formData);
       } else {
-        await createLeaveRequest(payload);
+        await createLeaveMutation.mutateAsync(payload);
       }
 
-      toast.success(`${getRequestKind(payload.leaveType, payload.requestType)} request submitted successfully`);
+      toast.success(`${getRequestKind(payload.leaveType, payload.requestType, isCoCreditSubmit)} request submitted successfully`);
+      setCoPurpose("leave");
       setLeaveForm((prev) => ({
         ...prev,
         leaveType:
@@ -493,17 +762,21 @@ function LeaveInner() {
         startDate: "",
         endDate: "",
         reason: "",
+        dayPart: "full",
       }));
       setMedicalDocFile(null);
-      loadData();
     } catch (err) {
-      toast.error(leaveApiErrorMessage(err, "Failed to submit request"));
+      const message = leaveApiErrorMessage(err, "Failed to submit request");
+      if (/no working days/i.test(message)) {
+        setServerDateError(message);
+      }
+      toast.error(message);
     }
   };
 
-  const handleDecision = (id, action, employeeName, leaveType, requestType) => {
+  const handleDecision = (id, action, employeeName, leaveType, requestType, isCoCredit = false) => {
     const isApprove = action === "approve";
-    const kind = getRequestKind(leaveType, requestType);
+    const kind = getRequestKind(leaveType, requestType, isCoCredit);
     openModal({
       title: `${isApprove ? "Approve" : "Reject"} ${kind} Request`,
       message: isApprove
@@ -515,13 +788,12 @@ function LeaveInner() {
         setActionLoading(true);
         try {
           if (isApprove) {
-            await approveLeaveRequest(id);
+            await approveLeaveMutation.mutateAsync({ id });
             toast.success(`${kind} request approved`);
           } else {
-            await rejectLeaveRequest(id);
+            await rejectLeaveMutation.mutateAsync({ id });
             toast.warning(`${kind} request rejected`);
           }
-          loadData();
         } catch (err) {
           toast.error(leaveApiErrorMessage(err, "Action failed"));
         } finally {
@@ -532,48 +804,21 @@ function LeaveInner() {
     });
   };
 
+  // Pending requests can be cancelled by the employee.
+  // Approved requests cannot be cancelled (balance already deducted).
   const handleCancel = (item) => {
-    let cancelReasonInput = "";
-    const kind = getRequestKind(item.leaveType, item.requestType);
+    const kind = getRequestKind(item.leaveType, item.requestType, item.isCoCredit);
 
     openModal({
       title: `Cancel ${kind} Request`,
-      message: (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <p>
-            Are you sure you want to cancel this {kind} request? This action cannot be undone.
-          </p>
-          {item.status === "Approved" && (
-            <div style={{ marginTop: "10px" }}>
-              <label style={{ display: "block", marginBottom: "4px", fontWeight: 600 }}>
-                Cancellation Reason <span style={{ color: "red" }}>*</span>
-              </label>
-              <textarea
-                className="leave-input"
-                rows={3}
-                placeholder="Enter reason for cancelling..."
-                style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
-                onChange={(e) => {
-                  cancelReasonInput = e.target.value;
-                }}
-              />
-            </div>
-          )}
-        </div>
-      ),
+      message: `Are you sure you want to cancel this ${kind} request? This action cannot be undone.`,
       confirmLabel: "Cancel Request",
       variant: "warning",
       onConfirm: async () => {
-        if (item.status === "Approved" && !cancelReasonInput.trim()) {
-          toast.error("Please provide a reason for cancelling");
-          return;
-        }
-
         setActionLoading(true);
         try {
-          await cancelLeaveRequest(item._id, { cancelReason: cancelReasonInput.trim() });
+          await cancelLeaveMutation.mutateAsync({ id: item._id, cancelReason: {} });
           toast.success(`${kind} request cancelled successfully`);
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Cancel failed");
         } finally {
@@ -589,20 +834,25 @@ function LeaveInner() {
     if (!selectedBalanceEmployee) return;
     try {
       const payload = {};
-      // Backend currently understands legacy keys (CL/SL/EL/CO), but this
-      // UI now renders based on enabled policy balance types.
       leaveBalanceTypes.forEach((code) => {
-        if (!["CL", "SL", "EL", "CO"].includes(code)) return;
+        if (!["CL", "SL", "EL", "CO", "WFH"].includes(code)) return;
         if (!balanceForm?.[code]) return;
+        if (code === "WFH") {
+          if (balanceForm.WFH?.total === "" || balanceForm.WFH?.total == null) return;
+          payload.WFH = { total: Number(balanceForm.WFH.total) };
+          if (balanceForm.WFH?.used !== "" && balanceForm.WFH?.used != null) {
+            payload.WFH.used = Number(balanceForm.WFH.used);
+          }
+          return;
+        }
         payload[code] = {
           total: Number(balanceForm[code].total),
           used: Number(balanceForm[code].used),
         };
       });
 
-      await updateLeaveBalances(selectedBalanceEmployee, payload);
+      await updateBalancesMutation.mutateAsync({ employeeId: selectedBalanceEmployee, payload });
       toast.success("Leave balances updated");
-      loadData();
     } catch (err) {
       toast.error(err.response?.data?.message || "Unable to save balances");
     }
@@ -682,6 +932,7 @@ function LeaveInner() {
                 requestType: next === "WFH" ? "WFH" : "Leave",
               }));
               if (next !== "SL") setMedicalDocFile(null);
+              if (next !== "CO") setCoPurpose("leave");
             }}
           >
             {(leaveForm.requestType === "WFH"
@@ -694,6 +945,37 @@ function LeaveInner() {
             ))}
           </select>
         </div>
+
+        {leaveForm.leaveType === "CO" && leaveForm.requestType !== "WFH" ? (
+          <div className="leave-field leave-field--full">
+            <label>CO Purpose</label>
+            <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+              <label style={{ display: "flex", gap: "6px", alignItems: "center", fontWeight: 400 }}>
+                <input
+                  type="radio"
+                  name="co-purpose"
+                  checked={coPurpose === "leave"}
+                  onChange={() => setCoPurpose("leave")}
+                />
+                Take leave
+              </label>
+              <label style={{ display: "flex", gap: "6px", alignItems: "center", fontWeight: 400 }}>
+                <input
+                  type="radio"
+                  name="co-purpose"
+                  checked={coPurpose === "credit"}
+                  onChange={() => setCoPurpose("credit")}
+                />
+                Earn credit (worked on off-day)
+              </label>
+            </div>
+            {coPurpose === "credit" ? (
+              <p className="leave-upload-hint">
+                Approval will add these days to the CO balance.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {leaveForm.leaveType === "SL" ? (
           <div className="leave-field">
@@ -730,6 +1012,8 @@ function LeaveInner() {
             type="date"
             className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.startDate}
+            min={minLeaveDate}
+            max={maxLeaveDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, startDate: e.target.value }))
             }
@@ -745,6 +1029,8 @@ function LeaveInner() {
             type="date"
             className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.endDate}
+            min={leaveForm.startDate && leaveForm.startDate >= minLeaveDate ? leaveForm.startDate : minLeaveDate}
+            max={maxLeaveDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, endDate: e.target.value }))
             }
@@ -753,19 +1039,35 @@ function LeaveInner() {
             aria-describedby="leave-date-feedback"
           />
         </div>
+        {isSingleDayLeave ? (
+          <div className="leave-field">
+            <label htmlFor="leave-day-type">Day Type</label>
+            <select
+              id="leave-day-type"
+              className="leave-control"
+              value={leaveForm.dayPart}
+              onChange={(e) =>
+                setLeaveForm((p) => ({ ...p, dayPart: e.target.value }))
+              }
+            >
+              <option value="full">Full Day</option>
+              <option value="first-half">First Half</option>
+              <option value="second-half">Second Half</option>
+            </select>
+          </div>
+        ) : null}
         {leaveForm.startDate && leaveForm.endDate ? (
           <div
             id="leave-date-feedback"
-            className={`leave-date-feedback leave-field--full${
-              dateValidationError
-                ? " leave-date-feedback--error"
-                : " leave-date-feedback--ok"
-            }`}
-            role={dateValidationError ? "alert" : "status"}
+            className={`leave-date-feedback leave-field--full${hasDateFeedbackError
+              ? " leave-date-feedback--error"
+              : " leave-date-feedback--ok"
+              }`}
+            role={hasDateFeedbackError ? "alert" : "status"}
             aria-live="polite"
           >
             <span className="leave-date-feedback__icon" aria-hidden="true">
-              {dateValidationError ? (
+              {hasDateFeedbackError ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.75" />
                   <path
@@ -800,28 +1102,52 @@ function LeaveInner() {
                     dates to continue.
                   </p>
                 </>
-              ) : dateValidationError ? (
+              ) : dateValidationError?.code === "backdate" ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    Start date too old
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    {dateValidationError.message}
+                  </p>
+                </>
+              ) : dateValidationError?.code === "future" ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    Date too far in future
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    {dateValidationError.message}
+                  </p>
+                </>
+              ) : serverDateError ? (
                 <>
                   <strong className="leave-date-feedback__title">
                     No working days in this range
                   </strong>
                   <p className="leave-date-feedback__text">
-                    Saturdays and Sundays are not counted for leave or WFH.
-                    Choose dates that include at least one weekday (Mon–Fri).
+                    {serverDateError}
                   </p>
-                  <p className="leave-date-feedback__meta">
-                    Working days selected: <strong>0</strong>
-                  </p>
+                </>
+              ) : computedLeaveDays != null && computedLeaveDays < 1 ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    {selectedDaysTotal === 1
+                      ? "1 day selected"
+                      : `${selectedDaysTotal} days selected`}
+                  </strong>
                 </>
               ) : (
                 <>
                   <strong className="leave-date-feedback__title">
-                    {computedLeaveDays === 1
-                      ? "1 working day"
-                      : `${computedLeaveDays} working days`}
+                    {computedLeaveDays === 1 && isHalfDayPart(leaveForm.dayPart)
+                      ? `Half day · ${getDayPartLabel(leaveForm.dayPart)} (0.5 day)`
+                      : computedLeaveDays === 1
+                        ? "1 working day"
+                        : `${computedLeaveDays} working days`}
                   </strong>
                   <p className="leave-date-feedback__text">
-                    Weekends are excluded from the day count automatically.
+                    Weekly offs are excluded from the day count automatically.
                   </p>
                 </>
               )}
@@ -834,7 +1160,7 @@ function LeaveInner() {
             id="leave-reason"
             type="text"
             className="leave-control"
-            placeholder="Reason for leave"
+            placeholder={leaveForm.leaveType === "CO" && coPurpose === "credit" ? "Which off-day did you work?" : "Reason for leave"}
             value={leaveForm.reason}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, reason: e.target.value }))
@@ -845,9 +1171,9 @@ function LeaveInner() {
         <div className="leave-form-actions">
           <Button
             type="submit"
-            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile)}
+            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile) || createLeaveMutation.isPending || createLeaveMultipartMutation.isPending}
           >
-            Submit Request
+            {createLeaveMutation.isPending || createLeaveMultipartMutation.isPending ? "Submitting…" : "Submit Request"}
           </Button>
         </div>
       </form>
@@ -868,9 +1194,9 @@ function LeaveInner() {
             <div>
               <strong>{item.employeeId?.name}</strong>
               <p>
-                {item.leaveType} •{" "}
-                {new Date(item.startDate).toLocaleDateString()} -{" "}
-                {new Date(item.endDate).toLocaleDateString()}
+                {leaveTypeDisplay(item)} •{" "}
+                {formatDateIST(item.startDate)} -{" "}
+                {formatDateIST(item.endDate)}
               </p>
               <small>Approved by: {item.approverId?.name || "-"}</small>
             </div>
@@ -919,10 +1245,10 @@ function LeaveInner() {
                     {mode === "all" || mode === "approve" ? (
                       <td>{empName || "-"}</td>
                     ) : null}
-                    <td>{item.leaveType}</td>
+                    <td>{leaveTypeDisplay(item)}</td>
                     <td>
-                      {new Date(item.startDate).toLocaleDateString()} -{" "}
-                      {new Date(item.endDate).toLocaleDateString()} ({item.days}d)
+                      {formatDateIST(item.startDate)} -{" "}
+                      {formatDateIST(item.endDate)} ({formatLeaveDays(item)})
                     </td>
                     <td>{item.reason || "-"}</td>
 
@@ -966,20 +1292,20 @@ function LeaveInner() {
 
                     <td>
                       {(() => {
+                        // Team leads approve reportees via team scope (backend
+                        // grants canApproveLeave automatically) — org-wide
+                        // leave:approve-all permission is not required here.
                         const showApprove =
                           mode === "approve" &&
-                          canApprove &&
+                          (canApprove || hasTeam) &&
                           item.status === "Pending";
                         const showCancel =
                           mode === "employee" &&
-                          (item.status === "Pending" ||
-                            item.status === "Approved") &&
-                          new Date(item.startDate).setHours(0, 0, 0, 0) >=
-                            new Date().setHours(0, 0, 0, 0);
+                          item.status === "Pending";
                         const showEdit =
                           canDirectEditLeave && item.status !== "Cancelled";
 
-                        if (!showApprove && !showCancel && !showEdit) {
+                        if (!showApprove && !showEdit && !showCancel) {
                           return "-";
                         }
 
@@ -998,7 +1324,8 @@ function LeaveInner() {
                                       "approve",
                                       empName,
                                       item.leaveType,
-                                      item.requestType
+                                      item.requestType,
+                                      item.isCoCredit
                                     )
                                   }
                                 />
@@ -1013,7 +1340,8 @@ function LeaveInner() {
                                       "reject",
                                       empName,
                                       item.leaveType,
-                                      item.requestType
+                                      item.requestType,
+                                      item.isCoCredit
                                     )
                                   }
                                 />
@@ -1054,96 +1382,164 @@ function LeaveInner() {
     );
   };
 
-  const renderBalanceEditor = (balanceList, readOnly = false) => (
-    <section className="leave-panel leave-glass">
-      <header className="leave-panel__head">
-        <h3>
-          {readOnly || !canEditBalances
-            ? "Team Leave Balances"
-            : "Manage Leave Balances"}
-        </h3>
-      </header>
-      {readOnly || !canEditBalances ? (
-        <div className="leave-balance-list">
-          {balanceList.length === 0 ? (
-            <p className="leave-empty">No balance records found</p>
-          ) : (
-            balanceList.map((b) => (
-              <div key={b.employeeId} className="leave-team-balance-group">
-                <strong className="leave-team-balance-name">
-                  {b.employeeCode} — {b.name}
-                </strong>
-                {(b.balances || []).map((item) => (
+  const renderBalanceEditor = (balanceList, readOnly = false) => {
+    // View-only (team): same layout as admin's Manage view — employee
+    // dropdown to look up anyone, per-type Total/Used rows — but everything
+    // disabled, no save button. Team leads can only view, never edit.
+    const viewOnly = readOnly || !canEditBalances;
+    // Explicit selection outside the visible (scoped) list shows nothing —
+    // team leads can only view balances inside their own scope.
+    const teamSelected = selectedTeamBalanceId
+      ? (balanceList || []).find(
+        (b) => String(b.employeeId) === String(selectedTeamBalanceId)
+      ) || null
+      : (balanceList || [])[0] || null;
+    return (
+      <section className="leave-panel leave-glass">
+        <header className="leave-panel__head">
+          <h3>
+            {viewOnly
+              ? "Team Leave Balances"
+              : "Manage Leave Balances"}
+          </h3>
+        </header>
+        {viewOnly ? (
+          <>
+            <div className="leave-field">
+              <label htmlFor="team-balance-employee">Employee</label>
+              <SearchableEmployeeSelectServer
+                value={selectedTeamBalanceId || teamSelected?.employeeId || ""}
+                onChange={setSelectedTeamBalanceId}
+                controlClassName="leave-control"
+              />
+            </div>
+            {!teamSelected || (teamSelected.balances || []).length === 0 ? (
+              <p className="leave-empty">
+                {selectedTeamBalanceId && teamSelected === null
+                  ? "No balance record found for the selected employee"
+                  : "No balance records found"}
+              </p>
+            ) : (
+              <div className="leave-balance-grid">
+                {(teamSelected.balances || []).map((item) => (
                   <div
-                    className="leave-balance-item"
-                    key={`${b.employeeId}-${item.type}`}
+                    className="balance-row"
+                    key={`${teamSelected.employeeId}-${item.type}`}
+                    data-code={item.type}
                   >
-                    <span>{item.type}</span>
-                    <strong>
-                      {item.total - item.used} / {item.total}
-                    </strong>
+                    <span className="balance-row__type">{item.type}</span>
+                    <div className="leave-field balance-row__field">
+                      <label>Total</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={item.total ?? ""}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                    <div className="leave-field balance-row__field">
+                      <label>Used</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={item.used ?? ""}
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                    <div className="leave-field balance-row__field balance-row__remaining">
+                      <label>Remaining</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={item.remaining ?? ""}
+                        disabled
+                        readOnly
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <form className="balance-editor" onSubmit={handleSaveBalances}>
-          <div className="leave-field">
-            <label htmlFor="balance-employee">Employee</label>
-            <SearchableEmployeeSelectServer
-              value={selectedBalanceEmployee}
-              onChange={setSelectedBalanceEmployee}
-              controlClassName="leave-control"
-            />
-          </div>
-          <div className="leave-balance-grid">
-            {leaveBalanceTypes.map((type) => (
-              <div key={type} className="balance-row">
-                <span className="balance-row__type">{type}</span>
-                <div className="leave-field balance-row__field">
-                  <label htmlFor={`balance-${type}-total`}>Total</label>
-                  <input
-                    id={`balance-${type}-total`}
-                    type="number"
-                    className="leave-control"
-                    placeholder="0"
-                    value={balanceForm[type]?.total ?? ""}
-                    onChange={(e) =>
-                      setBalanceForm((prev) => ({
-                        ...prev,
-                        [type]: { ...prev[type], total: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-                <div className="leave-field balance-row__field">
-                  <label htmlFor={`balance-${type}-used`}>Used</label>
-                  <input
-                    id={`balance-${type}-used`}
-                    type="number"
-                    className="leave-control"
-                    placeholder="0"
-                    value={balanceForm[type]?.used ?? ""}
-                    onChange={(e) =>
-                      setBalanceForm((prev) => ({
-                        ...prev,
-                        [type]: { ...prev[type], used: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="leave-form-actions">
-            <Button type="submit">Save Balances</Button>
-          </div>
-        </form>
-      )}
-    </section>
-  );
+            )}
+          </>
+        ) : (
+          <form className="balance-editor" onSubmit={handleSaveBalances}>
+            <div className="leave-field">
+              <label htmlFor="balance-employee">Employee</label>
+              <SearchableEmployeeSelectServer
+                value={selectedBalanceEmployee}
+                onChange={setSelectedBalanceEmployee}
+                controlClassName="leave-control"
+              />
+            </div>
+            <div className="leave-balance-grid">
+              {leaveBalanceTypes.map((type) => {
+                const isWfhRow = type === "WFH";
+                const field = balanceForm[type] || {};
+                const total = Number(field.total) || 0;
+                const used = Number(field.used) || 0;
+                const remaining = Math.max(0, total - used);
+                return (
+                  <div key={type} className="balance-row" data-code={type}>
+                    <span className="balance-row__type">{type}</span>
+                    <div className="leave-field balance-row__field">
+                      <label htmlFor={`balance-${type}-total`}>
+                        Total
+                      </label>
+                      <input
+                        id={`balance-${type}-total`}
+                        type="number"
+                        className="leave-control"
+                        placeholder="0"
+                        value={balanceForm[type]?.total ?? ""}
+                        onChange={(e) =>
+                          setBalanceForm((prev) => ({
+                            ...prev,
+                            [type]: { ...prev[type], total: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="leave-field balance-row__field">
+                      <label htmlFor={`balance-${type}-used`}>Used</label>
+                      <input
+                        id={`balance-${type}-used`}
+                        type="number"
+                        className="leave-control"
+                        placeholder="0"
+                        value={balanceForm[type]?.used ?? ""}
+                        title={isWfhRow ? "WFH used override — if left blank, auto-counted from Pending + Approved requests" : undefined}
+                        onChange={(e) =>
+                          setBalanceForm((prev) => ({
+                            ...prev,
+                            [type]: { ...prev[type], used: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="leave-field balance-row__field balance-row__remaining">
+                      <label>Remaining</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={remaining}
+                        readOnly
+                        disabled
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="leave-form-actions">
+              <Button type="submit">Save Balances</Button>
+            </div>
+          </form>
+        )}
+      </section>
+    );
+  };
 
   const renderPersonalBalances = () => (
     <section className="leave-panel leave-glass">
@@ -1151,17 +1547,23 @@ function LeaveInner() {
         <h3>My Leave Balances</h3>
       </header>
       <div className="leave-balance-list">
-        {(dashboard?.balances || []).length === 0 ? (
+        {(dashboard?.balances || []).length === 0 && !wfhQuota ? (
           <p className="leave-empty">No balance data available</p>
         ) : (
-          (dashboard?.balances || []).map((b) => (
-            <div className="leave-balance-item" key={b.type}>
-              <span>{b.label}</span>
-              <strong>
-                {b.remaining} / {b.total}
-              </strong>
-            </div>
-          ))
+          <>
+            {(dashboard?.balances || []).map((b) => (
+              <div className="leave-balance-item" key={b.type}>
+                <span>{b.label}</span>
+                <strong>{b.remaining}</strong>
+              </div>
+            ))}
+            {wfhQuota && wfhQuota.total != null ? (
+              <div className="leave-balance-item" key="WFH">
+                <span>Work From Home (WFH)</span>
+                <strong>{wfhQuota.remaining ?? wfhQuota.total}</strong>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </section>
@@ -1199,10 +1601,25 @@ function LeaveInner() {
     );
   };
 
-  const renderAllRequestsTable = (items, title = "All Requests") => (
+  const renderAllRequestsTable = (items, title = "All Requests", opts = {}) => (
     <section className="leave-panel leave-glass leave-panel--wide">
-      <header className="leave-panel__head">
-        <h3>{title}</h3>
+      <header className="leave-panel__head leave-panel__head--split">
+        <h3>{title}{opts.total != null ? ` (${opts.total})` : ""}</h3>
+        {opts.showSearch ? (
+          <span className="leave-search-wrap">
+            <input
+              type="search"
+              className="leave-control leave-search"
+              placeholder="Name, Employee ID, email, phone…"
+              value={opts.searchValue ?? ""}
+              onChange={(e) => opts.onSearchChange?.(e.target.value)}
+              aria-label="Search requests by employee"
+            />
+            {opts.fetching ? (
+              <Loader2 size={14} className="leave-search-spinner" aria-label="Searching" />
+            ) : null}
+          </span>
+        ) : null}
       </header>
       <div className="leave-table-wrap">
         <table className="leave-table">
@@ -1218,7 +1635,13 @@ function LeaveInner() {
             </tr>
           </thead>
           <tbody>
-            {!loading && items.length === 0 ? (
+            {opts.loading ? (
+              <tr>
+                <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
+                  Loading…
+                </td>
+              </tr>
+            ) : !loading && items.length === 0 ? (
               <tr>
                 <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
                   No requests found
@@ -1228,12 +1651,12 @@ function LeaveInner() {
             {items.map((item) => (
               <tr key={item._id}>
                 <td>{item.employeeId?.name || "-"}</td>
-                <td>{item.leaveType}</td>
+                <td>{leaveTypeDisplay(item)}</td>
                 <td>
-                  {new Date(item.startDate).toLocaleDateString()} -{" "}
-                  {new Date(item.endDate).toLocaleDateString()}
+                  {formatDateIST(item.startDate)} -{" "}
+                  {formatDateIST(item.endDate)}
                 </td>
-                <td>{item.days}</td>
+                <td>{formatLeaveDays(item)}</td>
                 <td>
                   <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                     <span
@@ -1291,70 +1714,95 @@ function LeaveInner() {
           </tbody>
         </table>
       </div>
+      {opts.showPagination && opts.totalPages > 1 ? (
+        <Pagination
+          currentPage={opts.page}
+          totalPages={opts.totalPages}
+          totalRecords={opts.total}
+          limit={opts.limit || ALL_REQ_PAGE_SIZE}
+          onPageChange={opts.onPageChange}
+        />
+      ) : null}
     </section>
   );
 
-  const renderOrganizationView = () => (
-    <>
-      <LeaveSummaryCards summary={orgSummary} />
-      <div className="leave-layout-grid">
-        {renderCreateRequestForm(employees, true)}
-        {renderUpcomingList(upcoming)}
-      </div>
-      <div className="leave-layout-grid">
-        {renderRequestsTable({
-          title: "Pending Approvals",
-          items: pendingApprovals,
-          mode: "approve",
-        })}
-        {renderBalanceEditor(balances, false)}
-      </div>
-      {renderAllRequestsTable(requests)}
-    </>
-  );
-
-  const renderHRView = () => (
-    <>
-      {renderMyLeaveSection()}
-      <div className="leave-hr-actions">
-        <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
-          Export Leave Report
-        </Button>
-      </div>
-      <LeaveSummaryCards
-        summary={orgSummary}
-        labels={{
-          wfh: "WFH Days (Org)",
-          leave: "Leave Days (Org)",
-          pending: "Pending (Org)",
-          balance: "Total Balance (Org)",
-        }}
-      />
-      <div className="leave-layout-grid">
-        {renderCreateRequestForm(employees, true)}
-        {renderUpcomingList(upcoming, "No org-wide upcoming leave")}
-      </div>
-      <div className="leave-layout-grid">
-        {renderRequestsTable({
-          title: "Pending Approvals — All Employees",
-          items: pendingApprovals,
-          mode: "approve",
-        })}
-        {renderBalanceEditor(balances, false)}
-      </div>
-      {renderAllRequestsTable(requests, "All Requests — Organization")}
-    </>
-  );
+  // Organization tab: every admin-level (org-wide) thing lives in here.
+  // Admin sees the base version, HR-style roles the labeled version.
+  const renderOrganizationTab = () => {
+    const isAdminView = viewRole === "Organization";
+    return (
+      <>
+        {!isAdminView ? (
+          <div className="leave-hr-actions">
+            <Button type="button" className="secondary-btn" icon={<Download size={16} />}>
+              Export Leave Report
+            </Button>
+          </div>
+        ) : null}
+        <LeaveSummaryCards
+          summary={{ ...orgSummary, totalBalance: orgSummary?.avgBalance ?? orgSummary?.totalBalance }}
+          labels={
+            isAdminView
+              ? {
+                wfh: "WFH Taken (This Month)",
+                leave: "Leave Taken (This Month)",
+                pending: "Pending Requests",
+                balance: "Avg Balance",
+              }
+              : {
+                wfh: "WFH Taken (Org)",
+                leave: "Leave Taken (Org)",
+                pending: "Pending (Org)",
+                balance: "Avg Balance (Org)",
+              }
+          }
+        />
+        <div className="leave-layout-grid">
+          {renderCreateRequestForm(employees, true)}
+          {renderUpcomingList(
+            upcoming,
+            isAdminView ? undefined : "No org-wide upcoming leave"
+          )}
+        </div>
+        <div className="leave-layout-grid">
+          {renderRequestsTable({
+            title: isAdminView
+              ? "Pending Approvals"
+              : "Pending Approvals — All Employees",
+            items: pendingApprovals,
+            mode: "approve",
+          })}
+          {renderBalanceEditor(balances, false)}
+        </div>
+        {renderAllRequestsTable(
+          allReqItems,
+          isAdminView ? "All Requests" : "All Requests — Organization",
+          {
+            showSearch: true,
+            searchValue: allReqSearchInput,
+            onSearchChange: setAllReqSearchInput,
+            showPagination: true,
+            loading: allRequestsQuery.isLoading,
+            page: allReqPage,
+            totalPages: allReqTotalPages,
+            total: allReqTotal,
+            limit: ALL_REQ_PAGE_SIZE,
+            onPageChange: setAllReqPage,
+          }
+        )}
+      </>
+    );
+  };
 
   const renderManagerView = () => (
     <>
       {renderMyLeaveSection()}
-      {teamMembers.length > 0 ? (
+      {displayTeamCount > 0 ? (
         <div className="leave-role-banner manager">
           <Users size={18} />
           <span>
-            Team view — managing {teamMembers.length} team member
-            {teamMembers.length === 1 ? "" : "s"}
+            Team view — managing {displayTeamCount} team member
+            {displayTeamCount === 1 ? "" : "s"}
           </span>
         </div>
       ) : null}
@@ -1367,19 +1815,15 @@ function LeaveInner() {
           balance: "Team Balance",
         }}
       />
-      <div className="leave-layout-grid">
-        {renderCreateRequestForm(employees, true)}
-        {renderUpcomingList(upcoming, "No upcoming team leave")}
-      </div>
-      <div className="leave-layout-grid">
-        {renderRequestsTable({
-          title: "Pending Approvals — My Team",
-          items: pendingApprovals,
-          mode: "approve",
-        })}
-        {renderBalanceEditor(balances, true)}
-      </div>
-      {renderAllRequestsTable(teamRequests, "Team Requests")}
+      {/* Team-lead view: only Upcoming + Pending Approvals + Team Requests.
+          Create Request and Team Leave Balances are hidden here. */}
+      {renderUpcomingList(upcoming, "No upcoming team leave")}
+      {renderRequestsTable({
+        title: "Pending Approvals — My Team",
+        items: teamPendingList,
+        mode: "approve",
+      })}
+      {renderAllRequestsTable(teamRequestsForBlock, "Team Requests")}
     </>
   );
 
@@ -1388,22 +1832,22 @@ function LeaveInner() {
       <LeaveSummaryCards
         summary={selfSummary}
         labels={{
-          wfh: "My WFH Days",
-          leave: "My Leave Days",
+          wfh: "My WFH Taken",
+          leave: "My Leave Taken",
           pending: "My Pending",
           balance: "My Balance",
         }}
       />
       {renderMyLeaveSection()}
-      {dashboard?.scope === "team" ? (
+      {hasTeam ? (
         <section className="leave-self-section" style={{ marginTop: "2.5rem" }}>
           <h2 className="leave-section-heading">My Team's Leaves</h2>
-          {teamMembers.length > 0 ? (
+          {displayTeamCount > 0 ? (
             <div className="leave-role-banner manager">
               <Users size={18} />
               <span>
-                Team view — managing {teamMembers.length} team member
-                {teamMembers.length === 1 ? "" : "s"}
+                Team view — managing {displayTeamCount} team member
+                {displayTeamCount === 1 ? "" : "s"}
               </span>
             </div>
           ) : null}
@@ -1416,39 +1860,28 @@ function LeaveInner() {
               balance: "Team Balance",
             }}
           />
-          <div className="leave-layout-grid">
-            {renderCreateRequestForm(employees, true)}
-            {renderUpcomingList(upcoming, "No upcoming team leave")}
-          </div>
-          <div className="leave-layout-grid">
-            {renderRequestsTable({
-              title: "Pending Approvals — My Team",
-              items: pendingApprovals,
-              mode: "approve",
-            })}
-            {renderBalanceEditor(balances, true)}
-          </div>
-          {renderAllRequestsTable(teamRequests, "Team Requests")}
+          {/* Team-lead view: only Upcoming + Pending Approvals + Team Requests.
+              Create Request and Team Leave Balances are hidden here. */}
+          {renderUpcomingList(upcoming, "No upcoming team leave")}
+          {renderRequestsTable({
+            title: "Pending Approvals — My Team",
+            items: teamPendingList,
+            mode: "approve",
+          })}
+          {renderAllRequestsTable(teamRequestsForBlock, "Team Requests")}
         </section>
       ) : null}
     </>
   );
 
-  const roleViews = {
-    Organization: renderOrganizationView,
-    HR: renderHRView,
-    Manager: renderManagerView,
-    Employee: renderEmployeeView,
-  };
+  // Employee tab: self + team (permission or not — team is reporting-driven).
+  const renderEmployeeTab = () =>
+    viewRole === "Manager" ? renderManagerView() : renderEmployeeView();
 
   return (
     <MainLayout>
       <div className="leave-page">
         <div className="leave-header-banner">
-          <div>
-            <h1 className="leave-title">Leave</h1>
-            <p className="leave-subtitle">{ROLE_DESCRIPTIONS[viewRole]}</p>
-          </div>
           {canConfigurePolicy ? (
             <Button
               type="button"
@@ -1461,9 +1894,30 @@ function LeaveInner() {
           ) : null}
         </div>
 
-        {error ? <p className="leave-alert leave-alert--error">{error}</p> : null}
+        {dashboardQuery.error ? <p className="leave-alert leave-alert--error">{dashboardQuery.error?.response?.data?.message || "Failed to load leave data"}</p> : null}
 
-        {roleViews[viewRole]?.()}
+        {showEmployeeTab && showOrgTab ? (
+          <div className="leave-tabs" role="tablist" aria-label="Leave views">
+            <button
+              type="button"
+              className={`leave-tab ${activeTab === "employee" ? "active" : ""}`}
+              onClick={() => setLeaveTab("employee")}
+            >
+              Employee
+            </button>
+            <button
+              type="button"
+              className={`leave-tab ${activeTab === "organization" ? "active" : ""}`}
+              onClick={() => setLeaveTab("organization")}
+            >
+              Organization
+            </button>
+          </div>
+        ) : null}
+
+        {activeTab === "employee" && showEmployeeTab
+          ? renderEmployeeTab()
+          : renderOrganizationTab()}
 
         {/* Confirmation Modal */}
         <ConfirmModal
@@ -1481,7 +1935,11 @@ function LeaveInner() {
           open={Boolean(editLeaveRecord)}
           record={editLeaveRecord}
           onClose={() => setEditLeaveRecord(null)}
-          onSaved={loadData}
+          onSaved={() => {
+            dashboardQuery.refetch();
+            requestsQuery.refetch();
+            balancesQuery.refetch();
+          }}
         />
 
       </div>

@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
-import { createResignation, finalApproval, getResignation, rejectResignation, updateResignation, viewLetter } from "../services/resignationService";
+import { viewLetter } from "../services/resignationService";
+import {
+  useResignation,
+  useCreateResignation,
+  useUpdateResignation,
+  useRejectResignation,
+  useFinalApproval,
+} from "../hooks/useResignation";
 import Pagination from "../components/Pagination";
 import {
   Search,
@@ -18,6 +25,7 @@ import {
 
 import "./Resignation.css";
 import Button from "../components/Button";
+import { roleHasPermission } from "../utils/roles";
 
 function ResModal({ title, onClose, size = "md", children, footer }) {
   return (
@@ -67,17 +75,27 @@ function Resignations() {
   const [vendorId, setVendorId] = useState(null); 
   const [currentUser, setCurrentUser] = useState(null);
 
-  const [myRecords, setMyRecords] = useState([]);
-  const [underMeRecords, setUnderMeRecords] = useState([]);
-  const [finalApprovalRecords, setFinalApprovalRecords] = useState([]);
-  
   const [myPagination, setMyPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [underMePagination, setUnderMePagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [finalPagination, setFinalPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
-  
+
+  const { data: resRes, isLoading: loading } = useResignation(
+    vendorId,
+    currentUser?.employeeId || currentUser?.id,
+    { page: myPagination.page, limit: myPagination.limit },
+    { enabled: Boolean(vendorId && currentUser) }
+  );
+  const myRecords = resRes?.data?.myrecords?.data || [];
+  const underMeRecords = resRes?.data?.underMe?.data || [];
+  const finalApprovalRecords = resRes?.data?.finalApproval?.data || [];
+
+  const createResignationMutation = useCreateResignation();
+  const updateResignationMutation = useUpdateResignation();
+  const rejectResignationMutation = useRejectResignation();
+  const finalApprovalMutation = useFinalApproval();
+
   const [search, setSearch] = useState("");
   const [hrSearch, setHrSearch] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const [selectedResignation, setSelectedResignation] = useState(null);
   const [isViewing, setIsViewing] = useState(false);
@@ -86,6 +104,10 @@ function Resignations() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approvingRecordId, setApprovingRecordId] = useState(null);
   const [isHrFinalizing, setIsHrFinalizing] = useState(false);
+
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingRecordId, setRejectingRecordId] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const [isLoading,setIsLoading] = useState(false);
 
@@ -136,40 +158,17 @@ function Resignations() {
     }
   }, []);
 
-  const fetchAllData = useCallback(async () => {
-    if (!vendorId) return;
-    try {
-      setLoading(true);
-      const params = { 
-        page: myPagination.page, 
-        limit: myPagination.limit 
-      };
-      const res = await getResignation(vendorId, currentUser.employeeId?currentUser.employeeId:currentUser.id, params);
-      setMyRecords(res.data.myrecords?.data || []);
-      setUnderMeRecords(res.data.underMe?.data || []);
-      setFinalApprovalRecords(res.data.finalApproval?.data || []);
-      if (res.data.myrecords?.pagination) {
-        setMyPagination(prev => ({ ...prev, total: res.data.myrecords.pagination.total, pages: res.data.myrecords.pagination.pages }));
-      }
-      if (res.data.underMe?.pagination) {
-        setUnderMePagination(prev => ({ ...prev, total: res.data.underMe.pagination.total, pages: res.data.underMe.pagination.pages }));
-      }
-      if (res.data.finalApproval?.pagination) {
-        setFinalPagination(prev => ({ ...prev, total: res.data.finalApproval.pagination.total, pages: res.data.finalApproval.pagination.pages }));
-      }
-    } catch (error) {
-      console.error("Error standardizing resignation view initialization:", error);
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line 
-  }, [vendorId, myPagination.page, myPagination.limit, underMePagination.page, underMePagination.limit, finalPagination.page, finalPagination.limit]);
-
   useEffect(() => {
-    if (vendorId) {
-      fetchAllData();
+    if (resRes?.data?.myrecords?.pagination) {
+      setMyPagination(prev => ({ ...prev, total: resRes.data.myrecords.pagination.total, pages: resRes.data.myrecords.pagination.pages }));
     }
-  }, [vendorId, currentUser, fetchAllData]);
+    if (resRes?.data?.underMe?.pagination) {
+      setUnderMePagination(prev => ({ ...prev, total: resRes.data.underMe.pagination.total, pages: resRes.data.underMe.pagination.pages }));
+    }
+    if (resRes?.data?.finalApproval?.pagination) {
+      setFinalPagination(prev => ({ ...prev, total: resRes.data.finalApproval.pagination.total, pages: resRes.data.finalApproval.pagination.pages }));
+    }
+  }, [resRes?.data]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -195,6 +194,9 @@ function Resignations() {
     setShowAddModal(false);
     setIsViewing(false);
     setShowApproveModal(false);
+    setShowRejectModal(false);
+    setRejectingRecordId(null);
+    setRejectReason("");
     setSelectedResignation(null);
     setApprovingRecordId(null);
     setIsHrFinalizing(false);
@@ -228,10 +230,9 @@ function Resignations() {
     }
 
     try {
-      await createResignation(formData);
+      await createResignationMutation.mutateAsync(formData);
       alert("Resignation request submitted successfully.");
       handleModalClose();
-      fetchAllData(); 
       setIsLoading(false)
     } catch (error) {
       setIsLoading(false)
@@ -242,6 +243,7 @@ function Resignations() {
   const handleApproveOrEditClick = (record, isHrAction = false) => {
     setApprovingRecordId(record._id);
     setIsHrFinalizing(isHrAction);
+    setSelectedResignation(record);
     setChecklistForm({
       isExitChecklistCleared: record.isExitChecklistCleared || false,
       isAssetRecovered: record.isAssetRecovered || false,
@@ -271,14 +273,13 @@ function Resignations() {
               isExitApproved: true,
               approvedBy: {
                 id: currentUser?.employeeId || currentUser?.id,
-                refModel: currentUser?.employeeId ? "Employee" : "User" 
+                approvedModel: currentUser?.employeeId ? "Employee" : "User" 
               },
               ...checklistForm,
               fnfAmount: Number(checklistForm.fnfAmount)
             };
             console.log(payload)
-            await finalApproval(approvingRecordId, payload);
-            fetchAllData();
+            await finalApprovalMutation.mutateAsync({ id: approvingRecordId, payload });
             alert(`Checklist metrics successfully saved with configuration status: Approved.`);
             handleModalClose();
         } else {
@@ -287,12 +288,11 @@ function Resignations() {
                 isExitApproved: false,
                 verifiedBy: {
                   id: currentUser?.employeeId || currentUser?.id,
-                  refModel: currentUser?.employeeId ? "Employee" : "User" 
+                  verifiedModel: currentUser?.employeeId ? "Employee" : "User" 
                 },
                 isKnowledgeTransferDone: checklistForm.isKnowledgeTransferDone
             };
-            await updateResignation(approvingRecordId, payload);
-            fetchAllData();
+            await updateResignationMutation.mutateAsync({ id: approvingRecordId, data: payload });
             alert(`Knowledge Transfer handover confirmed. Resignation moved to Verified for HR sign-off.`);
             handleModalClose();
         }
@@ -303,16 +303,25 @@ function Resignations() {
     }
   };
 
-  const handleRejectStatus = async (id) => {
-    if (!window.confirm("Are you sure you want to reject this resignation request?")) return;
-    setIsLoading(true)
+  const handleRejectStatus = (id) => {
+    setRejectingRecordId(id);
+    setRejectReason("");
+    setShowRejectModal(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectReason.trim()) {
+      alert("Please provide a reason for rejecting this resignation request.");
+      return;
+    }
+    setIsLoading(true);
     try {
-      await rejectResignation(id, currentUser?.employeeId);
-      fetchAllData();
-      setIsLoading(false)
+      await rejectResignationMutation.mutateAsync({ id: rejectingRecordId, rejectedBy: currentUser?.employeeId, reason: rejectReason.trim() });
+      setIsLoading(false);
       alert("Request marked as Rejected");
+      handleModalClose();
     } catch (error) {
-      setIsLoading(false)
+      setIsLoading(false);
       alert(error.response?.data?.message || "Status operation failed");
     }
   };
@@ -336,7 +345,7 @@ function Resignations() {
       .includes(hrSearch.toLowerCase())
   );
 
-  const isHrOrAdmin = currentUser?.role === "HR" || currentUser?.role === "Admin";
+  const isHrOrAdmin = roleHasPermission(currentUser?.role, "resignation:manage");
 
   return (
     <MainLayout>
@@ -879,6 +888,43 @@ function Resignations() {
           </ResModal>
         ) : null}
 
+        {showRejectModal ? (
+          <ResModal
+            title="Reject Resignation Request"
+            onClose={handleModalClose}
+            size="md"
+            footer={
+              <div className="exit-mgmt-modal-actions">
+                <Button type="button" disabled={isLoading} onClick={handleModalClose} className="secondary-btn">
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={confirmReject}
+                  disabled={isLoading}
+                  style={{ backgroundColor: "#c53030", borderColor: "#c53030" }}
+                >
+                  {isLoading ? "Rejecting..." : "Reject"}
+                </Button>
+              </div>
+            }
+          >
+            <FormSection title="Rejection Details" description="Please provide a reason for rejecting this resignation request. The employee will be notified with this reason.">
+              <FormField label="Reason for Rejection" htmlFor="reject-reason" required fullWidth>
+                <textarea
+                  id="reject-reason"
+                  name="rejectReason"
+                  rows={4}
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Enter the reason for rejecting this request..."
+                  required
+                />
+              </FormField>
+            </FormSection>
+          </ResModal>
+        ) : null}
+
         {isViewing && selectedResignation ? (
           <ResModal title="Resignation Audit Metrics" onClose={handleModalClose} size="lg">
             <FormSection title="Employee & Timing Details">
@@ -907,6 +953,16 @@ function Resignations() {
               <FormField label="Reason for Resignation" fullWidth>
                 <textarea rows={3} value={selectedResignation.reasonForLeaving} disabled />
               </FormField>
+
+              {selectedResignation.status === "Rejected" && (
+                <FormField label="Rejection Reason" fullWidth>
+                  <textarea
+                    rows={3}
+                    value={selectedResignation.rejectionReason || "Not specified"}
+                    disabled
+                  />
+                </FormField>
+              )}
               <FormField label="Attached Notice File Artifact" fullWidth>
                 {selectedResignation.resignationLetterUrl ? (
                   <button
