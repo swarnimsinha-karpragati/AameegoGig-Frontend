@@ -651,16 +651,18 @@ function Employees() {
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
 
-  // Role options for access review: system roles + custom catalog roles.
-  // Read fresh every render so newly created roles appear immediately.
+  // Role options for the listing filter: system roles + custom catalog
+  // roles, but Admin is never offered here. Read fresh every render so
+  // newly created roles appear immediately.
   const roleFilterOptions = (() => {
     const systemRoles = ["Admin", "HR", "Manager", "Employee"];
+    const withoutAdmin = (roles) => (roles || []).filter((role) => role !== "Admin");
     try {
       const catalog = loadRoles();
       const customs = Object.keys(catalog || {}).filter((key) => !systemRoles.includes(key));
-      return [...systemRoles, ...customs];
+      return withoutAdmin([...systemRoles, ...customs]);
     } catch {
-      return systemRoles;
+      return withoutAdmin(systemRoles);
     }
   })();
 
