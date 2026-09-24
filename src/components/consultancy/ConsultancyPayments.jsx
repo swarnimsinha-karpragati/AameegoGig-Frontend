@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Pencil, RefreshCw, X } from "lucide-react";
 import API from "../../services/apiClient";
 import Button from "../Button";
+import Pagination from "../Pagination";
 import "../attendance/RecordEditModal.css";
 
 const monthName = (month) => new Date(2000, month - 1, 1).toLocaleString("en", { month: "long" });
@@ -68,6 +69,10 @@ export default function ConsultancyPayments({
   const [confirmPaid, setConfirmPaid] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  // Client-side pagination for the payments table (same control/behaviour
+  // as the Employees directory list: 5 rows per page by default).
+  const [consultancyPage, setConsultancyPage] = useState(1);
+  const [consultancyLimit, setConsultancyLimit] = useState(5);
 
   // Bug 263: dynamic year window ending at the current year — never a fixed
   // range, and never a future year.
@@ -185,6 +190,19 @@ export default function ConsultancyPayments({
     return result;
   }, [rows]);
 
+  // Pagination works on the filtered rows; summary cards above always use
+  // the full filtered set. Page resets whenever the underlying list changes.
+  const consultancyTotalPages = Math.max(1, Math.ceil(rows.length / consultancyLimit));
+  const safeConsultancyPage = Math.min(Math.max(1, consultancyPage), consultancyTotalPages);
+  const paginatedRows = useMemo(() => {
+    const start = (safeConsultancyPage - 1) * consultancyLimit;
+    return rows.slice(start, start + consultancyLimit);
+  }, [rows, safeConsultancyPage, consultancyLimit]);
+
+  useEffect(() => {
+    setConsultancyPage(1);
+  }, [search, statusFilter, departmentFilter, employeeStatusFilter, period, data.rows, consultancyLimit]);
+
   const openModal = (row, mode) => {
     setModal({ row, mode });
     setEditForm({
@@ -298,11 +316,12 @@ export default function ConsultancyPayments({
       </div>
       {error ? <p className="emp-field-error">{error}</p> : null}
       {loading ? <p>Loading payments...</p> : (
-        <div className="employee-table-scroll">
-          <table className="employee-table">
-            <thead><tr><th>Consultant</th><th>Department</th><th>Rate</th><th>TDS %</th><th>Net payable</th><th>Status</th>{canManage ? <th>Action</th> : null}</tr></thead>
-            <tbody>
-              {rows.map((row) => {
+        <>
+          <div className="employee-table-scroll">
+            <table className="employee-table">
+              <thead><tr><th>Consultant</th><th>Department</th><th>Rate</th><th>TDS %</th><th>Net payable</th><th>Status</th>{canManage ? <th>Action</th> : null}</tr></thead>
+              <tbody>
+                {paginatedRows.map((row) => {
                 const net = Number(row.payment.netAmount) || 0;
                 return (
                   <tr key={row.employee._id}>
@@ -331,6 +350,22 @@ export default function ConsultancyPayments({
             </tbody>
           </table>
         </div>
+          {consultancyTotalPages > 1 && (
+            <Pagination
+              currentPage={safeConsultancyPage}
+              totalPages={consultancyTotalPages}
+              totalRecords={rows.length}
+              limit={consultancyLimit}
+              onPageChange={setConsultancyPage}
+              showPageSize
+              pageSizeOptions={[5, 10, 25, 50, 100]}
+              onPageSizeChange={(nextLimit) => {
+                setConsultancyLimit(nextLimit);
+                setConsultancyPage(1);
+              }}
+            />
+          )}
+        </>
       )}
 
       {modal ? (

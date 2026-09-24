@@ -348,13 +348,27 @@ function LeaveInner() {
     [leaveForm.startDate, leaveForm.endDate]
   );
 
-  // Backdate limit (mirrors backend getEarliestLeaveStartDate): earliest
-  // selectable date = 1st day of previous month (e.g. today 15 Feb → 1 Jan).
+  // Leave window (mirrors backend getEarliestLeaveStartDate /
+  // getLatestLeaveEndDate): earliest selectable date = 1st day of the month
+  // 2 months ago, latest = last day of the month 2 months ahead
+  // (e.g. today 15 Apr → 01 Feb … 30 Jun). Formatted locally (YYYY-MM-DD)
+  // so the picker bound never shifts by timezone.
+  const toLocalInputDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
   const minLeaveDate = useMemo(() => {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      .toISOString()
-      .split("T")[0];
+    return toLocalInputDate(new Date(now.getFullYear(), now.getMonth() - 2, 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const maxLeaveDate = useMemo(() => {
+    const now = new Date();
+    // Day 0 of (month+3) = last day of the month 2 months ahead.
+    return toLocalInputDate(new Date(now.getFullYear(), now.getMonth() + 3, 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Day Type halves exist only when a single day is selected — multi-day
@@ -565,7 +579,13 @@ function LeaveInner() {
     if (leaveForm.startDate < minLeaveDate) {
       return {
         code: "backdate",
-        message: `Leave can be applied only from ${minLeaveDate} onwards (up to 1 month back). Older dates are not allowed.`,
+        message: `Leave can be applied only from ${minLeaveDate} onwards (up to 2 months back). Older dates are not allowed.`,
+      };
+    }
+    if (leaveForm.startDate > maxLeaveDate || leaveForm.endDate > maxLeaveDate) {
+      return {
+        code: "future",
+        message: `Leave can be applied only up to ${maxLeaveDate} (up to 2 months in advance). Future dates beyond this are not allowed.`,
       };
     }
     if (computedLeaveDays == null) {
@@ -580,6 +600,7 @@ function LeaveInner() {
     leaveForm.endDate,
     computedLeaveDays,
     minLeaveDate,
+    maxLeaveDate,
   ]);
 
   // Department week-offs decide working days, so the "no working days" check
@@ -992,6 +1013,7 @@ function LeaveInner() {
             className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.startDate}
             min={minLeaveDate}
+            max={maxLeaveDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, startDate: e.target.value }))
             }
@@ -1007,7 +1029,8 @@ function LeaveInner() {
             type="date"
             className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.endDate}
-            min={minLeaveDate}
+            min={leaveForm.startDate && leaveForm.startDate >= minLeaveDate ? leaveForm.startDate : minLeaveDate}
+            max={maxLeaveDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, endDate: e.target.value }))
             }
@@ -1083,6 +1106,15 @@ function LeaveInner() {
                 <>
                   <strong className="leave-date-feedback__title">
                     Start date too old
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    {dateValidationError.message}
+                  </p>
+                </>
+              ) : dateValidationError?.code === "future" ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    Date too far in future
                   </strong>
                   <p className="leave-date-feedback__text">
                     {dateValidationError.message}
