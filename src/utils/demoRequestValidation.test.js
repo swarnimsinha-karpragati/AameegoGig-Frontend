@@ -9,8 +9,8 @@ const validPayload = {
   email: "priya@company.com",
   company: "Acme Pvt. Ltd.",
   phone: "+91 98765 43210",
-  teamSize: "1–50",
-  workforceType: "Hybrid",
+  teamSize: "1–20 employees",
+  workforceType: "Both",
   goal: "Manual payroll and attendance for field teams",
 };
 
