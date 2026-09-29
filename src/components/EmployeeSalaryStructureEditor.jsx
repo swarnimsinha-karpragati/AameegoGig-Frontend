@@ -322,10 +322,10 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
       setComponents(parsedComponents);
 
       if (isDaily) {
-        setDailyGross(res.data.data?.summary?.totalEarnings || 0);
+        setDailyGross(res.data.data?.summary?.ctcEarnings ?? res.data.data?.summary?.totalEarnings ?? 0);
         syncDraft("", dailyWage, wageType, selectedStructureId, parsedComponents);
       } else {
-        setMonthlyGross(res.data.data?.summary?.totalEarnings || 0);
+        setMonthlyGross(res.data.data?.summary?.ctcEarnings ?? res.data.data?.summary?.totalEarnings ?? 0);
         syncDraft(
           isCalendarDaily ? "" : ctcAnnual,
           isCalendarDaily ? dailyWage : "",
@@ -365,6 +365,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
         calculationType: c.calculationType || "Custom",
         enabled: true,
         isEmployerContribution: c.isEmployerContribution || false,
+        isPartOfCTC: c.isPartOfCTC !== false,
       }));
       
     setComponents(newComponents);
@@ -384,11 +385,13 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
       const targetIdx = next.findIndex(c => c.code === code);
       if (targetIdx === -1) return prev;
 
+      const editedIsCTC = next[targetIdx].isPartOfCTC !== false;
       const diff = numericVal - Number(next[targetIdx][amountKey] || 0);
       next[targetIdx] = { ...next[targetIdx], [amountKey]: numericVal };
 
-      // Balance via SPECIAL (only in template mode where math relies on it)
-      if (inputMode === "template") {
+      // Balance via SPECIAL (only in template mode where math relies on it).
+      // Outside-CTC edits never touch CTC SPECIAL.
+      if (inputMode === "template" && editedIsCTC) {
         const specialIdx = next.findIndex(c => c.code === "SPECIAL");
         if (specialIdx !== -1 && code !== "SPECIAL") {
           const newSpecialAmt = Number(next[specialIdx][amountKey] || 0) - diff;
@@ -530,7 +533,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     <div className="emp-struct-row" key={c.code}>
       <div className="emp-struct-row__label">
         <span className="emp-struct-row__name">{c.name}</span>
-        <span className="emp-struct-row__hint">{c.calculationType || "Custom"}</span>
+        <span className="emp-struct-row__hint">{c.calculationType || "Custom"}{c.isPartOfCTC === false && <span style={{fontWeight:700, color:"#92400e"}}> · Outside CTC</span>}</span>
       </div>
       <div className="emp-struct-row__amount">
         <input

@@ -77,6 +77,7 @@ const emptyForm = {
   baseComponent: "",
   threshold: null,
   cap: null,
+  isPartOfCTC: true,
   isStatutory: false,
   isProRata: false,
   isOptional: false,
@@ -229,7 +230,7 @@ export default function SalaryComponentManager() {
     setEditing(comp.code);
     // Normalize calculationType: map legacy Formula to CustomFormula for UI
     const normalized = comp.calculationType === "Formula" ? "CustomFormula" : comp.calculationType;
-    setForm({ ...emptyForm, ...comp, calculationType: normalized || comp.calculationType, slabs: comp.slabs || [], departments: comp.departments || [] });
+    setForm({ ...emptyForm, ...comp, isPartOfCTC: comp.isPartOfCTC !== false, calculationType: normalized || comp.calculationType, slabs: comp.slabs || [], departments: comp.departments || [] });
     
     const isStandard = codes.find(c => c.code === comp.code && c.code !== "OTHER");
     setSelectedPreset(isStandard ? comp.code : "OTHER");
@@ -509,6 +510,7 @@ export default function SalaryComponentManager() {
           {comp.name}
           {comp.isSystem && <span className="salary-cm__badge system">system</span>}
           {FORMULA_TYPES.has(comp.calculationType) && <span className="salary-cm__badge formula"><Calculator size={10} style={{marginRight:3, verticalAlign:"-1px"}}/>formula</span>}
+          {comp.isPartOfCTC === false && <span className="salary-cm__badge">Outside CTC</span>}
         </div>
         <div className="salary-cm__row-meta">
           <p>{getCalcLabel(comp)}</p>
@@ -845,6 +847,10 @@ export default function SalaryComponentManager() {
 
               <div className="salary-cm__modal-section salary-cm__options">
                 <p className="salary-cm__modal-section-title">Options</p>
+                <label className="salary-cm__check">
+                  <input type="checkbox" checked={form.isPartOfCTC !== false} onChange={(e) => handleChange("isPartOfCTC", e.target.checked)} disabled={saving} />
+                  <span>Part of CTC</span>
+                </label>
                 {form.category === "Deduction" && (
                   <label className="salary-cm__check" style={selectedPreset !== "OTHER" ? {opacity: 0.6} : {}}>
                     <input 

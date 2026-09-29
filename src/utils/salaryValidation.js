@@ -42,9 +42,11 @@ export const validateDailyWage = (value) =>
 
 const FIXED_GROSS_CALC_TYPES = new Set(["FixedMonthly", "Manual"]);
 
-/** Fixed earnings that count toward the monthly gross cap (matches CTC split). */
+/** Fixed CTC earnings that count toward the monthly gross cap (matches CTC split). Non-CTC excluded via flag only. */
+export const isOutsideCtc = (comp) => comp.isPartOfCTC === false;
 export const contributesToGross = (comp) => {
   if (comp.enabled === false || comp.category !== "Earning") return false;
+  if (isOutsideCtc(comp)) return false;
   if (!comp.calculationType) return true;
   return FIXED_GROSS_CALC_TYPES.has(comp.calculationType);
 };
@@ -108,11 +110,11 @@ export const validateComponentsMatchCtc = ({ ctcAnnual, components = [] }) => {
   if (!lines.length) return "";
 
   const earnings = lines
-    .filter((comp) => comp.category === "Earning")
+    .filter((comp) => comp.category === "Earning" && !isOutsideCtc(comp))
     .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
 
   const employerContributions = lines
-    .filter((comp) => comp.isEmployerContribution)
+    .filter((comp) => comp.isEmployerContribution && !isOutsideCtc(comp))
     .reduce((sum, comp) => sum + (Number(comp.monthlyAmount) || 0), 0);
 
   const monthlyTotal = earnings + employerContributions;
@@ -127,13 +129,13 @@ export const validateComponentsMatchCtc = ({ ctcAnnual, components = [] }) => {
 };
 
 export const validateComponentsMatchDailyWage = ({ dailyWage, components = [] }) => {
-  // Gross model: dailyWage is gross (earnings), employer contributions are extra, not part of wage
+  // Gross model: dailyWage is CTC gross (earnings), employer contributions are extra, not part of wage
   const wage = Number(dailyWage) || 0;
   if (wage <= 0) return "";
   const lines = (components || []).filter((comp) => comp && comp.enabled !== false);
   if (!lines.length) return "";
   const earnings = lines
-    .filter((comp) => comp.category === "Earning")
+    .filter((comp) => comp.category === "Earning" && comp.isPartOfCTC !== false)
     .reduce((sum, comp) => sum + (Number(comp.dailyAmount ?? comp.monthlyAmount) || 0), 0);
   const difference = Math.abs(wage - earnings);
   if (difference <= CTC_MATCH_ROUNDING_TOLERANCE) return "";
