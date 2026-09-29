@@ -27,6 +27,7 @@ import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
 import { isSiteVendor } from "../utils/vendorIdhelper";
 import { clearAuthData } from "../utils/authStorage";
+import queryClient from "../queryClient";
 import HelpDeskWidget from "../components/HelpDeskWidget";
 
 function MainLayout({ children }) {
@@ -400,6 +401,7 @@ function MainLayout({ children }) {
             type="button"
             className="logout-btn"
             onClick={() => {
+              queryClient.clear();
               clearAuthData();
               navigate("/login");
             }}

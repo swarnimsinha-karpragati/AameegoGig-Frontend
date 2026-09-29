@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import MainLayout from "../layouts/MainLayout";
-import { createResignation, finalApproval, getResignation, rejectResignation, updateResignation, viewLetter } from "../services/resignationService";
+import { viewLetter } from "../services/resignationService";
+import {
+  useResignation,
+  useCreateResignation,
+  useUpdateResignation,
+  useRejectResignation,
+  useFinalApproval,
+} from "../hooks/useResignation";
 import Pagination from "../components/Pagination";
 import {
   Search,
@@ -68,17 +75,27 @@ function Resignations() {
   const [vendorId, setVendorId] = useState(null); 
   const [currentUser, setCurrentUser] = useState(null);
 
-  const [myRecords, setMyRecords] = useState([]);
-  const [underMeRecords, setUnderMeRecords] = useState([]);
-  const [finalApprovalRecords, setFinalApprovalRecords] = useState([]);
-  
   const [myPagination, setMyPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [underMePagination, setUnderMePagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [finalPagination, setFinalPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
-  
+
+  const { data: resRes, isLoading: loading } = useResignation(
+    vendorId,
+    currentUser?.employeeId || currentUser?.id,
+    { page: myPagination.page, limit: myPagination.limit },
+    { enabled: Boolean(vendorId && currentUser) }
+  );
+  const myRecords = resRes?.data?.myrecords?.data || [];
+  const underMeRecords = resRes?.data?.underMe?.data || [];
+  const finalApprovalRecords = resRes?.data?.finalApproval?.data || [];
+
+  const createResignationMutation = useCreateResignation();
+  const updateResignationMutation = useUpdateResignation();
+  const rejectResignationMutation = useRejectResignation();
+  const finalApprovalMutation = useFinalApproval();
+
   const [search, setSearch] = useState("");
   const [hrSearch, setHrSearch] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const [selectedResignation, setSelectedResignation] = useState(null);
   const [isViewing, setIsViewing] = useState(false);
@@ -141,40 +158,17 @@ function Resignations() {
     }
   }, []);
 
-  const fetchAllData = useCallback(async () => {
-    if (!vendorId) return;
-    try {
-      setLoading(true);
-      const params = { 
-        page: myPagination.page, 
-        limit: myPagination.limit 
-      };
-      const res = await getResignation(vendorId, currentUser.employeeId?currentUser.employeeId:currentUser.id, params);
-      setMyRecords(res.data.myrecords?.data || []);
-      setUnderMeRecords(res.data.underMe?.data || []);
-      setFinalApprovalRecords(res.data.finalApproval?.data || []);
-      if (res.data.myrecords?.pagination) {
-        setMyPagination(prev => ({ ...prev, total: res.data.myrecords.pagination.total, pages: res.data.myrecords.pagination.pages }));
-      }
-      if (res.data.underMe?.pagination) {
-        setUnderMePagination(prev => ({ ...prev, total: res.data.underMe.pagination.total, pages: res.data.underMe.pagination.pages }));
-      }
-      if (res.data.finalApproval?.pagination) {
-        setFinalPagination(prev => ({ ...prev, total: res.data.finalApproval.pagination.total, pages: res.data.finalApproval.pagination.pages }));
-      }
-    } catch (error) {
-      console.error("Error standardizing resignation view initialization:", error);
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line 
-  }, [vendorId, myPagination.page, myPagination.limit, underMePagination.page, underMePagination.limit, finalPagination.page, finalPagination.limit]);
-
   useEffect(() => {
-    if (vendorId) {
-      fetchAllData();
+    if (resRes?.data?.myrecords?.pagination) {
+      setMyPagination(prev => ({ ...prev, total: resRes.data.myrecords.pagination.total, pages: resRes.data.myrecords.pagination.pages }));
     }
-  }, [vendorId, currentUser, fetchAllData]);
+    if (resRes?.data?.underMe?.pagination) {
+      setUnderMePagination(prev => ({ ...prev, total: resRes.data.underMe.pagination.total, pages: resRes.data.underMe.pagination.pages }));
+    }
+    if (resRes?.data?.finalApproval?.pagination) {
+      setFinalPagination(prev => ({ ...prev, total: resRes.data.finalApproval.pagination.total, pages: resRes.data.finalApproval.pagination.pages }));
+    }
+  }, [resRes?.data]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -236,10 +230,9 @@ function Resignations() {
     }
 
     try {
-      await createResignation(formData);
+      await createResignationMutation.mutateAsync(formData);
       alert("Resignation request submitted successfully.");
       handleModalClose();
-      fetchAllData(); 
       setIsLoading(false)
     } catch (error) {
       setIsLoading(false)
@@ -286,8 +279,7 @@ function Resignations() {
               fnfAmount: Number(checklistForm.fnfAmount)
             };
             console.log(payload)
-            await finalApproval(approvingRecordId, payload);
-            fetchAllData();
+            await finalApprovalMutation.mutateAsync({ id: approvingRecordId, payload });
             alert(`Checklist metrics successfully saved with configuration status: Approved.`);
             handleModalClose();
         } else {
@@ -300,8 +292,7 @@ function Resignations() {
                 },
                 isKnowledgeTransferDone: checklistForm.isKnowledgeTransferDone
             };
-            await updateResignation(approvingRecordId, payload);
-            fetchAllData();
+            await updateResignationMutation.mutateAsync({ id: approvingRecordId, data: payload });
             alert(`Knowledge Transfer handover confirmed. Resignation moved to Verified for HR sign-off.`);
             handleModalClose();
         }
@@ -325,8 +316,7 @@ function Resignations() {
     }
     setIsLoading(true);
     try {
-      await rejectResignation(rejectingRecordId, currentUser?.employeeId, rejectReason.trim());
-      fetchAllData();
+      await rejectResignationMutation.mutateAsync({ id: rejectingRecordId, rejectedBy: currentUser?.employeeId, reason: rejectReason.trim() });
       setIsLoading(false);
       alert("Request marked as Rejected");
       handleModalClose();

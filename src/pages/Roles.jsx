@@ -19,12 +19,8 @@ import {
   loadRoles,
   saveRoles,
 } from "../utils/permissions";
-import {
-  getRoles,
-  createRole,
-  updateRole,
-  deleteRole,
-} from "../services/roleService";
+import { useRoles, useCreateRole, useUpdateRole, useDeleteRole } from "../hooks/useRoles";
+import { getRoles } from "../services/roleService";
 import { roleHasPermission, syncRolesFromServer } from "../utils/roles";
 import ConfirmModal from "../components/ConfirmModal";
 import "./Roles.css";
@@ -395,39 +391,34 @@ export default function Roles() {
 
   const isAdmin = roleHasPermission(user?.role, "roles:manage");
 
+  const { data: backendRoles } = useRoles({ enabled: isAdmin });
+  const createRoleMutation = useCreateRole();
+  const updateRoleMutation = useUpdateRole();
+  const deleteRoleMutation = useDeleteRole();
+
   const persistRoles = useCallback((updated) => {
     setRoles(updated);
     saveRoles(updated);
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-    getRoles()
-      .then((backendRoles) => {
-        if (!mounted || !Array.isArray(backendRoles)) return;
-        const merged = { ...loadRoles() };
-        backendRoles.forEach((rb) => {
-          if (rb.isAdmin) return;
-          merged[rb.roleName] = {
-            displayName: rb.displayName || rb.roleName,
-            description: rb.description || "",
-            permissions: rb.permissions || [],
-            baselinePermissions: rb.baselinePermissions || BASELINE_PERMISSIONS,
-            isSystem: Boolean(rb.isSystem),
-            isAdmin: Boolean(rb.isAdmin),
-            _id: rb._id,
-          };
-        });
-        setRoles(merged);
-        saveRoles(merged);
-      })
-      .catch(() => {
-        /* backend unavailable — keep local roles */
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    if (!Array.isArray(backendRoles)) return;
+    const merged = { ...loadRoles() };
+    backendRoles.forEach((rb) => {
+      if (rb.isAdmin) return;
+      merged[rb.roleName] = {
+        displayName: rb.displayName || rb.roleName,
+        description: rb.description || "",
+        permissions: rb.permissions || [],
+        baselinePermissions: rb.baselinePermissions || BASELINE_PERMISSIONS,
+        isSystem: Boolean(rb.isSystem),
+        isAdmin: Boolean(rb.isAdmin),
+        _id: rb._id,
+      };
+    });
+    setRoles(merged);
+    saveRoles(merged);
+  }, [backendRoles]);
 
   const handleSavePermissions = async (roleName, permissions, meta = {}) => {
     // Safety: roles:manage kabhi save nahi hoga (Admin-only).
@@ -447,12 +438,12 @@ export default function Roles() {
     persistRoles(updated);
     if (roleDef?._id) {
       try {
-        const response = await updateRole(roleDef._id, {
+        const response = await updateRoleMutation.mutateAsync({ id: roleDef._id, payload: {
           roleName: requestedKey,
           displayName: renamed ? requestedKey : (roleDef.displayName || roleName),
           description: newDescription,
           permissions,
-        });
+        } });
         const savedRole = response.data?.role;
         if (savedRole?.roleName) {
           const refreshed = { ...updated };
@@ -507,7 +498,7 @@ export default function Roles() {
         setFeedback({ type: "success", message: "Role deleted. Users on this role were moved to the Employee role." });
         return;
       }
-      const res = await deleteRole(serverId);
+      const res = await deleteRoleMutation.mutateAsync(serverId);
       // Server ki canonical list se reconcile karo taaki aadha-adhura
       // delete kabhi successful na lage.
       try {
@@ -599,7 +590,7 @@ export default function Roles() {
     };
     persistRoles(updated);
     try {
-      const res = await createRole({
+      const res = await createRoleMutation.mutateAsync({
         roleName: name,
         displayName: name,
         description: newRoleDesc.trim() || "Custom role",

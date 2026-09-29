@@ -198,13 +198,7 @@ export const employeeValidationSchema = Yup.object().shape({
 
   dateOfJoining: Yup.date()
     .transform((value, originalValue) => (originalValue === "" ? null : value))
-    .nullable()
-    .when("isConsultancy", {
-      is: true,
-      then: (schema) => schema.nullable(),
-      otherwise: (schema) =>
-        schema.required("Date of joining is required"),
-    })
+    .required("Date of joining is required")
     .default(null),
 
   relievingDate: Yup.date()

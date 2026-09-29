@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Info,
   Pencil,
+  Loader2,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
@@ -51,6 +52,9 @@ import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
 import Card from "../components/Card";
+import Pagination from "../components/Pagination";
+
+const ALL_REQ_PAGE_SIZE = 10;
 
 const leaveStatusClass = {
   Approved: "leave-status approved",
@@ -59,21 +63,93 @@ const leaveStatusClass = {
   Cancelled: "leave-status cancelled",
 };
 
+// IST date display: backend stores IST-midnight as UTC, so plain
+// toLocaleDateString() shows the previous day on UTC browsers.
+const formatDateIST = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  try {
+    return d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch {
+    return d.toLocaleDateString();
+  }
+};
+
 function LeaveSummaryCards({ summary, labels }) {
+  const requestCounts = summary.requestCounts || null;
+
+  // Team summary: show the request status counts (All / Pending / Approved /
+  // Cancelled) instead of the WFH/Leave/Pending/Balance tiles.
+  if (requestCounts) {
+    const statCards = [
+      {
+        key: "all",
+        icon: Calendar,
+        iconClassName: "blue",
+        value: requestCounts.total || 0,
+        label: "All Requests",
+      },
+      {
+        key: "pending",
+        icon: Clock3,
+        iconClassName: "orange",
+        value: requestCounts.pending || 0,
+        label: "Pending",
+      },
+      {
+        key: "approved",
+        icon: Check,
+        iconClassName: "green",
+        value: requestCounts.approved || 0,
+        label: "Approved",
+      },
+      {
+        key: "cancelled",
+        icon: X,
+        iconClassName: "red",
+        value: (requestCounts.cancelled || 0) + (requestCounts.rejected || 0),
+        label: "Cancelled / Rejected",
+      },
+    ];
+
+    return (
+      <div className="payroll-stats-grid">
+        {statCards.map(({ key, icon: Icon, iconClassName, value, label }) => (
+          <Card
+            key={key}
+            icon={<Icon size={22} strokeWidth={2} />}
+            iconClassName={iconClassName}
+            isInteractive
+          >
+            <Card.Header>{label}</Card.Header>
+            <Card.Body>{value}</Card.Body>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  const wfhTaken = summary.wfhDaysThisMonth || 0;
+  const leaveTaken = summary.leaveDaysThisMonth || 0;
+  const balance = summary.totalBalance;
+  const balanceDisplay = balance == null ? "—" : balance;
   const cards = [
     {
       key: "wfh",
       icon: Home,
       iconClassName: "blue",
-      value: summary.wfhDaysThisMonth || 0,
-      label: labels?.wfh || "WFH Days (This Month)",
+      value: wfhTaken,
+      label: labels?.wfh || "WFH Taken (This Month)",
+      // sub: wfhTotal != null ? `Taken ${wfhTaken} of ${wfhTotal} • Left ${wfhLeft}` : `Taken ${wfhTaken} this month`,
     },
     {
       key: "leave",
       icon: Calendar,
       iconClassName: "green",
-      value: summary.leaveDaysThisMonth || 0,
-      label: labels?.leave || "Leave Days (This Month)",
+      value: leaveTaken,
+      label: labels?.leave || "Leave Taken (This Month)",
+      // sub: balance == null ? `Taken ${leaveTaken} this month` : `Taken ${leaveTaken} • Balance ${balance}`,
     },
     {
       key: "pending",
@@ -81,19 +157,21 @@ function LeaveSummaryCards({ summary, labels }) {
       iconClassName: "orange",
       value: summary.pendingRequests || 0,
       label: labels?.pending || "Pending Requests",
+      sub: null,
     },
     {
       key: "balance",
       icon: UserCheck2,
       iconClassName: "purple",
-      value: summary.totalBalance || 0,
+      value: balanceDisplay,
       label: labels?.balance || "Total Balance",
+      // sub: balance == null ? "No team data" : "Total remaining",
     },
   ];
 
   return (
     <div className="payroll-stats-grid">
-      {cards.map(({ key, icon: Icon, iconClassName, value, label }) => (
+      {cards.map(({ key, icon: Icon, iconClassName, value, label, sub }) => (
         <Card
           key={key}
           icon={<Icon size={22} strokeWidth={2} />}
@@ -102,6 +180,7 @@ function LeaveSummaryCards({ summary, labels }) {
         >
           <Card.Header>{label}</Card.Header>
           <Card.Body>{value}</Card.Body>
+          {sub ? <Card.Footer>{sub}</Card.Footer> : null}
         </Card>
       ))}
     </div>
@@ -150,6 +229,25 @@ function LeaveInner() {
   const balancesQuery = useLeaveBalances();
   const policyQuery = useLeavePolicy();
 
+  // Admin "All Requests": server-side search (name/email/phone/code) + pagination.
+  const [allReqPage, setAllReqPage] = useState(1);
+  const [allReqSearchInput, setAllReqSearchInput] = useState("");
+  const [allReqSearch, setAllReqSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAllReqSearch(allReqSearchInput.trim());
+      setAllReqPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [allReqSearchInput]);
+  const allRequestsQuery = useLeaveRequests(
+    { page: allReqPage, limit: ALL_REQ_PAGE_SIZE, search: allReqSearch || undefined },
+    { enabled: canViewOrgLeave(user?.role), keepPreviousData: true }
+  );
+  const allReqItems = useMemo(() => allRequestsQuery.data?.requests || [], [allRequestsQuery.data]);
+  const allReqTotal = allRequestsQuery.data?.total ?? 0;
+  const allReqTotalPages = allRequestsQuery.data?.totalPages ?? 0;
+
   const createLeaveMutation = useCreateLeaveRequest();
   const createLeaveMultipartMutation = useCreateLeaveRequestMultipart();
   const approveLeaveMutation = useApproveLeaveRequest();
@@ -195,8 +293,11 @@ function LeaveInner() {
 
   const [medicalDocFile, setMedicalDocFile] = useState(null);
   const [editLeaveRecord, setEditLeaveRecord] = useState(null);
+  // Backend validation error for the selected range (e.g. no working days
+  // for the employee's department week-offs). Surfaced inline.
+  const [serverDateError, setServerDateError] = useState("");
 
-  const countWeekdaysInclusiveClient = (startStr, endStr) => {
+  const countDaysInclusiveClient = (startStr, endStr, weekdaysOnly) => {
     if (!startStr || !endStr) return null;
     const start = new Date(`${startStr}T00:00:00`);
     const end = new Date(`${endStr}T00:00:00`);
@@ -205,11 +306,21 @@ function LeaveInner() {
 
     let count = 0;
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const day = d.getDay(); // 0=Sun, 6=Sat
-      if (day !== 0 && day !== 6) count += 1;
+      if (!weekdaysOnly) {
+        count += 1;
+      } else {
+        const day = d.getDay(); // 0=Sun, 6=Sat
+        if (day !== 0 && day !== 6) count += 1;
+      }
     }
     return count;
   };
+
+  // Comp Off credit (earned) applies to off-days — weekends/holidays included.
+  const isCoCredit =
+    leaveForm.leaveType === "CO" &&
+    leaveForm.requestType !== "WFH" &&
+    coPurpose === "credit";
 
   const slRequiredWhenDaysGt = useMemo(() => {
     const sl = leavePolicy?.types?.find((t) => t?.code === "SL");
@@ -217,17 +328,47 @@ function LeaveInner() {
   }, [leavePolicy]);
 
   const computedLeaveDays = useMemo(
-    () => countWeekdaysInclusiveClient(leaveForm.startDate, leaveForm.endDate),
+    () =>
+      countDaysInclusiveClient(
+        leaveForm.startDate,
+        leaveForm.endDate,
+        !isCoCredit
+      ),
+    [leaveForm.startDate, leaveForm.endDate, isCoCredit]
+  );
+
+  // Raw number of dates picked in the range (independent of week-offs).
+  const selectedDaysTotal = useMemo(
+    () =>
+      countDaysInclusiveClient(
+        leaveForm.startDate,
+        leaveForm.endDate,
+        false
+      ),
     [leaveForm.startDate, leaveForm.endDate]
   );
 
-  // Backdate limit (mirrors backend getEarliestLeaveStartDate): earliest
-  // selectable date = 1st day of previous month (e.g. today 15 Feb → 1 Jan).
+  // Leave window (mirrors backend getEarliestLeaveStartDate /
+  // getLatestLeaveEndDate): earliest selectable date = 1st day of the month
+  // 2 months ago, latest = last day of the month 2 months ahead
+  // (e.g. today 15 Apr → 01 Feb … 30 Jun). Formatted locally (YYYY-MM-DD)
+  // so the picker bound never shifts by timezone.
+  const toLocalInputDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
   const minLeaveDate = useMemo(() => {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      .toISOString()
-      .split("T")[0];
+    return toLocalInputDate(new Date(now.getFullYear(), now.getMonth() - 2, 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const maxLeaveDate = useMemo(() => {
+    const now = new Date();
+    // Day 0 of (month+3) = last day of the month 2 months ahead.
+    return toLocalInputDate(new Date(now.getFullYear(), now.getMonth() + 3, 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Day Type halves exist only when a single day is selected — multi-day
@@ -438,7 +579,13 @@ function LeaveInner() {
     if (leaveForm.startDate < minLeaveDate) {
       return {
         code: "backdate",
-        message: `Leave can be applied only from ${minLeaveDate} onwards (up to 1 month back). Older dates are not allowed.`,
+        message: `Leave can be applied only from ${minLeaveDate} onwards (up to 2 months back). Older dates are not allowed.`,
+      };
+    }
+    if (leaveForm.startDate > maxLeaveDate || leaveForm.endDate > maxLeaveDate) {
+      return {
+        code: "future",
+        message: `Leave can be applied only up to ${maxLeaveDate} (up to 2 months in advance). Future dates beyond this are not allowed.`,
       };
     }
     if (computedLeaveDays == null) {
@@ -447,21 +594,28 @@ function LeaveInner() {
         message: "End date must be on or after start date",
       };
     }
-    if (computedLeaveDays < 1) {
-      const kind = leaveForm.requestType === "WFH" ? "WFH" : "leave";
-      return {
-        code: "weekend",
-        message: `Selected dates have no working days (weekends are excluded). Choose at least one weekday for this ${kind} request.`,
-      };
-    }
     return null;
   }, [
     leaveForm.startDate,
     leaveForm.endDate,
-    leaveForm.requestType,
     computedLeaveDays,
     minLeaveDate,
+    maxLeaveDate,
   ]);
+
+  // Department week-offs decide working days, so the "no working days" check
+  // is authoritative on the backend (POST /leave/requests). Clear any stale
+  // server error whenever the selected range changes.
+  useEffect(() => {
+    setServerDateError("");
+  }, [leaveForm.startDate, leaveForm.endDate]);
+
+  // Inline feedback is in an error state only for a bad range or a backend
+  // rejection. Working days depend on the department's week-offs, which the
+  // client doesn't know, so "no working days" is left to the server (the
+  // client's weekday count is just a hint).
+  const hasDateFeedbackError =
+    Boolean(dateValidationError) || Boolean(serverDateError);
 
   const leaveApiErrorMessage = (err, fallback) => {
     const data = err?.response?.data;
@@ -554,6 +708,7 @@ function LeaveInner() {
   /* ── Handlers ── */
   const handleCreateRequest = async (e, forSelf = false) => {
     e.preventDefault();
+    if (createLeaveMutation.isPending || createLeaveMultipartMutation.isPending) return;
     try {
       if (dateValidationError) {
         toast.error(dateValidationError.message);
@@ -611,7 +766,11 @@ function LeaveInner() {
       }));
       setMedicalDocFile(null);
     } catch (err) {
-      toast.error(leaveApiErrorMessage(err, "Failed to submit request"));
+      const message = leaveApiErrorMessage(err, "Failed to submit request");
+      if (/no working days/i.test(message)) {
+        setServerDateError(message);
+      }
+      toast.error(message);
     }
   };
 
@@ -681,6 +840,9 @@ function LeaveInner() {
         if (code === "WFH") {
           if (balanceForm.WFH?.total === "" || balanceForm.WFH?.total == null) return;
           payload.WFH = { total: Number(balanceForm.WFH.total) };
+          if (balanceForm.WFH?.used !== "" && balanceForm.WFH?.used != null) {
+            payload.WFH.used = Number(balanceForm.WFH.used);
+          }
           return;
         }
         payload[code] = {
@@ -851,6 +1013,7 @@ function LeaveInner() {
             className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.startDate}
             min={minLeaveDate}
+            max={maxLeaveDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, startDate: e.target.value }))
             }
@@ -866,7 +1029,8 @@ function LeaveInner() {
             type="date"
             className={`leave-control${dateValidationError ? " leave-control--invalid" : ""}`}
             value={leaveForm.endDate}
-            min={minLeaveDate}
+            min={leaveForm.startDate && leaveForm.startDate >= minLeaveDate ? leaveForm.startDate : minLeaveDate}
+            max={maxLeaveDate}
             onChange={(e) =>
               setLeaveForm((p) => ({ ...p, endDate: e.target.value }))
             }
@@ -895,15 +1059,15 @@ function LeaveInner() {
         {leaveForm.startDate && leaveForm.endDate ? (
           <div
             id="leave-date-feedback"
-            className={`leave-date-feedback leave-field--full${dateValidationError
+            className={`leave-date-feedback leave-field--full${hasDateFeedbackError
               ? " leave-date-feedback--error"
               : " leave-date-feedback--ok"
               }`}
-            role={dateValidationError ? "alert" : "status"}
+            role={hasDateFeedbackError ? "alert" : "status"}
             aria-live="polite"
           >
             <span className="leave-date-feedback__icon" aria-hidden="true">
-              {dateValidationError ? (
+              {hasDateFeedbackError ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.75" />
                   <path
@@ -938,18 +1102,40 @@ function LeaveInner() {
                     dates to continue.
                   </p>
                 </>
-              ) : dateValidationError ? (
+              ) : dateValidationError?.code === "backdate" ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    Start date too old
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    {dateValidationError.message}
+                  </p>
+                </>
+              ) : dateValidationError?.code === "future" ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    Date too far in future
+                  </strong>
+                  <p className="leave-date-feedback__text">
+                    {dateValidationError.message}
+                  </p>
+                </>
+              ) : serverDateError ? (
                 <>
                   <strong className="leave-date-feedback__title">
                     No working days in this range
                   </strong>
                   <p className="leave-date-feedback__text">
-                    Saturdays and Sundays are not counted for leave or WFH.
-                    Choose dates that include at least one weekday (Mon–Fri).
+                    {serverDateError}
                   </p>
-                  <p className="leave-date-feedback__meta">
-                    Working days selected: <strong>0</strong>
-                  </p>
+                </>
+              ) : computedLeaveDays != null && computedLeaveDays < 1 ? (
+                <>
+                  <strong className="leave-date-feedback__title">
+                    {selectedDaysTotal === 1
+                      ? "1 day selected"
+                      : `${selectedDaysTotal} days selected`}
+                  </strong>
                 </>
               ) : (
                 <>
@@ -961,7 +1147,7 @@ function LeaveInner() {
                         : `${computedLeaveDays} working days`}
                   </strong>
                   <p className="leave-date-feedback__text">
-                    Weekends are excluded from the day count automatically.
+                    Weekly offs are excluded from the day count automatically.
                   </p>
                 </>
               )}
@@ -985,9 +1171,9 @@ function LeaveInner() {
         <div className="leave-form-actions">
           <Button
             type="submit"
-            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile)}
+            disabled={Boolean(dateValidationError) || (isMedicalDocRequired && !medicalDocFile) || createLeaveMutation.isPending || createLeaveMultipartMutation.isPending}
           >
-            Submit Request
+            {createLeaveMutation.isPending || createLeaveMultipartMutation.isPending ? "Submitting…" : "Submit Request"}
           </Button>
         </div>
       </form>
@@ -1009,8 +1195,8 @@ function LeaveInner() {
               <strong>{item.employeeId?.name}</strong>
               <p>
                 {leaveTypeDisplay(item)} •{" "}
-                {new Date(item.startDate).toLocaleDateString()} -{" "}
-                {new Date(item.endDate).toLocaleDateString()}
+                {formatDateIST(item.startDate)} -{" "}
+                {formatDateIST(item.endDate)}
               </p>
               <small>Approved by: {item.approverId?.name || "-"}</small>
             </div>
@@ -1061,8 +1247,8 @@ function LeaveInner() {
                     ) : null}
                     <td>{leaveTypeDisplay(item)}</td>
                     <td>
-                      {new Date(item.startDate).toLocaleDateString()} -{" "}
-                      {new Date(item.endDate).toLocaleDateString()} ({formatLeaveDays(item)})
+                      {formatDateIST(item.startDate)} -{" "}
+                      {formatDateIST(item.endDate)} ({formatLeaveDays(item)})
                     </td>
                     <td>{item.reason || "-"}</td>
 
@@ -1115,9 +1301,7 @@ function LeaveInner() {
                           item.status === "Pending";
                         const showCancel =
                           mode === "employee" &&
-                          item.status === "Pending" &&
-                          new Date(item.startDate).setHours(0, 0, 0, 0) >=
-                          new Date().setHours(0, 0, 0, 0);
+                          item.status === "Pending";
                         const showEdit =
                           canDirectEditLeave && item.status !== "Cancelled";
 
@@ -1264,6 +1448,16 @@ function LeaveInner() {
                         readOnly
                       />
                     </div>
+                    <div className="leave-field balance-row__field balance-row__remaining">
+                      <label>Remaining</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={item.remaining ?? ""}
+                        disabled
+                        readOnly
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1282,6 +1476,10 @@ function LeaveInner() {
             <div className="leave-balance-grid">
               {leaveBalanceTypes.map((type) => {
                 const isWfhRow = type === "WFH";
+                const field = balanceForm[type] || {};
+                const total = Number(field.total) || 0;
+                const used = Number(field.used) || 0;
+                const remaining = Math.max(0, total - used);
                 return (
                   <div key={type} className="balance-row" data-code={type}>
                     <span className="balance-row__type">{type}</span>
@@ -1311,13 +1509,23 @@ function LeaveInner() {
                         className="leave-control"
                         placeholder="0"
                         value={balanceForm[type]?.used ?? ""}
-                        title={isWfhRow ? "WFH used is auto-counted from Pending + Approved requests" : undefined}
+                        title={isWfhRow ? "WFH used override — if left blank, auto-counted from Pending + Approved requests" : undefined}
                         onChange={(e) =>
                           setBalanceForm((prev) => ({
                             ...prev,
                             [type]: { ...prev[type], used: e.target.value },
                           }))
                         }
+                      />
+                    </div>
+                    <div className="leave-field balance-row__field balance-row__remaining">
+                      <label>Remaining</label>
+                      <input
+                        type="number"
+                        className="leave-control"
+                        value={remaining}
+                        readOnly
+                        disabled
                       />
                     </div>
                   </div>
@@ -1352,7 +1560,7 @@ function LeaveInner() {
             {wfhQuota && wfhQuota.total != null ? (
               <div className="leave-balance-item" key="WFH">
                 <span>Work From Home (WFH)</span>
-                <strong>{wfhQuota.total}</strong>
+                <strong>{wfhQuota.remaining ?? wfhQuota.total}</strong>
               </div>
             ) : null}
           </>
@@ -1393,10 +1601,25 @@ function LeaveInner() {
     );
   };
 
-  const renderAllRequestsTable = (items, title = "All Requests") => (
+  const renderAllRequestsTable = (items, title = "All Requests", opts = {}) => (
     <section className="leave-panel leave-glass leave-panel--wide">
-      <header className="leave-panel__head">
-        <h3>{title}</h3>
+      <header className="leave-panel__head leave-panel__head--split">
+        <h3>{title}{opts.total != null ? ` (${opts.total})` : ""}</h3>
+        {opts.showSearch ? (
+          <span className="leave-search-wrap">
+            <input
+              type="search"
+              className="leave-control leave-search"
+              placeholder="Name, Employee ID, email, phone…"
+              value={opts.searchValue ?? ""}
+              onChange={(e) => opts.onSearchChange?.(e.target.value)}
+              aria-label="Search requests by employee"
+            />
+            {opts.fetching ? (
+              <Loader2 size={14} className="leave-search-spinner" aria-label="Searching" />
+            ) : null}
+          </span>
+        ) : null}
       </header>
       <div className="leave-table-wrap">
         <table className="leave-table">
@@ -1412,7 +1635,13 @@ function LeaveInner() {
             </tr>
           </thead>
           <tbody>
-            {!loading && items.length === 0 ? (
+            {opts.loading ? (
+              <tr>
+                <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
+                  Loading…
+                </td>
+              </tr>
+            ) : !loading && items.length === 0 ? (
               <tr>
                 <td colSpan={canDirectEditLeave ? 7 : 6} className="leave-empty">
                   No requests found
@@ -1424,8 +1653,8 @@ function LeaveInner() {
                 <td>{item.employeeId?.name || "-"}</td>
                 <td>{leaveTypeDisplay(item)}</td>
                 <td>
-                  {new Date(item.startDate).toLocaleDateString()} -{" "}
-                  {new Date(item.endDate).toLocaleDateString()}
+                  {formatDateIST(item.startDate)} -{" "}
+                  {formatDateIST(item.endDate)}
                 </td>
                 <td>{formatLeaveDays(item)}</td>
                 <td>
@@ -1485,6 +1714,15 @@ function LeaveInner() {
           </tbody>
         </table>
       </div>
+      {opts.showPagination && opts.totalPages > 1 ? (
+        <Pagination
+          currentPage={opts.page}
+          totalPages={opts.totalPages}
+          totalRecords={opts.total}
+          limit={opts.limit || ALL_REQ_PAGE_SIZE}
+          onPageChange={opts.onPageChange}
+        />
+      ) : null}
     </section>
   );
 
@@ -1506,14 +1744,14 @@ function LeaveInner() {
           labels={
             isAdminView
               ? {
-                wfh: "WFH Days (This Month)",
-                leave: "Leave Days (This Month)",
+                wfh: "WFH Taken (This Month)",
+                leave: "Leave Taken (This Month)",
                 pending: "Pending Requests",
                 balance: "Avg Balance",
               }
               : {
-                wfh: "WFH Days (Org)",
-                leave: "Leave Days (Org)",
+                wfh: "WFH Taken (Org)",
+                leave: "Leave Taken (Org)",
                 pending: "Pending (Org)",
                 balance: "Avg Balance (Org)",
               }
@@ -1537,8 +1775,20 @@ function LeaveInner() {
           {renderBalanceEditor(balances, false)}
         </div>
         {renderAllRequestsTable(
-          requests,
-          isAdminView ? "All Requests" : "All Requests — Organization"
+          allReqItems,
+          isAdminView ? "All Requests" : "All Requests — Organization",
+          {
+            showSearch: true,
+            searchValue: allReqSearchInput,
+            onSearchChange: setAllReqSearchInput,
+            showPagination: true,
+            loading: allRequestsQuery.isLoading,
+            page: allReqPage,
+            totalPages: allReqTotalPages,
+            total: allReqTotal,
+            limit: ALL_REQ_PAGE_SIZE,
+            onPageChange: setAllReqPage,
+          }
         )}
       </>
     );
@@ -1582,8 +1832,8 @@ function LeaveInner() {
       <LeaveSummaryCards
         summary={selfSummary}
         labels={{
-          wfh: "My WFH Days",
-          leave: "My Leave Days",
+          wfh: "My WFH Taken",
+          leave: "My Leave Taken",
           pending: "My Pending",
           balance: "My Balance",
         }}

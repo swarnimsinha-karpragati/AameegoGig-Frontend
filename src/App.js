@@ -23,6 +23,7 @@ import Resignations from './pages/Resignations';
 import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
 import { syncRolesFromServer } from './utils/roles';
+import queryClient from './queryClient';
 import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
 import AdvanceLoanRequest from './components/AdvanceLoan';
@@ -41,6 +42,7 @@ function App() {
 
   useEffect(() => {
     if (isError) {
+      queryClient.clear();
       localStorage.removeItem("user");
       localStorage.removeItem("token");
     }

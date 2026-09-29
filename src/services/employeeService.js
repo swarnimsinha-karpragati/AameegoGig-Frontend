@@ -120,6 +120,13 @@ export const searchEmployees = async (params = {}) => {
 };
 
 /* =========================
+   EXPORT ALL EMPLOYEES (backend-generated Excel, complete details)
+========================= */
+export const exportEmployees = async (params = {}) => {
+  return API.get("/employees/export", { params, responseType: "blob" });
+};
+
+/* =========================
    ADD SINGLE EMPLOYEE
 ========================= */
 export const addEmployee = async (data) => {

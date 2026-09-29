@@ -15,6 +15,7 @@ import {
   Cake,
   CalendarDays,
   Info,
+  BadgeCheck,
 } from "lucide-react";
 import useFormValidation from "../hooks/useFormValidation";
 import {
@@ -85,6 +86,8 @@ export default function ProfileCard() {
   const [role, setRole] = useState("");
   const [reportingManager, setReportingManager] = useState(null);
   const [employmentStatus, setEmploymentStatus] = useState(null);
+  const [isConsultancy, setIsConsultancy] = useState(false);
+  const [employeeCode, setEmployeeCode] = useState("");
   const [dateOfJoining, setDateOfJoining] = useState(null);
   const [designation, setDesignation] = useState("");
   // Self-editable personal details
@@ -166,7 +169,9 @@ export default function ProfileCard() {
     setRole(data.role || "");
     setDesignation(data.designation || "");
     setReportingManager(data.reportingManager || null);
+    setEmployeeCode(data.employeeCode || "");
     setEmploymentStatus(data.employmentStatus || null);
+    setIsConsultancy(Boolean(data.isConsultancy));
     setDateOfJoining(data.dateOfJoining || null);
     setDob(toDateInput(data.dob));
     setBloodGroup(data.bloodGroup || "");
@@ -418,6 +423,15 @@ export default function ProfileCard() {
         ) : null}
         {role !== "Admin" ? (
           <div className="profile-info-item">
+            <span className="profile-info-icon profile-info-icon--blue"><BadgeCheck size={15} /></span>
+            <span className="profile-info-copy">
+              <span className="profile-info-label">Employee Code</span>
+              <span className="profile-info-value" title={employeeCode}>{employeeCode || "-"}</span>
+            </span>
+          </div>
+        ) : null}
+        {role !== "Admin" ? (
+          <div className="profile-info-item">
             <span className="profile-info-icon profile-info-icon--amber"><CalendarDays size={15} /></span>
             <span className="profile-info-copy">
               <span className="profile-info-label">Date of Joining</span>
@@ -433,8 +447,8 @@ export default function ProfileCard() {
             <span className="profile-info-copy">
               <span className="profile-info-label">Employment Status</span>
               <span className="profile-info-value">
-                {employmentStatus === "probation" ? "Probation" : "Full-time"}
-                {employmentStatus === "probation" ? (
+                {isConsultancy ? "Consultancy" : employmentStatus === "probation" ? "Probation" : "Full-time"}
+                {!isConsultancy && employmentStatus === "probation" ? (
                   <button
                     type="button"
                     className="emp-info-btn"

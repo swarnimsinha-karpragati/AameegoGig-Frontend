@@ -16,17 +16,18 @@ import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
 import { ToastProvider, useToast } from "../components/Toast";
 import Pagination from "../components/Pagination";
+import { getReceiptUrl } from "../services/expenseService";
 import {
-  getExpenseDashboard,
-  getExpenses,
-  createExpense,
-  submitExpense,
-  approveExpense,
-  rejectExpense,
-  markReimbursed,
-  deleteExpense,
-  getReceiptUrl,
-} from "../services/expenseService";
+  useExpenseDashboard,
+  useExpenses,
+  useCreateExpense,
+  useSubmitExpense,
+  useCancelExpense,
+  useApproveExpense,
+  useRejectExpense,
+  useMarkReimbursed,
+  useDeleteExpense,
+} from "../hooks/useExpense";
 import { useAllEmployees } from "../hooks/useEmployees";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import {
@@ -170,13 +171,25 @@ function ExpenseInner() {
   const activeTab = showMyTab ? expenseTab : "organization";
 
   /* ── State ── */
-  const [dashboard, setDashboard] = useState(null);
-  const [expenses, setExpenses] = useState([]);
-  const { data: employees = [] } = useAllEmployees({ enabled: canApprove });
-  const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState("");
   const [expPagination, setExpPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const { data: dashboard, isLoading: dashboardLoading, error: dashboardError } = useExpenseDashboard();
+  const { data: expRes } = useExpenses({ page: expPagination.page, limit: expPagination.limit });
+  const expenses = useMemo(() => expRes?.expenses || [], [expRes?.expenses]);
+  const { data: employees = [] } = useAllEmployees({ enabled: canApprove });
+  const [actionLoading, setActionLoading] = useState(false);
+  const createExpenseMutation = useCreateExpense();
+  const submitExpenseMutation = useSubmitExpense();
+  const cancelExpenseMutation = useCancelExpense();
+  const approveExpenseMutation = useApproveExpense();
+  const rejectExpenseMutation = useRejectExpense();
+  const markReimbursedMutation = useMarkReimbursed();
+  const deleteExpenseMutation = useDeleteExpense();
+
+  useEffect(() => {
+    if (expRes?.pagination) {
+      setExpPagination(prev => ({ ...prev, total: expRes.pagination.total, pages: expRes.pagination.pages }));
+    }
+  }, [expRes?.pagination]);
 
   /* ── Confirm modal state ── */
   const [modal, setModal] = useState({
@@ -305,32 +318,6 @@ function ExpenseInner() {
     [expenses, isDirectReportee]
   );
 
-  /* ── Data Loading ── */
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [dashRes, expRes] = await Promise.all([
-        getExpenseDashboard(),
-        getExpenses({ page: expPagination.page, limit: expPagination.limit }),
-      ]);
-      setDashboard(dashRes);
-      setExpenses(expRes.expenses || []);
-      if (expRes.pagination) {
-        setExpPagination(prev => ({ ...prev, total: expRes.pagination.total, pages: expRes.pagination.pages }));
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to load expense data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => {
     if (employees.length > 0 && !form.employeeId) {
       setForm((prev) => ({ ...prev, employeeId: employees[0]._id }));
@@ -361,7 +348,7 @@ function ExpenseInner() {
         fd.append("employeeId", form.employeeId);
       }
 
-      await createExpense(fd);
+      await createExpenseMutation.mutateAsync(fd);
       toast.success(
         form.submitDirectly
           ? "Expense submitted for approval"
@@ -375,7 +362,6 @@ function ExpenseInner() {
         receipt: null,
         expenseDate: new Date().toISOString().split("T")[0],
       }));
-      loadData();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to submit expense");
     }
@@ -390,11 +376,32 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await submitExpense(id);
+          await submitExpenseMutation.mutateAsync(id);
           toast.success("Expense submitted for approval");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Submit failed");
+        } finally {
+          setActionLoading(false);
+          closeModal();
+        }
+      },
+    });
+  };
+
+  const handleCancel = (id) => {
+    openModal({
+      title: "Cancel Expense",
+      message:
+        "This will withdraw the expense from approval and move it back to your drafts. You can edit and resubmit it later.",
+      confirmLabel: "Cancel Expense",
+      variant: "warning",
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await cancelExpenseMutation.mutateAsync(id);
+          toast.success("Expense cancelled and moved to drafts");
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Cancel failed");
         } finally {
           setActionLoading(false);
           closeModal();
@@ -412,9 +419,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await approveExpense(id);
+          await approveExpenseMutation.mutateAsync({ id });
           toast.success("Expense approved successfully");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Approve failed");
         } finally {
@@ -436,9 +442,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await rejectExpense(id, modal.inputValue);
+          await rejectExpenseMutation.mutateAsync({ id, comment: modal.inputValue });
           toast.warning("Expense rejected");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Reject failed");
         } finally {
@@ -458,9 +463,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await markReimbursed(id);
+          await markReimbursedMutation.mutateAsync(id);
           toast.success("Expense marked as reimbursed");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Reimburse failed");
         } finally {
@@ -480,9 +484,8 @@ function ExpenseInner() {
       onConfirm: async () => {
         setActionLoading(true);
         try {
-          await deleteExpense(id);
+          await deleteExpenseMutation.mutateAsync(id);
           toast.success("Expense deleted");
-          loadData();
         } catch (err) {
           toast.error(err.response?.data?.message || "Delete failed");
         } finally {
@@ -628,8 +631,15 @@ function ExpenseInner() {
         </label>
 
         <div className="expense-form-actions">
-          <Button type="submit">
-            {form.submitDirectly ? "Submit Expense" : "Save as Draft"}
+          <Button
+            type="submit"
+            disabled={createExpenseMutation.isPending}
+          >
+            {createExpenseMutation.isPending
+              ? "Submitting…"
+              : form.submitDirectly
+                ? "Submit Expense"
+                : "Save as Draft"}
           </Button>
         </div>
       </form>
@@ -774,9 +784,16 @@ function ExpenseInner() {
                         ) : null}
 
                         {actionMode === "owner" && exp.status === "Pending" ? (
-                          <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>
-                            Awaiting approval
-                          </span>
+                          <div className="expense-pending-cancel">
+                            <Button
+                              className="action-btn-edit cancel-expense-btn"
+                              icon={<X size={14} />}
+                              title="Cancel expense"
+                              onClick={() => handleCancel(exp._id)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
                         ) : null}
 
                         {/* Approver: Pending actions — never on own expense */}
@@ -1086,7 +1103,7 @@ function ExpenseInner() {
       <div className="expense-page">
         <p className="expense-context-line">{tabSubtitle}</p>
 
-        {error ? <p className="expense-error">{error}</p> : null}
+        {dashboardError ? <p className="expense-error">{dashboardError.message || "Failed to load expense data"}</p> : null}
 
         {showMyTab && showOrgTab ? (
           <div className="expense-tabs" role="tablist" aria-label="Expense views">
@@ -1107,7 +1124,7 @@ function ExpenseInner() {
           </div>
         ) : null}
 
-        {loading && !dashboard ? (
+        {dashboardLoading ? (
           <p className="expense-empty">Loading expense data...</p>
         ) : activeTab === "my" && showMyTab ? (
           renderMyTab()

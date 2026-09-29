@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Save, IndianRupee, Clock, AlertTriangle, Wallet, Percent, ToggleRight } from "lucide-react";
-import { getLoanConfig, updateLoanConfig } from "../services/advanceLoanService";
+import { useLoanConfig, useUpdateLoanConfig } from "../hooks/useAdvanceLoan";
 import { ToastProvider, useToast } from "../components/Toast";
 
-function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
+function LoanConfigurationInner({ initialConfig }) {
     const toast = useToast();
-    const hasFetched = useRef(false);
     const successTimer = useRef(null);
 
     useEffect(() => {
@@ -13,24 +12,31 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
             if (successTimer.current) clearTimeout(successTimer.current);
         };
     }, []);
-    const [config, setConfig] = useState(initialConfig || null);
-    const [loading, setLoading] = useState(!initialConfig);
+
+    const { data: fetchedConfigRes, isLoading: loading } = useLoanConfig({
+        enabled: !initialConfig,
+    });
+    const fetchedConfig = fetchedConfigRes?.config || null;
+    const updateConfigMutation = useUpdateLoanConfig();
+
+    const activeConfig = initialConfig || fetchedConfig;
+    const [config, setConfig] = useState(activeConfig);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
-    const [formData, setFormData] = useState(initialConfig ? {
-        loanInterestRate: initialConfig.loanInterestRate || 0,
-        maxAdvanceAmount: initialConfig.maxAdvanceAmount || 0,
-        maxLoanAmount: initialConfig.maxLoanAmount || 0,
-        isLoanInterestEnabled: initialConfig.isLoanInterestEnabled !== false,
-        maxTenureMonths: initialConfig.maxTenureMonths || 6,
-        maxLoanTenureMonths: initialConfig.maxLoanTenureMonths || 12,
-        maxAdvancePercentOfCTC: initialConfig.maxAdvancePercentOfCTC || 100,
-        isAdvanceAllowed: initialConfig.isAdvanceAllowed !== false,
-        isLoanAllowed: initialConfig.isLoanAllowed !== false,
-        salaryEarningsLabel: initialConfig.salaryEarningsLabel || "Loan Deduction",
-        advanceEarningsLabel: initialConfig.advanceEarningsLabel || "Advance Deduction",
-        isSalaryDeductionActive: initialConfig.isSalaryDeductionActive !== false,
+    const buildFormData = (cfg) => cfg ? {
+        loanInterestRate: cfg.loanInterestRate || 0,
+        maxAdvanceAmount: cfg.maxAdvanceAmount || 0,
+        maxLoanAmount: cfg.maxLoanAmount || 0,
+        isLoanInterestEnabled: cfg.isLoanInterestEnabled !== false,
+        maxTenureMonths: cfg.maxTenureMonths || 6,
+        maxLoanTenureMonths: cfg.maxLoanTenureMonths || 12,
+        maxAdvancePercentOfCTC: cfg.maxAdvancePercentOfCTC || 100,
+        isAdvanceAllowed: cfg.isAdvanceAllowed !== false,
+        isLoanAllowed: cfg.isLoanAllowed !== false,
+        salaryEarningsLabel: cfg.salaryEarningsLabel || "Loan Deduction",
+        advanceEarningsLabel: cfg.advanceEarningsLabel || "Advance Deduction",
+        isSalaryDeductionActive: cfg.isSalaryDeductionActive !== false,
     } : {
         loanInterestRate: 0,
         maxAdvanceAmount: 0,
@@ -44,64 +50,16 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
         salaryEarningsLabel: "Loan Deduction",
         advanceEarningsLabel: "Advance Deduction",
         isSalaryDeductionActive: true,
-    });
+    };
+    const [formData, setFormData] = useState(buildFormData(activeConfig));
 
     useEffect(() => {
-        if (initialConfig || hasFetched.current) return;
-        hasFetched.current = true;
-
-        const fetchConfig = async () => {
-            try {
-                setLoading(true);
-                const res = await getLoanConfig();
-                if (res.config) {
-                    setConfig(res.config);
-                    setFormData({
-                        loanInterestRate: res.config.loanInterestRate || 0,
-                        maxAdvanceAmount: res.config.maxAdvanceAmount || 0,
-                        maxLoanAmount: res.config.maxLoanAmount || 0,
-                        isLoanInterestEnabled: res.config.isLoanInterestEnabled !== false,
-                        maxTenureMonths: res.config.maxTenureMonths || 6,
-                        maxLoanTenureMonths: res.config.maxLoanTenureMonths || 12,
-                        maxAdvancePercentOfCTC: res.config.maxAdvancePercentOfCTC || 100,
-                        isAdvanceAllowed: res.config.isAdvanceAllowed !== false,
-                        isLoanAllowed: res.config.isLoanAllowed !== false,
-                        salaryEarningsLabel: res.config.salaryEarningsLabel || "Loan Deduction",
-                        advanceEarningsLabel: res.config.advanceEarningsLabel || "Advance Deduction",
-                        isSalaryDeductionActive: res.config.isSalaryDeductionActive !== false,
-                    });
-                }
-            } catch (err) {
-                const msg = err.response?.data?.message || "Failed to load configuration";
-                setError(msg);
-                toast.error(msg);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchConfig();
-    }, [initialConfig, toast]);
-
-    useEffect(() => {
-        if (initialConfig) {
-            setConfig(initialConfig);
-            setFormData({
-                loanInterestRate: initialConfig.loanInterestRate || 0,
-                maxAdvanceAmount: initialConfig.maxAdvanceAmount || 0,
-                maxLoanAmount: initialConfig.maxLoanAmount || 0,
-                isLoanInterestEnabled: initialConfig.isLoanInterestEnabled !== false,
-                maxTenureMonths: initialConfig.maxTenureMonths || 6,
-                maxLoanTenureMonths: initialConfig.maxLoanTenureMonths || 12,
-                maxAdvancePercentOfCTC: initialConfig.maxAdvancePercentOfCTC || 100,
-                isAdvanceAllowed: initialConfig.isAdvanceAllowed !== false,
-                isLoanAllowed: initialConfig.isLoanAllowed !== false,
-                salaryEarningsLabel: initialConfig.salaryEarningsLabel || "Loan Deduction",
-                advanceEarningsLabel: initialConfig.advanceEarningsLabel || "Advance Deduction",
-                isSalaryDeductionActive: initialConfig.isSalaryDeductionActive !== false,
-            });
-            setLoading(false);
+        if (activeConfig) {
+            setConfig(activeConfig);
+            setFormData(buildFormData(activeConfig));
         }
-    }, [initialConfig]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeConfig]);
 
     const handleChange = (field) => (e) => {
         const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -127,24 +85,10 @@ function LoanConfigurationInner({ initialConfig, onConfigUpdate }) {
                 maxLoanTenureMonths: Number(formData.maxLoanTenureMonths),
                 maxAdvancePercentOfCTC: Number(formData.maxAdvancePercentOfCTC),
             };
-            const res = await updateLoanConfig(payload);
+            const res = await updateConfigMutation.mutateAsync(payload);
             if (res.config) {
                 setConfig(res.config);
-                setFormData({
-                    loanInterestRate: res.config.loanInterestRate || 0,
-                    maxAdvanceAmount: res.config.maxAdvanceAmount || 0,
-                    maxLoanAmount: res.config.maxLoanAmount || 0,
-                    isLoanInterestEnabled: res.config.isLoanInterestEnabled !== false,
-                    maxTenureMonths: res.config.maxTenureMonths || 6,
-                    maxLoanTenureMonths: res.config.maxLoanTenureMonths || 12,
-                    maxAdvancePercentOfCTC: res.config.maxAdvancePercentOfCTC || 100,
-                    isAdvanceAllowed: res.config.isAdvanceAllowed !== false,
-                    isLoanAllowed: res.config.isLoanAllowed !== false,
-                    salaryEarningsLabel: res.config.salaryEarningsLabel || "Loan Deduction",
-                    advanceEarningsLabel: res.config.advanceEarningsLabel || "Advance Deduction",
-                    isSalaryDeductionActive: res.config.isSalaryDeductionActive !== false,
-                });
-                if (onConfigUpdate) onConfigUpdate(res.config);
+                setFormData(buildFormData(res.config));
                 toast.success("Loan configuration updated successfully");
                 setSuccess(true);
                 if (successTimer.current) clearTimeout(successTimer.current);

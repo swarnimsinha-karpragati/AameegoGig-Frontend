@@ -527,7 +527,7 @@ export default function LeavePolicyManager() {
                         {(isStandard || (needsMonthlyCredit(method) && t.code !== "WFH" && t.code !== "CO")) ? (
                           <Field
                             label="Days each month"
-                            hint="Added after each completed month."
+                            hint="Accrues monthly, starting from the joining month."
                           >
                             <input
                               className="lp-input lp-input-sm"

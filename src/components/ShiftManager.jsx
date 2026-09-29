@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react'; // Added useRef
+import React, { useState, useRef } from 'react';
 import './ShiftManager.css';
-import { createShift, getShift, updateShift, deleteShift } from '../services/settingService';
+import { useShifts, useCreateShift, useUpdateShift, useDeleteShift } from '../hooks/useSettings';
 import Button from './Button';
 
 const ShiftManager = ({ vendorId }) => {
-  const [shifts, setShifts] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const { data: shifts = [], isLoading: loading } = useShifts(vendorId);
+  const createShiftMutation = useCreateShift();
+  const updateShiftMutation = useUpdateShift();
+  const deleteShiftMutation = useDeleteShift();
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [editingShiftId, setEditingShiftId] = useState(null);
 
@@ -20,25 +22,6 @@ const ShiftManager = ({ vendorId }) => {
   };
 
   const [formData, setFormData] = useState(initialFormState);
-
-  const fetchExistingShifts = async () => {
-    if (!vendorId) return;
-    try {
-      setLoading(true);
-      const res = await getShift(vendorId);
-      const shiftData = res?.data?.data || res?.data || [];
-      setShifts(shiftData);
-    } catch (error) {
-      console.error("Failed to load shifts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchExistingShifts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -73,12 +56,9 @@ const ShiftManager = ({ vendorId }) => {
 
     try {
       setIsActionLoading(true);
-      const res = await deleteShift(shiftId);
-      if (res?.status === 200 || res?.success) {
-        setShifts((prevShifts) => prevShifts.filter(s => (s._id || s.id) !== shiftId));
-        if (editingShiftId === shiftId) {
-          handleCancelEdit();
-        }
+      await deleteShiftMutation.mutateAsync(shiftId);
+      if (editingShiftId === shiftId) {
+        handleCancelEdit();
       }
     } catch (error) {
       console.error("Failed to delete shift:", error);
@@ -101,26 +81,10 @@ const ShiftManager = ({ vendorId }) => {
       const payload = { ...formData, vendorId };
 
       if (editingShiftId) {
-        const res = await updateShift(editingShiftId, payload);
-        const updatedShift = res?.data?.data || res?.data;
-
-        if (updatedShift) {
-          setShifts((prevShifts) =>
-            prevShifts.map((s) => ((s._id || s.id) === editingShiftId ? updatedShift : s))
-          );
-        } else {
-          await fetchExistingShifts();
-        }
+        await updateShiftMutation.mutateAsync({ id: editingShiftId, data: payload });
         setEditingShiftId(null);
       } else {
-        const res = await createShift(payload);
-        const newShift = res?.data?.data || res?.data;
-
-        if (newShift) {
-          setShifts((prevShifts) => [...prevShifts, newShift]);
-        } else {
-          await fetchExistingShifts();
-        }
+        await createShiftMutation.mutateAsync(payload);
       }
       resetForm();
     } catch (error) {
