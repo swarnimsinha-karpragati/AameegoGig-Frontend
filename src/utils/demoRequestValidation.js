@@ -4,9 +4,21 @@ import {
   formatValidationErrors,
 } from "./inputValidation";
 
-export const TEAM_SIZE_OPTIONS = ["1–50", "51–200", "201–500", "500+"];
-const TEAM_SIZES = [...TEAM_SIZE_OPTIONS, "1-50", "51-200", "201-500"];
-export const WORKFORCE_TYPES = ["Office", "Field", "Hybrid"];
+export const TEAM_SIZE_OPTIONS = [
+  "1–20 employees",
+  "21–100 employees",
+  "101–500 employees",
+  "501–2000 employees",
+  "2000+ employees",
+];
+const TEAM_SIZES = [
+  ...TEAM_SIZE_OPTIONS,
+  "1-20 employees",
+  "21-100 employees",
+  "101-500 employees",
+  "501-2000 employees",
+];
+export const WORKFORCE_TYPES = ["Office Staff", "Field Staff", "Both"];
 export { LIMITS };
 export const GOAL_MIN_LENGTH = 10;
 const INDIAN_MOBILE = /^[6-9][0-9]{9}$/;
