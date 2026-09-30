@@ -9,7 +9,8 @@ export const calculateSinglePayroll = async (data) => {
 };
 
 export const calculateBulkPayroll = async (data) => {
-  return API.post("/payroll/calculate-bulk", data);
+  // Bulk payroll can take minutes for large headcount; default axios timeout is too short.
+  return API.post("/payroll/calculate-bulk", data, { timeout: 10 * 60 * 1000 });
 };
 
 export const createPayrollEntry = async (data) => {
