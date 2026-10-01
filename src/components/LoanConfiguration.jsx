@@ -58,7 +58,7 @@ function LoanConfigurationInner({ initialConfig }) {
             setConfig(activeConfig);
             setFormData(buildFormData(activeConfig));
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeConfig]);
 
     const handleChange = (field) => (e) => {
@@ -75,15 +75,70 @@ function LoanConfigurationInner({ initialConfig }) {
         setSaving(true);
         setError("");
         setSuccess(false);
+        // Empty tenure means "use default" (matches the placeholder hint) —
+        // Number("") is 0, which would wrongly trip the min-1 validation.
+        const tenureDefaults = { maxTenureMonths: 6, maxLoanTenureMonths: 12 };
+        const normalized = {
+            ...formData,
+            maxTenureMonths: formData.maxTenureMonths === "" ? tenureDefaults.maxTenureMonths : formData.maxTenureMonths,
+            maxLoanTenureMonths: formData.maxLoanTenureMonths === "" ? tenureDefaults.maxLoanTenureMonths : formData.maxLoanTenureMonths,
+        };
+        // Client-side validation: block negative interest before the API call
+        const rate = Number(formData.loanInterestRate);
+        if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+            const msg = "Interest rate must be 0 or greater.";
+            setError(msg);
+            toast.error(msg);
+            setSaving(false);
+            return;
+        }
+        // Advance Limit % must stay within 0–100
+        const pct = Number(formData.maxAdvancePercentOfCTC);
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+            const msg = "Advance limit cannot be more than 100%.";
+            setError(msg);
+            toast.error(msg);
+            setSaving(false);
+            return;
+        }
+        // Tenures accept 1–60 months
+        for (const key of ["maxTenureMonths", "maxLoanTenureMonths"]) {
+            const n = Number(normalized[key]);
+            if (!Number.isFinite(n) || n < 1) {
+                const msg = "Minimum tenure is 1 month.";
+                setError(msg);
+                toast.error(msg);
+                setSaving(false);
+                return;
+            }
+            if (n > 60) {
+                const msg = "Tenure cannot be more than 60 months.";
+                setError(msg);
+                toast.error(msg);
+                setSaving(false);
+                return;
+            }
+        }
+        // Amount caps must not be negative
+        for (const key of ["maxAdvanceAmount", "maxLoanAmount"]) {
+            const n = Number(formData[key]);
+            if (!Number.isFinite(n) || n < 0) {
+                const msg = "Amount limit must be 0 or greater.";
+                setError(msg);
+                toast.error(msg);
+                setSaving(false);
+                return;
+            }
+        }
         try {
             const payload = {
-                ...formData,
-                loanInterestRate: Number(formData.loanInterestRate),
-                maxAdvanceAmount: Number(formData.maxAdvanceAmount),
-                maxLoanAmount: Number(formData.maxLoanAmount),
-                maxTenureMonths: Number(formData.maxTenureMonths),
-                maxLoanTenureMonths: Number(formData.maxLoanTenureMonths),
-                maxAdvancePercentOfCTC: Number(formData.maxAdvancePercentOfCTC),
+                ...normalized,
+                loanInterestRate: Number(normalized.loanInterestRate),
+                maxAdvanceAmount: Number(normalized.maxAdvanceAmount),
+                maxLoanAmount: Number(normalized.maxLoanAmount),
+                maxTenureMonths: Number(normalized.maxTenureMonths),
+                maxLoanTenureMonths: Number(normalized.maxLoanTenureMonths),
+                maxAdvancePercentOfCTC: Number(normalized.maxAdvancePercentOfCTC),
             };
             const res = await updateConfigMutation.mutateAsync(payload);
             if (res.config) {
@@ -167,10 +222,10 @@ function LoanConfigurationInner({ initialConfig }) {
                                 <div className="loan-config-group">
                                     <label>Max Tenure for Loan (Months)</label>
                                     <div className="loan-input-wrapper">
-                                        <input type="number" className="loan-input" value={formData.maxLoanTenureMonths} onChange={handleChange("maxLoanTenureMonths")} min="1" placeholder="Default 12" />
+                                        <input type="number" className="loan-input" value={formData.maxLoanTenureMonths} onChange={handleChange("maxLoanTenureMonths")} min="1" max="60" placeholder="Default 12" />
                                         <span className="loan-input-suffix"><Clock size={16} /></span>
                                     </div>
-                                    <span className="loan-hint">Maximum months for loan repayment (default 12)</span>
+                                    <span className="loan-hint">Minimum 1 month, maximum 60 months (default 12)</span>
                                 </div>
                                 <div className="loan-config-group">
                                     <label>Enable Loan Interest</label>

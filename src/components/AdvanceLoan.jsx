@@ -492,6 +492,12 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
     const showTenure = isOneTime;
     const showMonthlyInstallments = formData.repaymentOption === "MONTHLY_INSTALLMENTS";
     const showInterestInfo = isLoan && isLoanInterestEnabled && loanInterestRate > 0;
+    // Live interest preview (backend formula: flat % on amount)
+    const enteredAmount = Number(formData.amount) || 0;
+    const liveInterestAmount = isLoan && isLoanInterestEnabled && enteredAmount > 0
+        ? Math.round((enteredAmount * (Number(loanInterestRate) || 0)) / 100 * 100) / 100
+        : 0;
+    const liveTotalPayable = isLoan ? enteredAmount + liveInterestAmount : enteredAmount;
 
     return (
         <div className="advance-modal-overlay" onClick={onClose}>
@@ -557,10 +563,19 @@ function RequestFormModal({ open, onClose, onSubmit, employees = [], canApprove 
                             {formData.requestType === "ADVANCE" && maxAdvanceAmount > 0 && <span className="form-hint">Max advance: ₹{maxAdvanceAmount.toLocaleString()}</span>}
                         </div>
 
-                        {showInterestInfo && (
+                        {isLoan && (
                             <div className="form-interest-alert">
                                 <AlertTriangle size={16} />
-                                <span>Interest Rate: {loanInterestRate}% </span>
+                                <span>
+                                    {!loanConfig
+                                        ? "Interest info unavailable — please refresh"
+                                        : showInterestInfo
+                                            ? `Interest Rate: ${loanInterestRate}%`
+                                            : "No interest applicable"}
+                                    {loanConfig && enteredAmount > 0 && (
+                                        <>{" "}• Interest: {formatCurrency(liveInterestAmount)} • Total Payable: {formatCurrency(liveTotalPayable)}</>
+                                    )}
+                                </span>
                             </div>
                         )}
 
@@ -1217,6 +1232,7 @@ function AdvanceLoanInner() {
     const toast = useToast();
     const user = getStoredUser();
     const canApprove = canApproveAdvanceLoan(user?.role);
+    const canViewAll = canViewAllAdvanceLoan(user?.role);
     const canCreate =
         user?.role !== "Admin" &&
         roleHasPermission(user?.role, "advance-loan:create");
@@ -1239,7 +1255,6 @@ function AdvanceLoanInner() {
     const [formApiError, setFormApiError] = useState("");
     const [openMenuId, setOpenMenuId] = useState(null);
 
-    const canViewAll = canViewAllAdvanceLoan(user?.role);
     const { refetch: refetchStats } = useAdvanceLoanStatistics({ enabled: canViewAll });
     const { refetch: refetchAll } = useAdvanceLoanAllRequests({}, { enabled: canViewAll });
     const { refetch: refetchMy } = useAdvanceLoanMyRequests({}, { enabled: !canViewAll });
@@ -1260,7 +1275,7 @@ function AdvanceLoanInner() {
                 const [statsSnap, reqSnap] = await Promise.all([refetchStats(), refetchAll()]);
                 const statsData = statsSnap.data;
                 const reqs = reqSnap.data?.requests || [];
-                setDashboard(statsData ? { statistics: statsData } : null);
+                setDashboard(statsData ? (statsData.statistics ? statsData : { statistics: statsData }) : null);
                 setRequests(reqs);
             } else {
                 const reqSnap = await refetchMy();
@@ -1318,14 +1333,14 @@ function AdvanceLoanInner() {
 
     const [modal, setModal] = useState({
         open: false, title: "", message: "", confirmLabel: "Confirm", variant: "danger",
-        onConfirm: null, withInput: false, inputValue: "", inputLabel: "", inputPlaceholder: "",
+        onConfirm: null, withInput: false, inputValue: "", inputLabel: "", inputPlaceholder: "", inputError: "",
     });
     const modalInputRef = useRef("");
 
-    const closeModal = () => setModal((m) => ({ ...m, open: false, inputValue: "" }));
+    const closeModal = () => setModal((m) => ({ ...m, open: false, inputValue: "", inputError: "" }));
     const openModal = (config) => {
         modalInputRef.current = "";
-        setModal({ open: true, inputValue: "", withInput: false, ...config });
+        setModal({ open: true, inputValue: "", withInput: false, inputError: "", ...config });
     };
 
     const summary = dashboard?.statistics || {};
@@ -1338,6 +1353,7 @@ function AdvanceLoanInner() {
             setPayrollWarning("");
             setFormApiError("");
             setShowRequestForm(false);
+            await loadData();
         } catch (err) {
             const msg = err.response?.data?.message || err.message || "Failed to submit request";
             // Always show API error inside modal + top + toast
@@ -1358,7 +1374,7 @@ function AdvanceLoanInner() {
             confirmLabel: "Cancel Request", variant: "danger",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await cancelRequestMutation.mutateAsync(id); setError(""); toast.success("Request cancelled successfully"); }
+                try { await cancelRequestMutation.mutateAsync(id); setError(""); toast.success("Request cancelled successfully"); await loadData(); }
                 catch (err) { const msg = err.response?.data?.message || "Cancel failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
@@ -1386,7 +1402,7 @@ function AdvanceLoanInner() {
             inputLabel: "Reason (optional)", inputPlaceholder: "Why is this month being skipped?",
             onConfirm: async () => {
                 setActionLoading(true);
-                try { await deferDeductionMutation.mutateAsync({ id: request._id, body: { comments: modalInputRef.current } }); setError(""); toast.success("Deduction deferred to next month"); }
+                try { await deferDeductionMutation.mutateAsync({ id: request._id, body: { comments: modalInputRef.current } }); setError(""); toast.success("Deduction deferred to next month"); await loadData(); }
                 catch (err) { const msg = err.response?.data?.message || "Defer failed"; setError(msg); toast.error(msg); }
                 finally { setActionLoading(false); closeModal(); }
             },
@@ -1402,6 +1418,7 @@ function AdvanceLoanInner() {
             toast.success("Request approved successfully");
             setShowApproveModal(false);
             setApproveRequestData(null);
+            await loadData();
         } catch (err) {
             const msg = err.response?.data?.message || "Approve failed";
             setError(msg);
@@ -1423,10 +1440,27 @@ function AdvanceLoanInner() {
             confirmLabel: "Reject", variant: "danger", withInput: true, inputValue: "",
             inputLabel: "Rejection Reason *", inputPlaceholder: "Please provide a reason for rejection...",
             onConfirm: async () => {
+                // Blank reason: keep modal open, show inline error (no API call)
+                const reason = (modalInputRef.current || "").trim();
+                if (!reason) {
+                    setModal((m) => ({ ...m, inputError: "Rejection reason is required." }));
+                    return;
+                }
                 setActionLoading(true);
-                try { await rejectRequestMutation.mutateAsync({ id: request._id, body: { rejectionReason: modalInputRef.current } }); setError(""); toast.warning("Request rejected"); }
-                catch (err) { const msg = err.response?.data?.message || "Reject failed"; setError(msg); toast.error(msg); }
-                finally { setActionLoading(false); closeModal(); }
+                try {
+                    await rejectRequestMutation.mutateAsync({ id: request._id, body: { rejectionReason: reason } });
+                    setError("");
+                    toast.warning("Request rejected");
+                    closeModal();
+                    await loadData();
+                }
+                catch (err) {
+                    const msg = err.response?.data?.message || "Reject failed";
+                    setError(msg);
+                    // Keep modal open so reason isn't lost — show error inline
+                    setModal((m) => ({ ...m, inputError: msg }));
+                }
+                finally { setActionLoading(false); }
             },
         });
     };
@@ -1439,6 +1473,7 @@ function AdvanceLoanInner() {
             toast.success("Payment recorded successfully");
             setShowPaymentModal(false);
             setSelectedRequest(null);
+            await loadData();
         } catch (err) { const msg = err.response?.data?.message || "Failed to record payment"; setError(msg); toast.error(msg); }
     };
 
@@ -1607,11 +1642,6 @@ function AdvanceLoanInner() {
 
     const renderAdminView = () => (
         <>
-            <div className="advance-page-header advance-page-header--actions">
-                <div className="advance-header-actions">
-                    {canCreate && <button className="btn-primary" onClick={() => setShowRequestForm(true)}><IndianRupee size={16} />New Request</button>}
-                </div>
-            </div>
             <AdminSummaryTiles summary={summary} />
             <div className="advance-stats-grid">
                 <div className="stat-card"><div className="stat-item"><span className="stat-label">Total Requests</span><span className="stat-value">{summary.totalRequests || 0}</span></div></div>
@@ -1693,33 +1723,33 @@ function AdvanceLoanInner() {
         if (!isAdminOrHR) return null;
         return (
             <div className="advance-tabs-row">
-            <div className="advance-tabs">
-                {canViewEmployee ? (
-                    <button
-                        className={`advance-tab ${activeTab === "requests" && effectiveRequestView === "employee" ? "active" : ""}`}
-                        onClick={() => { setActiveTab("requests"); setRequestView("employee"); }}
-                    >
-                        <Clock3 size={16} /> Employee View
-                    </button>
-                ) : null}
-                {canViewOrganisation ? (
-                    <button
-                        className={`advance-tab ${activeTab === "requests" && effectiveRequestView === "organization" ? "active" : ""}`}
-                        onClick={() => { setActiveTab("requests"); setRequestView("organization"); }}
-                    >
-                        <Users size={16} /> Organisation View
-                    </button>
-                ) : null}
-                {canManageLoanConfig ? (
-                    <button
-                        className={`advance-tab ${activeTab === "config" ? "active" : ""}`}
-                        onClick={() => setActiveTab("config")}
-                    >
-                        <Settings size={16} /> Configuration
-                    </button>
-                ) : null}
-            </div>
-            <button className="btn-secondary advance-tabs-refresh" onClick={loadData}><RefreshCw size={14} />Refresh</button>
+                <div className="advance-tabs">
+                    {canViewEmployee ? (
+                        <button
+                            className={`advance-tab ${activeTab === "requests" && effectiveRequestView === "employee" ? "active" : ""}`}
+                            onClick={() => { setActiveTab("requests"); setRequestView("employee"); }}
+                        >
+                            <Clock3 size={16} /> Employee View
+                        </button>
+                    ) : null}
+                    {canViewOrganisation ? (
+                        <button
+                            className={`advance-tab ${activeTab === "requests" && effectiveRequestView === "organization" ? "active" : ""}`}
+                            onClick={() => { setActiveTab("requests"); setRequestView("organization"); }}
+                        >
+                            <Users size={16} /> Organisation View
+                        </button>
+                    ) : null}
+                    {canManageLoanConfig ? (
+                        <button
+                            className={`advance-tab ${activeTab === "config" ? "active" : ""}`}
+                            onClick={() => setActiveTab("config")}
+                        >
+                            <Settings size={16} /> Configuration
+                        </button>
+                    ) : null}
+                </div>
+                <button className="btn-secondary advance-tabs-refresh" onClick={loadData}><RefreshCw size={14} />Refresh</button>
             </div>
         );
     };
@@ -1744,7 +1774,7 @@ function AdvanceLoanInner() {
                         <PaymentModal open={showPaymentModal} onClose={() => { setShowPaymentModal(false); setSelectedRequest(null); }} request={selectedRequest} onSubmit={handleRecordPayment} />
                         <ApproveModal open={showApproveModal} request={approveRequestData} loading={actionLoading} onClose={() => { setShowApproveModal(false); setApproveRequestData(null); }} onSubmit={handleApproveSubmit} />
                         <DetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} request={detailRequest} />
-                        <ConfirmModal open={modal.open} title={modal.title} message={modal.message} confirmLabel={modal.confirmLabel} variant={modal.variant} loading={actionLoading} onConfirm={modal.onConfirm} onCancel={closeModal} inputLabel={modal.inputLabel} inputValue={modal.inputValue} onInputChange={(val) => { modalInputRef.current = val; setModal((m) => ({ ...m, inputValue: val })); }} inputPlaceholder={modal.inputPlaceholder} />
+                        <ConfirmModal open={modal.open} title={modal.title} message={modal.message} confirmLabel={modal.confirmLabel} variant={modal.variant} loading={actionLoading} onConfirm={modal.onConfirm} onCancel={closeModal} inputLabel={modal.inputLabel} inputValue={modal.inputValue} onInputChange={(val) => { modalInputRef.current = val; setModal((m) => ({ ...m, inputValue: val, inputError: "" })); }} inputPlaceholder={modal.inputPlaceholder} inputError={modal.inputError} />
                     </>
                 )}
             </div>
