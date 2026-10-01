@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Pencil, RefreshCw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronsUpDown, Pencil, RefreshCw, X } from "lucide-react";
 import API from "../../services/apiClient";
 import Button from "../Button";
 import Pagination from "../Pagination";
@@ -26,6 +26,28 @@ const departmentName = (department) => {
 };
 
 const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+
+// must show one clear message everywhere (same wording as the Add Consultant
+// form's consultancyPreviewError), and the modal shows it only once.
+const payRuleError = (amountRaw, tdsRaw) => {
+  if (amountRaw !== "" && amountRaw !== null && amountRaw !== undefined) {
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount < 0) return "Consultancy Pay cannot be negative.";
+  }
+  if (tdsRaw !== "" && tdsRaw !== null && tdsRaw !== undefined) {
+    const rate = Number(tdsRaw);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) return "TDS must be between 0% and 100%.";
+  }
+  return "";
+};
+
+// Bug 310: sort direction indicator for the Employee Name / Employee Code headers.
+const sortIcon = (active, direction) => {
+  if (!active) return <ChevronsUpDown size={14} aria-hidden="true" />;
+  return direction === "asc"
+    ? <ArrowUp size={14} aria-hidden="true" />
+    : <ArrowDown size={14} aria-hidden="true" />;
+};
 
 const netBreakdown = (gross, tdsPercent) => {
   const amount = Number(gross) || 0;
@@ -54,6 +76,7 @@ export default function ConsultancyPayments({
   search = "",
   departmentFilter = "",
   employeeStatusFilter = "",
+  roleFilter = "",
   canManage = false,
 }) {
   const today = new Date();
@@ -73,6 +96,15 @@ export default function ConsultancyPayments({
   // as the Employees directory list: 5 rows per page by default).
   const [consultancyPage, setConsultancyPage] = useState(1);
   const [consultancyLimit, setConsultancyLimit] = useState(5);
+  // Bug 310: sortable Employee Name / Employee Code columns (A–Z/Z–A,
+  // ascending/descending). Default name-asc matches the backend order.
+  const [sortConfig, setSortConfig] = useState({ key: "name", direction: "asc" });
+  const toggleSort = (key) =>
+    setSortConfig((prev) =>
+      prev.key === key && prev.direction === "asc"
+        ? { key, direction: "desc" }
+        : { key, direction: "asc" }
+    );
 
   // Bug 263: dynamic year window ending at the current year — never a fixed
   // range, and never a future year.
@@ -154,6 +186,14 @@ export default function ConsultancyPayments({
     if (employeeStatusFilter) {
       filtered = filtered.filter((row) => matchesEmployeeStatus(row.employee, employeeStatusFilter));
     }
+    // Role filter (same semantics as the directory list: role lives on the
+    // linked login; "All Roles" (empty) shows everything).
+    if (roleFilter) {
+      filtered = filtered.filter((row) => {
+        const role = row.employee?.linkedUser?.role || row.employee?.userRole || "";
+        return String(role) === String(roleFilter);
+      });
+    }
     if (!term) return filtered;
     return filtered.filter((row) => {
       const department = departmentName(row.employee.department);
@@ -165,7 +205,7 @@ export default function ConsultancyPayments({
       ].filter(Boolean).join(" ").toLocaleLowerCase();
       return haystack.includes(term);
     });
-  }, [data.rows, search, statusFilter, departmentFilter, employeeStatusFilter]);
+  }, [data.rows, search, statusFilter, departmentFilter, employeeStatusFilter, roleFilter]);
 
   // Bug 254: summary cards reflect the same filtered rows as the table.
   const summary = useMemo(() => {
@@ -190,18 +230,33 @@ export default function ConsultancyPayments({
     return result;
   }, [rows]);
 
-  // Pagination works on the filtered rows; summary cards above always use
+  // Bug 310: sorting applies to the filtered rows before pagination.
+  // Name sorts alphabetically (A–Z/Z–A), code sorts naturally
+  // (e.g. GRV-2 before GRV-10) ascending/descending.
+  const sortedRows = useMemo(() => {
+    if (!sortConfig.key) return rows;
+    const dir = sortConfig.direction === "desc" ? -1 : 1;
+    const sortValue = (row) =>
+      sortConfig.key === "code"
+        ? String(row.employee?.employeeCode || "")
+        : String(row.employee?.name || "");
+    return [...rows].sort((a, b) =>
+      dir * sortValue(a).localeCompare(sortValue(b), "en", { sensitivity: "base", numeric: true })
+    );
+  }, [rows, sortConfig]);
+
+  // Pagination works on the filtered + sorted rows; summary cards above always use
   // the full filtered set. Page resets whenever the underlying list changes.
-  const consultancyTotalPages = Math.max(1, Math.ceil(rows.length / consultancyLimit));
+  const consultancyTotalPages = Math.max(1, Math.ceil(sortedRows.length / consultancyLimit));
   const safeConsultancyPage = Math.min(Math.max(1, consultancyPage), consultancyTotalPages);
   const paginatedRows = useMemo(() => {
     const start = (safeConsultancyPage - 1) * consultancyLimit;
-    return rows.slice(start, start + consultancyLimit);
-  }, [rows, safeConsultancyPage, consultancyLimit]);
+    return sortedRows.slice(start, start + consultancyLimit);
+  }, [sortedRows, safeConsultancyPage, consultancyLimit]);
 
   useEffect(() => {
     setConsultancyPage(1);
-  }, [search, statusFilter, departmentFilter, employeeStatusFilter, period, data.rows, consultancyLimit]);
+  }, [search, statusFilter, departmentFilter, employeeStatusFilter, roleFilter, sortConfig, period, data.rows, consultancyLimit]);
 
   const openModal = (row, mode) => {
     setModal({ row, mode });
@@ -226,16 +281,10 @@ export default function ConsultancyPayments({
   const saveModal = async (event) => {
     event.preventDefault();
     const isPayMode = modal.mode === "pay";
+    // just stop here instead of setting a second, differently-worded error.
+    if (payRuleError(editForm.amount, editForm.tdsPercent)) return;
     const amount = Number(editForm.amount);
-    if (!Number.isFinite(amount) || amount < 0) {
-      setEditError("Amount must be a non-negative number");
-      return;
-    }
     const tdsPercent = Number(editForm.tdsPercent) || 0;
-    if (tdsPercent < 0 || tdsPercent > 100) {
-      setEditError("TDS percentage must be between 0 and 100");
-      return;
-    }
     if (isPayMode) {
       if (!editForm.paymentMode.trim() || !editForm.transactionReference.trim()) {
         setEditError("Payment mode and transaction reference are required before marking as paid");
@@ -272,14 +321,7 @@ export default function ConsultancyPayments({
 
   const breakdown = netBreakdown(editForm.amount, editForm.tdsPercent);
   // Bug 258: surface invalid pay/TDS in the preview instead of silently clamping.
-  const previewAmount = Number(editForm.amount);
-  const previewTds = editForm.tdsPercent === "" ? 0 : Number(editForm.tdsPercent);
-  const previewInvalid =
-    modal && (editForm.amount !== "" && (!Number.isFinite(previewAmount) || previewAmount < 0))
-      ? "Consultancy Pay cannot be negative."
-      : modal && editForm.tdsPercent !== "" && (!Number.isFinite(previewTds) || previewTds < 0 || previewTds > 100)
-        ? "TDS must be between 0% and 100%."
-        : "";
+  const previewInvalid = modal ? payRuleError(editForm.amount, editForm.tdsPercent) : "";
   return (
     <section className="consultancy-payments-panel">
       <div className="consultancy-payments-head">
@@ -319,13 +361,35 @@ export default function ConsultancyPayments({
         <>
           <div className="employee-table-scroll">
             <table className="employee-table">
-              <thead><tr><th>Consultant</th><th>Department</th><th>Rate</th><th>TDS %</th><th>Net payable</th><th>Status</th>{canManage ? <th>Action</th> : null}</tr></thead>
+              <thead><tr>
+                <th aria-sort={sortConfig.key === "name" ? (sortConfig.direction === "asc" ? "ascending" : "descending") : "none"}>
+                  <button
+                    type="button"
+                    className="consultancy-sort-btn"
+                    onClick={() => toggleSort("name")}
+                    aria-label={`Sort by employee name (currently ${sortConfig.key === "name" ? sortConfig.direction : "unsorted"})`}
+                  >
+                    Employee Name {sortIcon(sortConfig.key === "name", sortConfig.direction)}
+                  </button>
+                </th>
+                <th aria-sort={sortConfig.key === "code" ? (sortConfig.direction === "asc" ? "ascending" : "descending") : "none"}>
+                  <button
+                    type="button"
+                    className="consultancy-sort-btn"
+                    onClick={() => toggleSort("code")}
+                    aria-label={`Sort by employee code (currently ${sortConfig.key === "code" ? sortConfig.direction : "unsorted"})`}
+                  >
+                    Employee Code {sortIcon(sortConfig.key === "code", sortConfig.direction)}
+                  </button>
+                </th>
+                <th>Department</th><th>Rate</th><th>TDS %</th><th>Net payable</th><th>Status</th>{canManage ? <th>Action</th> : null}</tr></thead>
               <tbody>
                 {paginatedRows.map((row) => {
                 const net = Number(row.payment.netAmount) || 0;
                 return (
                   <tr key={row.employee._id}>
-                    <td>{row.employee.name}<small>{row.employee.employeeCode}{row.converted ? " · Converted to employee — history" : ""}</small></td>
+                    <td>{row.employee.name}{row.deleted ? <small>Deleted consultant — history</small> : row.converted ? <small>Converted to employee — history</small> : null}</td>
+                    <td>{row.employee.employeeCode}</td>
                     <td>{departmentName(row.employee.department)}</td>
                     <td>{money(row.payment.amount)}</td>
                     <td>{Number(row.payment.tdsPercent) || 0}%</td>
@@ -333,7 +397,7 @@ export default function ConsultancyPayments({
                     <td><span className={`status-badge ${row.payment.status === "Paid" ? "active" : "inactive"}`}>{row.payment.status}</span></td>
                     {canManage ? (
                       <td>
-                        {row.payment.status === "Paid" || row.converted ? (
+                        {row.payment.status === "Paid" || row.converted || row.deleted ? (
                           <span className="consultancy-status-locked">Payment locked</span>
                         ) : (
                           <div className="consultancy-payments-actions">
@@ -346,7 +410,7 @@ export default function ConsultancyPayments({
                   </tr>
                 );
               })}
-              {!rows.length ? <tr><td colSpan={canManage ? "7" : "6"}>No consultancy records found.</td></tr> : null}
+              {!sortedRows.length ? <tr><td colSpan={canManage ? "8" : "7"}>No consultancy records found.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -354,7 +418,7 @@ export default function ConsultancyPayments({
             <Pagination
               currentPage={safeConsultancyPage}
               totalPages={consultancyTotalPages}
-              totalRecords={rows.length}
+              totalRecords={sortedRows.length}
               limit={consultancyLimit}
               onPageChange={setConsultancyPage}
               showPageSize

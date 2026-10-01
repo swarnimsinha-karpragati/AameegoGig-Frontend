@@ -240,6 +240,10 @@ const consultancyPreviewError = (gross, tdsPercent) => {
   return "";
 };
 
+// already shows the identical message — one message per pay rule.
+const fieldErrorOnce = (fieldError, previewMessage) =>
+  fieldError && previewMessage && fieldError === previewMessage ? "" : fieldError || "";
+
 function FormSection({ title, description, children, fullWidth = false }) {
   return (
     <section className="emp-form-section">
@@ -2360,7 +2364,7 @@ function Employees() {
           </div>
         </div>
 
-        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} departmentFilter={departmentFilter} employeeStatusFilter={statusFilter} canManage={canManageConsultancy} /> : null}
+        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} departmentFilter={departmentFilter} employeeStatusFilter={statusFilter} roleFilter={roleFilter} canManage={canManageConsultancy} /> : null}
 
         <div className="employee-table-card">
           <div className="employee-table-scroll">
@@ -2901,11 +2905,11 @@ function Employees() {
                 <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
                   <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
                     <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
-                    <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
+                    <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldErrorOnce(errors.monthlyConsultancyPay, consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent)) || " "}</p>
                   </FormField>
                   <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
                     <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
-                    <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
+                    <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldErrorOnce(errors.tdsPercent, consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent)) || " "}</p>
                   </FormField>
                   <div className="consultancy-net-summary">
                     <span>Gross: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).gross.toLocaleString("en-IN")}</span>
@@ -3077,11 +3081,11 @@ function Employees() {
                   <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
                     <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
                       <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
-                      <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
+                      <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldErrorOnce(errors.monthlyConsultancyPay, consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent)) || " "}</p>
                     </FormField>
                     <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
                       <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
-                      <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
+                      <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldErrorOnce(errors.tdsPercent, consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent)) || " "}</p>
                     </FormField>
                     <div className="consultancy-net-summary">
                       <span>Gross: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).gross.toLocaleString("en-IN")}</span>

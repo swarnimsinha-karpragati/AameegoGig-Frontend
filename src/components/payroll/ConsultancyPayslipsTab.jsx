@@ -17,7 +17,7 @@ const apiErrorMessage = (error, fallback) => {
   return error?.message || fallback;
 };
 
-export default function ConsultancyPayslipsTab() {
+export default function ConsultancyPayslipsTab({ hideIfEmpty = false }) {
   const today = new Date();
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
@@ -26,6 +26,7 @@ export default function ConsultancyPayslipsTab() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [data, setData] = useState({ payments: [], summary: {}, employee: null, isConsultancy: false });
   const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState("");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -45,6 +46,7 @@ export default function ConsultancyPayslipsTab() {
       setError(apiErrorMessage(requestError, "Unable to load your consultancy payments"));
     } finally {
       setLoading(false);
+      setHasLoaded(true);
     }
   };
 
@@ -118,12 +120,22 @@ export default function ConsultancyPayslipsTab() {
     ? availableMonths[availableMonths.length - 1]?.value
     : period.month;
 
+  // Bug 298 vice versa: shown as a history section for converted employees —
+  // hide only when the person never had consultancy payments. An empty
+  // selected period must keep the section (with its filters) mounted.
+  if (hideIfEmpty && hasLoaded && !loading && !data.isConsultancy && !data.hasHistory) {
+    return null;
+  }
+
   return (
     <div className="history-table-container glass-morphism payroll-list-card">
       <div className="payroll-list-card-head">
         <div>
           <h2>Consultancy Payslips</h2>
           <p className="subtitle">Browse and track your monthly consultancy payments and pay status</p>
+          {!data.isConsultancy && (data.payments || []).length > 0 ? (
+            <p className="subtitle">Past consultancy history — you are now an employee; these records are read-only.</p>
+          ) : null}
         </div>
         <div className="consultancy-my-controls">
           <label className="consultancy-my-status">
@@ -227,9 +239,9 @@ export default function ConsultancyPayslipsTab() {
             ) : (
               <tr>
                 <td colSpan="11" className="empty-table-cell">
-                  {data.isConsultancy === false
-                    ? "No consultancy payment records found for your account."
-                    : `No consultancy payslips for ${MONTH_LABEL(period.month)} ${period.year}.`}
+                  {data.isConsultancy || data.hasHistory
+                    ? `No consultancy payslips for ${MONTH_LABEL(period.month)} ${period.year}.`
+                    : "No consultancy payment records found for your account."}
                 </td>
               </tr>
             )}

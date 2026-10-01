@@ -10,6 +10,11 @@
 .consultancy-payment-stats span { color: #64748b; font-size: 12px; }
 .consultancy-payment-stats strong { margin-top: 5px; font-size: 19px; }
 .employee-table td small { display: block; color: #64748b; margin-top: 3px; }
+/* Bug 310: sortable column headers — inherit header look, show pointer. */
+.consultancy-sort-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0; font: inherit; font-weight: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
+.consultancy-sort-btn:hover { text-decoration: underline; }
+.consultancy-sort-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 4px; }
+.consultancy-sort-btn svg { flex-shrink: 0; }
 .consultancy-payments-actions { display: flex; gap: 8px; align-items: center; }
 .consultancy-payments-actions .generic-btn { white-space: nowrap; }
 .consultancy-status-locked { display: inline-block; min-height: 32px; line-height: 32px; padding: 0 12px; border-radius: 8px; background: #f1f5f9; color: #64748b; font-size: 12px; font-weight: 600; }
