@@ -34,3 +34,29 @@ export const formatPayrollMeta = (value, fallback = "—") => {
   if (isMissingMeta(value)) return fallback;
   return value;
 };
+
+/**
+ * Days the payroll actually covers. A current-month (or relieving) payroll is
+ * cut short, so periodDays / periodEndLabel come from the backend window.
+ */
+export const getPayrollPeriod = (record) => {
+  const breakdown = record?.calculationBreakdown || {};
+  const cappedToToday = Boolean(breakdown.cappedToToday);
+  const windowDays =
+    breakdown.payrollWindow?.windowDays ?? breakdown.salaryEngine?.windowDays;
+  const periodDays =
+    cappedToToday && windowDays ? windowDays : record?.totalDaysInMonth;
+  const endDate = breakdown.payrollWindow?.endDate
+    ? new Date(breakdown.payrollWindow.endDate)
+    : null;
+  const periodEndLabel =
+    cappedToToday && endDate && !Number.isNaN(endDate.getTime())
+      ? endDate.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          timeZone: "Asia/Kolkata",
+        })
+      : null;
+  return { cappedToToday, periodDays, periodEndLabel };
+};
