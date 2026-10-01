@@ -27,6 +27,20 @@ const departmentName = (department) => {
 
 const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
+// must show one clear message everywhere (same wording as the Add Consultant
+// form's consultancyPreviewError), and the modal shows it only once.
+const payRuleError = (amountRaw, tdsRaw) => {
+  if (amountRaw !== "" && amountRaw !== null && amountRaw !== undefined) {
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount < 0) return "Consultancy Pay cannot be negative.";
+  }
+  if (tdsRaw !== "" && tdsRaw !== null && tdsRaw !== undefined) {
+    const rate = Number(tdsRaw);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) return "TDS must be between 0% and 100%.";
+  }
+  return "";
+};
+
 // Bug 310: sort direction indicator for the Employee Name / Employee Code headers.
 const sortIcon = (active, direction) => {
   if (!active) return <ChevronsUpDown size={14} aria-hidden="true" />;
@@ -267,16 +281,10 @@ export default function ConsultancyPayments({
   const saveModal = async (event) => {
     event.preventDefault();
     const isPayMode = modal.mode === "pay";
+    // just stop here instead of setting a second, differently-worded error.
+    if (payRuleError(editForm.amount, editForm.tdsPercent)) return;
     const amount = Number(editForm.amount);
-    if (!Number.isFinite(amount) || amount < 0) {
-      setEditError("Amount must be a non-negative number");
-      return;
-    }
     const tdsPercent = Number(editForm.tdsPercent) || 0;
-    if (tdsPercent < 0 || tdsPercent > 100) {
-      setEditError("TDS percentage must be between 0 and 100");
-      return;
-    }
     if (isPayMode) {
       if (!editForm.paymentMode.trim() || !editForm.transactionReference.trim()) {
         setEditError("Payment mode and transaction reference are required before marking as paid");
@@ -313,14 +321,7 @@ export default function ConsultancyPayments({
 
   const breakdown = netBreakdown(editForm.amount, editForm.tdsPercent);
   // Bug 258: surface invalid pay/TDS in the preview instead of silently clamping.
-  const previewAmount = Number(editForm.amount);
-  const previewTds = editForm.tdsPercent === "" ? 0 : Number(editForm.tdsPercent);
-  const previewInvalid =
-    modal && (editForm.amount !== "" && (!Number.isFinite(previewAmount) || previewAmount < 0))
-      ? "Consultancy Pay cannot be negative."
-      : modal && editForm.tdsPercent !== "" && (!Number.isFinite(previewTds) || previewTds < 0 || previewTds > 100)
-        ? "TDS must be between 0% and 100%."
-        : "";
+  const previewInvalid = modal ? payRuleError(editForm.amount, editForm.tdsPercent) : "";
   return (
     <section className="consultancy-payments-panel">
       <div className="consultancy-payments-head">
@@ -387,7 +388,7 @@ export default function ConsultancyPayments({
                 const net = Number(row.payment.netAmount) || 0;
                 return (
                   <tr key={row.employee._id}>
-                    <td>{row.employee.name}{row.converted ? <small>Converted to employee — history</small> : null}</td>
+                    <td>{row.employee.name}{row.deleted ? <small>Deleted consultant — history</small> : row.converted ? <small>Converted to employee — history</small> : null}</td>
                     <td>{row.employee.employeeCode}</td>
                     <td>{departmentName(row.employee.department)}</td>
                     <td>{money(row.payment.amount)}</td>
@@ -396,7 +397,7 @@ export default function ConsultancyPayments({
                     <td><span className={`status-badge ${row.payment.status === "Paid" ? "active" : "inactive"}`}>{row.payment.status}</span></td>
                     {canManage ? (
                       <td>
-                        {row.payment.status === "Paid" || row.converted ? (
+                        {row.payment.status === "Paid" || row.converted || row.deleted ? (
                           <span className="consultancy-status-locked">Payment locked</span>
                         ) : (
                           <div className="consultancy-payments-actions">
