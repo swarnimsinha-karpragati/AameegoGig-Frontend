@@ -1,7 +1,7 @@
 import React from "react";
 import { X, RefreshCw, CheckCircle } from "lucide-react";
 import PayrollBreakdown from "./PayrollBreakdown";
-import { formatPayrollMeta } from "../utils/payrollRecord";
+import { formatPayrollMeta, getPayrollPeriod } from "../utils/payrollRecord";
 import { convertNumberToWords } from "../utils/currencyWords";
 import "./PayrollBreakdownDrawer.css";
 
@@ -36,11 +36,7 @@ export default function PayrollBreakdownDrawer({
     (record.paidLeaveDays || 0) + (record.weekOffDays || 0) + (record.holidays || 0);
   const lopDays = (record.lopDays || 0) + (record.absentDays || 0);
   const netSalary = Number(record.netSalary || 0);
-  const breakdown = record.calculationBreakdown || {};
-  const cappedToToday = Boolean(breakdown.cappedToToday);
-  const windowDays = breakdown.salaryEngine?.windowDays;
-  const periodDays =
-    cappedToToday && windowDays ? windowDays : record.totalDaysInMonth;
+  const { cappedToToday, periodDays, periodEndLabel } = getPayrollPeriod(record);
 
   return (
     <div className="details-overlay" onClick={onClose}>
@@ -92,8 +88,9 @@ export default function PayrollBreakdownDrawer({
               <h3 className="pb-section__title">Attendance</h3>
               {cappedToToday && (
                 <p className="pb-section__note">
-                  In-progress month — calculated through today ({periodDays} of{" "}
-                  {record.totalDaysInMonth} calendar days)
+                  {periodEndLabel
+                    ? `Calculated through ${periodEndLabel} (${periodDays} of ${record.totalDaysInMonth} calendar days)`
+                    : `Calculated for ${periodDays} of ${record.totalDaysInMonth} calendar days`}
                 </p>
               )}
               <div className="pb-att-grid">
