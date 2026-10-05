@@ -177,7 +177,7 @@ export const employeeValidationSchema = Yup.object().shape({
   monthlyConsultancyPay: Yup.number()
     .transform((value, originalValue) => (originalValue === "" ? null : value))
     .nullable()
-    .min(0, "Amount must be 0 or greater.")
+    .min(0, "Consultancy Pay cannot be negative.")
     .test(
       "consultancy-pay-required",
       "Monthly Consultancy Pay must be greater than ₹0.",

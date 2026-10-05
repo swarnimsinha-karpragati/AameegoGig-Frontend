@@ -724,13 +724,13 @@ export default function Payroll() {
           />
         )}
 
-        {activeTab === "payslips" && isConsultancyUser && (
-          <ConsultancyPayslipsTab />
-        )}
-
-        {activeTab === "payslips" && !isConsultancyUser && (
-          <PayslipsTab
-            isAdminOrHR={isAdminOrHR}
+        {activeTab === "payslips" && !isAdminOrHR && (
+          <>
+            {/* converted people keep both histories in their own view —
+                current-role section first, past-role records below as history. */}
+            {isConsultancyUser ? <ConsultancyPayslipsTab /> : null}
+            <PayslipsTab
+              isAdminOrHR={isAdminOrHR}
             notLinkedToEmployee={notLinkedToEmployee}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
@@ -756,6 +756,8 @@ export default function Payroll() {
             onReleasePayroll={handleReleasePayroll}
             onViewBreakdown={handleViewBreakdown}
           />
+            {!isConsultancyUser ? <ConsultancyPayslipsTab hideIfEmpty /> : null}
+          </>
         )}
 
         <PayrollBreakdownDrawer
