@@ -165,9 +165,11 @@ export const exportPayrollSummary = async (params) => {
   });
 };
 
-export const downloadWageSheet = async (month, year) => {
+export const downloadWageSheet = async (month, year, departmentId = null) => {
+  const params = { month, year };
+  if (departmentId) params.departmentId = departmentId;
   return API.get("/payroll/reports/wagesheet/export", {
-    params: { month, year },
+    params,
     responseType: "blob",
   });
 };

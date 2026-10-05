@@ -1153,6 +1153,28 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+/* Header controls: Monthly/Daily pills + site filter side by side */
+.pm-calc-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pm-calc-site-select {
+  height: 38px;
+  max-width: 220px;
+}
+
+/* Keep long department/site names from stretching the toolbar and
+   pushing sibling filters onto the next line */
+.pm-calc-select--truncate {
+  max-width: 190px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .pm-calc-body {
   padding: 14px 20px 18px;
   display: flex;
@@ -1252,6 +1274,13 @@
 }
 
 .pm-calc-select--year { min-width: 88px; width: 88px; }
+
+.pm-calc-select:disabled {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
 
 input.pm-calc-select[type="date"] {
   min-width: 160px;
@@ -2018,6 +2047,14 @@ input.pm-calc-select[type="date"] {
 }
 
 .payroll-filter-field {
+  flex: 0 0 auto;
+}
+
+/* Type toggle + site filter sit side by side as one group */
+.payroll-type-site-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
   flex: 0 0 auto;
 }
 
