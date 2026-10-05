@@ -39,6 +39,12 @@ export default function PayrollManager(props) {
     calcYear,
     onCalcMonthChange,
     onCalcYearChange,
+    departments = [],
+    siteLabel = "Department",
+    calcDeptId = "",
+    onCalcDeptChange,
+    recordDeptId = "",
+    onRecordDeptChange,
     onSearchChange,
     onReviewFilterChange,
     onPageChange,
@@ -95,15 +101,30 @@ export default function PayrollManager(props) {
 
   const eligibleEmployees = useMemo(() => {
     const monthStart = new Date(calcYear, calcMonth - 1, 1);
+    const deptNameById = new Map(
+      (departments || []).map((d) => [String(d._id), d.name])
+    );
     return employees.filter((e) => {
       if (!e.ctcStructureId) return false;
       if (e.relievingDate) {
         const rd = new Date(e.relievingDate);
         if (!Number.isNaN(rd.getTime()) && rd < monthStart) return false;
       }
+      if (calcDeptId) {
+        const empDeptId = String(
+          e.departmentId || e.department?._id || e.department || ""
+        );
+        const empDeptName =
+          typeof e.department === "string" ? e.department : e.department?.name || "";
+        const selectedDeptName = deptNameById.get(String(calcDeptId)) || "";
+        const idMatch = empDeptId && empDeptId === String(calcDeptId);
+        const nameMatch =
+          selectedDeptName && empDeptName && empDeptName === selectedDeptName;
+        if (!idMatch && !nameMatch) return false;
+      }
       return true;
     });
-  }, [employees, calcMonth, calcYear]);
+  }, [employees, calcMonth, calcYear, calcDeptId, departments]);
 
   const filteredEmployees = useMemo(() => {
     const q = empSearch.trim().toLowerCase();
@@ -145,7 +166,7 @@ export default function PayrollManager(props) {
 
   useEffect(() => {
     setSelectedEmpIds([]);
-  }, [searchQuery, listMonth, listYear, reviewFilter]);
+  }, [searchQuery, listMonth, listYear, reviewFilter, recordDeptId]);
 
   // Clear selection if employee no longer eligible for calc period
   useEffect(() => {
@@ -188,6 +209,9 @@ export default function PayrollManager(props) {
       year,
       employeeIds: undefined,
       payrollDate: payrollType === "daily" ? payrollDate : undefined,
+      // Single-employee selection disables the site filter — bulk then covers
+      // the whole (period) scope; otherwise scope to the selected site.
+      departmentId: !selectedEmp && calcDeptId ? calcDeptId : undefined,
     });
   };
 
@@ -295,23 +319,47 @@ export default function PayrollManager(props) {
               <p className="pm-calc-subtitle">Pick period &amp; employee, then preview or calculate</p>
             </div>
           </div>
-          <div className="pm-type-pills">
-            <button
-              className={`pm-pill ${payrollType === "monthly" ? "pm-pill--active" : ""}`}
-              onClick={() => setPayrollType("monthly")}
-              type="button"
+          <div className="pm-calc-header-controls">
+            <div className="pm-type-pills">
+              <button
+                className={`pm-pill ${payrollType === "monthly" ? "pm-pill--active" : ""}`}
+                onClick={() => setPayrollType("monthly")}
+                type="button"
+              >
+                <Calendar size={14} />
+                Monthly
+              </button>
+              <button
+                className={`pm-pill ${payrollType === "daily" ? "pm-pill--active" : ""}`}
+                onClick={() => setPayrollType("daily")}
+                type="button"
+              >
+                <Zap size={14} />
+                Daily
+              </button>
+            </div>
+            {/* Site scope for bulk calculate — disabled while a single
+                employee is picked (single-employee preview/calculate
+                ignores the site scope). */}
+            <select
+              value={calcDeptId}
+              onChange={(e) => onCalcDeptChange?.(e.target.value)}
+              className="pm-calc-select pm-calc-site-select pm-calc-select--truncate"
+              aria-label={`${siteLabel} filter for bulk payroll calculation`}
+              disabled={Boolean(selectedEmp)}
+              title={
+                selectedEmp
+                  ? `Clear the employee selection to filter bulk calculation by ${siteLabel.toLowerCase()}`
+                  : `Scope "Calculate All" to a ${siteLabel.toLowerCase()}`
+              }
             >
-              <Calendar size={14} />
-              Monthly
-            </button>
-            <button
-              className={`pm-pill ${payrollType === "daily" ? "pm-pill--active" : ""}`}
-              onClick={() => setPayrollType("daily")}
-              type="button"
-            >
-              <Zap size={14} />
-              Daily
-            </button>
+              <option value="">All {siteLabel}s</option>
+              {(departments || []).map((d) => (
+                <option key={d._id} value={d._id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -479,7 +527,11 @@ export default function PayrollManager(props) {
                   onClick={handleBulkCalc}
                   disabled={actionLoading || !dailyReady}
                   type="button"
-                  title="Calculate payroll for all eligible employees in this period"
+                  title={
+                    !selectedEmp && calcDeptId
+                      ? `Calculate payroll for all eligible employees in ${departments.find((d) => String(d._id) === String(calcDeptId))?.name || "selected site"}`
+                      : "Calculate payroll for all eligible employees in this period"
+                  }
                 >
                   Calculate All
                 </Button>
@@ -537,6 +589,25 @@ export default function PayrollManager(props) {
             onMonthChange={onListMonthChange}
             onYearChange={onListYearChange}
           />
+          <div className="control-group payroll-filter-field">
+            <label>{siteLabel}</label>
+            <select
+              className="pm-calc-select pm-calc-select--truncate"
+              value={recordDeptId}
+              onChange={(e) => onRecordDeptChange?.(e.target.value)}
+              aria-label={`${siteLabel} filter for payroll records`}
+              title={recordDeptId
+                ? `${(departments || []).find((d) => String(d._id) === String(recordDeptId))?.name || siteLabel} — filter payroll records by ${siteLabel.toLowerCase()}`
+                : `Filter payroll records by ${siteLabel.toLowerCase()}`}
+            >
+              <option value="">All {siteLabel}s</option>
+              {(departments || []).map((d) => (
+                <option key={d._id} value={d._id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="control-group payroll-filter-field">
             <label>Status</label>
             <div className="pm-type-switch">

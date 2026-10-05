@@ -1275,11 +1275,7 @@ function AdvanceLoanInner() {
                 const [statsSnap, reqSnap] = await Promise.all([refetchStats(), refetchAll()]);
                 const statsData = statsSnap.data;
                 const reqs = reqSnap.data?.requests || [];
-<<<<<<< HEAD
-                setDashboard(statsData ? statsData : null);
-=======
                 setDashboard(statsData ? (statsData.statistics ? statsData : { statistics: statsData }) : null);
->>>>>>> 1643f9d80c8dfaef240a8b6d16eacb26acaa9793
                 setRequests(reqs);
             } else {
                 const reqSnap = await refetchMy();

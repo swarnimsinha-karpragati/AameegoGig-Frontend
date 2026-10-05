@@ -16,6 +16,8 @@ import {
   downloadWageSheet,
 } from "../services/payrollService";
 import { useAllEmployees } from "../hooks/useEmployees";
+import { useDepartments } from "../hooks/useDepartments";
+import { isSiteVendor } from "../utils/vendorIdhelper";
 import { getCurrentUser } from "../services/authService";
 import { getStoredUser, canManagePayroll } from "../utils/roles";
 import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER, getAvailableMonths } from "../utils/payrollConstants";
@@ -65,8 +67,18 @@ export default function Payroll() {
   const [payrollReviewFilter, setPayrollReviewFilter] = useState("all");
   const [payslipTypeFilter, setPayslipTypeFilter] = useState("all");
   const [listLoading, setListLoading] = useState(false);
+  // Department/site scoping: bulk calculator + wage sheet download.
+  // ("Site" label for site vendors, "Department" otherwise.)
+  const siteLabel = isSiteVendor() ? "Site" : "Department";
+  const [calcDeptId, setCalcDeptId] = useState("");
+  const [wageDeptId, setWageDeptId] = useState("");
+  // Department/site filter for the payroll records list (Payroll tab).
+  const [recordDeptId, setRecordDeptId] = useState("");
 
   const { data: employees = [] } = useAllEmployees({ enabled: isAdminOrHR });
+  const { data: departments = [] } = useDepartments(storedUser?.vendorId, {
+    enabled: isAdminOrHR && Boolean(storedUser?.vendorId),
+  });
   const [payrolls, setPayrolls] = useState([]);
   const [notLinkedToEmployee, setNotLinkedToEmployee] = useState(false);
 
@@ -113,7 +125,7 @@ export default function Payroll() {
 
   useEffect(() => {
     setPayrollPagination((p) => ({ ...p, page: 1 }));
-  }, [debouncedSearch, selectedMonth, selectedYear, activeTab, payrollReviewFilter, payslipTypeFilter]);
+  }, [debouncedSearch, selectedMonth, selectedYear, activeTab, payrollReviewFilter, payslipTypeFilter, recordDeptId, wageDeptId]);
 
   const loadPayrollList = useCallback(
     async (clearMessage = true) => {
@@ -132,6 +144,10 @@ export default function Payroll() {
           limit: payrollPagination.limit,
         };
         if (debouncedSearch) params.search = debouncedSearch;
+        // Site filter is per-tab: records filter on the Payroll tab,
+        // wage-sheet/site filter on the Payslips tab.
+        const activeDeptId = activeTab === "payslips" ? wageDeptId : recordDeptId;
+        if (activeDeptId) params.departmentId = activeDeptId;
         if (activeTab === "payroll" && isAdminOrHR && payrollReviewFilter !== "all") {
           params.reviewStatus = payrollReviewFilter;
         }
@@ -174,6 +190,8 @@ export default function Payroll() {
       isAdminOrHR,
       payrollReviewFilter,
       payslipTypeFilter,
+      recordDeptId,
+      wageDeptId,
     ]
   );
 
@@ -210,6 +228,8 @@ export default function Payroll() {
     activeTab,
     payrollReviewFilter,
     payslipTypeFilter,
+    recordDeptId,
+    wageDeptId,
     user?.vendorId,
     user?.employeeCode,
   ]);
@@ -301,10 +321,14 @@ export default function Payroll() {
 
   const handleBulkCalculate = async (params) => {
     const empCount = params.employeeIds ? params.employeeIds.length : "all";
+    const deptName = params.departmentId
+      ? departments.find((d) => String(d._id) === String(params.departmentId))?.name
+      : "";
+    const scopeNote = deptName ? ` in ${siteLabel} "${deptName}"` : "";
     setConfirmModal({
       open: true,
       title: "Bulk Calculate",
-      message: `Calculate payroll for ${empCount} employees? This will overwrite any existing calculations for this period.`,
+      message: `Calculate payroll for ${empCount} employees${scopeNote}? This will overwrite any existing calculations for this period.`,
       onConfirm: async () => {
         setConfirmModal({ open: false, title: "", message: "", onConfirm: null });
         setActionLoading(true);
@@ -316,6 +340,7 @@ export default function Payroll() {
             employeeIds: params.employeeIds,
             payrollType: params.payrollType,
             payrollDate: params.payrollDate,
+            departmentId: params.departmentId || undefined,
           });
           const data = res.data?.data;
           const skipped = data?.skipped || [];
@@ -345,7 +370,7 @@ export default function Payroll() {
             skipped,
             success: data?.success || [],
             failed: data?.failed || [],
-            period: { month: params.month, year: params.year, payrollType: params.payrollType },
+            period: { month: params.month, year: params.year, payrollType: params.payrollType, departmentName: deptName || "" },
           });
           setShowAllSkipped(false);
           loadData(false);
@@ -469,21 +494,25 @@ export default function Payroll() {
       });
       return;
     }
+    const wageDeptName = wageDeptId
+      ? departments.find((d) => String(d._id) === String(wageDeptId))?.name
+      : "";
     setDownloadingWageSheet(true);
     try {
-      const res = await downloadWageSheet(selectedMonth, selectedYear);
+      const res = await downloadWageSheet(selectedMonth, selectedYear, wageDeptId || null);
       const blob = new Blob([res.data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Wage Sheet ${MONTH_NUMBER_TO_NAME[selectedMonth].slice(0, 3)} ${selectedYear}.xlsx`;
+      const deptSuffix = wageDeptName ? ` - ${wageDeptName}` : "";
+      link.download = `Wage Sheet ${MONTH_NUMBER_TO_NAME[selectedMonth].slice(0, 3)} ${selectedYear}${deptSuffix}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
       setStatusMessage({
         type: "success",
-        text: `Wage sheet for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear} downloaded.`,
+        text: `Wage sheet for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear}${wageDeptName ? ` (${siteLabel}: ${wageDeptName})` : ""} downloaded.`,
       });
     } catch (err) {
       setStatusMessage({
@@ -607,6 +636,9 @@ export default function Payroll() {
                 <h3 className="bulk-result-title">
                   Bulk Calculation Result — {MONTH_NUMBER_TO_NAME[bulkResult.period.month]} {bulkResult.period.year}
                   <span className="bulk-result-type"> {bulkResult.period.payrollType === "daily" ? "Daily" : "Monthly"}</span>
+                  {bulkResult.period.departmentName ? (
+                    <span className="bulk-result-type"> · {siteLabel}: {bulkResult.period.departmentName}</span>
+                  ) : null}
                 </h3>
                 <p className="bulk-result-subtitle">
                   {bulkResult.successCount} succeeded · {bulkResult.failedCount} failed · {bulkResult.skippedCount} skipped out of{" "}
@@ -709,6 +741,12 @@ export default function Payroll() {
             calcYear={calcYear}
             onCalcMonthChange={setCalcMonth}
             onCalcYearChange={handleCalcYearChange}
+            departments={departments}
+            siteLabel={siteLabel}
+            calcDeptId={calcDeptId}
+            onCalcDeptChange={setCalcDeptId}
+            recordDeptId={recordDeptId}
+            onRecordDeptChange={setRecordDeptId}
             onSearchChange={setSearchQuery}
             onReviewFilterChange={setPayrollReviewFilter}
             onPageChange={(page) => setPayrollPagination((p) => ({ ...p, page }))}
@@ -724,11 +762,11 @@ export default function Payroll() {
           />
         )}
 
-        {activeTab === "payslips" && !isAdminOrHR && (
+        {activeTab === "payslips" && (
           <>
             {/* converted people keep both histories in their own view —
                 current-role section first, past-role records below as history. */}
-            {isConsultancyUser ? <ConsultancyPayslipsTab /> : null}
+            {!isAdminOrHR && isConsultancyUser ? <ConsultancyPayslipsTab /> : null}
             <PayslipsTab
               isAdminOrHR={isAdminOrHR}
             notLinkedToEmployee={notLinkedToEmployee}
@@ -742,6 +780,10 @@ export default function Payroll() {
             pagination={payrollPagination}
             actionLoading={actionLoading}
             downloadingId={downloadingId}
+            departments={departments}
+            siteLabel={siteLabel}
+            wageDeptId={wageDeptId}
+            onWageDeptChange={setWageDeptId}
             onMonthChange={setSelectedMonth}
             onYearChange={handleYearChange}
             onSearchChange={setSearchQuery}
@@ -756,7 +798,7 @@ export default function Payroll() {
             onReleasePayroll={handleReleasePayroll}
             onViewBreakdown={handleViewBreakdown}
           />
-            {!isConsultancyUser ? <ConsultancyPayslipsTab hideIfEmpty /> : null}
+            {!isAdminOrHR && !isConsultancyUser ? <ConsultancyPayslipsTab hideIfEmpty /> : null}
           </>
         )}
 

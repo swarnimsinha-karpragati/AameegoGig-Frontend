@@ -193,7 +193,7 @@ export default function OrgProfileCard() {
             }
           />
           <small className="org-profile-card__field-hint">
-            New employees get codes like {(profile.employeeCodePrefix || "EMP")}-0001.
+            New employees get codes like {(profile.employeeCodePrefix || "EMP")}-1, {(profile.employeeCodePrefix || "EMP")}-2, …
           </small>
         </label>
         <label className="full-width">
