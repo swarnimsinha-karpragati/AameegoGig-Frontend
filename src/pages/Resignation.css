@@ -67,6 +67,7 @@
 .exit-mgmt-toolbar {
   margin-bottom: 1.5rem;
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
 }
@@ -75,7 +76,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1;
+  flex: 1 1 260px;
+  min-width: min(100%, 220px);
   max-width: 400px;
 }
 
@@ -496,5 +498,6 @@
   .exit-mgmt-grid { grid-template-columns: 1fr; }
   .exit-mgmt-field--full { grid-column: span 1; }
   .exit-mgmt-toolbar { flex-direction: column; align-items: stretch; }
-  .exit-mgmt-search { max-width: 100%; }
+  /* In a column the flex-basis would apply to height; size the search by its content instead. */
+  .exit-mgmt-toolbar .exit-mgmt-search { flex: 0 0 auto; width: 100%; max-width: 100%; }
 }
