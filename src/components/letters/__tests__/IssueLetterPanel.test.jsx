@@ -376,10 +376,10 @@ describe("questions and live preview", () => {
   });
 
   it("keeps Issue disabled when the preview is refused (4xx)", async () => {
-    letterService.previewLetter.mockRejectedValue({ response: { status: 400, data: { message: "Employee has no salary structure" } } });
+    letterService.previewLetter.mockRejectedValue({ response: { status: 400, data: { message: "Asha Rao does not have an active salary structure. Create a salary structure for this employee first.", code: "SALARY_STRUCTURE_REQUIRED" } } });
     open({ templateId: "t3" });
     await pickRecipient("Asha Rao", { previewSucceeds: false });
-    expect(await screen.findByText("Employee has no salary structure")).toBeInTheDocument();
+    expect(await screen.findByText("Asha Rao does not have an active salary structure. Create a salary structure for this employee first.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Issue letter" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Download draft" })).toBeDisabled();
   });
