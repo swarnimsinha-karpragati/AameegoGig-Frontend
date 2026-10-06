@@ -57,6 +57,7 @@ import {
 } from "../components/attendance/attendanceUtils";
 import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
 import { validateField } from "../utils/inputValidation";
+import { useOnLeave } from "../hooks/useLeave";
 import { parseBlobError } from "../utils/blobError";
 
 function Attendance() {
@@ -230,6 +231,12 @@ function Attendance() {
       setError(err.response?.data?.message || "Failed to load attendance data");
     }
   };
+
+  const { employeeId } = user || {};
+
+  const { data:onLeaveData, isPending:onLeavePending } = useOnLeave({ employeeId });
+
+  console.log(onLeaveData)
 
   const loadOrgData = async () => {
     if (!canViewOrg) return;
@@ -813,7 +820,7 @@ function Attendance() {
               : statusTextClass[myTodayRow.status]?.replace("status-text-", "") || "absent"
               }`}
           >
-            {myTodayRow.isCheckedIn ? "● Checked In" : myTodayRow.status}
+            {myTodayRow.isCheckedIn ? "● Checked In" : (onLeaveData?.isOnLeave?`You are on ${onLeaveData?.leaveDetails?.requestType}`:myTodayRow.status)}
           </span>
         </div>
 
@@ -831,7 +838,7 @@ function Attendance() {
             type="button"
             icon={<LogIn size={18} />}
             onClick={handleCheckIn}
-            disabled={actionLoading || myTodayRow.isCheckedIn}
+            disabled={actionLoading || myTodayRow.isCheckedIn || onLeaveData?.isOnLeave || onLeavePending}
           >
             {actionLoading ? "Processing..." : "Check In"}
           </Button>
@@ -840,7 +847,7 @@ function Attendance() {
             className="secondary-btn"
             icon={<LogOut size={18} />}
             onClick={handleCheckOut}
-            disabled={actionLoading || !myTodayRow.isCheckedIn}
+            disabled={actionLoading || !myTodayRow.isCheckedIn || onLeaveData?.isOnLeave || onLeavePending}
           >
             {actionLoading ? "Processing..." : "Check Out"}
           </Button>

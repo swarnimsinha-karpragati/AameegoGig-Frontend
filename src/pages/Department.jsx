@@ -97,9 +97,14 @@ function Departments() {
     departmentHead: "",
     sitePayoutRule: "",
     stateName: "",
+    latitude: "",
+    longitude: "",
+    geofenceRadiusMeters: "",
+    allowOutsideGeofence: true,
   };
 
   const [form, setForm] = useState(initialForm);
+  const [geoErrors, setGeoErrors] = useState({});
   const [search, setSearch] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -114,12 +119,40 @@ function Departments() {
   const updateMutation = useUpdateDepartment();
   const deleteMutation = useDeleteDepartment();
 
+  // Numeric sanitizers: only valid coordinate characters reach the state.
+  const sanitizeGeoValue = (name, value) => {
+    const str = String(value ?? "");
+    if (name === "geofenceRadiusMeters") {
+      let v = str.replace(/[^0-9.]/g, "");
+      const dot = v.indexOf(".");
+      if (dot !== -1) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
+      return v;
+    }
+    // latitude / longitude: digits, one dot, one leading minus
+    let v = str.replace(/[^0-9.-]/g, "");
+    const negative = v.startsWith("-");
+    v = v.replace(/-/g, "");
+    const dot = v.indexOf(".");
+    if (dot !== -1) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
+    return (negative ? "-" : "") + v;
+  };
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
+    let finalValue = type === "checkbox" ? checked : value;
+    if (["latitude", "longitude", "geofenceRadiusMeters"].includes(name)) {
+      finalValue = sanitizeGeoValue(name, value);
+    }
     setForm((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: finalValue,
     }));
+    setGeoErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
   };
 
   const handleHeadChange = (employeeId) => {
@@ -135,7 +168,41 @@ function Departments() {
     setIsViewing(false);
     setSelectedDepartment(null);
     setForm(initialForm);
+    setGeoErrors({});
   };
+
+  // Geofence is all-or-nothing: latitude + longitude + radius come together.
+  const validateGeofence = (values) => {
+    const errs = {};
+    const isSet = (v) => v !== "" && v !== null && v !== undefined;
+    const anySet = isSet(values.latitude) || isSet(values.longitude) || isSet(values.geofenceRadiusMeters);
+    if (!anySet) return errs;
+
+    const lat = Number(values.latitude);
+    const long = Number(values.longitude);
+    const rad = Number(values.geofenceRadiusMeters);
+
+    if (!isSet(values.latitude) || !Number.isFinite(lat)) {
+      errs.latitude = "Latitude is required when geofence is set";
+    } else if (lat < -90 || lat > 90) {
+      errs.latitude = "Latitude must be between -90 and 90";
+    }
+    if (!isSet(values.longitude) || !Number.isFinite(long)) {
+      errs.longitude = "Longitude is required when geofence is set";
+    } else if (long < -180 || long > 180) {
+      errs.longitude = "Longitude must be between -180 and 180";
+    }
+    if (!isSet(values.geofenceRadiusMeters) || !Number.isFinite(rad)) {
+      errs.geofenceRadiusMeters = "Radius is required when geofence is set";
+    } else if (rad <= 0) {
+      errs.geofenceRadiusMeters = "Radius must be greater than 0 meters";
+    } else if (rad > 100000) {
+      errs.geofenceRadiusMeters = "Radius cannot exceed 100000 meters";
+    }
+    return errs;
+  };
+
+  const toNullableNumber = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -143,6 +210,14 @@ function Departments() {
       alert(name + " is required");
       return;
     }
+
+    const geoErrors = validateGeofence(form);
+    if (Object.keys(geoErrors).length) {
+      setGeoErrors(geoErrors);
+      alert("Fix the geofence fields before saving");
+      return;
+    }
+    setGeoErrors({});
 
     const payload = {
       vendorId: vendorId,
@@ -153,6 +228,10 @@ function Departments() {
       departmentHead: form.departmentHead || null,
       sitePayoutRule: form.sitePayoutRule || null,
       stateName: form.stateName || null,
+      latitude: toNullableNumber(form.latitude),
+      longitude: toNullableNumber(form.longitude),
+      geofenceRadiusMeters: toNullableNumber(form.geofenceRadiusMeters),
+      allowOutsideGeofence: form.allowOutsideGeofence !== false,
     };
 
     try {
@@ -169,31 +248,32 @@ function Departments() {
     }
   };
 
+  const departmentToForm = (dep) => ({
+    name: dep.name || "",
+    description: dep.description || "",
+    shift: dep.shift?._id || "",
+    otPolicy: dep.otPolicy?._id || "",
+    departmentHead: dep.departmentHead?._id || "",
+    stateName: dep.stateName || "",
+    sitePayoutRule: dep.sitePayoutRule || "",
+    latitude: dep.latitude ?? "",
+    longitude: dep.longitude ?? "",
+    geofenceRadiusMeters: dep.geofenceRadiusMeters ?? "",
+    // Old records without the flag default to allowed (checked).
+    allowOutsideGeofence: dep.allowOutsideGeofence !== false,
+  });
+
   const handleView = (dep) => {
     setSelectedDepartment(dep);
-    setForm({
-      name: dep.name || "",
-      description: dep.description || "",
-      shift: dep.shift?._id || "",
-      otPolicy: dep.otPolicy?._id || "",
-      departmentHead: dep.departmentHead?._id || "",
-      stateName: dep.stateName || "",
-      sitePayoutRule: dep.sitePayoutRule || "",
-    });
+    setForm(departmentToForm(dep));
+    setGeoErrors({});
     setIsViewing(true);
   };
 
   const handleEdit = (dep) => {
     setSelectedDepartment(dep);
-    setForm({
-      name: dep.name || "",
-      description: dep.description || "",
-      shift: dep.shift?._id || "",
-      otPolicy: dep.otPolicy?._id || "",
-      departmentHead: dep.departmentHead?._id || "",
-      stateName: dep.stateName || "",
-      sitePayoutRule: dep.sitePayoutRule || "",
-    });
+    setForm(departmentToForm(dep));
+    setGeoErrors({});
     setIsEditing(true);
     setShowAddModal(true);
   };
@@ -304,6 +384,68 @@ function Departments() {
           </FormField>
         </div>
       </div>
+
+      <FormSection title="Attendance Geofence" description="Site location and allowed radius in meters for attendance marking. Leave all three empty for no geofence.">
+        <FormField label="Latitude" htmlFor="dep-latitude">
+          <input
+            id="dep-latitude"
+            name="latitude"
+            type="text"
+            inputMode="decimal"
+            value={form.latitude}
+            onChange={handleChange}
+            disabled={isDisabled}
+            placeholder="e.g. 28.6139"
+          />
+          {geoErrors.latitude ? (
+            <p style={{ color: "#b91c1c", fontSize: 12, margin: "4px 0 0" }}>{geoErrors.latitude}</p>
+          ) : null}
+        </FormField>
+        <FormField label="Longitude" htmlFor="dep-longitude">
+          <input
+            id="dep-longitude"
+            name="longitude"
+            type="text"
+            inputMode="decimal"
+            value={form.longitude}
+            onChange={handleChange}
+            disabled={isDisabled}
+            placeholder="e.g. 77.2090"
+          />
+          {geoErrors.longitude ? (
+            <p style={{ color: "#b91c1c", fontSize: 12, margin: "4px 0 0" }}>{geoErrors.longitude}</p>
+          ) : null}
+        </FormField>
+        <FormField label="Geofence Radius (meters)" htmlFor="dep-radius">
+          <input
+            id="dep-radius"
+            name="geofenceRadiusMeters"
+            type="text"
+            inputMode="decimal"
+            value={form.geofenceRadiusMeters}
+            onChange={handleChange}
+            disabled={isDisabled}
+            placeholder="e.g. 200"
+          />
+          {geoErrors.geofenceRadiusMeters ? (
+            <p style={{ color: "#b91c1c", fontSize: 12, margin: "4px 0 0" }}>{geoErrors.geofenceRadiusMeters}</p>
+          ) : null}
+        </FormField>
+        <FormField label="Outside Geofence" htmlFor="dep-allow-outside" fullWidth>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: isDisabled ? "default" : "pointer", fontWeight: 500 }}>
+            <input
+              id="dep-allow-outside"
+              name="allowOutsideGeofence"
+              type="checkbox"
+              checked={form.allowOutsideGeofence !== false}
+              onChange={handleChange}
+              disabled={isDisabled}
+              style={{ width: 16, height: 16, accentColor: "#2563eb" }}
+            />
+            Can mark attendance outside the geofence
+          </label>
+        </FormField>
+      </FormSection>
 
       <FormSection title="Operational Rules & Leadership" description="Link shifts, rules, and heads">
         <FormField required label="Assigned Operational Shift" htmlFor="dep-shift">

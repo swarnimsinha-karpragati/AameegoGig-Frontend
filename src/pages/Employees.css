@@ -146,6 +146,16 @@
   max-width: 820px;
 }
 
+/* Intern modals — same look, narrower than employee modals */
+.emp-modal--intern {
+  max-width: 680px;
+}
+
+/* Compact intern dialogs (status / extend) */
+.emp-modal--xs {
+  max-width: 420px;
+}
+
 .emp-modal--xl {
   max-width: 960px;
 }
@@ -1288,4 +1298,110 @@
   font-size: 13px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* --- Document checklist (intern documents modal) --- */
+.emp-doc-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emp-doc-checklist__items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .emp-doc-checklist__items {
+    grid-template-columns: 1fr;
+  }
+}
+
+.emp-doc-checklist__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.emp-doc-checklist__bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.emp-doc-checklist__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  transition: width 0.25s ease;
+}
+
+.emp-doc-checklist__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.emp-doc-checklist__item--done {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.emp-doc-checklist__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.emp-doc-checklist__item--done .emp-doc-checklist__icon {
+  background: #16a34a;
+  color: #fff;
+}
+
+.emp-doc-checklist__name {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emp-doc-checklist__tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.emp-doc-checklist__tag--required {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.emp-doc-checklist__tag--optional {
+  background: #f1f5f9;
+  color: #64748b;
 }
