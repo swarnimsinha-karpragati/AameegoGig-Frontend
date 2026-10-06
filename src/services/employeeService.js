@@ -95,6 +95,11 @@ export const buildEmployeePayload = (data, extras = {}) => {
     }
   }
 
+  // Always sent when present (even empty) so removing every member clears the list.
+  if (Array.isArray(data.familyMembers)) {
+    payload.familyMembers = data.familyMembers;
+  }
+
   const modules = extras.allowedModules ?? data.allowedModules;
   if (Array.isArray(modules)) {
     payload.allowedModules = modules;

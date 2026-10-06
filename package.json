@@ -8,6 +8,13 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^13.5.0",
+    "@tiptap/core": "^3.31.4",
+    "@tiptap/extension-image": "^3.31.4",
+    "@tiptap/extension-table": "^3.31.4",
+    "@tiptap/extension-text-align": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
+    "@tiptap/react": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
     "axios": "^1.15.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
@@ -30,6 +37,12 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^@tiptap/pm/(.*)$": "<rootDir>/node_modules/@tiptap/pm/dist/$1/index.cjs",
+      "^@tiptap/core/(jsx-runtime|jsx-dev-runtime)$": "<rootDir>/node_modules/@tiptap/core/$1/index.cjs"
+    }
   },
   "eslintConfig": {
     "extends": [

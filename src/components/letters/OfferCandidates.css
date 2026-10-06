@@ -1,0 +1,146 @@
+.wz-offer-status {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--wz-space-2);
+}
+
+.wz-offer-progress {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-offer-progress__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 52px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--wz-color-text-muted);
+}
+
+/* Connector from the previous dot; drawn on every step but the first. */
+.wz-offer-progress__step + .wz-offer-progress__step::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: calc(50% + 6px);
+  width: calc(100% - 12px);
+  height: 2px;
+  background: var(--wz-color-border-default);
+}
+
+.wz-offer-progress__dot {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--wz-color-border-strong);
+  border-radius: var(--wz-radius-full);
+  background: var(--wz-color-surface-default);
+  box-sizing: border-box;
+}
+
+.wz-offer-progress__step.is-done .wz-offer-progress__dot,
+.wz-offer-progress__step.is-current .wz-offer-progress__dot {
+  border-color: var(--wz-color-action-primary);
+  background: var(--wz-color-action-primary);
+}
+
+.wz-offer-progress__step.is-done + .wz-offer-progress__step::before {
+  background: var(--wz-color-action-primary);
+}
+
+.wz-offer-progress__step.is-current,
+.wz-offer-progress__step.is-stopped {
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-text-primary);
+}
+
+.wz-offer-progress__step--error .wz-offer-progress__dot {
+  border-color: var(--wz-color-status-error);
+  background: var(--wz-color-status-error);
+}
+
+.wz-offer-progress__step--error {
+  color: var(--wz-color-status-error);
+}
+
+.wz-offer-progress__step--warning .wz-offer-progress__dot {
+  border-color: var(--wz-color-status-warning);
+  background: var(--wz-color-status-warning);
+}
+
+.wz-offer-progress__step--warning {
+  color: var(--wz-color-status-warning-text);
+}
+
+.wz-offer-dialog__error {
+  margin: var(--wz-space-3) 0 0;
+  padding: var(--wz-space-3);
+  border-radius: var(--wz-radius-md);
+  background: var(--wz-color-status-error-bg);
+  color: var(--wz-color-status-error);
+  font-size: 14px;
+}
+
+.wz-offer-dialog__error-action {
+  margin-top: var(--wz-space-2);
+}
+
+.wz-offer-dialog__note {
+  margin-top: var(--wz-space-3);
+}
+
+.wz-candidate-history {
+  border-top: 1px solid var(--wz-color-border-default);
+  padding-top: var(--wz-space-4);
+}
+
+.wz-candidate-history__title {
+  margin: 0 0 var(--wz-space-3);
+  font-size: 15px;
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-text-heading);
+}
+
+.wz-candidate-history__empty {
+  margin: 0;
+  color: var(--wz-color-text-muted);
+  font-size: 14px;
+}
+
+.wz-candidate-history__list {
+  display: grid;
+  gap: var(--wz-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-candidate-history__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--wz-space-2);
+  font-size: 14px;
+}
+
+.wz-candidate-history__status {
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-text-primary);
+}
+
+.wz-candidate-history__meta {
+  color: var(--wz-color-text-muted);
+}
+
+.wz-candidate-history__note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--wz-color-text-secondary);
+  white-space: pre-wrap;
+}

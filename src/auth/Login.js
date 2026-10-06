@@ -6,6 +6,7 @@ import bgImage from '../assets/background.png';
 import LoginLayout, { LoginFormLogo } from './LoginLayout';
 import helpBtn from '../assets/help.svg';
 import { loginUser } from '../services/authService';
+import { vendorDashboardPath } from '../utils/vendorPath';
 
 export default function LoginScreen() {
     const navigate = useNavigate();
@@ -61,8 +62,7 @@ export default function LoginScreen() {
 
             localStorage.setItem('token', res.token);
             localStorage.setItem('user', JSON.stringify(res.user));
-            const formatName = res.user?.vendorName?.trim()?.replace(/\//g, "")?.replace(/\s+/g, "-").toLowerCase() || "";
-            navigate(`/${formatName}/dashboard`);
+            navigate(vendorDashboardPath(res.user));
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
         } finally {

@@ -1,5 +1,6 @@
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
+import { clearAuthData } from "../utils/authStorage";
 
 const API = axios.create({
   baseURL: API_BASE_URL,
@@ -31,8 +32,7 @@ API.interceptors.response.use(
       if (window.location.pathname === "/login") {
         return Promise.reject(error);
       }
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearAuthData();
 
       window.location.href = '/login';
     }

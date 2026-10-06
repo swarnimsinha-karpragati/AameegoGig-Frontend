@@ -871,12 +871,6 @@
   }
 }
 
-/* Allow table container to render popups outside its bounds */
-.employee-table-card,
-.employee-table-scroll {
-  overflow: visible !important;
-}
-
 /* Ensure the table cell doesn't force line wrapping or clipping */
 .employee-table td {
   position: relative;
@@ -1133,12 +1127,6 @@
   background-color: #fef2f2;
   color: #b91c1c;
 }
-
-/* Ensure row overflow doesn't clip the dropdown */
-.employee-table-scroll {
-  overflow: visible; 
-}
-
 /* =========================
    TERMINATION MODAL — EXIT PROCESS SETUP
 ========================= */

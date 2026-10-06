@@ -1,0 +1,31 @@
+.wz-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: var(--wz-radius-full);
+  background: var(--wz-color-action-primary);
+  color: var(--wz-color-text-inverse);
+  font-weight: var(--wz-font-weight-semibold);
+  object-fit: cover;
+  overflow: hidden;
+  user-select: none;
+}
+
+.wz-avatar--sm {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
+.wz-avatar--md {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+}
+
+.wz-avatar--lg {
+  width: 40px;
+  height: 40px;
+  font-size: 14px;
+}

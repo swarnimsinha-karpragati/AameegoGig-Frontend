@@ -1,0 +1,26 @@
+.wz-preview__viewport {
+  width: 100%;
+  min-width: 0;
+}
+
+.wz-preview__stage {
+  position: relative;
+  margin: 0 auto;
+}
+
+.wz-preview__sheet {
+  position: absolute;
+  left: 0;
+  background: #fff;
+  box-shadow: var(--wz-elevation-2);
+}
+
+.wz-preview__frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  border: 0;
+  background: transparent;
+  transform-origin: 0 0;
+}

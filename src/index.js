@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+// Must load before the router navigates so it records the history key the page booted on.
+import './utils/initialReload';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';

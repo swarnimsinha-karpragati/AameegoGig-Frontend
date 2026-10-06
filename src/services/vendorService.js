@@ -12,3 +12,10 @@ export const uploadOrgLogo = (file) => {
   // server cannot parse the upload and req.file ends up undefined.
   return API.post("/vendor/logo", formData);
 };
+
+/** Letter branding images: kind is "signature" or "stamp". -> { data: branding fields } */
+export const uploadOrgBrandingImage = (kind, file) => {
+  const formData = new FormData();
+  formData.append(kind, file);
+  return API.post(`/vendor/${kind}`, formData);
+};
