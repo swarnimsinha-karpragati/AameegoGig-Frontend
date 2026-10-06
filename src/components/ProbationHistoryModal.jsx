@@ -1,6 +1,7 @@
 import React from "react";
 import { X } from "lucide-react";
 import "./ProbationHistoryModal.css";
+import { convertUTCtoDDMMYYYY } from "../pages/Employees";
 
 const ACTION_LABELS = {
   created: "Probation started",
@@ -10,12 +11,6 @@ const ACTION_LABELS = {
   reopened: "Probation reopened",
 };
 
-const formatDate = (v) => {
-  if (!v) return "-";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString();
-};
 
 export default function ProbationHistoryModal({
   open,
@@ -47,7 +42,7 @@ export default function ProbationHistoryModal({
                 Current status:{" "}
                 <strong>
                   {data.employmentStatus === "probation"
-                    ? `Probation${data.probationEndDate ? ` (till ${formatDate(data.probationEndDate)})` : ""}`
+                    ? `Probation${data.probationEndDate ? ` (till ${convertUTCtoDDMMYYYY(data.probationEndDate)})` : ""}`
                     : "Full-time"}
                 </strong>
                 {Number(data.probationExtendedMonths) > 0
@@ -81,7 +76,7 @@ export default function ProbationHistoryModal({
                   <div className="probhist-card">
                     <div className="probhist-row1">
                       <strong>{ACTION_LABELS[h.action] || h.action || "Updated"}</strong>
-                      <span className="probhist-date">{formatDate(h.date)}</span>
+                      <span className="probhist-date">{ convertUTCtoDDMMYYYY(h.date )}</span>
                     </div>
                     {h.action === "extended" && Number(h.months) > 0 ? (
                       <p className="probhist-months">+{h.months} month(s)</p>

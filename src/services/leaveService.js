@@ -73,3 +73,9 @@ export const runLeaveAccrual = async (payload) => {
   const res = await API.post("/leave/accrual/run", payload || {});
   return res.data;
 };
+
+
+export const onLeave = async (employeeId) => {
+  const res = await API.get(`/leave/${employeeId}/on-leave`);
+  return res.data;
+};
