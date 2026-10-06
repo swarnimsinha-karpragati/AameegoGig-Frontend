@@ -4,6 +4,11 @@ export const getOrgProfile = () => API.get("/vendor/profile");
 
 export const updateOrgProfile = (payload) => API.put("/vendor/profile", payload);
 
+/** -> { data: { autoMarkAttendance } } */
+export const getAttendanceSettings = () => API.get("/vendor/attendance-settings");
+
+export const updateAttendanceSettings = (payload) => API.put("/vendor/attendance-settings", payload);
+
 export const uploadOrgLogo = (file) => {
   const formData = new FormData();
   formData.append("logo", file);
