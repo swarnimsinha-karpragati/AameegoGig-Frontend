@@ -87,6 +87,15 @@ describe("inputValidation (frontend)", () => {
     expect(validateField({ label: "Email", value: "a@b.com", required: true })).toBeNull();
   });
 
+  test("uses the strict email format shared with the backend", () => {
+    for (const bad of ["2@h", "a@b", "test@test", "test@test.c", "a@b..com", ".a@x.com", "a.@x.com", "a@-x.com", "a@x-.com", "a@x.c0m"]) {
+      expect(validateField({ label: "Email", value: bad })).toBe("Email must be a valid email address");
+    }
+    for (const good of ["user@example.com", "first.last+hr@mail.co.in", "A_B%c@sub-domain.example.org"]) {
+      expect(validateField({ label: "Email", value: good })).toBeNull();
+    }
+  });
+
   test("validates currency from label without explicit kind", () => {
     expect(validateField({ label: "Monthly Amount", value: -1 })).toMatch(/cannot be less/i);
     expect(

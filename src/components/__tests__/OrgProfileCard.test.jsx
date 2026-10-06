@@ -74,7 +74,7 @@ test("employee code prefix is normalised while typing", async () => {
   await userEvent.clear(prefix);
   await userEvent.type(prefix, "hr-1");
   expect(prefix).toHaveValue("HR1");
-  expect(screen.getByText(/HR1-0001/)).toBeInTheDocument();
+  expect(screen.getByText(/HR1-1, HR1-2/)).toBeInTheDocument();
 });
 
 test("server field errors are shown on the matching input", async () => {

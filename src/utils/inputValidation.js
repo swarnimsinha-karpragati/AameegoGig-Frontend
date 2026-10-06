@@ -23,7 +23,9 @@ export const LIMITS = {
 };
 
 export const PATTERNS = {
-  EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  // Strict email: local + @ + domain + . + TLD (letters, min 2).
+  // Rejects "2@h", "a@b", "test@test", "test@test.c", "a@b..com".
+  EMAIL: /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/,
   PHONE_IN: /^[0-9]{10}$/,
   AADHAAR: /^[0-9]{12}$/,
   PAN: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
@@ -180,6 +182,40 @@ const HTML_TYPE_KIND_MAP = {
 const isBlank = (value) =>
   value == null || (typeof value === "string" && value.trim() === "");
 
+/**
+ * Strict email check — employee / consultant / contact forms.
+ * Rejects "2@h", "a@b", "test@test", "test@test.c", "a@b..com",
+ * ".a@x.com", "a.@x.com", "a@-x.com", spaces, double dots.
+ */
+export const isValidEmailFormat = (value) => {
+  const v = String(value || "").trim();
+  if (!v || v.length > LIMITS.EMAIL_MAX || /\s/.test(v)) return false;
+  if (!PATTERNS.EMAIL.test(v)) return false;
+  if (v.includes("..")) return false;
+  const parts = v.split("@");
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || !domain) return false;
+  if (local.length > 64) return false;
+  if (local.startsWith(".") || local.endsWith(".")) return false;
+  if (
+    domain.startsWith(".") ||
+    domain.endsWith(".") ||
+    domain.startsWith("-") ||
+    domain.endsWith("-")
+  )
+    return false;
+  const labels = domain.split(".");
+  if (labels.length < 2) return false;
+  for (const label of labels) {
+    if (!label || label.length > 63) return false;
+    if (label.startsWith("-") || label.endsWith("-")) return false;
+  }
+  const tld = labels[labels.length - 1];
+  if (!/^[A-Za-z]{2,}$/.test(tld)) return false;
+  return true;
+};
+
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
 
 const formatInr = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
@@ -221,7 +257,7 @@ export const validateByKind = (kind, value, label, options = {}) => {
       const safe = validateSafeText(value, label, { maxLength: LIMITS.EMAIL_MAX });
       if (safe) return safe;
       const v = String(value).trim().toLowerCase();
-      if (!PATTERNS.EMAIL.test(v)) return `${label} must be a valid email address`;
+      if (!isValidEmailFormat(v)) return `${label} must be a valid email address`;
       return null;
     }
     case "phone": {

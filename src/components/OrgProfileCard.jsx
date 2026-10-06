@@ -284,7 +284,7 @@ export default function OrgProfileCard() {
           />
           {fieldError("employeeCodePrefix") || (
             <small className="org-profile-card__field-hint">
-              New employees get codes like {form.employeeCodePrefix || "EMP"}-0001.
+              New employees get codes like {form.employeeCodePrefix || "EMP"}-1, {form.employeeCodePrefix || "EMP"}-2, …
             </small>
           )}
         </label>
