@@ -1,0 +1,203 @@
+.wz-tpl-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-4);
+  min-width: 0;
+}
+
+.wz-tpl-editor__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--wz-space-3);
+  background: var(--wz-color-surface-default);
+  border: 1px solid var(--wz-color-border-default);
+  border-radius: var(--wz-radius-lg);
+  padding: var(--wz-space-3) var(--wz-space-4);
+}
+
+.wz-tpl-editor__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-space-2);
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.wz-tpl-editor__name {
+  flex: 1 1 220px;
+  max-width: 420px;
+}
+
+.wz-tpl-editor__name .wz-field__input {
+  font-size: 16px;
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-text-heading);
+}
+
+.wz-tpl-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--wz-space-2);
+}
+
+.wz-tpl-editor__hint {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+  font-size: 13px;
+  color: var(--wz-color-text-muted);
+}
+
+.wz-tpl-editor__conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-space-3);
+}
+
+.wz-tpl-editor__conflict-error {
+  flex-basis: 100%;
+  color: var(--wz-color-status-error);
+  font-weight: 500;
+}
+
+.wz-tpl-editor__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: var(--wz-space-4);
+  align-items: start;
+}
+
+.wz-tpl-editor__canvas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-3);
+  min-width: 0;
+}
+
+.wz-tpl-side {
+  position: sticky;
+  top: var(--wz-space-4);
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-3);
+  min-width: 0;
+  background: var(--wz-color-surface-default);
+  border: 1px solid var(--wz-color-border-default);
+  border-radius: var(--wz-radius-lg);
+  padding: var(--wz-space-3) var(--wz-space-4) var(--wz-space-4);
+}
+
+.wz-tpl-side__tabs {
+  align-self: stretch;
+  position: sticky;
+  top: calc(-1 * var(--wz-space-3));
+  z-index: 1;
+  background: var(--wz-color-surface-default);
+}
+
+.wz-tpl-side__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-4);
+}
+
+.wz-tpl-side__panel[hidden] {
+  display: none;
+}
+
+.wz-tpl-side__panel:focus-visible {
+  outline: 2px solid var(--wz-color-action-primary);
+  outline-offset: 2px;
+  border-radius: var(--wz-radius-sm);
+}
+
+.wz-tpl-side__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-3);
+}
+
+.wz-tpl-side__section h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-text-heading);
+}
+
+.wz-tpl-side__toggles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-3);
+}
+
+.wz-tpl-side__hint {
+  margin: var(--wz-space-1) 0 0;
+  padding-left: 44px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--wz-color-text-muted);
+}
+
+.wz-tpl-side__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-space-1);
+  font-size: 13px;
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-action-primary);
+}
+
+.wz-tpl-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-2);
+}
+
+.wz-tpl-history__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-1);
+  padding: var(--wz-space-3);
+  border: 1px solid var(--wz-color-border-default);
+  border-radius: var(--wz-radius-md);
+  background: var(--wz-color-surface-subtle);
+}
+
+.wz-tpl-history__head {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-space-2);
+}
+
+.wz-tpl-history__note {
+  font-size: 13px;
+  color: var(--wz-color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .wz-tpl-editor__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wz-tpl-side {
+    position: static;
+    max-height: none;
+  }
+}

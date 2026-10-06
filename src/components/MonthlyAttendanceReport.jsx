@@ -4,6 +4,7 @@ import './MonthlyAttendanceReport.css';
 import {X} from "lucide-react";
 import { getStoredUser } from '../utils/roles';
 import { useMonthReport } from '../hooks/useAttendance';
+import { parseBlobError } from '../utils/blobError';
 
 const MonthlyAttendanceReport = ({ handleReportModalClose }) => {
     const handleClose = () => {
@@ -64,20 +65,9 @@ const MonthlyAttendanceReport = ({ handleReportModalClose }) => {
             window.URL.revokeObjectURL(url);
             handleReportModalClose();
         } catch (error) {
-            let errorMessage = "Could not download the report. Please try again.";
-            if (error.response && error.response.data instanceof Blob) {
-                try {
-                    const errorText = await error.response.data.text();
-                    const errorJson = JSON.parse(errorText);
-                    if (errorJson.message) {
-                        errorMessage = errorJson.message;
-                    }
-                } catch (e) {
-                    console.error("Failed to parse error blob", e);
-                }
-            }
-
-            alert(errorMessage);
+            const data = (await parseBlobError(error))?.response?.data;
+            const parsedMessage = data instanceof Blob ? null : data?.message;
+            alert(parsedMessage || "Could not download the report. Please try again.");
         } finally {
             setLoading(false);
         }

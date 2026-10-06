@@ -32,13 +32,22 @@ export const getStoredUser = () => {
     }
 };
 
+// Session-scoped caches (e.g. role access loads) register here so they never outlive
+// the user they were loaded for; listeners run on logout, 401, and before every login.
+const authClearedListeners = new Set();
+
+export const onAuthCleared = (listener) => {
+    authClearedListeners.add(listener);
+    return () => authClearedListeners.delete(listener);
+};
+
 export const clearAuthData = () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
 
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(USER_KEY);
-    getStoredUser();
+    authClearedListeners.forEach((listener) => listener());
 };
 
 export const isAuthenticated = () => {

@@ -1,0 +1,187 @@
+.wz-ds {
+  --wz-color-brand-blue: #1f5da2;
+  --wz-color-brand-blue-bright: #2f6be4;
+  --wz-color-brand-teal: #1fa5a5;
+  --wz-color-brand-green: #12a58a;
+
+  --wz-color-surface-default: #ffffff;
+  --wz-color-surface-subtle: #f8f9fa;
+  --wz-color-surface-canvas: #f5f7fa;
+  --wz-color-overlay: rgba(14, 31, 74, 0.45);
+
+  --wz-color-text-primary: #181818;
+  --wz-color-text-heading: #0e1f4a;
+  --wz-color-text-secondary: #4b5563;
+  --wz-color-text-muted: #6c757d;
+  --wz-color-text-inverse: #ffffff;
+
+  --wz-color-border-default: #dee2e6;
+  --wz-color-border-strong: #adb5bd;
+
+  --wz-color-action-primary: #1f5da3;
+  --wz-color-action-primary-hover: #17497f;
+  --wz-color-action-selected: #e3ecf8;
+  --wz-color-action-selected-hover: #cfddf1;
+  --wz-color-focus-ring: #2f6be4;
+
+  --wz-color-status-success: #16a34a;
+  --wz-color-status-success-bg: #e8f7ee;
+  --wz-color-status-success-hover: #12863d;
+  --wz-color-status-warning: #f59e0b;
+  --wz-color-status-warning-text: #b45309;
+  --wz-color-status-warning-bg: #fef3e2;
+  --wz-color-status-error: #dc2626;
+  --wz-color-status-error-hover: #b91c1c;
+  --wz-color-status-error-bg: #fdecec;
+  --wz-color-status-info: #2f6be4;
+  --wz-color-status-info-bg: #e8f0fd;
+  --wz-color-status-disabled: #e9ecef;
+  --wz-color-status-disabled-text: #adb5bd;
+
+  --wz-space-1: 4px;
+  --wz-space-2: 8px;
+  --wz-space-3: 12px;
+  --wz-space-4: 16px;
+  --wz-space-5: 20px;
+  --wz-space-6: 24px;
+  --wz-space-8: 32px;
+  --wz-space-10: 40px;
+  --wz-space-12: 48px;
+
+  --wz-radius-sm: 6px;
+  --wz-radius-md: 10px;
+  --wz-radius-lg: 14px;
+  --wz-radius-xl: 20px;
+  --wz-radius-full: 999px;
+
+  --wz-control-height-sm: 32px;
+  --wz-control-height-md: 40px;
+  --wz-control-height-lg: 48px;
+
+  --wz-elevation-1: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --wz-elevation-2: 0 8px 24px rgba(16, 24, 40, 0.12);
+  --wz-focus-shadow: 0 0 0 2px var(--wz-color-surface-default), 0 0 0 4px var(--wz-color-focus-ring);
+
+  --wz-font-family: "Sora", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --wz-font-weight-regular: 400;
+  --wz-font-weight-medium: 500;
+  --wz-font-weight-semibold: 600;
+  --wz-font-weight-bold: 700;
+
+  --wz-z-menu: 1100;
+  --wz-z-drawer: 1200;
+  --wz-z-dialog: 1300;
+
+  --wz-duration-fast: 120ms;
+  --wz-duration-base: 200ms;
+
+  font-family: var(--wz-font-family);
+  color: var(--wz-color-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.wz-ds *,
+.wz-ds *::before,
+.wz-ds *::after {
+  box-sizing: border-box;
+}
+
+.wz-ds :focus-visible {
+  outline: none;
+  box-shadow: var(--wz-focus-shadow);
+}
+
+.wz-text-display,
+.wz-text-h1,
+.wz-text-h2,
+.wz-text-h3,
+.wz-text-h4 {
+  margin: 0;
+  color: var(--wz-color-text-heading);
+}
+
+.wz-text-display {
+  font-size: 40px;
+  line-height: 48px;
+  font-weight: var(--wz-font-weight-bold);
+}
+
+.wz-text-h1 {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: var(--wz-font-weight-bold);
+}
+
+.wz-text-h2 {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: var(--wz-font-weight-semibold);
+}
+
+.wz-text-h3 {
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: var(--wz-font-weight-semibold);
+}
+
+.wz-text-h4 {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: var(--wz-font-weight-semibold);
+}
+
+.wz-text-body-lg {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: var(--wz-font-weight-regular);
+}
+
+.wz-text-body {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--wz-font-weight-regular);
+}
+
+.wz-text-body-medium {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--wz-font-weight-medium);
+}
+
+.wz-text-button {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--wz-font-weight-semibold);
+}
+
+.wz-text-label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--wz-font-weight-medium);
+}
+
+.wz-text-caption {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--wz-font-weight-regular);
+}
+
+.wz-text-muted {
+  color: var(--wz-color-text-muted);
+}
+
+.wz-text-secondary {
+  color: var(--wz-color-text-secondary);
+}
+
+.wz-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

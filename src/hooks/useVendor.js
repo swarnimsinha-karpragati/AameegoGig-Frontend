@@ -3,6 +3,7 @@ import {
   getOrgProfile,
   updateOrgProfile,
   uploadOrgLogo,
+  uploadOrgBrandingImage,
 } from "../services/vendorService";
 
 const ORG_PROFILE_KEY = "orgProfile";
@@ -32,6 +33,17 @@ export function useUploadOrgLogo() {
 
   return useMutation({
     mutationFn: (file) => uploadOrgLogo(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [ORG_PROFILE_KEY] });
+    },
+  });
+}
+
+export function useUploadOrgBrandingImage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ kind, file }) => uploadOrgBrandingImage(kind, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [ORG_PROFILE_KEY] });
     },

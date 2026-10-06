@@ -3,6 +3,7 @@ import {
   docTypeLabel,
   acceptFor,
   isAllowedFile,
+  DOC_TYPE_ACCEPT,
 } from "./documentTypes";
 
 const docs = [
@@ -62,4 +63,24 @@ test("isAllowedFile enforces per-type extensions", () => {
 test("acceptFor builds the picker filter", () => {
   expect(acceptFor("SALARY_SLIP")).toBe(".pdf");
   expect(acceptFor("PHOTO")).toBe(".png,.jpg,.jpeg");
+});
+
+describe("letter document types", () => {
+  const backend = require("../../../AameegoGig-Backend/utils/documentCategory.js");
+
+  test("every generated letter type has a readable label", () => {
+    ["OFFER_LETTER", "WARNING_LETTER", "TERMINATION_LETTER", "SHOW_CAUSE_NOTICE", "NOC_LETTER", "CUSTOM_LETTER"].forEach((type) => {
+      expect(docTypeLabel(type)).not.toBe(type);
+    });
+    expect(docTypeLabel("NOC_LETTER")).toBe("No Objection Certificate");
+  });
+
+  test("letter types only accept PDFs", () => {
+    expect(acceptFor("WARNING_LETTER")).toBe(".pdf");
+    expect(isAllowedFile("OFFER_LETTER", "offer.png")).toBe(false);
+  });
+
+  test("accepted file types stay in sync with the backend", () => {
+    expect(DOC_TYPE_ACCEPT).toEqual(backend.DOC_TYPE_ACCEPT);
+  });
 });

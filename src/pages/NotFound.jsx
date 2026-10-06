@@ -1,12 +1,10 @@
 import { Link } from "react-router-dom";
 import { getStoredUser } from "../utils/roles";
+import { vendorDashboardPath } from "../utils/vendorPath";
 import "./NotFound.css";
 
 const NotFound = () => {
     const user = getStoredUser();
-
-    const vendorname =
-        user?.vendorName?.trim()?.replace(/\s+/g, "-").toLowerCase() || "";
 
     return (
         <div className="not-found-page">
@@ -27,7 +25,7 @@ const NotFound = () => {
                 </p>
 
                 <Link
-                    to={`/${vendorname}/dashboard`}
+                    to={vendorDashboardPath(user)}
                     className="dashboard-btn"
                 >
                     <span>←</span>

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import {
   UserCheck,
   Clock,
@@ -32,6 +31,7 @@ import {
   getAttendanceList,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
+  downloadMonthlyUploadTemplate,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -58,6 +58,7 @@ import {
 import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
 import { validateField } from "../utils/inputValidation";
 import { useOnLeave } from "../hooks/useLeave";
+import { parseBlobError } from "../utils/blobError";
 
 function Attendance() {
   const user = getStoredUser();
@@ -97,6 +98,7 @@ function Attendance() {
   const [monthlyUploadLoading, setMonthlyUploadLoading] = useState(false);
   const [monthlyUploadResult, setMonthlyUploadResult] = useState(null);
   const [monthlyUploadDragActive, setMonthlyUploadDragActive] = useState(false);
+  const [monthlyTemplateDownloading, setMonthlyTemplateDownloading] = useState(false);
   const monthlyUploadInputRef = useRef(null);
 
   const createInitialFilters = () => ({
@@ -637,26 +639,29 @@ function Attendance() {
     setMonthlyUploadFileSafely(event.dataTransfer.files?.[0]);
   };
 
-  const downloadMonthlyUploadTemplate = () => {
-    const rows = [
-      ["INSTRUCTIONS FOR MONTHLY ATTENDANCE BULK UPLOAD"],
-      ["1. Employee Code (Required): Use the exact employee code, e.g. GRV-0026."],
-      ["2. Month and Year (Required): Use full month name, e.g. August, and a four-digit year."],
-      ["3. Total Working Days (Required): Use whole or half days, e.g. 27 or 27.5."],
-      ["4. Incentive Days and Notes (Optional): Incentive Days can include 0.5. Leave it blank to use 0."],
-      [],
-      ["Employee Code", "Month", "Year", "Total Working Days", "Incentive Days", "Notes"],
-      ["GRV-0026", "August", 2026, 27.5, 0, "Monthly attendance upload"],
-    ];
-    const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    worksheet["!cols"] = [
-      { wch: 18 }, { wch: 15 }, { wch: 10 }, { wch: 22 },
-      { wch: 14 }, { wch: 18 }, { wch: 32 },
-    ];
-    worksheet["!merges"] = [0, 1, 2, 3, 4].map((row) => ({ s: { r: row, c: 0 }, e: { r: row, c: 6 } }));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Monthly Attendance");
-    XLSX.writeFile(workbook, "monthly-attendance-bulk-upload-template.xlsx");
+  const handleDownloadMonthlyUploadTemplate = async () => {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    setMonthlyTemplateDownloading(true);
+    try {
+      const blob = await downloadMonthlyUploadTemplate({ month, year });
+      const monthName = now.toLocaleString("en-US", { month: "long" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Monthly_Attendance_Template_${monthName}_${year}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      const data = (await parseBlobError(downloadError))?.response?.data;
+      const parsedMessage = data instanceof Blob ? null : data?.message;
+      toast.error(parsedMessage || "Unable to download the template. Please try again.");
+    } finally {
+      setMonthlyTemplateDownloading(false);
+    }
   };
 
   const handleMarkAttendance = async (e) => {
@@ -1533,7 +1538,9 @@ function Attendance() {
               <div className="month-upload-modal__body">
                 <div className="month-upload-template-download">
                   <span>Need the required format?</span>
-                  <button type="button" onClick={downloadMonthlyUploadTemplate}>Download Sample Excel Template</button>
+                  <button type="button" onClick={handleDownloadMonthlyUploadTemplate} disabled={monthlyTemplateDownloading}>
+                    {monthlyTemplateDownloading ? "Preparing template..." : "Download Sample Excel Template"}
+                  </button>
                 </div>
                 <div
                   className={`month-upload-drop-zone ${monthlyUploadDragActive ? "drag-active" : ""}`}
@@ -1564,7 +1571,7 @@ function Attendance() {
                   <div className={`month-upload-result ${monthlyUploadResult.errors?.length ? "month-upload-result--errors" : ""}`}>
                     {monthlyUploadResult.totalRows !== undefined ? (
                       <p className="month-upload-summary">
-                        Total: {monthlyUploadResult.totalRows} · Uploaded: {monthlyUploadResult.uploaded} · Failed: {monthlyUploadResult.failed}
+                        Total: {monthlyUploadResult.totalRows} · Uploaded: {monthlyUploadResult.uploaded} · Failed: {monthlyUploadResult.failed} · Skipped (no attendance entered): {monthlyUploadResult.skipped || 0}
                       </p>
                     ) : null}
                     {monthlyUploadResult.errors?.length ? (
@@ -1576,7 +1583,13 @@ function Attendance() {
                           </li>
                         ))}
                       </ul>
-                    ) : monthlyUploadResult.uploaded ? <p className="month-upload-success">All rows were uploaded successfully.</p> : null}
+                    ) : monthlyUploadResult.uploaded ? (
+                      <p className="month-upload-success">
+                        {monthlyUploadResult.skipped ? "All filled rows were uploaded successfully." : "All rows were uploaded successfully."}
+                      </p>
+                    ) : monthlyUploadResult.totalRows !== undefined ? (
+                      <p className="month-upload-summary">No attendance was entered in the uploaded file.</p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

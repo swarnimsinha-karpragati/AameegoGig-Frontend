@@ -6,6 +6,9 @@
 
 export const UNSAFE_TEXT_REGEX = /[<>"'`;\\{}]|script|javascript|onerror|onload/i;
 
+/** Letter wording needs quotes, apostrophes and semicolons; markup and template braces stay blocked. */
+export const UNSAFE_PROSE_REGEX = /[<>]|\{\{|\}\}|javascript\s*:|\bon[a-z]+\s*=/i;
+
 export const LIMITS = {
   TEXT_SHORT: 120,
   TEXT_MEDIUM: 255,
@@ -20,7 +23,9 @@ export const LIMITS = {
 };
 
 export const PATTERNS = {
-  EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  // Strict email: local + @ + domain + . + TLD (letters, min 2).
+  // Rejects "2@h", "a@b", "test@test", "test@test.c", "a@b..com".
+  EMAIL: /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/,
   PHONE_IN: /^[0-9]{10}$/,
   AADHAAR: /^[0-9]{12}$/,
   PAN: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
@@ -30,9 +35,87 @@ export const PATTERNS = {
   BANK_ACCOUNT: /^[0-9]{9,18}$/,
   IDENTIFIER_CODE: /^[A-Z][A-Z0-9_]{1,31}$/,
   EMPLOYEE_CODE: /^[A-Za-z0-9_-]{2,32}$/,
-  PERSON_NAME: /^[A-Za-z]+([\sA-Za-z.]*)*$/,
+  PERSON_NAME: /^[A-Za-z][\sA-Za-z.]*$/,
   DISPLAY_NAME: /^[\w\s.,()\-/&'+]{2,120}$/u,
   URL: /^https?:\/\/.+/i,
+  INTEGER: /^-?\d+$/,
+  DECIMAL: /^-?\d+(?:\.\d+)?$/,
+  ISO_DATE: /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/,
+};
+
+/**
+ * Opt-in rules for answers typed into letters and candidate records. Forms that do not
+ * pass these options (payroll, salary, attendance, employees) keep their existing results.
+ */
+export const DEFAULT_NUMBER_RULES = Object.freeze({ min: -1_000_000_000, max: 1_000_000_000 });
+export const PLAUSIBLE_DATE_RULES = Object.freeze({ isoDate: true, earliest: "1950-01-01", yearsAhead: 10 });
+export const JOINING_DATE_RULES = Object.freeze({ ...PLAUSIBLE_DATE_RULES, yearsAhead: 2 });
+
+/**
+ * Validation options for a letter question. A number answer is a plain decimal in a wide range;
+ * only a question that declares `integer`, `min` or `max` narrows it.
+ */
+export const answerFieldRules = (field = {}) => {
+  if (field.kind === "number") {
+    return {
+      decimal: true,
+      ...(field.integer === true ? { integer: true } : {}),
+      min: field.min != null ? field.min : DEFAULT_NUMBER_RULES.min,
+      max: field.max != null ? field.max : DEFAULT_NUMBER_RULES.max,
+    };
+  }
+  if (field.kind === "date" || field.kind === "date_past") return { ...PLAUSIBLE_DATE_RULES };
+  return {};
+};
+
+/** "2026-02-31" parses as 3 March in JS; reject days that do not exist on the calendar. */
+const isRealCalendarDay = (value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(String(value).trim());
+  if (!match) return true;
+  const [year, month, day] = match.slice(1).map(Number);
+  const calendar = new Date(Date.UTC(year, month - 1, day));
+  return calendar.getUTCMonth() === month - 1 && calendar.getUTCDate() === day;
+};
+
+/** "Today" for business dates is the Indian calendar day, wherever the server or browser clock is set. */
+export const BUSINESS_TIME_ZONE = "Asia/Kolkata";
+const BUSINESS_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: BUSINESS_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** The business day ("YYYY-MM-DD") a value names: the written day for "YYYY-MM-DD…" text, else its Indian day; null if not a date. */
+export const businessDayKey = (value) => {
+  if (value == null || value === "") return null;
+  const written = typeof value === "string" ? /^(\d{4}-\d{2}-\d{2})/.exec(value.trim()) : null;
+  if (written) return written[1];
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : BUSINESS_DAY_FORMAT.format(date);
+};
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const formatDayKey = (key) => {
+  const [year, month, day] = key.split("-").map(Number);
+  return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
+};
+
+const validateDateWindow = (value, parsed, label, { earliest, yearsAhead, now }) => {
+  if (earliest == null && yearsAhead == null) return null;
+  const day = businessDayKey(typeof value === "string" ? value : parsed);
+  if (earliest != null && day < earliest) return `${label} cannot be before ${formatDayKey(earliest)}`;
+  if (yearsAhead != null) {
+    const today = businessDayKey(now || new Date());
+    const latest = `${Number(today.slice(0, 4)) + Number(yearsAhead)}${today.slice(4)}`;
+    if (day > latest) {
+      return `${label} cannot be more than ${yearsAhead} ${Number(yearsAhead) === 1 ? "year" : "years"} from today`;
+    }
+  }
+  return null;
 };
 
 const LABEL_KIND_RULES = [
@@ -99,6 +182,40 @@ const HTML_TYPE_KIND_MAP = {
 const isBlank = (value) =>
   value == null || (typeof value === "string" && value.trim() === "");
 
+/**
+ * Strict email check — employee / consultant / contact forms.
+ * Rejects "2@h", "a@b", "test@test", "test@test.c", "a@b..com",
+ * ".a@x.com", "a.@x.com", "a@-x.com", spaces, double dots.
+ */
+export const isValidEmailFormat = (value) => {
+  const v = String(value || "").trim();
+  if (!v || v.length > LIMITS.EMAIL_MAX || /\s/.test(v)) return false;
+  if (!PATTERNS.EMAIL.test(v)) return false;
+  if (v.includes("..")) return false;
+  const parts = v.split("@");
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || !domain) return false;
+  if (local.length > 64) return false;
+  if (local.startsWith(".") || local.endsWith(".")) return false;
+  if (
+    domain.startsWith(".") ||
+    domain.endsWith(".") ||
+    domain.startsWith("-") ||
+    domain.endsWith("-")
+  )
+    return false;
+  const labels = domain.split(".");
+  if (labels.length < 2) return false;
+  for (const label of labels) {
+    if (!label || label.length > 63) return false;
+    if (label.startsWith("-") || label.endsWith("-")) return false;
+  }
+  const tld = labels[labels.length - 1];
+  if (!/^[A-Za-z]{2,}$/.test(tld)) return false;
+  return true;
+};
+
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
 
 const formatInr = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
@@ -140,7 +257,7 @@ export const validateByKind = (kind, value, label, options = {}) => {
       const safe = validateSafeText(value, label, { maxLength: LIMITS.EMAIL_MAX });
       if (safe) return safe;
       const v = String(value).trim().toLowerCase();
-      if (!PATTERNS.EMAIL.test(v)) return `${label} must be a valid email address`;
+      if (!isValidEmailFormat(v)) return `${label} must be a valid email address`;
       return null;
     }
     case "phone": {
@@ -199,6 +316,12 @@ export const validateByKind = (kind, value, label, options = {}) => {
       return null;
     }
     case "number": {
+      if (options.integer && !PATTERNS.INTEGER.test(String(value).trim())) {
+        return `${label} must be a whole number`;
+      }
+      if (options.decimal && !PATTERNS.DECIMAL.test(String(value).trim())) {
+        return `${label} must be a valid number`;
+      }
       if (!isFiniteNumber(value)) return `${label} must be a valid number`;
       const n = Number(value);
       if (min != null && n < Number(min)) return `${label} cannot be less than ${min}`;
@@ -223,7 +346,19 @@ export const validateByKind = (kind, value, label, options = {}) => {
     case "date_dob": {
       const d = value instanceof Date ? value : new Date(value);
       if (Number.isNaN(d.getTime())) return `${label} must be a valid date`;
-      if (kind === "date_past" && d > new Date()) return `${label} cannot be in the future`;
+      if (!(value instanceof Date) && !isRealCalendarDay(value)) return `${label} must be a valid date`;
+      if (options.isoDate && !(value instanceof Date) && !PATTERNS.ISO_DATE.test(String(value).trim())) {
+        return `${label} must be a valid date`;
+      }
+      const windowError = validateDateWindow(value, d, label, options);
+      if (windowError) return windowError;
+      if (kind === "date_past") {
+        const now = options.now || new Date();
+        const future = /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim())
+          ? String(value).trim() > businessDayKey(now)
+          : d > now;
+        if (future) return `${label} cannot be in the future`;
+      }
       if (kind === "date_dob") {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -283,6 +418,15 @@ export const validateByKind = (kind, value, label, options = {}) => {
       if (!PATTERNS.URL.test(String(value).trim())) {
         return `${label} must be a valid URL starting with http:// or https://`;
       }
+      return null;
+    }
+    case "prose":
+    case "long_text": {
+      const str = String(value).trim();
+      if (UNSAFE_PROSE_REGEX.test(str)) return `${label} contains invalid or unsafe characters`;
+      const maxLength = options.maxLength || LIMITS.TEXT_LONG;
+      if (str.length > maxLength) return `${label} must be at most ${maxLength} characters`;
+      if (min != null && str.length < Number(min)) return `${label} must be at least ${min} characters`;
       return null;
     }
     case "text":

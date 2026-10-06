@@ -47,6 +47,10 @@ export const ELEVATED_PERMISSIONS = [
   "employees:view",
   "employees:manage",
   "employees:letters",
+  "letters:view",
+  "letters:templates",
+  "letters:issue",
+  "letters:offers",
   "consultancy:view",
   "consultancy:manage",
   "departments:view",
@@ -97,6 +101,16 @@ export const ELEVATED_GROUPS = [
       { key: "employees:view", label: "View All Employees" },
       { key: "employees:manage", label: "Add / Edit / Delete Employees" },
       { key: "employees:letters", label: "Generate Letters (Appointment, Warning, etc.)" },
+    ],
+  },
+  {
+    key: "letters",
+    label: "Letters",
+    perms: [
+      { key: "letters:view", label: "View Letter Templates & Issued Letters" },
+      { key: "letters:templates", label: "Create / Edit Letter Templates" },
+      { key: "letters:issue", label: "Generate, Download & Email Letters" },
+      { key: "letters:offers", label: "Manage Offer Candidates & Offer Letters" },
     ],
   },
   {
