@@ -320,8 +320,28 @@ it("shows group, fixed recipient and history in About, and restores a version af
   await userEvent.click(screen.getByRole("button", { name: "Restore version 2" }));
   const confirm = screen.getByRole("dialog", { name: "Restore version 2?" });
   await userEvent.click(within(confirm).getByRole("button", { name: E.restore }));
-  await waitFor(() => expect(service.restoreLetterTemplateVersion).toHaveBeenCalledWith("t1", 2));
+  await waitFor(() => expect(service.restoreLetterTemplateVersion).toHaveBeenCalledWith("t1", 2, 3));
   await waitFor(() => expect(body()).toHaveValue("<p>Old</p>"));
+});
+
+it.each([
+  ["restore", () => service.restoreLetterTemplateVersion, async () => {
+    await userEvent.click(await screen.findByRole("button", { name: "Restore version 2" }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Restore version 2?" })).getByRole("button", { name: E.restore }));
+  }],
+  ["reset", () => service.resetLetterTemplate, async () => {
+    await userEvent.click(screen.getByRole("button", { name: E.resetToOriginal }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: E.resetTitle })).getByRole("button", { name: E.reset }));
+  }],
+])("a %s refused because someone else saved shows the same reload notice as a save (NEW-03)", async (_label, mockOf, act) => {
+  mockOf().mockRejectedValue({ response: { status: 409, data: { message: "Changed by someone else", code: "VERSION_CONFLICT" } } });
+  setup();
+  await loaded();
+  await userEvent.click(tab(E.about));
+  await act();
+  expect(await screen.findByText(E.conflict)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: E.reload })).toHaveFocus());
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
 it("resets a customised built-in template after confirming", async () => {
@@ -332,7 +352,7 @@ it("resets a customised built-in template after confirming", async () => {
   await userEvent.click(screen.getByRole("button", { name: E.resetToOriginal }));
   const confirm = screen.getByRole("dialog", { name: E.resetTitle });
   await userEvent.click(within(confirm).getByRole("button", { name: E.reset }));
-  await waitFor(() => expect(service.resetLetterTemplate).toHaveBeenCalledWith("t1"));
+  await waitFor(() => expect(service.resetLetterTemplate).toHaveBeenCalledWith("t1", 3));
   await waitFor(() => expect(body()).toHaveValue("<p>Original</p>"));
 });
 

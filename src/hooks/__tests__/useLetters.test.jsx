@@ -37,8 +37,18 @@ it.each(["reset", "restore"])("caches the template returned by %s before refetch
   service.restoreLetterTemplateVersion.mockResolvedValue(restored);
   const { queryClient, result } = setup(useLetterTemplateAction);
   queryClient.setQueryData(detailKey("t1"), { _id: "t1", version: 4 });
-  await act(() => result.current.mutateAsync({ action, id: "t1", value: 2 }));
+  await act(() => result.current.mutateAsync({ action, id: "t1", value: 2, version: 4 }));
   await waitFor(() => expect(queryClient.getQueryData(detailKey("t1"))).toEqual(restored));
+});
+
+it("reset and restore pass on the version being edited", async () => {
+  service.resetLetterTemplate.mockResolvedValue({ _id: "t1", version: 5 });
+  service.restoreLetterTemplateVersion.mockResolvedValue({ _id: "t1", version: 5 });
+  const { result } = setup(useLetterTemplateAction);
+  await act(() => result.current.mutateAsync({ action: "reset", id: "t1", version: 4 }));
+  expect(service.resetLetterTemplate).toHaveBeenCalledWith("t1", 4);
+  await act(() => result.current.mutateAsync({ action: "restore", id: "t1", value: 2, version: 4 }));
+  expect(service.restoreLetterTemplateVersion).toHaveBeenCalledWith("t1", 2, 4);
 });
 
 it("saving a candidate refreshes the candidate list, its detail and the issue-panel people lookup", async () => {

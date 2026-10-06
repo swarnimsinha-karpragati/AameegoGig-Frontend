@@ -143,6 +143,18 @@ export const LETTERS_COPY = deepFreeze({
     noPeopleMatch: "No one matches “{query}”.",
     noOfferCandidates: "No candidates waiting for an offer. Add a candidate in Offer candidates first.",
     noCandidates: "No candidates yet. Add a candidate in Offer candidates first.",
+    /** Keyed by the template's `recipientRule` (mirrors backend RECIPIENT_RULES). */
+    recipientRules: {
+      consultancy: {
+        only: "Only consultancy employees can receive {letter}.",
+        none: "There are no consultancy employees yet.",
+        noMatch: "No consultancy employee matches “{query}”.",
+        linkedNotEligible:
+          "The person in the link can't receive {letter} — only consultancy employees can. Choose a consultancy employee below.",
+      },
+    },
+    linkedRecipientUnavailable: "The person in the link can't receive {letter}. Choose someone below.",
+    linkedRecipientError: "Couldn't load the person from the link. Choose them below.",
     goToOffers: "Go to Offer candidates",
     chooseRecipient: "Choose who this letter is for",
     change: "Change",

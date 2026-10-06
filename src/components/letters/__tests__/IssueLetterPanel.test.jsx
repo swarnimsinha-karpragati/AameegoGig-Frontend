@@ -855,3 +855,69 @@ describe("after issuing", () => {
     expect(await screen.findByText("Which letter do you want to issue?")).toBeInTheDocument();
   });
 });
+
+describe("letters only some people can receive (NEW-05)", () => {
+  const CONSULTANT = { _id: "e7", name: "Kiran Consultant", code: "EMP007", email: "kiran@example.com", status: "active" };
+  const withConsultants = (consultants) =>
+    letterService.getLetterRecipients.mockImplementation(async ({ recipientType, id, templateId, search }) => {
+      const list = templateId === "t4" ? consultants : recipientType === "candidate" ? CANDIDATES : EMPLOYEES;
+      const found = id ? list.filter((p) => p._id === id) : list;
+      return search ? found.filter((p) => p.name.toLowerCase().includes(search.toLowerCase())) : found;
+    });
+
+  it("says who can receive a consultancy-only letter, and that there is no one yet, instead of 'No one found'", async () => {
+    withConsultants([]);
+    open({ templateId: "t4" });
+    expect(await screen.findByText("Only consultancy employees can receive Consultancy Agreement.")).toBeInTheDocument();
+    expect(await screen.findByText("There are no consultancy employees yet.")).toBeInTheDocument();
+    expect(screen.queryByText("No one found.")).not.toBeInTheDocument();
+  });
+
+  it("explains an empty search in the same terms", async () => {
+    withConsultants([CONSULTANT]);
+    open({ templateId: "t4" });
+    userEvent.type(await screen.findByLabelText("Who is this for?"), "zz");
+    expect(await screen.findByText("No consultancy employee matches “zz”.")).toBeInTheDocument();
+    expect(screen.getByText("Only consultancy employees can receive Consultancy Agreement.")).toBeInTheDocument();
+  });
+
+  it("tells HR when the person in the link cannot receive the letter, instead of dropping them silently", async () => {
+    withConsultants([]);
+    open({ templateId: "t4", initialRecipientId: "e1", initialRecipientType: "employee" });
+    const notice = await screen.findByText(
+      "The person in the link can't receive Consultancy Agreement — only consultancy employees can. Choose a consultancy employee below."
+    );
+    expect(notice).toHaveAttribute("role", "status");
+    expect(screen.queryByTestId("issue-recipient-card")).not.toBeInTheDocument();
+  });
+
+  it("the link notice goes away once HR picks someone who can receive it", async () => {
+    withConsultants([CONSULTANT]);
+    open({ templateId: "t4", initialRecipientId: "e1", initialRecipientType: "employee" });
+    expect(await screen.findByText(/The person in the link can't receive Consultancy Agreement/)).toBeInTheDocument();
+    await pickRecipient("Kiran Consultant");
+    expect(screen.queryByText(/The person in the link/)).not.toBeInTheDocument();
+    expect(await screen.findByTestId("issue-recipient-card")).toHaveTextContent("Kiran Consultant");
+  });
+
+  it("a linked person a regular letter cannot go to gets a plain notice too", async () => {
+    open({ templateId: "t3", initialRecipientId: "e9", initialRecipientType: "employee" });
+    expect(await screen.findByText("The person in the link can't receive NOC. Choose someone below.")).toBeInTheDocument();
+  });
+
+  it("a failed lookup of the linked person says so", async () => {
+    letterService.getLetterRecipients.mockImplementation(async ({ id }) => {
+      if (id) throw new Error("network");
+      return EMPLOYEES;
+    });
+    open({ templateId: "t3", initialRecipientId: "e1", initialRecipientType: "employee" });
+    expect(await screen.findByText("Couldn't load the person from the link. Choose them below.")).toBeInTheDocument();
+  });
+
+  it("no notice while the linked person is still loading or once they are preselected", async () => {
+    open({ templateId: "t3", initialRecipientId: "e1", initialRecipientType: "employee" });
+    expect(screen.queryByText(/The person in the link/)).not.toBeInTheDocument();
+    expect(await screen.findByTestId("issue-recipient-card")).toHaveTextContent("Asha Rao");
+    expect(screen.queryByText(/The person in the link/)).not.toBeInTheDocument();
+  });
+});

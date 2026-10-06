@@ -125,6 +125,7 @@
 
 .wz-detail-picker__item:hover,
 .wz-detail-picker__item:focus-visible,
+.wz-detail-picker__item[aria-selected="true"],
 .wz-rte__menu-item:hover,
 .wz-rte__menu-item:focus-visible {
   background: var(--wz-color-action-selected);

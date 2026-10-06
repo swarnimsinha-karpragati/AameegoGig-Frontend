@@ -73,6 +73,26 @@ export function useFocusTrap(containerRef, active, { initialFocusRef, onEscape }
 const MENU_ITEM_SELECTOR = "[role^='menuitem']:not(:disabled)";
 
 /**
+ * Index a list key moves to from `current` (-1 = nothing active) in a list of `length`:
+ * ArrowUp/ArrowDown wrap, Home/End jump. Null for other keys or an empty list.
+ */
+export function listKeyTarget(key, current, length) {
+  if (length <= 0) return null;
+  switch (key) {
+    case "ArrowDown":
+      return (current + 1) % length;
+    case "ArrowUp":
+      return (current <= 0 ? length : current) - 1;
+    case "Home":
+      return 0;
+    case "End":
+      return length - 1;
+    default:
+      return null;
+  }
+}
+
+/**
  * Keyboard model for a `role="menu"`: `focusInitial` focuses the checked radio item, else the
  * first enabled item; `onKeyDown` moves focus with ArrowUp/ArrowDown (wrapping), Home and End.
  */
@@ -92,15 +112,8 @@ export function useMenuNavigation(menuRef) {
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
       const list = items();
-      if (list.length === 0) return;
-      const current = list.indexOf(document.activeElement);
-      const next = {
-        ArrowDown: (current + 1) % list.length,
-        ArrowUp: (current <= 0 ? list.length : current) - 1,
-        Home: 0,
-        End: list.length - 1,
-      }[event.key];
-      list[next].focus();
+      const next = listKeyTarget(event.key, list.indexOf(document.activeElement), list.length);
+      if (next !== null) list[next].focus();
     },
     [items]
   );

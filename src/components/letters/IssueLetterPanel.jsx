@@ -132,7 +132,12 @@ function TemplateChooser({ templates, loading, error, notice, onChoose }) {
   );
 }
 
+/** Copy for a template that only some people can receive (e.g. consultancy-only), else null. */
+const recipientRuleCopy = (template) => (template?.recipientRule && COPY.recipientRules[template.recipientRule]) || null;
+
 function emptyPeopleText(template, query) {
+  const rule = recipientRuleCopy(template);
+  if (rule) return query ? format(rule.noMatch, { query }) : rule.none;
   if (query) return format(COPY.noPeopleMatch, { query });
   if (template.recipientType !== "candidate") return COPY.noPeople;
   return template.isOffer ? COPY.noOfferCandidates : COPY.noCandidates;
@@ -148,6 +153,7 @@ function RecipientSearch({ template, labelledBy, selectedId, error, inputRef, on
     templateId: template._id,
   });
   const showEmpty = !isFetching && !isError && people.length === 0;
+  const rule = recipientRuleCopy(template);
 
   return (
     <div className="wz-issue__recipient-search">
@@ -161,6 +167,7 @@ function RecipientSearch({ template, labelledBy, selectedId, error, inputRef, on
         placeholder={recipientType === "candidate" ? COPY.searchCandidates : COPY.searchEmployees}
         maxLength={80}
       />
+      {rule && <p className="wz-letters__cell-sub">{format(rule.only, { letter: template.name })}</p>}
       {isError && (
         <p className="wz-letters__notice wz-letters__notice--error" role="alert">
           {COPY.loadPeopleError}
@@ -344,11 +351,23 @@ function IssueLetterSession({
   // Wait for the templates so a deep-linked letter is resolved first: the lookup then asks for the
   // person only if that letter can go to them (same rule as the people list).
   const initialType = initialRecipientType || template?.recipientType || "";
-  const { data: initialMatches = [], isFetching: initialLoading } = useLetterRecipients(
+  const initialLookup = useLetterRecipients(
     { recipientType: initialType, id: initialRecipientId, templateId: template?._id || "" },
     { enabled: Boolean(initialRecipientId && initialType) && !initialApplied && !templatesLoading }
   );
+  const { data: initialMatches = [], isFetching: initialLoading } = initialLookup;
   const initialMatch = initialMatches.find((person) => person._id === initialRecipientId) || null;
+  const initialSettled = !initialLoading && !initialLookup.isPlaceholderData;
+  const initialMissing = initialSettled && initialLookup.isSuccess && !initialMatch;
+  const initialFailed = initialSettled && initialLookup.isError;
+  // The backend only returns the linked person when this letter can go to them, so "no match"
+  // means not eligible (or no longer on record): say so instead of silently showing the search.
+  const linkedNotice =
+    Boolean(initialRecipientId) && !initialApplied && template && !picked && (initialMissing || initialFailed)
+      ? initialFailed
+        ? COPY.linkedRecipientError
+        : format(recipientRuleCopy(template)?.linkedNotEligible || COPY.linkedRecipientUnavailable, { letter: template.name })
+      : "";
 
   useEffect(() => {
     if (initialApplied || !initialMatch) return;
@@ -544,6 +563,11 @@ function IssueLetterSession({
         <h3 id={whoId} className="wz-issue__section-title">
           {COPY.who}
         </h3>
+        {linkedNotice && (
+          <p className="wz-letters__notice wz-letters__notice--warning" role="status">
+            {linkedNotice}
+          </p>
+        )}
         {waitingForInitial ? (
           <Spinner size="sm" label={COPY.loadingPeople} />
         ) : recipient && !changingRecipient ? (

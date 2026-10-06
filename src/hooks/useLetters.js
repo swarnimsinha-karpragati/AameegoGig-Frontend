@@ -101,16 +101,16 @@ export function useSaveLetterTemplate() {
 export function useLetterTemplateAction() {
   const onSaved = useTemplateSaved();
   return useMutation({
-    mutationFn: ({ action, id, value }) => {
+    mutationFn: ({ action, id, value, version }) => {
       switch (action) {
         case "duplicate":
           return duplicateLetterTemplate(id, value);
         case "archive":
           return archiveLetterTemplate(id, Boolean(value));
         case "reset":
-          return resetLetterTemplate(id);
+          return resetLetterTemplate(id, version);
         case "restore":
-          return restoreLetterTemplateVersion(id, value);
+          return restoreLetterTemplateVersion(id, value, version);
         default:
           return Promise.reject(new Error(`Unknown template action: ${action}`));
       }

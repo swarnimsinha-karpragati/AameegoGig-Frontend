@@ -32,6 +32,14 @@ describe("letter template service reads the { success, data } envelope", () => {
     expect(await templates.getLetterTemplateVersions("t1")).toEqual([]);
   });
 
+  test("reset and restore send the version being edited, like a save (NEW-03)", async () => {
+    API.post.mockReturnValue(reply({ success: true, data: { _id: "t1", version: 4 } }));
+    expect(await templates.resetLetterTemplate("t1", 3)).toEqual({ _id: "t1", version: 4 });
+    expect(API.post).toHaveBeenLastCalledWith("/letter-templates/t1/reset-default", { version: 3 });
+    expect(await templates.restoreLetterTemplateVersion("t1", 2, 3)).toEqual({ _id: "t1", version: 4 });
+    expect(API.post).toHaveBeenLastCalledWith("/letter-templates/t1/versions/2/restore", { version: 3 });
+  });
+
   test("preview uses the id-less route for unsaved drafts", async () => {
     API.post.mockReturnValue(reply({ success: true, data: { html: "<p/>", missing: [] } }));
     expect(await templates.previewLetterTemplate(null, { bodyHtml: "x" })).toEqual({ html: "<p/>", missing: [] });

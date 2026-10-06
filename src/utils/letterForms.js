@@ -404,6 +404,10 @@ export const buildPreviewRequest = ({ template, recipient, values = {}, editedHt
 /** A preview the server refused (4xx) means issuing would fail too; network/server errors may be transient. */
 export const isClientErrorStatus = (status) => Number.isInteger(status) && status >= 400 && status < 500;
 
+/** True when a template save/restore/reset was refused because someone else saved first. */
+export const isTemplateVersionConflict = (apiError) =>
+  apiError?.status === 409 && apiError?.code === "VERSION_CONFLICT";
+
 /** Letter HTML counts as content when it has visible text or an image. */
 export const hasLetterContent = (html) => {
   const source = String(html || "");
