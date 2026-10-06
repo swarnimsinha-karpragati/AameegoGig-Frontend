@@ -1,5 +1,5 @@
 import * as Yup from "yup";
-import { PATTERNS } from "../utils/inputValidation";
+import { PATTERNS, isValidEmailFormat } from "../utils/inputValidation";
 
 export const MIN_EMPLOYEE_AGE = 18;
 
@@ -24,9 +24,16 @@ export const employeeValidationSchema = Yup.object().shape({
   email: Yup.string()
     .trim()
     .lowercase()
-    .email("Invalid email format")
     .nullable()
-    .transform((value) => (value === "" ? null : value)),
+    .transform((value) => (value === "" ? null : value))
+    // NOTE: Yup .email() bahut loose hai — "2@h", "a@b", "test@test" ko bhi
+    // pass kar deta hai. Isliye strict regex + format check (employee /
+    // consultant add-edit dono ke liye).
+    .matches(PATTERNS.EMAIL, "Invalid email format")
+    .test("strict-email", "Invalid email format", (value) => {
+      if (value == null || value === "") return true;
+      return isValidEmailFormat(value);
+    }),
 
   phone: Yup.string()
     .trim()
