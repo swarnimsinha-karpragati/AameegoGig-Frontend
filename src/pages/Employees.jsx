@@ -94,9 +94,27 @@ import { downloadCredentialExcel } from "../utils/credentialExcel";
 import { getRoles } from "../services/roleService";
 import ConsultancyPayments from "../components/consultancy/ConsultancyPayments";
 import "../components/consultancy/ConsultancyPayments.css";
+import InternsTab from "../components/interns/InternsTab";
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
+
+
+export function convertUTCtoDDMMYYYY(utcDateString) {
+    const date = new Date(utcDateString);
+
+    // Ensure the date is valid
+    if (isNaN(date.getTime())) {
+        return "Invalid Date";
+    }
+
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+    const year = date.getUTCFullYear();
+
+    return `${day}/${month}/${year}`;
+}
+
 
 const EMPLOYEE_FORM_SECTIONS = [
   {
@@ -588,6 +606,8 @@ function Employees() {
     roleHasPermission(user?.role, "consultancy:manage");
   const canManageConsultancy =
     user?.role === "Admin" || roleHasPermission(user?.role, "consultancy:manage");
+  // Interns share the employee permission set (same HR operators, separate data).
+  const canViewInterns = canViewEmployees || canManage;
   const canLetters = roleHasPermission(user?.role, "employees:letters");
   // Consultancy lives inside Employees page: consultancy-only users get
   // Employees menu access but must see only the Consultancy tab.
@@ -1042,7 +1062,11 @@ function Employees() {
       setDirectoryType("consultancy");
       setPage(1);
     }
-  }, [canViewConsultancy, isConsultancyOnly, directoryType]);
+    if (directoryType === "intern" && (!canViewInterns || isConsultancyOnly)) {
+      setDirectoryType(isConsultancyOnly ? "consultancy" : "employee");
+      setPage(1);
+    }
+  }, [canViewConsultancy, isConsultancyOnly, directoryType, canViewInterns]);
 
   useEffect(() => {
     setStatusFilter(urlStatus);
@@ -2234,12 +2258,21 @@ function Employees() {
               {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
             </button>
           ) : null}
+          {canViewInterns ? (
+            <button type="button" className={`employee-directory-tab ${directoryType === "intern" ? "active" : ""}`} onClick={() => switchDirectoryType("intern")}>
+              Interns
+            </button>
+          ) : null}
         </div>
 
         {/* <p className="employee-page__count">
           Total {directoryType === "consultancy" ? "consultants" : "employees"}: <strong>{pagination?.total || 0}</strong>
         </p> */}
 
+        {directoryType === "intern" ? (
+          <InternsTab />
+        ) : (
+          <>
         <div className="employee-toolbar">
 
           {/* SEARCH */}
@@ -2535,8 +2568,8 @@ function Employees() {
                                   </button>
                                 </span>
                                 {emp.probationEndDate ? (
-                                  <span className="emp-probation-date" title={`Probation ends ${new Date(emp.probationEndDate).toLocaleDateString()}`}>
-                                    Ends {new Date(emp.probationEndDate).toLocaleDateString()}
+                                  <span className="emp-probation-date" title={`Probation ends ${ convertUTCtoDDMMYYYY(emp.probationEndDate)}`}>
+                                    Ends {convertUTCtoDDMMYYYY(emp.probationEndDate)}
                                   </span>
                                 ) : (
                                   <span className="emp-probation-date emp-probation-date--none">End date —</span>
@@ -2884,6 +2917,8 @@ function Employees() {
               setPage(1);
             }}
           />
+        )}
+          </>
         )}
 
         {/* ================= ADD EMPLOYEE MODAL ================= */}
@@ -4442,7 +4477,7 @@ function Employees() {
           </div>
           {extendEmp.probationEndDate ? (
             <p className="emp-field-hint">
-              Current end: {new Date(extendEmp.probationEndDate).toLocaleDateString()}
+              Current end: {convertUTCtoDDMMYYYY(extendEmp.probationEndDate)}
             </p>
           ) : null}
           <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>

@@ -12,6 +12,7 @@ import {
   getLeavePolicy,
   updateLeavePolicy,
   applyLeavePolicyTemplate,
+  onLeave,
 } from "../services/leaveService";
 
 const LEAVE_DASHBOARD_KEY = "leaveDashboard";
@@ -144,5 +145,14 @@ export function useApplyLeavePolicyTemplate() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [LEAVE_POLICY_KEY] });
     },
+  });
+}
+
+export function useOnLeave(filters, options = {}) {
+  return useQuery({
+    queryKey: [LEAVE_REQUESTS_KEY, filters?.employeeId],
+    queryFn: () => onLeave(filters.employeeId),
+    enabled: Boolean(filters?.employeeId), 
+    ...options,
   });
 }
