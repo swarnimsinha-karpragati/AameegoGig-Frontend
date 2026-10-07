@@ -29,6 +29,7 @@ const ROLE_ICON_COLORS = {
   HR: "hr",
   Manager: "manager",
   Employee: "employee",
+  Intern: "employee",
 };
 
 function getIconColor(roleName) {

@@ -430,7 +430,7 @@ export default function ProfileCard() {
             </span>
           </div>
         ) : null}
-        {role !== "Admin" ? (
+        {role !== "Admin" && role !== "Intern" ? (
           <div className="profile-info-item">
             <span className="profile-info-icon profile-info-icon--amber"><CalendarDays size={15} /></span>
             <span className="profile-info-copy">
@@ -441,7 +441,7 @@ export default function ProfileCard() {
             </span>
           </div>
         ) : null}
-        {employmentStatus ? (
+        {employmentStatus && role !== "Intern" ? (
           <div className="profile-info-item">
             <span className="profile-info-icon profile-info-icon--green"><ShieldCheck size={15} /></span>
             <span className="profile-info-copy">

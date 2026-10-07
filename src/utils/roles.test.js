@@ -74,8 +74,7 @@ describe("module route access", () => {
     expect(canAccessRoute("Admin", "/regularization", ["payroll"])).toBe(true);
   });
 
-  test("role still blocks Employees even if listed", () => {
-    expect(
+  test("role still blocks Employees even if listed", () => {    expect(
       canAccessRoute("Employee", "/employees", [
         "dashboard",
         "settings",
@@ -486,5 +485,35 @@ describe("slow session requests (timeout is not 'no permissions')", () => {
     await act(() => loadRoleAccess("LetterViewer"));
     expect(roleService.getSession).toHaveBeenCalledTimes(2);
     expect(getRoleAccessStatus("LetterViewer")).toBe("loaded");
+  });
+});
+describe("Intern role access", () => {
+  const internModules = ["dashboard", "settings", "attendance", "leave", "payroll", "documents"];
+
+  test("opens only attendance, leave, payroll, documents, settings and dashboard", () => {
+    expect(canAccessRoute("Intern", "/dashboard", internModules)).toBe(true);
+    expect(canAccessRoute("Intern", "/attendance", internModules)).toBe(true);
+    expect(canAccessRoute("Intern", "/leave", internModules)).toBe(true);
+    expect(canAccessRoute("Intern", "/payroll", internModules)).toBe(true);
+    expect(canAccessRoute("Intern", "/documents", internModules)).toBe(true);
+    expect(canAccessRoute("Intern", "/settings", internModules)).toBe(true);
+  });
+
+  test("stays closed for every other hub even if modules are listed", () => {
+    const wide = [...internModules, "expenses", "resignation", "advance-loan", "employees", "letters"];
+    expect(canAccessRoute("Intern", "/employees", wide)).toBe(false);
+    expect(canAccessRoute("Intern", "/expenses", wide)).toBe(false);
+    expect(canAccessRoute("Intern", "/resignation", wide)).toBe(false);
+    expect(canAccessRoute("Intern", "/advance-loan", wide)).toBe(false);
+    expect(canAccessRoute("Intern", "/letters", wide)).toBe(false);
+    expect(canAccessRoute("Intern", "/regularization", wide)).toBe(false);
+  });
+
+  test("module checks match the limited grantable set", () => {
+    expect(grantableModulesForRole("Intern").map((m) => m.key).sort()).toEqual(
+      ["attendance", "documents", "leave", "payroll"].sort()
+    );
+    expect(userHasModule({ role: "Intern", allowedModules: internModules }, "payroll")).toBe(true);
+    expect(userHasModule({ role: "Intern", allowedModules: internModules }, "employees")).toBe(false);
   });
 });

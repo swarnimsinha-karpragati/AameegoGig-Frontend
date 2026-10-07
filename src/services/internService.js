@@ -2,7 +2,9 @@ import API from "./apiClient";
 import { LIMITS } from "../utils/inputValidation";
 
 const INTERN_PAYLOAD_FIELDS = [
-  "internCode",
+  // Optional manual code (blank auto-generates server-side from the shared
+  // per-vendor series). Normalized below to match generated codes.
+  "employeeCode",
   "name",
   "email",
   "phone",
@@ -43,6 +45,10 @@ const INTERN_PAYLOAD_FIELDS = [
   "evaluatedBy",
   "isActive",
   "requiredDocuments",
+  "createAppLogin",
+  "userRole",
+  "userPassword",
+  "allowedModules",
 ];
 
 const idOf = (value) => {
@@ -106,6 +112,11 @@ export const buildInternPayload = (data = {}) => {
   if (data.email) {
     payload.email = String(data.email).trim().toLowerCase();
   }
+
+  if (payload.employeeCode) {
+    payload.employeeCode = String(payload.employeeCode).trim().toUpperCase();
+    if (!payload.employeeCode) delete payload.employeeCode;
+  }
   if (data.ifscCode) {
     payload.ifscCode = String(data.ifscCode).toUpperCase();
   }
@@ -113,12 +124,29 @@ export const buildInternPayload = (data = {}) => {
     payload.panNumber = String(data.panNumber).toUpperCase();
   }
 
+  // App login fields ride along only when login is being enabled, so plain
+  // edits never leak a stale password/role into the request.
+  if (data.createAppLogin === true) {
+    payload.createAppLogin = true;
+    payload.userRole = data.userRole || "Intern";
+    if (data.userPassword) {
+      payload.userPassword = data.userPassword;
+    }
+    if (Array.isArray(data.allowedModules)) {
+      payload.allowedModules = data.allowedModules;
+    }
+  } else {
+    delete payload.createAppLogin;
+    delete payload.userRole;
+    delete payload.userPassword;
+    // allowedModules may still be synced for an already-linked login.
+    if (!Array.isArray(data.allowedModules)) {
+      delete payload.allowedModules;
+    }
+  }
+
   return payload;
 };
-
-/* =========================
-   LIST / SEARCH
-========================= */
 export const getInterns = async (params = {}) => {
   return API.get("/interns", { params });
 };
@@ -225,6 +253,17 @@ export const deleteIntern = async (id) => {
 
 export const restoreIntern = async (id) => {
   return API.patch(`/interns/${id}/restore`);
+};
+
+/* =========================
+   APP LOGIN (enable / disable + resend credentials)
+========================= */
+export const toggleInternAppLogin = async (id, enable) => {
+  return API.patch(`/interns/${id}/app-login`, { isActive: enable });
+};
+
+export const resendInternCredentials = async (id) => {
+  return API.post(`/interns/${id}/send-credentials`);
 };
 
 /* =========================

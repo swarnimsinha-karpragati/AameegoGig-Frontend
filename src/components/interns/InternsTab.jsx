@@ -17,6 +17,9 @@ import {
   RotateCcw,
   UserCheck,
   CalendarClock,
+  Lock,
+  LockOpen,
+  Mail,
 } from "lucide-react";
 
 import {
@@ -30,6 +33,8 @@ import {
   useDeleteIntern,
   useRestoreIntern,
   useInternDocuments,
+  useToggleInternAppLogin,
+  useResendInternCredentials,
 } from "../../hooks/useInterns";
 import {
   buildInternPayload,
@@ -60,6 +65,8 @@ import {
   getMaxInternDobInputValue,
   MAX_DOC_FILE_BYTES,
 } from "../../validators/internValidation";
+import { downloadCredentialExcel } from "../../utils/credentialExcel";
+import { maskEmployeeCode } from "../../utils/employeeCodeFormat";
 import "../../pages/Employees.css";
 
 const isSite = isSiteVendor();
@@ -210,13 +217,94 @@ function FieldError({ message }) {
   );
 }
 
-const INTERN_FORM_SECTIONS = [
+const INTERN_LOGIN_ROLE_OPTIONS = [
+  { roleName: "Intern", displayName: "Intern" },
+  { roleName: "Employee", displayName: "Employee" },
+  { roleName: "Manager", displayName: "Manager" },
+  { roleName: "HR", displayName: "HR" },
+];
+
+function InternAppLoginSection({
+  enabled,
+  onToggle,
+  userRole,
+  onRoleChange,
+  userPassword,
+  onPasswordChange,
+  alreadyEnabled,
+}) {
+  if (alreadyEnabled) {
+    return (
+      <div className="emp-login-card emp-field--full">
+        <p className="emp-field-hint" style={{ margin: 0 }}>
+          App login is enabled for this intern. Choose the role for this login below.
+        </p>
+        <div className="emp-login-card__fields">
+          <FormField label="Login role" htmlFor="intern-user-role">
+            <select id="intern-user-role" value={userRole || "Intern"} onChange={onRoleChange}>
+              {INTERN_LOGIN_ROLE_OPTIONS.map((role) => (
+                <option key={role.roleName} value={role.roleName}>
+                  {role.displayName}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="emp-login-card">
+      <label className="emp-login-card__toggle">
+        <input type="checkbox" checked={!!enabled} onChange={onToggle} />
+        <div>
+          <span>Enable app login for this intern</span>
+          <span>Unchecked interns are managed by HR only (no mobile app access).</span>
+        </div>
+      </label>
+      {enabled ? (
+        <>
+          <p className="employee-login-warning">
+            Password is shown once after saving. Email or phone must be filled above.
+          </p>
+          <div className="emp-login-card__fields">
+            <FormField label="Login role" htmlFor="intern-user-role">
+              <select id="intern-user-role" value={userRole || "Intern"} onChange={onRoleChange}>
+                {INTERN_LOGIN_ROLE_OPTIONS.map((role) => (
+                  <option key={role.roleName} value={role.roleName}>
+                    {role.displayName}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              label="Password"
+              htmlFor="intern-user-password"
+              hint="Leave blank to auto-generate"
+            >
+              <input
+                id="intern-user-password"
+                type="text"
+                value={userPassword || ""}
+                onChange={onPasswordChange}
+                placeholder="Optional"
+              />
+            </FormField>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+export const INTERN_FORM_SECTIONS = [
   {
     id: "basic",
     title: "Basic Information",
     description: "Primary contact and role details",
     fields: [
-      { key: "internCode", label: "Intern Code (leave blank to auto-generate)" },
+      { key: "employeeCode", label: "Employee Code (leave blank to auto-generate)" },
       { key: "name", label: "Full Name", required: true },
       { key: "email", label: "Email", type: "email" },
       { key: "phone", label: "Phone Number", type: "tel" },
@@ -271,7 +359,7 @@ const INTERN_FORM_SECTIONS = [
   },
 ];
 
-function InternFormFields({ values, onFieldChange, departments, errors }) {
+export function InternFormFields({ values, onFieldChange, departments, errors }) {
   const renderInput = (field) => {
     const id = `intern-field-${field.key}`;
     const common = {
@@ -420,7 +508,7 @@ const idOf = (value) => {
 ========================= */
 
 const initialForm = {
-  internCode: "",
+  employeeCode: "",
   name: "",
   email: "",
   phone: "",
@@ -452,6 +540,9 @@ const initialForm = {
   expectedGraduationDate: "",
   mentorId: "",
   reportingManagerId: "",
+  createAppLogin: false,
+  userRole: "Intern",
+  userPassword: "",
 };
 
 const normalizeInternForForm = (intern) => ({
@@ -466,6 +557,10 @@ const normalizeInternForForm = (intern) => ({
   internshipEndDate: toDateInput(intern.internshipEndDate),
   expectedGraduationDate: toDateInput(intern.expectedGraduationDate),
   stipendAmount: intern.stipendAmount ?? "",
+  // Login inputs always start fresh — never prefill a password.
+  createAppLogin: false,
+  userRole: "Intern",
+  userPassword: "",
 });
 
 export default function InternsTab() {
@@ -641,6 +736,67 @@ export default function InternsTab() {
   const convertMutation = useConvertInternToEmployee();
   const deleteMutation = useDeleteIntern();
   const restoreMutation = useRestoreIntern();
+  const toggleLoginMutation = useToggleInternAppLogin();
+  const resendCredentialsMutation = useResendInternCredentials();
+  const [loginCredentials, setLoginCredentials] = useState(null);
+
+  const showLoginCredentials = (internName, loginInfo, internId) => {
+    if (!loginInfo) return;
+    setLoginCredentials({
+      employeeName: internName,
+      employeeId: internId || loginInfo.employeeId || null,
+      email: loginInfo.email,
+      role: loginInfo.role,
+      temporaryPassword: loginInfo.temporaryPassword,
+      organizationCode: loginInfo.organizationCode,
+      linkedExisting: Boolean(loginInfo.linkedExisting),
+      phone: loginInfo.phone,
+    });
+  };
+
+  const handleResendCredentials = async (internId, internName) => {
+    try {
+      const res = await resendCredentialsMutation.mutateAsync(internId);
+      const data = res.data || {};
+      if (!data.emailSent && data.loginInfo?.temporaryPassword) {
+        showLoginCredentials(
+          internName || data.loginInfo.name,
+          data.loginInfo,
+          internId
+        );
+        return;
+      }
+      alert(data.message || "Credentials sent.");
+      refetchInterns();
+    } catch (error) {
+      alert(
+        error.response?.data?.message || "Failed to send credentials"
+      );
+    }
+  };
+
+  const handleToggleAppLogin = async (intern) => {
+    if (!intern.hasAppLogin) {
+      alert("This intern does not have an app login account yet. Enable app login from Edit Details first.");
+      return;
+    }
+    const enable = !intern.hasLoginEnabled;
+    const confirmed = window.confirm(
+      enable
+        ? `Enable app login for ${intern.name}? They will be able to log in again.`
+        : `Disable app login for ${intern.name}? They will not be able to log in until re-enabled.`
+    );
+    if (!confirmed) return;
+    try {
+      await toggleLoginMutation.mutateAsync({ id: intern._id, enable });
+      alert(enable ? "App login enabled." : "App login disabled.");
+      refetchInterns();
+    } catch (error) {
+      alert(
+        error.response?.data?.message || "Failed to update app login access"
+      );
+    }
+  };
 
   useEffect(() => {
     if (!menu) return undefined;
@@ -673,6 +829,10 @@ export default function InternsTab() {
     if (DIGIT_FIELDS[name]) return str.replace(/\D/g, "").slice(0, DIGIT_FIELDS[name]);
     if (NAME_FIELDS.includes(name)) return str.replace(/[0-9]/g, "");
     if (name === "ifscCode" || name === "panNumber") return str.toUpperCase().replace(/\s/g, "");
+    // Employee codes are masked live: invalid keystrokes are swallowed, so
+    // no character error is ever shown (only a finished all-zeros code can
+    // still fail at submit).
+    if (name === "employeeCode") return maskEmployeeCode(value);
     return value;
   };
 
@@ -798,6 +958,10 @@ export default function InternsTab() {
       alert(stipendError);
       return;
     }
+    if (form.createAppLogin && !form.email?.trim() && !form.phone?.trim()) {
+      alert("Please enter either an email or a phone number to enable app login.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await addMutation.mutateAsync(buildInternPayload(form));
@@ -815,6 +979,9 @@ export default function InternsTab() {
       }
 
       alert(res.data?.message || "Intern onboarded successfully");
+      if (res.data?.loginInfo) {
+        showLoginCredentials(form.name, res.data.loginInfo, newInternId);
+      }
       setForm(initialForm);
       setStipendDraft(initialStipendDraft);
       setStipendDirty(false);
@@ -856,6 +1023,13 @@ export default function InternsTab() {
       return;
     }
 
+    // Enabling login on update needs a contact to attach the account to.
+    const enableLoginOnUpdate = selectedIntern.createAppLogin && !selectedIntern.hasAppLogin;
+    if (enableLoginOnUpdate && !selectedIntern.email?.trim() && !selectedIntern.phone?.trim()) {
+      alert("Please enter either an email or a phone number to enable app login.");
+      return;
+    }
+
     // Stipend configured inside the edit modal must be valid before saving.
     if (stipendDirty && hasStipendData(stipendDraft)) {
       const stipendMatchError = validateStipendForSave();
@@ -886,6 +1060,13 @@ export default function InternsTab() {
       }
 
       alert(res.data?.message || "Intern updated successfully");
+      if (res.data?.loginInfo?.created || res.data?.loginInfo?.temporaryPassword) {
+        showLoginCredentials(
+          selectedIntern.name,
+          res.data.loginInfo,
+          selectedIntern._id
+        );
+      }
       setSelectedIntern(null);
       setIsEditing(false);
       setErrors({});
@@ -1261,7 +1442,7 @@ export default function InternsTab() {
               {interns.length > 0 ? (
                 interns.map((intern) => (
                   <tr key={intern._id}>
-                    <td>{intern.internCode}</td>
+                    <td>{intern.employeeCode}</td>
                     <td title={intern.name}>{intern.name}</td>
                     <td>
                       <div className="emp-contact-cell">
@@ -1436,6 +1617,32 @@ export default function InternsTab() {
                   <UserCheck size={16} /> Convert to Employee
                 </button>
               )}
+              {menuIntern.hasAppLogin && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeMenu();
+                      handleToggleAppLogin(menuIntern);
+                    }}
+                  >
+                    {menuIntern.hasLoginEnabled ? (
+                      <><Lock size={16} /> Disable App Login</>
+                    ) : (
+                      <><LockOpen size={16} /> Enable App Login</>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeMenu();
+                      handleResendCredentials(menuIntern._id, menuIntern.name);
+                    }}
+                  >
+                    <Mail size={16} /> Send Credentials
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1501,6 +1708,15 @@ export default function InternsTab() {
               errors={errors}
             />
             {renderStipendSection()}
+            <InternAppLoginSection
+              enabled={form.createAppLogin}
+              onToggle={(e) => setForm((prev) => ({ ...prev, createAppLogin: e.target.checked }))}
+              userRole={form.userRole}
+              onRoleChange={(e) => setForm((prev) => ({ ...prev, userRole: e.target.value }))}
+              userPassword={form.userPassword}
+              onPasswordChange={(e) => setForm((prev) => ({ ...prev, userPassword: e.target.value }))}
+              alreadyEnabled={false}
+            />
           </form>
         </InternModal>
       ) : null}
@@ -1563,12 +1779,27 @@ export default function InternsTab() {
                 errors={errors}
               />
               {renderStipendSection()}
+              <InternAppLoginSection
+                enabled={selectedIntern.createAppLogin}
+                onToggle={(e) =>
+                  setSelectedIntern((prev) => ({ ...prev, createAppLogin: e.target.checked }))
+                }
+                userRole={selectedIntern.userRole}
+                onRoleChange={(e) =>
+                  setSelectedIntern((prev) => ({ ...prev, userRole: e.target.value }))
+                }
+                userPassword={selectedIntern.userPassword}
+                onPasswordChange={(e) =>
+                  setSelectedIntern((prev) => ({ ...prev, userPassword: e.target.value }))
+                }
+                alreadyEnabled={selectedIntern.hasAppLogin}
+              />
             </>
           ) : (
             <div className="emp-view-body">
               {[
                 ["Basic Information", [
-                  ["Intern Code", selectedIntern.internCode],
+                  ["Employee Code", selectedIntern.employeeCode || "-"],
                   ["Full Name", selectedIntern.name],
                   ["Email", selectedIntern.email || "-"],
                   ["Phone", selectedIntern.phone || "-"],
@@ -1576,6 +1807,7 @@ export default function InternsTab() {
                   ["Department", deptNameOf(selectedIntern)],
                   ["Location", selectedIntern.location || "-"],
                   ["Status", statusLabel(selectedIntern.internStatus)],
+                  ["App Login", selectedIntern.hasAppLogin ? "Enabled" : "Not enabled"],
                 ]],
                 ["Internship Details", [
                   ["Start Date", formatDate(selectedIntern.internshipStartDate)],
@@ -1870,7 +2102,7 @@ export default function InternsTab() {
             <div>
               <span className="emp-doc-hero__label">Intern</span>
               <p className="emp-doc-hero__name">
-                {docsTarget.name} ({docsTarget.internCode})
+                {docsTarget.name} ({docsTarget.employeeCode})
               </p>
             </div>
           </div>
@@ -2011,6 +2243,79 @@ export default function InternsTab() {
         onClose={() => setDocPreviewUrl(null)}
         url={docPreviewUrl}
       />
+
+      {/* ============ APP LOGIN CREDENTIALS (shown once) ============ */}
+      {loginCredentials ? (
+        <InternModal
+          title="App Login Details"
+          onClose={() => setLoginCredentials(null)}
+          footer={
+            <>
+              {loginCredentials.email ? (
+                <Button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() =>
+                    handleResendCredentials(
+                      loginCredentials.employeeId,
+                      loginCredentials.employeeName
+                    )
+                  }
+                >
+                  Resend Email
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                onClick={() => downloadCredentialExcel(loginCredentials)}
+              >
+                Download Excel
+              </Button>
+              <Button
+                type="button"
+                className="secondary-btn"
+                onClick={() => setLoginCredentials(null)}
+              >
+                Done
+              </Button>
+            </>
+          }
+        >
+          <div className="credentials-body">
+            <p>
+              <strong>{loginCredentials.employeeName}</strong> can now sign in
+              with the following credentials. Share them securely — the password
+              is shown only once.
+            </p>
+            <div className="credentials-row">
+              <span>Login</span>
+              <strong>{loginCredentials.email || loginCredentials.phone}</strong>
+            </div>
+            <div className="credentials-row">
+              <span>Role</span>
+              <strong>{loginCredentials.role}</strong>
+            </div>
+            {loginCredentials.organizationCode ? (
+              <div className="credentials-row">
+                <span>Organization Code</span>
+                <strong>{loginCredentials.organizationCode}</strong>
+              </div>
+            ) : null}
+            {loginCredentials.temporaryPassword ? (
+              <div className="credentials-password-box">
+                <span>Temporary Password</span>
+                <strong>{loginCredentials.temporaryPassword}</strong>
+              </div>
+            ) : (
+              <p className="emp-field-hint">
+                {loginCredentials.linkedExisting
+                  ? "Linked to an existing user account — no new password was set."
+                  : "No new password was generated."}
+              </p>
+            )}
+          </div>
+        </InternModal>
+      ) : null}
     </div>
   );
 }

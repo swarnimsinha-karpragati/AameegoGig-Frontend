@@ -6,6 +6,7 @@ export const ROLES = {
   HR: "HR",
   MANAGER: "Manager",
   EMPLOYEE: "Employee",
+  INTERN: "Intern",
 };
 
 export const getStoredUser = () => {
@@ -22,26 +23,27 @@ export const getRoleLabel = (role) => {
     HR: "HR",
     Manager: "Manager",
     Employee: "Employee",
+    Intern: "Intern",
   };
   return labels[role] || role || "User";
 };
 
 export const ROUTE_ACCESS = {
-  "/dashboard": ["Admin", "HR", "Manager", "Employee"],
+  "/dashboard": ["Admin", "HR", "Manager", "Employee", "Intern"],
   "/departments": ["Admin", "HR"],
   "/sites": ["Admin", "HR"],
   "/employees": ["Admin", "HR"],
-  "/attendance": ["Admin", "HR", "Manager", "Employee"],
-  "/leave": ["Admin", "HR", "Manager", "Employee"],
+  "/attendance": ["Admin", "HR", "Manager", "Employee", "Intern"],
+  "/leave": ["Admin", "HR", "Manager", "Employee", "Intern"],
   "/regularization": ["Admin", "HR", "Manager", "Employee"],
   "/payroll": ["Admin", "HR", "Manager", "Employee"],
-  "/documents": ["Admin", "HR", "Manager", "Employee"],
+  "/documents": ["Admin", "HR", "Manager", "Employee", "Intern"],
   "/expenses": ["Admin", "HR", "Manager", "Employee"],
   "/resignation": ["Admin", "HR", "Manager", "Employee"],
   "/advance-loan": ["Admin", "HR", "Manager", "Employee"],
   "/loan-config": ["Admin", "HR"],
   "/letters": ["Admin", "HR"],
-  "/settings": ["Admin", "HR", "Manager", "Employee"],
+  "/settings": ["Admin", "HR", "Manager", "Employee", "Intern"],
 };
 
 export const GRANTABLE_MODULES = [
@@ -86,7 +88,7 @@ export const normalizeAppPath = (pathname = "") => {
   return pathname || "/";
 };
 
-export const SYSTEM_ROLE_NAMES = ["Admin", "HR", "Manager", "Employee"];
+export const SYSTEM_ROLE_NAMES = ["Admin", "HR", "Manager", "Employee", "Intern"];
 
 // Any <module>:<feature> grant opens the module (mirrors backend moduleGate
 // customRoleHasModule). Used as the single source of truth for custom roles
@@ -273,6 +275,9 @@ function moduleRouteAccess(role, appPath, allowedModules) {
   }
 
   if (appPath === "/regularization") {
+    // Interns are limited to attendance / leave / payroll / documents /
+    // settings — the regularization hub stays closed for them.
+    if (role === "Intern") return false;
     if (role === "Admin" || allowedModules == null) return true;
     if (!Array.isArray(allowedModules)) return true;
     // Custom roles are permission-driven (regularization:view is baseline for

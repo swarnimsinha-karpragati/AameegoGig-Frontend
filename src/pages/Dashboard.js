@@ -106,6 +106,7 @@ function Dashboard() {
   const isManager = data?.scope === "team";
   const showApprovals =
     data?.role !== "Employee" &&
+    data?.role !== "Intern" &&
     (roleHasPermission(data?.role, "leave:approve-all") ||
       roleHasPermission(data?.role, "expenses:approve") ||
       roleHasPermission(data?.role, "regularization:approve") ||
