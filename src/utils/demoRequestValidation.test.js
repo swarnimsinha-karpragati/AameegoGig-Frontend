@@ -1,6 +1,8 @@
 import {
   validateDemoRequestPayload,
   normalizePhone,
+  sanitizeDemoPhone,
+  validateTenDigitPhone,
   PHONE_MIN_DIGITS,
   PHONE_MAX_DIGITS,
 } from "./demoRequestValidation";
@@ -83,5 +85,13 @@ describe("demoRequestValidation (frontend)", () => {
   test("normalizes leading 0 and 91 country code", () => {
     expect(normalizePhone("09876543210")).toBe("9876543210");
     expect(normalizePhone("919876543210")).toBe("9876543210");
+  });
+
+  test("landing phone helpers: digits-only capped at 10, exactly 10 required", () => {
+    expect(sanitizeDemoPhone("+91 98765 43210")).toBe("9876543210");
+    expect(sanitizeDemoPhone("98ab765432109")).toBe("9876543210");
+    expect(validateTenDigitPhone("")).toBeNull();
+    expect(validateTenDigitPhone("9876543210")).toBeNull();
+    expect(validateTenDigitPhone("98765")).toMatch(/exactly 10 digits/);
   });
 });

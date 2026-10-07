@@ -32,6 +32,21 @@ export const normalizePhone = (value) => {
   return digits;
 };
 
+// Landing form hardening (stricter than the shared 7–15 digit rule): digits
+// only, capped at 10 while typing (+91 / leading-0 prefixes fold in first,
+// so pasting a full Indian number still lands on the right 10 digits).
+export const sanitizeDemoPhone = (value) =>
+  normalizePhone(value).slice(0, 10);
+
+// Landing form rule: exactly 10 digits once something is typed (blank is
+// still the shared required check's job).
+export const validateTenDigitPhone = (value) => {
+  const digits = normalizePhone(value);
+  if (!digits) return null;
+  if (digits.length !== 10) return "Phone must be exactly 10 digits";
+  return null;
+};
+
 const normalizeTeamSize = (value) => String(value || "").replace(/-/g, "–").trim();
 
 const buildDemoFields = (body) => [
