@@ -878,7 +878,7 @@ function Attendance() {
             className="secondary-btn"
             icon={<LogOut size={18} />}
             onClick={handleCheckOut}
-            disabled={actionLoading || !myTodayRow.isCheckedIn || onLeaveData?.isOnLeave || onLeavePending}
+            disabled={actionLoading || !myTodayRow.isCheckedIn || (!myTodayRow.isCheckedIn && onLeaveData?.isOnLeave) || onLeavePending}
           >
             {actionLoading ? "Processing..." : "Check Out"}
           </Button>
