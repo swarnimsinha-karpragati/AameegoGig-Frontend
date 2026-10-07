@@ -5,7 +5,6 @@ import {
   LIMITS,
   TEAM_SIZE_OPTIONS,
   WORKFORCE_TYPES,
-  GOAL_MIN_LENGTH,
   validateDemoRequestPayload,
 } from "../utils/demoRequestValidation";
 import { ToastProvider, useToast } from "../components/Toast";
@@ -1034,7 +1033,6 @@ function LandingPage() {
                   name="goal"
                   rows={3}
                   placeholder="e.g. Manual payroll, attendance chaos for field teams…"
-                  minLength={GOAL_MIN_LENGTH}
                   maxLength={LIMITS.TEXT_LONG}
                   value={demoForm.goal}
                   aria-invalid={Boolean(errors.goal)}

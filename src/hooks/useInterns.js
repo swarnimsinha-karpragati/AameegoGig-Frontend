@@ -13,6 +13,8 @@ import {
   deleteIntern,
   restoreIntern,
   getInternStats,
+  toggleInternAppLogin,
+  resendInternCredentials,
 } from "../services/internService";
 
 const INTERNS_QUERY_KEY = "interns";
@@ -159,6 +161,26 @@ export function useRestoreIntern() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [INTERNS_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: [INTERN_STATS_QUERY_KEY] });
+    },
+  });
+}
+
+export function useToggleInternAppLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, enable }) => toggleInternAppLogin(id, enable),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [INTERNS_QUERY_KEY] });
+    },
+  });
+}
+
+export function useResendInternCredentials() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => resendInternCredentials(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [INTERNS_QUERY_KEY] });
     },
   });
 }

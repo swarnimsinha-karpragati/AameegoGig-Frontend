@@ -67,9 +67,9 @@ export const buildTodayRowFromAttendanceResponse = (response, user) => {
   };
 };
 
-export const getMonthlyAttendance = async (year, month, target = "self") => {
+export const getMonthlyAttendance = async (year, month, target = "self", employeeId) => {
   const res = await API.get("/attendance/month", {
-    params: { year, month, target },
+    params: { year, month, target, ...(employeeId ? { employeeId } : {}) },
   });
   return res.data;
 };

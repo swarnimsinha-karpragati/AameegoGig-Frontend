@@ -94,6 +94,7 @@ import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor, canUseCalendarDailyPay } from "../utils/vendorIdhelper";
 import { defaultSelectedModules } from "../utils/roles";
 import { downloadCredentialExcel } from "../utils/credentialExcel";
+import { maskEmployeeCode } from "../utils/employeeCodeFormat";
 import { getRoles } from "../services/roleService";
 import ConsultancyPayments from "../components/consultancy/ConsultancyPayments";
 import "../components/consultancy/ConsultancyPayments.css";
@@ -127,7 +128,7 @@ export function convertUTCtoDDMMYYYY(utcDateString) {
 }
 
 
-const EMPLOYEE_FORM_SECTIONS = [
+export const EMPLOYEE_FORM_SECTIONS = [
   {
     id: "basic",
     title: "Basic Information",
@@ -304,7 +305,7 @@ function FormField({ label, htmlFor, required, hint, fullWidth, children }) {
   );
 }
 
-function EmployeeFormFields({
+export function EmployeeFormFields({
   sections,
   values,
   onFieldChange,
@@ -531,6 +532,7 @@ function EmployeeFormFields({
 
 const DEFAULT_ROLE_OPTIONS = [
   { roleName: "Employee", displayName: "Employee" },
+  { roleName: "Intern", displayName: "Intern" },
   { roleName: "Manager", displayName: "Manager" },
   { roleName: "HR", displayName: "HR" },
 ];
@@ -648,6 +650,7 @@ function EmployeesPage() {
   const isConsultancyOnly = !canViewEmployees && !canManage && canViewConsultancy;
 
   const initialForm = {
+    employeeCode: "",
     name: "", email: "", phone: "",
     designation: "", departmentId: "", location: "",
     isConsultancy: false, monthlyConsultancyPay: "", tdsPercent: "",
@@ -706,7 +709,7 @@ function EmployeesPage() {
   // roles, but Admin is never offered here. Read fresh every render so
   // newly created roles appear immediately.
   const roleFilterOptions = (() => {
-    const systemRoles = ["Admin", "HR", "Manager", "Employee"];
+    const systemRoles = ["Admin", "HR", "Manager", "Employee", "Intern"];
     const withoutAdmin = (roles) => (roles || []).filter((role) => role !== "Admin");
     try {
       const catalog = loadRoles();
@@ -1149,10 +1152,14 @@ function EmployeesPage() {
       return;
     }
 
+    // Employee codes are masked live (invalid keystrokes are swallowed), so
+    // the field rarely needs a validation message at all.
     const finalValue =
       name === "ifscCode" || name === "panNumber"
         ? value.toUpperCase()
-        : value;
+        : name === "employeeCode"
+          ? maskEmployeeCode(value)
+          : value;
 
     const nextForm = {
       ...form,
@@ -1173,10 +1180,14 @@ function EmployeesPage() {
       setErrors((prev) => mergeFamilyMemberErrors(prev, value, e.target.familyMeta));
       return;
     }
+    // Employee codes are masked live (invalid keystrokes are swallowed), so
+    // the field rarely needs a validation message at all.
     const finalValue =
       name === "ifscCode" || name === "panNumber"
         ? value.toUpperCase()
-        : value;
+        : name === "employeeCode"
+          ? maskEmployeeCode(value)
+          : value;
 
     const nextEmployee = {
       ...selectedEmployee,
@@ -3076,9 +3087,9 @@ function EmployeesPage() {
                       <label>Date Of Joining</label>
                       <span>
                         {selectedEmployee.dateOfJoining
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.dateOfJoining
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>
@@ -3112,9 +3123,9 @@ function EmployeesPage() {
                         <label>Probation End Date</label>
                         <span>
                           {selectedEmployee.probationEndDate
-                            ? new Date(
+                            ? convertUTCtoDDMMYYYY(
                               selectedEmployee.probationEndDate
-                            ).toLocaleDateString()
+                            )
                             : "-"}
                         </span>
                       </div>
@@ -3124,7 +3135,7 @@ function EmployeesPage() {
                       <div>
                         <label>Confirmation Date</label>
                         <span>
-                          {new Date(selectedEmployee.confirmationDate).toLocaleDateString()}
+                          {convertUTCtoDDMMYYYY(selectedEmployee.confirmationDate)}
                         </span>
                       </div>
                     ) : null}
@@ -3133,9 +3144,9 @@ function EmployeesPage() {
                       <label>Relieving Date</label>
                       <span>
                         {selectedEmployee.relievingDate
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.relievingDate
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>
@@ -3187,9 +3198,9 @@ function EmployeesPage() {
                       <label>Date Of Birth</label>
                       <span>
                         {selectedEmployee.dob
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.dob
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>

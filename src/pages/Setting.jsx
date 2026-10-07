@@ -70,11 +70,12 @@ export default function Settings() {
     if (roleHasPermission(role, "settings:leave-policy")) {
       list.push({ id: "leave-policy", label: "Leave Policy", icon: FileText });
     }
-    // Probation policy is HR/Admin-only: never visible for the Employee role,
-    // even if a stale/custom catalog grants the permission.
+    // Probation policy is HR/Admin-only: never visible for the Employee or
+    // Intern roles, even if a stale/custom catalog grants the permission.
     if (
       role &&
       role !== "Employee" &&
+      role !== "Intern" &&
       (roleHasPermission(role, "settings:probation") ||
         roleHasPermission(role, "probation:manage"))
     ) {
@@ -190,6 +191,7 @@ export default function Settings() {
 
           {activeTab === "probation" &&
             user?.role !== "Employee" &&
+            user?.role !== "Intern" &&
             (roleHasPermission(user?.role, "settings:probation") ||
               roleHasPermission(user?.role, "probation:manage")) && (
               <ProbationPolicyManager />

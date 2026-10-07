@@ -115,6 +115,21 @@
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+  align-items: center;
+}
+
+/* Optional employee picker slotted just before the month arrows. */
+.calendar-nav select.calendar-employee-filter {
+  height: 34px;
+  max-width: 220px;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--attendance-radius-control);
+  background: #ffffff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 8px;
+  cursor: pointer;
 }
 
 .calendar-nav button {
