@@ -119,6 +119,9 @@ function Attendance() {
   const [orgPagination, setOrgPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [teamPagination, setTeamPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
 
+  // Organization calendar employee filter — "" means All Employees.
+  const [orgEmployeeId, setOrgEmployeeId] = useState("");
+
   const [markForm, setMarkForm] = useState({
     employeeId: "",
     status: "Present",
@@ -141,12 +144,14 @@ function Attendance() {
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
   const canMarkForOthers = canMarkAttendance(user?.role);
-  const { data: employees = [] } = useAllEmployees({ enabled: canMarkForOthers });
-  const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
-  const canSelfCheckIn = hasLinkedEmployeeProfile(user);
   // Org section (stats/table/calendar): attendance:view-org or manage.
   // Mark permission alone does NOT unlock org data.
   const canViewOrg = canViewOrgAttendance(user?.role);
+  // The org calendar employee picker needs the directory for everyone who
+  // may view org data — not just users who can mark for others.
+  const { data: employees = [] } = useAllEmployees({ enabled: canMarkForOthers || canViewOrg });
+  const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
+  const canSelfCheckIn = hasLinkedEmployeeProfile(user);
 
   const markAttendanceMutation = useMarkAttendance();
   const markMonthAttendanceMutation = useMarkMonthAttendance();
@@ -245,7 +250,7 @@ function Attendance() {
       const month = orgViewDate.getMonth() + 1;
       const params = buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, orgPagination);
       const [monthData, listRes] = await Promise.all([
-        getMonthlyAttendance(year, month, "org"),
+        getMonthlyAttendance(year, month, "org", orgEmployeeId || undefined),
         getAttendanceList(params),
       ]);
 
@@ -255,7 +260,11 @@ function Attendance() {
         weekOffs: monthData.weekOffs || {},
         dayRecords: monthData.dayRecords || {},
       });
-      setOrgStats(monthData.stats || EMPTY_STATS);
+      // The org table + stats stay organization-wide; only the calendar
+      // narrows to the picked employee.
+      if (!orgEmployeeId) {
+        setOrgStats(monthData.stats || EMPTY_STATS);
+      }
       setOrgRows(listRes.rows || []);
       if (listRes.pagination) {
         setOrgPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
@@ -291,12 +300,12 @@ function Attendance() {
     // eslint-disable-next-line
   }, [user?.role]);
 
-  // Initial + filter/page/month change loads. 
+  // Initial + filter/page/month/employee change loads.
   useEffect(() => {
     loadSelfData();
     loadOrgData();
     // eslint-disable-next-line
-  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role]);
+  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role, orgEmployeeId]);
 
   useEffect(() => {
     if (employees.length > 0 && (!markForm.employeeId || !markMonthForm.employeeId)) {
@@ -773,7 +782,7 @@ function Attendance() {
     setIsReportModalOpen(false);
   }
 
-  const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext, showLeaveWfh = true }) => (
+  const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext, showLeaveWfh = true, headerFilter = null }) => (
     <AttendanceCalendar
       monthLabel={title}
       calendarDays={calendarDays}
@@ -782,7 +791,29 @@ function Attendance() {
       onPrev={onPrev}
       onNext={onNext}
       showLeaveWfh={showLeaveWfh}
+      headerFilter={headerFilter}
     />
+  );
+
+  // Organization calendar employee picker — "All Employees" by default,
+  // rendered inside the calendar header just before the month arrows.
+  const orgSelectedEmployee = orgEmployeeId
+    ? employees.find((emp) => String(emp._id) === String(orgEmployeeId))
+    : null;
+  const orgCalendarTitle = orgSelectedEmployee
+    ? `${orgMonthLabel} — ${orgSelectedEmployee.name}`
+    : `${orgMonthLabel} — Organization`;
+
+  const orgEmployeeFilter = (
+    <span className="calendar-employee-filter">
+      <SearchableEmployeeSelectServer
+        value={orgEmployeeId}
+        onChange={(id) => setOrgEmployeeId(id || "")}
+        placeholder="All Employees"
+        controlClassName="attendance-control"
+        dropDirection="down"
+      />
+    </span>
   );
 
   const renderSelfAttendanceSection = (title = "My Check In / Out") => {
@@ -1216,7 +1247,7 @@ function Attendance() {
       {canMarkForOthers ? renderMarkForm(employees, "Mark Attendance") : null}
       {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
       {renderCalendarSection({
-        title: `${orgMonthLabel} — Organization`,
+        title: orgCalendarTitle,
         viewDateObj: orgViewDate,
         calendarDays: orgCalendarDays,
         selectedDay: selectedOrgDay,
@@ -1224,6 +1255,7 @@ function Attendance() {
         onPrev: () => shiftOrgMonth(-1),
         onNext: () => shiftOrgMonth(1),
         showLeaveWfh: false,
+        headerFilter: orgEmployeeFilter,
       })}
       <TodayAttendanceTable
         key={
@@ -1354,7 +1386,7 @@ function Attendance() {
           {canViewOrg ? (
             <>
               {renderCalendarSection({
-                title: `${orgMonthLabel} — Organization`,
+                title: orgCalendarTitle,
                 viewDateObj: orgViewDate,
                 calendarDays: orgCalendarDays,
                 selectedDay: selectedOrgDay,
@@ -1362,6 +1394,7 @@ function Attendance() {
                 onPrev: () => shiftOrgMonth(-1),
                 onNext: () => shiftOrgMonth(1),
                 showLeaveWfh: false,
+                headerFilter: orgEmployeeFilter,
               })}
               <TodayAttendanceTable
                 key={

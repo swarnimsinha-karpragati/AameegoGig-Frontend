@@ -112,6 +112,13 @@
   overflow: hidden;
 }
 
+/* Header variant (e.g. calendar toolbar): opens DOWN below the control. */
+.month-mark-combobox__dropdown--down {
+  top: calc(100% + 4px);
+  bottom: auto;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
 .month-mark-combobox__search-wrap {
   padding: 0.5rem;
   border-bottom: 1px solid #f1f5f9;

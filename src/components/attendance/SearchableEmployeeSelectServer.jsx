@@ -10,6 +10,7 @@ function SearchableEmployeeSelectServer({
   placeholder = "-- Select Employee --",
   controlClassName = "month-mark-control",
   excludeIds = [],
+  dropDirection = "up",
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -125,7 +126,7 @@ function SearchableEmployeeSelectServer({
       </div>
 
       {isOpen && !disabled && (
-        <div className="month-mark-combobox__dropdown">
+        <div className={`month-mark-combobox__dropdown${dropDirection === "down" ? " month-mark-combobox__dropdown--down" : ""}`}>
           <div className="month-mark-combobox__search-wrap">
             <input
               type="text"

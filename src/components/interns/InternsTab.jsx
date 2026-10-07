@@ -695,9 +695,19 @@ export default function InternsTab() {
     </FormSection>
   );
 
+  // Local calendar date (YYYY-MM-DD) — toISOString() is UTC-based and shows
+  // yesterday during the first hours of the day in +UTC zones.
+  const toLocalDateInput = (value = new Date()) => {
+    const d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return "";
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-${day}`;
+  };
+
   const [convertTarget, setConvertTarget] = useState(null);
   const [convertForm, setConvertForm] = useState({
-    dateOfJoining: new Date().toISOString().split("T")[0],
+    dateOfJoining: toLocalDateInput(),
     designation: "",
     departmentId: "",
     employmentStatus: "probation",
@@ -1191,7 +1201,7 @@ export default function InternsTab() {
   const openConvertModal = (intern) => {
     setConvertTarget(intern);
     setConvertForm({
-      dateOfJoining: new Date().toISOString().split("T")[0],
+      dateOfJoining: toLocalDateInput(),
       designation: intern.designation === "Intern" ? "" : intern.designation || "",
       departmentId: intern.department?._id || intern.department || "",
       employmentStatus: "probation",

@@ -3087,9 +3087,9 @@ function EmployeesPage() {
                       <label>Date Of Joining</label>
                       <span>
                         {selectedEmployee.dateOfJoining
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.dateOfJoining
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>
@@ -3123,9 +3123,9 @@ function EmployeesPage() {
                         <label>Probation End Date</label>
                         <span>
                           {selectedEmployee.probationEndDate
-                            ? new Date(
+                            ? convertUTCtoDDMMYYYY(
                               selectedEmployee.probationEndDate
-                            ).toLocaleDateString()
+                            )
                             : "-"}
                         </span>
                       </div>
@@ -3135,7 +3135,7 @@ function EmployeesPage() {
                       <div>
                         <label>Confirmation Date</label>
                         <span>
-                          {new Date(selectedEmployee.confirmationDate).toLocaleDateString()}
+                          {convertUTCtoDDMMYYYY(selectedEmployee.confirmationDate)}
                         </span>
                       </div>
                     ) : null}
@@ -3144,9 +3144,9 @@ function EmployeesPage() {
                       <label>Relieving Date</label>
                       <span>
                         {selectedEmployee.relievingDate
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.relievingDate
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>
@@ -3198,9 +3198,9 @@ function EmployeesPage() {
                       <label>Date Of Birth</label>
                       <span>
                         {selectedEmployee.dob
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.dob
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>
