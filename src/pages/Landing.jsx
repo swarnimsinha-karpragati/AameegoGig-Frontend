@@ -6,6 +6,8 @@ import {
   TEAM_SIZE_OPTIONS,
   WORKFORCE_TYPES,
   validateDemoRequestPayload,
+  sanitizeDemoPhone,
+  validateTenDigitPhone,
 } from "../utils/demoRequestValidation";
 import { ToastProvider, useToast } from "../components/Toast";
 import LandingSelect from "../components/LandingSelect";
@@ -450,10 +452,20 @@ function LandingPage() {
   };
 
   const onDemoChange = (name, value) => {
-    const next = { ...demoForm, [name]: value };
+    const next = {
+      ...demoForm,
+      [name]: name === "phone" ? sanitizeDemoPhone(value) : value,
+    };
     setDemoForm(next);
     if (demoStatus?.type === "error") setDemoStatus(null);
     if (demoTouched[name] || errors[name]) applyDemoFieldError(name, next);
+    // Landing requires exactly 10 digits (stricter than the shared rule).
+    if (name === "phone") {
+      const phoneError = validateTenDigitPhone(next.phone);
+      if (phoneError) {
+        setErrors((prev) => ({ ...prev, phone: phoneError }));
+      }
+    }
   };
 
   const onDemoBlur = (name) => {
@@ -469,6 +481,12 @@ function LandingPage() {
       return next;
     });
     setDemoTouched((prev) => ({ ...prev, [name]: true }));
+    if (name === "phone") {
+      const phoneError = validateTenDigitPhone(demoForm.phone);
+      if (phoneError) {
+        setErrors((prev) => ({ ...prev, phone: phoneError }));
+      }
+    }
   };
 
   const onDemoSubmit = async (e) => {
@@ -477,7 +495,11 @@ function LandingPage() {
 
     setDemoStatus(null);
     const result = validateDemoRequestPayload(demoForm);
-    setErrors(result.errors);
+    const phoneError = validateTenDigitPhone(demoForm.phone);
+    const mergedErrors = phoneError
+      ? { ...result.errors, phone: phoneError }
+      : result.errors;
+    setErrors(mergedErrors);
     setDemoTouched(
       DEMO_FIELD_ORDER.reduce((acc, name) => ({ ...acc, [name]: true }), {})
     );
@@ -485,13 +507,15 @@ function LandingPage() {
     const hasEmpty = DEMO_FIELD_ORDER.some(
       (name) => !String(demoForm[name] ?? "").trim()
     );
-    if (hasEmpty || !result.valid) {
-      const firstInvalid = DEMO_FIELD_ORDER.find((name) => result.errors[name]);
+    if (hasEmpty || phoneError || !result.valid) {
+      const firstInvalid =
+        (phoneError && "phone") ||
+        DEMO_FIELD_ORDER.find((name) => mergedErrors[name]);
       if (firstInvalid) focusDemoField(firstInvalid);
       toast.warning(
         hasEmpty
           ? "Please fill in all fields before submitting"
-          : result.firstError || "Please fix the highlighted fields"
+          : phoneError || result.firstError || "Please fix the highlighted fields"
       );
       return;
     }
@@ -968,8 +992,8 @@ function LandingPage() {
                   name="phone"
                   autoComplete="tel"
                   inputMode="tel"
-                  placeholder="+91 98765 43210"
-                  maxLength={16}
+                  placeholder="98765 43210"
+                  maxLength={10}
                   value={demoForm.phone}
                   aria-invalid={Boolean(errors.phone)}
                   aria-describedby={errors.phone ? "demo-phone-error" : undefined}
