@@ -16,6 +16,7 @@ import {
   draftToPayload,
   editorErrorTarget,
   getApiError,
+  isTemplateVersionConflict,
   isDraftDirty,
   questionKeyLocks,
   templateServerError,
@@ -159,6 +160,12 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
 
   const requestExit = () => leaveGuard.request(onExit);
 
+  /** Someone else saved first: show the reload notice and move focus to its Reload button. */
+  const showConflict = () => {
+    setConflict(true);
+    setFocusRequest({ field: "conflict" });
+  };
+
   /** Saves the draft; resolves to the saved template, or null when the save failed. */
   const persist = async (note) => {
     try {
@@ -171,10 +178,9 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
       return saved;
     } catch (error) {
       const apiError = getApiError(error, COPY.saveError);
-      if (apiError.status === 409 && apiError.code === "VERSION_CONFLICT") {
+      if (isTemplateVersionConflict(apiError)) {
         setSaveOpen(false);
-        setConflict(true);
-        setFocusRequest({ field: "conflict" });
+        showConflict();
         return null;
       }
       const { errors: mapped, target } = templateServerError(apiError, labels);
@@ -411,6 +417,8 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
           keyLocks={keyLocks}
           onRemoveQuestion={requestRemoveQuestion}
           onTemplateReplaced={loadTemplate}
+          editingVersion={base?.version}
+          onVersionConflict={showConflict}
         />
       </div>
 

@@ -12,6 +12,7 @@ import {
   Timer,
   Lock,
   UserCheck,
+  SlidersHorizontal,
   // ShieldCheck, // Roles tab commented
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ import LeavePolicyManager from "../components/LeavePolicyManager";
 import ProbationPolicyManager from "../components/ProbationPolicyManager";
 // import PayrollConfigCard from "../components/PayrollConfigCard";
 import OrgProfileCard from "../components/OrgProfileCard";
+import AttendanceSettingsCard from "../components/AttendanceSettingsCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
 import SalaryStructure from "../components/SalaryStructure";
 import { roleHasPermission } from "../utils/roles";
@@ -60,6 +62,7 @@ export default function Settings() {
     const list = [{ id: "profile", label: "Profile", icon: User }];
     if (roleHasPermission(role, "settings:org")) {
       list.push({ id: "organization", label: "Organization", icon: Building2 });
+      list.push({ id: "configuration", label: "Configuration", icon: SlidersHorizontal });
     }
     if (roleHasPermission(role, "settings:shifts")) {
       list.push({ id: "shifts", label: "Shifts & Week Off", icon: Clock });
@@ -175,6 +178,8 @@ export default function Settings() {
           )}
 
           {activeTab === "organization" && <OrgProfileCard />}
+
+          {activeTab === "configuration" && <AttendanceSettingsCard />}
 
           {activeTab === "shifts" && (
             <div className="settings-bottom-grid">

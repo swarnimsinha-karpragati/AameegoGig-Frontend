@@ -79,10 +79,73 @@ it("inserts a detail chosen from the searchable Insert detail menu", async () =>
   fireEvent.change(within(menu).getByLabelText(LETTERS_COPY.editor.searchDetails), { target: { value: "zzz" } });
   expect(within(menu).getByText("No details match “zzz”.")).toBeInTheDocument();
   fireEvent.change(within(menu).getByLabelText(LETTERS_COPY.editor.searchDetails), { target: { value: "comp" } });
-  expect(within(menu).queryByRole("button", { name: /Employee name/ })).not.toBeInTheDocument();
-  fireEvent.click(within(menu).getByRole("button", { name: /Company name/ }));
+  expect(within(menu).queryByRole("option", { name: /Employee name/ })).not.toBeInTheDocument();
+  fireEvent.click(within(menu).getByRole("option", { name: /Company name/ }));
   await waitFor(() => expect(lastHtml(onChange)).toContain("{{companyName}}"));
   expect(screen.queryByRole("dialog", { name: LETTERS_COPY.editor.insertDetail })).not.toBeInTheDocument();
+});
+
+describe("Insert detail picker keyboard (NEW-06)", () => {
+  const openPicker = async (onChange = jest.fn()) => {
+    render(<RichTextEditor value="<p>Hello</p>" onChange={onChange} detailGroups={DETAIL_GROUPS} />);
+    await screen.findByText("Hello");
+    fireEvent.click(screen.getByRole("button", { name: LETTERS_COPY.editor.insertDetail }));
+    const menu = screen.getByRole("dialog", { name: LETTERS_COPY.editor.insertDetail });
+    const search = within(menu).getByRole("combobox", { name: LETTERS_COPY.editor.searchDetails });
+    const active = () => {
+      const id = search.getAttribute("aria-activedescendant");
+      return id ? within(menu).queryAllByRole("option").find((option) => option.id === id)?.textContent ?? null : null;
+    };
+    return { menu, search, active, onChange };
+  };
+
+  it("is a combobox over a listbox, with the first match highlighted", async () => {
+    const { menu, search, active } = await openPicker();
+    expect(search).toHaveFocus();
+    expect(search).toHaveAttribute("aria-expanded", "true");
+    expect(search).toHaveAttribute("aria-controls", within(menu).getByRole("listbox").id);
+    expect(active()).toBe("Employee name");
+    expect(within(menu).getByRole("option", { name: "Employee name" })).toHaveAttribute("aria-selected", "true");
+    expect(within(menu).getByRole("group", { name: "Company" })).toBeInTheDocument();
+  });
+
+  it("typing then Enter inserts the single match and closes the picker", async () => {
+    const { search, active, onChange } = await openPicker();
+    fireEvent.change(search, { target: { value: "comp" } });
+    expect(active()).toBe("Company name");
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(lastHtml(onChange)).toContain("{{companyName}}"));
+    expect(screen.queryByRole("dialog", { name: LETTERS_COPY.editor.insertDetail })).not.toBeInTheDocument();
+  });
+
+  it("arrow keys move through the results across groups (wrapping), Home and End jump, Enter inserts the highlighted one", async () => {
+    const { search, active, onChange } = await openPicker();
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(active()).toBe("Department");
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(active()).toBe("Company name");
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(active()).toBe("Employee name");
+    fireEvent.keyDown(search, { key: "ArrowUp" });
+    expect(active()).toBe("Company name");
+    fireEvent.keyDown(search, { key: "Home" });
+    expect(active()).toBe("Employee name");
+    fireEvent.keyDown(search, { key: "End" });
+    expect(active()).toBe("Company name");
+    fireEvent.keyDown(search, { key: "ArrowUp" });
+    expect(active()).toBe("Department");
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(lastHtml(onChange)).toContain("{{department}}"));
+  });
+
+  it("Enter with no matches does nothing and keeps the picker open", async () => {
+    const { search, active, onChange } = await openPicker();
+    fireEvent.change(search, { target: { value: "zzz" } });
+    expect(active()).toBeNull();
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(screen.getByRole("dialog", { name: LETTERS_COPY.editor.insertDetail })).toBeInTheDocument();
+    expect(onChange.mock.calls.some(([html]) => html.includes("{{"))).toBe(false);
+  });
 });
 
 it("focuses the Insert detail search box only once the picker is visible, so typing filters instead of editing the letter", async () => {
@@ -147,7 +210,7 @@ it("makes selected words optional and Always show removes the condition", async 
   selectText("big ");
   fireEvent.click(screen.getByRole("button", { name: LETTERS_COPY.editor.makeOptional }));
   const menu = screen.getByRole("dialog", { name: LETTERS_COPY.editor.makeOptional });
-  fireEvent.click(within(menu).getByRole("button", { name: /Department/ }));
+  fireEvent.click(within(menu).getByRole("option", { name: /Department/ }));
   await waitFor(() => expect(lastHtml(onChange)).toBe("<p>Hello {{#if department}}big {{/if}}world</p>"));
   expect(await screen.findByText("Only shown when Department is filled")).toBeInTheDocument();
 
@@ -300,7 +363,7 @@ it("wraps whole selected paragraphs in an optional block", async () => {
     editor.commands.setTextSelection({ from: 6, to: 16 });
   });
   fireEvent.click(screen.getByRole("button", { name: LETTERS_COPY.editor.makeOptional }));
-  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Notice period/ }));
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("option", { name: /Notice period/ }));
   await waitFor(() =>
     expect(lastHtml(onChange)).toBe("<p>One</p>{{#if noticePeriod}}\n<p>Two</p><p>Three</p>\n{{/if}}")
   );

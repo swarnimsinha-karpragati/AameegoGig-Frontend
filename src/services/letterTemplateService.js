@@ -25,14 +25,17 @@ export const duplicateLetterTemplate = async (id, name) =>
 export const archiveLetterTemplate = async (id, archived) =>
   dataOf(await API.post(`/letter-templates/${id}/archive`, { archived }));
 
-export const resetLetterTemplate = async (id) => dataOf(await API.post(`/letter-templates/${id}/reset-default`));
+/** `version` is the template version being edited; a stale one gets 409 VERSION_CONFLICT. */
+export const resetLetterTemplate = async (id, version) =>
+  dataOf(await API.post(`/letter-templates/${id}/reset-default`, { version }));
 
 /** -> [{ version, note, editedByName, createdAt }] newest first */
 export const getLetterTemplateVersions = async (id) =>
   dataOf(await API.get(`/letter-templates/${id}/versions`)) || [];
 
-export const restoreLetterTemplateVersion = async (id, version) =>
-  dataOf(await API.post(`/letter-templates/${id}/versions/${version}/restore`));
+/** Restores history entry `version`; `currentVersion` is the version being edited (409 when stale). */
+export const restoreLetterTemplateVersion = async (id, version, currentVersion) =>
+  dataOf(await API.post(`/letter-templates/${id}/versions/${version}/restore`, { version: currentVersion }));
 
 /**
  * Renders a draft (saved or not) with sample data -> { html, bodyHtml, missing, invalid }.

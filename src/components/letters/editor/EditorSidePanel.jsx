@@ -3,7 +3,7 @@ import { ExternalLink, RotateCcw } from "lucide-react";
 import { Button, ConfirmDialog, ModuleSwitcher, Select, Toggle } from "../../../design-system";
 import { useLetterTemplateAction } from "../../../hooks/useLetters";
 import { GROUP_OPTIONS } from "../../../utils/letterCatalog";
-import { LAYOUT_OPTIONS, RECIPIENT_TYPES, getApiError } from "../../../utils/letterForms";
+import { LAYOUT_OPTIONS, RECIPIENT_TYPES, getApiError, isTemplateVersionConflict } from "../../../utils/letterForms";
 import { LETTERS_COPY } from "../../../utils/lettersCopy";
 import { ORG_PROFILE_SETTINGS_PATH, vendorScopedPath } from "../../../utils/vendorPath";
 import { useToast } from "../../Toast";
@@ -44,7 +44,7 @@ const FIELD_SELECTORS = {
  * save errors can switch to the tab that needs attention; `focusTarget` then focuses the field.
  */
 const EditorSidePanel = forwardRef(function EditorSidePanel(
-  { tab, onTabChange, draft, errors = {}, readOnly, template, isNew, dirty, keyLocks, onUpdate, onInsert, onRemoveQuestion, onTemplateReplaced },
+  { tab, onTabChange, draft, errors = {}, readOnly, template, isNew, dirty, keyLocks, onUpdate, onInsert, onRemoveQuestion, onTemplateReplaced, editingVersion, onVersionConflict },
   ref
 ) {
   const toast = useToast();
@@ -65,12 +65,18 @@ const EditorSidePanel = forwardRef(function EditorSidePanel(
 
   const handleReset = async () => {
     try {
-      const reset = await templateAction.mutateAsync({ action: "reset", id: template._id });
+      const reset = await templateAction.mutateAsync({ action: "reset", id: template._id, version: editingVersion });
       toast.success(COPY.resetDone);
       setConfirmReset(false);
       if (reset) onTemplateReplaced(reset);
     } catch (error) {
-      toast.error(getApiError(error, COPY.resetError).message);
+      const apiError = getApiError(error, COPY.resetError);
+      if (isTemplateVersionConflict(apiError)) {
+        setConfirmReset(false);
+        onVersionConflict();
+        return;
+      }
+      toast.error(apiError.message);
     }
   };
 
@@ -165,7 +171,14 @@ const EditorSidePanel = forwardRef(function EditorSidePanel(
           </section>
         ) : (
           tab === "about" && (
-            <TemplateHistory template={template} canEdit={!readOnly} hasUnsavedChanges={dirty} onRestored={onTemplateReplaced} />
+            <TemplateHistory
+              template={template}
+              canEdit={!readOnly}
+              hasUnsavedChanges={dirty}
+              editingVersion={editingVersion}
+              onRestored={onTemplateReplaced}
+              onVersionConflict={onVersionConflict}
+            />
           )
         )}
         {canReset && (

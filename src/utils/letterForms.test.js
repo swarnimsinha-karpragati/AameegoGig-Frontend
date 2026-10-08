@@ -22,6 +22,7 @@ import {
   buildPreviewRequest,
   hasLetterContent,
   isClientErrorStatus,
+  isTemplateVersionConflict,
   stillNeededLabels,
   templateToDraft,
   toInputFieldKey,
@@ -288,6 +289,17 @@ describe("getApiError", () => {
   it("falls back for network errors and odd bodies", () => {
     expect(getApiError(new Error("Network Error"), "Could not save").message).toBe("Could not save");
     expect(getApiError({ response: { status: 500, data: "<html>" } }).field).toBeNull();
+  });
+});
+
+describe("isTemplateVersionConflict", () => {
+  it("is true only for the 409 VERSION_CONFLICT a stale save, restore or reset gets", () => {
+    const conflict = getApiError({ response: { status: 409, data: { message: "x", code: "VERSION_CONFLICT" } } });
+    expect(isTemplateVersionConflict(conflict)).toBe(true);
+    expect(isTemplateVersionConflict(getApiError({ response: { status: 409, data: { code: "TEMPLATE_KEY_CONFLICT" } } }))).toBe(false);
+    expect(isTemplateVersionConflict(getApiError({ response: { status: 400, data: { code: "VERSION_CONFLICT" } } }))).toBe(false);
+    expect(isTemplateVersionConflict(getApiError(new Error("Network Error")))).toBe(false);
+    expect(isTemplateVersionConflict(null)).toBe(false);
   });
 });
 

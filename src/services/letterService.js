@@ -33,6 +33,9 @@ export const getIssuedLetters = async (params = {}) => {
   return { letters: body.data || [], pagination: body.pagination || null };
 };
 
+/** One issued letter with its answers (`values`); the register list leaves those out. */
+export const getIssuedLetter = async (id) => dataOf(await API.get(`/letters/${id}`));
+
 export const emailIssuedLetter = async (id) => dataOf(await API.post(`/letters/${id}/email`));
 
 export const voidIssuedLetter = async (id, reason) => dataOf(await API.post(`/letters/${id}/void`, { reason }));

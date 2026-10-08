@@ -1,0 +1,25 @@
+.attendance-settings__row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #fafbfc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.attendance-settings__row .wz-toggle__label {
+  font-weight: 600;
+}
+
+.attendance-settings__help p {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.attendance-settings__help p:last-child {
+  margin-bottom: 0;
+}

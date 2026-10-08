@@ -7,6 +7,7 @@ import { LETTERS_COPY } from "./lettersCopy";
  *   manage=1[&template=<id>|new]                         manage templates / template editor
  *   issue=<templateId>|pick&recipient=..&recipientType=employee|candidate   issue panel
  *   issueKey=<template key>                               with issue=pick: panel opens that template once loaded
+ *   replaces=<letterId>                                   with issue: the new letter corrects (and voids) that issued letter
  *   forRecipient=<id>&forType=employee|candidate          issued-letters filter
  */
 
@@ -50,6 +51,7 @@ export function resolveLettersView(params, tabs, access = {}) {
     issueTemplateKey: issue === ISSUE_PICK ? params.get("issueKey") || "" : "",
     recipientId: issue && isRecordId(recipient) ? recipient : "",
     recipientType: issue && isRecipientType(recipientType) ? recipientType : "",
+    replacesLetterId: issue && isRecordId(params.get("replaces")) ? params.get("replaces") : "",
     forRecipient: !manage && tab === "issued" && isRecordId(forRecipient) ? forRecipient : "",
     forType: params.get("forType") === "candidate" ? "candidate" : "employee",
   };
@@ -93,10 +95,11 @@ export function normalizeLettersParams(params, tabs, access = {}) {
   if (!manage) drop("template");
 
   if (!tabs.some((tab) => tab.id === "issue")) drop("issue");
-  if (!next.get("issue")) drop("issue", "issueKey", "recipient", "recipientType");
+  if (!next.get("issue")) drop("issue", "issueKey", "recipient", "recipientType", "replaces");
   if (next.has("issueKey") && next.get("issue") !== ISSUE_PICK) drop("issueKey");
   if (next.has("recipient") && !isRecordId(next.get("recipient"))) drop("recipient");
   if (next.has("recipientType") && !isRecipientType(next.get("recipientType"))) drop("recipientType");
+  if (next.has("replaces") && !isRecordId(next.get("replaces"))) drop("replaces");
 
   const onIssued = !manage && resolveLettersTab(next.get("tab"), tabs) === "issued";
   if (!onIssued || !isRecordId(next.get("forRecipient"))) drop("forRecipient", "forType");
@@ -120,15 +123,16 @@ export function applyLettersChanges(params, changes) {
   return next;
 }
 
-const CLOSED_ISSUE = { issue: null, issueKey: null, recipient: null, recipientType: null };
+const CLOSED_ISSUE = { issue: null, issueKey: null, recipient: null, recipientType: null, replaces: null };
 
 export const lettersChanges = {
   tab: (id) => ({ tab: id, manage: null, template: null, forRecipient: null, forType: null }),
-  openIssue: ({ templateId = "", templateKey = "", recipientId = "", recipientType = "" } = {}) => ({
+  openIssue: ({ templateId = "", templateKey = "", recipientId = "", recipientType = "", replacesLetterId = "" } = {}) => ({
     issue: templateId || ISSUE_PICK,
     issueKey: templateId ? null : templateKey || null,
     recipient: recipientId || null,
     recipientType: recipientType || null,
+    replaces: replacesLetterId || null,
   }),
   changeIssueTemplate: (templateId) => ({ issue: templateId || ISSUE_PICK, issueKey: null }),
   closeIssue: () => ({ ...CLOSED_ISSUE }),
@@ -145,7 +149,6 @@ export const lettersChanges = {
     forType: recipientId ? recipientType || null : null,
   }),
   clearRecipientFilter: () => ({ forRecipient: null, forType: null }),
-  openOffers: () => ({ tab: "offers", manage: null, template: null, forRecipient: null, forType: null, ...CLOSED_ISSUE }),
 };
 
 /**
@@ -172,6 +175,12 @@ const EMPLOYEE_SEARCH_MAX = 100;
 const employeesPath = (vendor, changes) => {
   const query = applyLettersChanges(new URLSearchParams(), changes).toString();
   return `/${vendor}/employees${query ? `?${query}` : ""}`;
+};
+
+/** Employee list searched for one employee (code, else name), e.g. to terminate them from their row menu. */
+export const employeeSearchPath = (vendor, employee = {}) => {
+  const term = [employee.code, employee.name].map((value) => String(value ?? "").trim()).find(Boolean);
+  return employeesPath(vendor, { [EMPLOYEE_PARAMS.search]: term?.slice(0, EMPLOYEE_SEARCH_MAX) });
 };
 
 /** Opens Add employee prefilled from an accepted candidate. */

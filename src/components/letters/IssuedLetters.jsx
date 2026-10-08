@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Ban, Download, Eye, FileCheck2, FilePlus2, Mail, X } from "lucide-react";
+import { Ban, Download, Eye, FileCheck2, FilePenLine, FilePlus2, Mail, X } from "lucide-react";
 import {
   Badge,
   Button,
@@ -91,7 +91,7 @@ function PdfViewer({ letter, onClose, onDownload }) {
   );
 }
 
-export default function IssuedLetters({ canIssue, recipientFilter, focusHeading = false, onClearRecipientFilter, onIssue }) {
+export default function IssuedLetters({ canIssue, recipientFilter, focusHeading = false, onClearRecipientFilter, onIssue, onReissue }) {
   const headingRef = useFocusOnMount(focusHeading);
   const toast = useToast();
   const [search, setSearch] = useState("");
@@ -172,6 +172,9 @@ export default function IssuedLetters({ canIssue, recipientFilter, focusHeading 
         disabled: !letter.recipientEmail,
         onClick: () => setDialog({ type: "email", letter }),
       });
+      if (onReissue && letter.templateId) {
+        actions.push({ label: COPY.reissueAction, icon: <FilePenLine size={16} />, onClick: () => onReissue(letter) });
+      }
       actions.push({
         label: COPY.voidAction,
         icon: <Ban size={16} />,

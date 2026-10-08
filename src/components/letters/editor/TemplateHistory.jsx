@@ -2,14 +2,14 @@ import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Badge, Button, ConfirmDialog, Spinner } from "../../../design-system";
 import { useLetterTemplateAction, useLetterTemplateVersions } from "../../../hooks/useLetters";
-import { formatLetterDate, getApiError } from "../../../utils/letterForms";
+import { formatLetterDate, getApiError, isTemplateVersionConflict } from "../../../utils/letterForms";
 import { LETTERS_COPY, format } from "../../../utils/lettersCopy";
 import { useToast } from "../../Toast";
 
 const COPY = LETTERS_COPY.editor;
 
 /** Saved versions of a template with Restore (saved as a new version, so nothing is lost). */
-export default function TemplateHistory({ template, canEdit, hasUnsavedChanges, onRestored }) {
+export default function TemplateHistory({ template, canEdit, hasUnsavedChanges, editingVersion, onRestored, onVersionConflict }) {
   const toast = useToast();
   const { data: versions = [], isLoading, isError } = useLetterTemplateVersions(template?._id);
   const action = useLetterTemplateAction();
@@ -17,12 +17,23 @@ export default function TemplateHistory({ template, canEdit, hasUnsavedChanges, 
 
   const restore = async () => {
     try {
-      const restored = await action.mutateAsync({ action: "restore", id: template._id, value: pending.version });
+      const restored = await action.mutateAsync({
+        action: "restore",
+        id: template._id,
+        value: pending.version,
+        version: editingVersion,
+      });
       toast.success(format(COPY.restored, { from: pending.version, to: restored?.version ?? "" }));
       setPending(null);
       if (restored) onRestored(restored);
     } catch (error) {
-      toast.error(getApiError(error, COPY.restoreError).message);
+      const apiError = getApiError(error, COPY.restoreError);
+      if (isTemplateVersionConflict(apiError)) {
+        setPending(null);
+        onVersionConflict();
+        return;
+      }
+      toast.error(apiError.message);
     }
   };
 

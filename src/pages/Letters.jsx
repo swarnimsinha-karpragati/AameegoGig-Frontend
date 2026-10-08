@@ -120,6 +120,14 @@ function LettersInner() {
           recipientFilter={view.forRecipient ? { id: view.forRecipient, type: view.forType, name: filterMatches[0]?.name } : null}
           onClearRecipientFilter={() => update(lettersChanges.clearRecipientFilter())}
           onIssue={() => openIssue()}
+          onReissue={(letter) =>
+            openIssue({
+              templateId: letter.templateId,
+              recipientId: letter.recipientType === "candidate" ? letter.candidateId : letter.employeeId,
+              recipientType: letter.recipientType,
+              replacesLetterId: letter._id,
+            })
+          }
         />
       )}
 
@@ -146,12 +154,13 @@ function LettersInner() {
         onChangeTemplate={(id) => update(lettersChanges.changeIssueTemplate(id), { replace: true })}
         initialRecipientId={view.recipientId}
         initialRecipientType={view.recipientType}
+        replacesLetterId={view.replacesLetterId}
         onViewIssued={
           permissions.canView
             ? (recipient, recipientType) => goTo(lettersChanges.viewIssued({ recipientId: recipient?._id, recipientType }))
             : undefined
         }
-        onAddCandidate={permissions.canManageOffers ? () => goTo(lettersChanges.openOffers()) : undefined}
+        canAddCandidate={Boolean(permissions.canManageOffers)}
       />
     </div>
   );

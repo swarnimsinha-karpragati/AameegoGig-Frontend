@@ -16,10 +16,14 @@ export function getFocusableElements(container) {
   );
 }
 
+/** Open traps, oldest first; only the last (topmost overlay) handles keys. */
+const activeTraps = [];
+
 /**
  * Keeps keyboard focus inside `containerRef` while `active`, handles Escape,
  * moves focus to `initialFocusRef` (or the first focusable element) on open and
- * restores focus to the previously focused element on close.
+ * restores focus to the previously focused element on close. When overlays stack
+ * (a dialog over a drawer), only the topmost one reacts to Tab and Escape.
  */
 export function useFocusTrap(containerRef, active, { initialFocusRef, onEscape } = {}) {
   const onEscapeRef = useRef(onEscape);
@@ -29,12 +33,15 @@ export function useFocusTrap(containerRef, active, { initialFocusRef, onEscape }
     if (!active) return undefined;
     const container = containerRef.current;
     const previouslyFocused = document.activeElement;
+    const trap = {};
+    activeTraps.push(trap);
 
     const target =
       initialFocusRef?.current || getFocusableElements(container)[0] || container;
     target?.focus();
 
     const handleKeyDown = (event) => {
+      if (activeTraps[activeTraps.length - 1] !== trap) return;
       if (event.key === "Escape") {
         event.stopPropagation();
         onEscapeRef.current?.();
@@ -63,6 +70,7 @@ export function useFocusTrap(containerRef, active, { initialFocusRef, onEscape }
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      activeTraps.splice(activeTraps.indexOf(trap), 1);
       if (previouslyFocused && typeof previouslyFocused.focus === "function") {
         previouslyFocused.focus();
       }
@@ -71,6 +79,26 @@ export function useFocusTrap(containerRef, active, { initialFocusRef, onEscape }
 }
 
 const MENU_ITEM_SELECTOR = "[role^='menuitem']:not(:disabled)";
+
+/**
+ * Index a list key moves to from `current` (-1 = nothing active) in a list of `length`:
+ * ArrowUp/ArrowDown wrap, Home/End jump. Null for other keys or an empty list.
+ */
+export function listKeyTarget(key, current, length) {
+  if (length <= 0) return null;
+  switch (key) {
+    case "ArrowDown":
+      return (current + 1) % length;
+    case "ArrowUp":
+      return (current <= 0 ? length : current) - 1;
+    case "Home":
+      return 0;
+    case "End":
+      return length - 1;
+    default:
+      return null;
+  }
+}
 
 /**
  * Keyboard model for a `role="menu"`: `focusInitial` focuses the checked radio item, else the
@@ -92,15 +120,8 @@ export function useMenuNavigation(menuRef) {
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
       const list = items();
-      if (list.length === 0) return;
-      const current = list.indexOf(document.activeElement);
-      const next = {
-        ArrowDown: (current + 1) % list.length,
-        ArrowUp: (current <= 0 ? list.length : current) - 1,
-        Home: 0,
-        End: list.length - 1,
-      }[event.key];
-      list[next].focus();
+      const next = listKeyTarget(event.key, list.indexOf(document.activeElement), list.length);
+      if (next !== null) list[next].focus();
     },
     [items]
   );
