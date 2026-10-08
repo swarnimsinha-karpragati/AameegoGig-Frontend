@@ -13,6 +13,7 @@ import MyRequestsList from "../components/regularization/MyRequestsList";
 import ApprovedList from "../components/regularization/ApprovedList";
 import ApprovalsList from "../components/regularization/ApprovalsList";
 import DirectEditPanel from "../components/regularization/DirectEditPanel";
+import RegularizationConfigPanel from "../components/regularization/RegularizationConfigPanel";
 import { ToastProvider, useToast } from "../components/Toast";
 import {
   useRegularizationDashboard,
@@ -42,6 +43,8 @@ function RegularizationInner() {
   const canApprove = canApproveRegularization(user?.role);
   const isAdminOrHr = canViewAllRegularizations(user?.role);
   const canDirectEdit = canDirectEditRegularization(user?.role);
+  // Configuration tab + API strictly Admin/HR only (also role-gated on the backend).
+  const canConfigure = user?.role === "Admin" || user?.role === "HR";
   const canRequest = hasLinkedEmployeeProfile(user);
   const dashboardQuery = useRegularizationDashboard();
   const counts = dashboardQuery.data?.counts || {};
@@ -57,8 +60,9 @@ function RegularizationInner() {
         canDirectEdit,
         isAdminOrHr,
         hasTeam,
+        canConfigure,
       }),
-    [canApprove, canDirectEdit, canRequest, isAdminOrHr, hasTeam]
+    [canApprove, canDirectEdit, canRequest, isAdminOrHr, hasTeam, canConfigure]
   );
   const [activeTab, setActiveTab] = useState(canRequest ? "request" : "mine");
 
@@ -290,6 +294,9 @@ function RegularizationInner() {
               approvedQuery.refetch();
             }}
           />
+        ) : null}
+        {activeTab === "config" && canConfigure ? (
+          <RegularizationConfigPanel toast={toast} />
         ) : null}
       </main>
     </div>

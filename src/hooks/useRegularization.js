@@ -8,10 +8,13 @@ import {
   cancelRegularizationRequest,
   directEditAttendance,
   directEditLeave,
+  getRegularizationConfig,
+  updateRegularizationConfig,
 } from "../services/regularizationService";
 
 const REG_DASHBOARD_KEY = "regularizationDashboard";
 const REG_REQUESTS_KEY = "regularizationRequests";
+const REG_CONFIG_KEY = "regularizationConfig";
 
 export function useRegularizationDashboard(options = {}) {
   return useQuery({
@@ -95,6 +98,26 @@ export function useDirectEditLeave() {
     mutationFn: ({ leaveRequestId, payload }) => directEditLeave(leaveRequestId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [REG_REQUESTS_KEY] });
+    },
+  });
+}
+
+export function useRegularizationConfig(enabled = true) {
+  return useQuery({
+    queryKey: [REG_CONFIG_KEY],
+    queryFn: getRegularizationConfig,
+    enabled,
+  });
+}
+
+export function useUpdateRegularizationConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload) => updateRegularizationConfig(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [REG_CONFIG_KEY] });
+      queryClient.invalidateQueries({ queryKey: [REG_DASHBOARD_KEY] });
     },
   });
 }
