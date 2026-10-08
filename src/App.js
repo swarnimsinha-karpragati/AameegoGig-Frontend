@@ -31,6 +31,9 @@ import AdvanceLoanRequest from './components/AdvanceLoan';
 import Roles from './pages/Roles';
 import Letters from './pages/Letters';
 
+
+import {APIProvider} from '@vis.gl/react-google-maps'
+
 function App() {
   const token = localStorage.getItem("token");
 
@@ -66,8 +69,11 @@ function App() {
     // eslint-disable-next-line
   }, [isError, isSuccess, data]);
 
+  console.log(process.env.GOOGLE_MAPS_API_KEY)
+
   return (
     <div className="app-shell">
+      <APIProvider apiKey={'AIzaSyDUns7-K4KmSoWv5zsQnqzbQ814yCMWZpo'} onLoad={() => console.log('Maps API has loaded.')}>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<UnProtectedRoute><Login /></UnProtectedRoute>} />
@@ -95,6 +101,7 @@ function App() {
         <Route path=":vendor/letters" element={<ProtectedRoute><Letters /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </APIProvider>
     </div>
   );
 }
