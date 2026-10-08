@@ -1,7 +1,7 @@
 import { MapPin } from "lucide-react";
 import { formatGeoLocation } from "../../utils/geolocation";
 
-function SessionLocationLink({ location, prefix }) {
+function SessionLocationLink({ location, prefix,status }) {
   const formatted = formatGeoLocation(location);
   if (!formatted) return null;
 
@@ -13,7 +13,7 @@ function SessionLocationLink({ location, prefix }) {
       rel="noopener noreferrer"
       title={`${prefix}: ${formatted.label}`}
     >
-      <MapPin size={14} />
+     {<> {status && status} <MapPin size={14} /> </> }
     </a>
   );
 }
