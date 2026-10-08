@@ -86,10 +86,8 @@ describe("LETTERS_COPY", () => {
     ).toBe("These details are blank for Asha: Reporting manager. They'll print as gaps — update the employee record or edit the wording.");
     expect(LETTERS_COPY.issue.recordCandidate).toBe("candidate");
     expect(LETTERS_COPY.issue.selectPlaceholder).toBe("Select…");
-    expect(LETTERS_COPY.issue.noOfferCandidates).toBe(
-      "No candidates waiting for an offer. Add a candidate in Offer candidates first."
-    );
-    expect(LETTERS_COPY.issue.goToOffers).toBe("Go to Offer candidates");
+    expect(LETTERS_COPY.issue.noOfferCandidates).toBe("No candidates waiting for an offer. Add a new candidate to send one.");
+    expect(LETTERS_COPY.issue.addCandidate).toBe("Add new candidate");
     expect(LETTERS_COPY.issue.retryPreview).toBe("Try again");
     expect(LETTERS_COPY.issue.checkCompanyAgain).toBe("Check again");
     expect(LETTERS_COPY.issue.issueBlockedCompany).toBe("Add your company details to issue letters.");

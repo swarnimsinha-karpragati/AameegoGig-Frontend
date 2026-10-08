@@ -16,10 +16,14 @@ export function getFocusableElements(container) {
   );
 }
 
+/** Open traps, oldest first; only the last (topmost overlay) handles keys. */
+const activeTraps = [];
+
 /**
  * Keeps keyboard focus inside `containerRef` while `active`, handles Escape,
  * moves focus to `initialFocusRef` (or the first focusable element) on open and
- * restores focus to the previously focused element on close.
+ * restores focus to the previously focused element on close. When overlays stack
+ * (a dialog over a drawer), only the topmost one reacts to Tab and Escape.
  */
 export function useFocusTrap(containerRef, active, { initialFocusRef, onEscape } = {}) {
   const onEscapeRef = useRef(onEscape);
@@ -29,12 +33,15 @@ export function useFocusTrap(containerRef, active, { initialFocusRef, onEscape }
     if (!active) return undefined;
     const container = containerRef.current;
     const previouslyFocused = document.activeElement;
+    const trap = {};
+    activeTraps.push(trap);
 
     const target =
       initialFocusRef?.current || getFocusableElements(container)[0] || container;
     target?.focus();
 
     const handleKeyDown = (event) => {
+      if (activeTraps[activeTraps.length - 1] !== trap) return;
       if (event.key === "Escape") {
         event.stopPropagation();
         onEscapeRef.current?.();
@@ -63,6 +70,7 @@ export function useFocusTrap(containerRef, active, { initialFocusRef, onEscape }
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      activeTraps.splice(activeTraps.indexOf(trap), 1);
       if (previouslyFocused && typeof previouslyFocused.focus === "function") {
         previouslyFocused.focus();
       }

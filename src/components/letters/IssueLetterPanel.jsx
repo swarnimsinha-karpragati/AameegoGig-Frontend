@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, Download, ExternalLink, PencilLine, RotateCcw, Search, Undo2 } from "lucide-react";
-import { Avatar, Badge, Button, Checkbox, Drawer, Input, Select, Spinner, Textarea } from "../../design-system";
-import { useIssueLetter, useLetterRecipients, useLetterTemplates } from "../../hooks/useLetters";
+import { ArrowLeft, CheckCircle2, Download, ExternalLink, PencilLine, RotateCcw, Search, Undo2, UserPlus } from "lucide-react";
+import { Avatar, Badge, Button, Checkbox, ConfirmDialog, Drawer, Input, Select, Spinner, Textarea } from "../../design-system";
+import { useIssuedLetter, useIssueLetter, useLetterRecipients, useLetterTemplates } from "../../hooks/useLetters";
 import useDebouncedValue from "../../hooks/useDebouncedValue";
 import { downloadDraftLetter, downloadIssuedLetter, previewLetter } from "../../services/letterService";
 import { buildLetterCatalog, describeTemplate, filterIssuableTemplates, findTemplateByKey, letterNameForKey } from "../../utils/letterCatalog";
@@ -21,8 +21,10 @@ import {
 } from "../../utils/letterForms";
 import { LETTERS_COPY, format } from "../../utils/lettersCopy";
 import { recipientStatusBadge } from "../../utils/recipientStatus";
+import { employeeSearchPath } from "../../utils/lettersNavigation";
 import { ORG_PROFILE_SETTINGS_PATH, vendorScopedPath } from "../../utils/vendorPath";
 import { useToast } from "../Toast";
+import CandidateDrawer from "./CandidateDrawer";
 import LetterPreviewFrame from "./LetterPreviewFrame";
 import RichTextEditor from "./RichTextEditor";
 import "./Letters.css";
@@ -132,6 +134,17 @@ function TemplateChooser({ templates, loading, error, notice, onChoose }) {
   );
 }
 
+/** A candidate just added from the panel, in the shape the people list uses. */
+const candidateAsRecipient = (candidate) => ({
+  _id: candidate._id,
+  name: candidate.name,
+  code: "",
+  email: candidate.email || "",
+  designation: candidate.designation || "",
+  department: candidate.departmentName || "",
+  status: candidate.status || "draft",
+});
+
 /** Copy for a template that only some people can receive (e.g. consultancy-only), else null. */
 const recipientRuleCopy = (template) => (template?.recipientRule && COPY.recipientRules[template.recipientRule]) || null;
 
@@ -167,6 +180,13 @@ function RecipientSearch({ template, labelledBy, selectedId, error, inputRef, on
         placeholder={recipientType === "candidate" ? COPY.searchCandidates : COPY.searchEmployees}
         maxLength={80}
       />
+      {recipientType === "candidate" && onAddCandidate && (
+        <div>
+          <Button variant="outline" size="sm" icon={<UserPlus size={16} />} onClick={onAddCandidate}>
+            {COPY.addCandidate}
+          </Button>
+        </div>
+      )}
       {rule && <p className="wz-letters__cell-sub">{format(rule.only, { letter: template.name })}</p>}
       {isError && (
         <p className="wz-letters__notice wz-letters__notice--error" role="alert">
@@ -176,13 +196,6 @@ function RecipientSearch({ template, labelledBy, selectedId, error, inputRef, on
       <fieldset className="wz-picker" aria-busy={isFetching || undefined}>
         <legend className="wz-sr-only">{COPY.choosePerson}</legend>
         {showEmpty && <p className="wz-letters__cell-sub">{emptyPeopleText(template, debounced)}</p>}
-        {showEmpty && !debounced && recipientType === "candidate" && onAddCandidate && (
-          <div>
-            <Button variant="outline" size="sm" onClick={onAddCandidate}>
-              {COPY.goToOffers}
-            </Button>
-          </div>
-        )}
         {people.map((person) => {
           const isSelected = selectedId === person._id;
           const badge = recipientStatusBadge(person.status, recipientType);
@@ -237,7 +250,8 @@ function RecipientCard({ person, disabled, onChange }) {
  */
 export default function IssueLetterPanel(props) {
   if (!props.open) return null;
-  return <IssueLetterSession key={`${props.initialRecipientType || ""}|${props.initialRecipientId || ""}`} {...props} />;
+  const key = `${props.initialRecipientType || ""}|${props.initialRecipientId || ""}|${props.replacesLetterId || ""}`;
+  return <IssueLetterSession key={key} {...props} />;
 }
 
 function IssueLetterSession({
@@ -246,10 +260,11 @@ function IssueLetterSession({
   templateKey = "",
   initialRecipientId = "",
   initialRecipientType = "",
+  replacesLetterId = "",
   recipientRule = null,
   onViewIssued,
   onChangeTemplate,
-  onAddCandidate,
+  canAddCandidate = false,
 }) {
   const toast = useToast();
   const issue = useIssueLetter();
@@ -278,6 +293,10 @@ function IssueLetterSession({
   const [issueError, setIssueError] = useState(null);
   const [downloadingDraft, setDownloadingDraft] = useState(false);
   const [issued, setIssued] = useState(null);
+  const [replacedApplied, setReplacedApplied] = useState(false);
+  const [replaceDone, setReplaceDone] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [addingCandidate, setAddingCandidate] = useState(false);
 
   const fieldRefs = useRef({});
   const searchRef = useRef(null);
@@ -375,6 +394,22 @@ function IssueLetterSession({
     setPicked({ person: initialMatch, type: initialType });
     setSendEmail(Boolean(initialMatch.email));
   }, [initialApplied, initialMatch, initialType]);
+
+  // "Correct and reissue": start from the answers of the letter being replaced (once), and send its id
+  // only while it is still issued — the backend voids it when the corrected letter is issued.
+  const replacing = useIssuedLetter(replacesLetterId, { enabled: Boolean(replacesLetterId) && !replaceDone });
+  const replacedLetter = replacing.data || null;
+  const replaced = !replaceDone && replacedLetter?.status === "issued" ? replacedLetter : null;
+  useEffect(() => {
+    if (replacedApplied || !replaced || !template) return;
+    setReplacedApplied(true);
+    const previous = replaced.values || {};
+    setValues(
+      Object.fromEntries(
+        (template.inputFields || []).filter((field) => previous[field.key] != null).map((field) => [field.key, String(previous[field.key])])
+      )
+    );
+  }, [replacedApplied, replaced, template]);
 
   // Debounce answers together with their generation so a reset (template switch, "Issue another")
   // previews the cleared answers at once instead of the previous letter's still-pending values, and
@@ -476,9 +511,17 @@ function IssueLetterSession({
     issuingRef.current = true;
     try {
       const response = await issue.mutateAsync(
-        buildLetterRequest({ template, recipient, values, editedHtml: editedHtml || null, sendEmail: emailOn })
+        buildLetterRequest({
+          template,
+          recipient,
+          values,
+          editedHtml: editedHtml || null,
+          sendEmail: emailOn,
+          replacesLetterId: replaced?._id || "",
+        })
       );
-      setIssued({ ...response, emailRequested: emailOn });
+      setIssued({ ...response, emailRequested: emailOn, replacedNumber: replaced?.letterNumber || "" });
+      if (replaced) setReplaceDone(true);
       if (emailOn && response?.emailed === false) {
         toast.warning(response.emailError || COPY.emailFailed);
       } else {
@@ -533,12 +576,18 @@ function IssueLetterSession({
     else resetLetter();
   };
 
+  const hasWork = editing || Boolean(editedHtml) || Object.values(values).some((value) => String(value ?? "").trim());
   const requestClose = () => {
     if (issue.isPending) return;
+    if (!issued && hasWork) {
+      setConfirmClose(true);
+      return;
+    }
     onClose();
   };
 
   const settingsHref = vendorScopedPath(window.location, ORG_PROFILE_SETTINGS_PATH);
+  const employeesHref = employeeSearchPath(String(window.location.pathname || "").split("/").filter(Boolean)[0] || "", recipient || {});
 
   const renderSuccess = () => (
     <div className="wz-issue__success" role="status">
@@ -549,6 +598,7 @@ function IssueLetterSession({
       </p>
       {issued.emailed && <p className="wz-letters__section-desc">{format(COPY.emailed, { email: recipient?.email })}</p>}
       {!issued.emailed && issued.emailRequested && <p className="wz-letters__notice wz-letters__notice--warning">{COPY.emailFailed}</p>}
+      {issued.replacedNumber && <p className="wz-letters__section-desc">{format(COPY.successReplaced, { number: issued.replacedNumber })}</p>}
       <p className="wz-letters__section-desc">{COPY.savedNote}</p>
       <Button icon={<Download size={16} />} onClick={handleDownloadIssued}>
         {COPY.downloadPdf}
@@ -582,7 +632,7 @@ function IssueLetterSession({
             inputRef={searchRef}
             onSelect={(person) => pickRecipient(person, template.recipientType)}
             onCancel={recipient ? () => setChangingRecipient(false) : null}
-            onAddCandidate={onAddCandidate}
+            onAddCandidate={canAddCandidate ? () => setAddingCandidate(true) : undefined}
           />
         )}
       </section>
@@ -640,6 +690,38 @@ function IssueLetterSession({
     window.addEventListener("focus", recheckCompany);
     return () => window.removeEventListener("focus", recheckCompany);
   }, [watchCompany, recheckCompany]);
+
+  const replaceNotice = !replacesLetterId || replaceDone
+    ? ""
+    : replacing.isError
+      ? COPY.replacesLoadError
+      : replacedLetter && replacedLetter.status !== "issued"
+        ? format(COPY.replacesAlreadyVoid, { number: replacedLetter.letterNumber })
+        : "";
+
+  const renderLetterNotes = () => (
+    <>
+      {replaced && (
+        <div className="wz-letters__notice" role="status">
+          <p className="wz-issue__error-text">{format(COPY.replacesNotice, { number: replaced.letterNumber })}</p>
+          {replaced.isEdited && <p className="wz-issue__error-text">{format(COPY.replacesEditedNote, { number: replaced.letterNumber })}</p>}
+        </div>
+      )}
+      {replaceNotice && <p className="wz-letters__notice wz-letters__notice--warning" role="status">{replaceNotice}</p>}
+      {template?.key === "termination" && (
+        <div className="wz-letters__notice wz-letters__notice--warning">
+          <p className="wz-issue__error-text">{COPY.terminationNote}</p>
+          <div className="wz-letters__badges">
+            <a className="wz-issue__link" href={employeesHref} target="_blank" rel="noreferrer">
+              {COPY.goToEmployees}
+              <ExternalLink size={14} aria-hidden="true" />
+            </a>
+          </div>
+        </div>
+      )}
+      {template?.key === "transfer" && <p className="wz-letters__notice">{COPY.transferNote}</p>}
+    </>
+  );
 
   const renderWarnings = () => (
     <>
@@ -758,6 +840,7 @@ function IssueLetterSession({
             </Button>
           </div>
         )}
+        {renderLetterNotes()}
         {renderRecipient()}
         {renderQuestions()}
         {renderWarnings()}
@@ -853,6 +936,27 @@ function IssueLetterSession({
       footer={footer}
     >
       {body}
+      {canAddCandidate && (
+        <CandidateDrawer
+          open={addingCandidate}
+          candidate={null}
+          onClose={() => setAddingCandidate(false)}
+          onSaved={(saved) => pickRecipient(candidateAsRecipient(saved), "candidate")}
+        />
+      )}
+      <ConfirmDialog
+        open={confirmClose}
+        variant="destructive"
+        title={COPY.discardTitle}
+        message={COPY.discardMessage}
+        confirmLabel={COPY.discard}
+        cancelLabel={COPY.keepEditing}
+        onConfirm={() => {
+          setConfirmClose(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmClose(false)}
+      />
     </Drawer>
   );
 }

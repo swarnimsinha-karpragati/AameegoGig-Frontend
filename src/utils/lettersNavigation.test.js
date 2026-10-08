@@ -6,6 +6,7 @@ import {
   canonicalLettersParams,
   convertCandidatePath,
   employeeLetterActions,
+  employeeSearchPath,
   readEmployeesSearch,
   getIssueRecipientRule,
   CONSULTANCY_RECIPIENT_RULE,
@@ -81,6 +82,7 @@ describe("resolveLettersView", () => {
       issueTemplateKey: "",
       recipientId: "",
       recipientType: "",
+      replacesLetterId: "",
       forRecipient: "",
       forType: "employee",
     });
@@ -410,13 +412,6 @@ describe("links into Employees", () => {
   });
 });
 
-describe("lettersChanges.openOffers", () => {
-  it("closes the issue panel and lands on Offer candidates", () => {
-    const next = applyLettersChanges(p("tab=issue&issue=t1&recipient=abc&recipientType=candidate&issueKey=offer"), lettersChanges.openOffers());
-    expect(next.toString()).toBe("tab=offers");
-  });
-});
-
 describe("employeeLetterActions (Employees row menu)", () => {
   const VIEW_ONLY = { canView: true };
   const CONSULTANCY_ONLY = { canIssueConsultancyAgreement: true };
@@ -450,3 +445,28 @@ describe("employeeLetterActions (Employees row menu)", () => {
     });
   });
 });
+
+describe("correct and reissue link", () => {
+  const ID = "64b000000000000000000011";
+  const tabs = getLettersTabs(FULL);
+  it("carries the letter being replaced and clears it when the panel closes", () => {
+    const opened = applyLettersChanges(p(""), lettersChanges.openIssue({ templateId: "t1", recipientId: ID, recipientType: "employee", replacesLetterId: ID }));
+    expect(resolveLettersView(opened, tabs, FULL).replacesLetterId).toBe(ID);
+    const closed = applyLettersChanges(opened, lettersChanges.closeIssue());
+    expect(closed.has("replaces")).toBe(false);
+  });
+
+  it("drops a malformed or orphaned replaces param", () => {
+    expect(normalizeLettersParams(p("issue=t1&replaces=nope"), tabs, FULL).has("replaces")).toBe(false);
+    expect(normalizeLettersParams(p(`replaces=${ID}`), tabs, FULL).has("replaces")).toBe(false);
+  });
+});
+
+describe("employeeSearchPath", () => {
+  it("searches Employees for the person's code, else their name", () => {
+    expect(employeeSearchPath("acme", { code: "EMP001", name: "Asha Rao" })).toBe("/acme/employees?search=EMP001");
+    expect(employeeSearchPath("acme", { name: "Asha Rao" })).toBe("/acme/employees?search=Asha+Rao");
+    expect(employeeSearchPath("acme", {})).toBe("/acme/employees");
+  });
+});
+

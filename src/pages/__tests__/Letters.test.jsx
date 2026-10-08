@@ -71,7 +71,7 @@ jest.mock("../../components/letters/IssueLetterPanel", () => (props) =>
       {props.onViewIssued && (
         <button onClick={() => props.onViewIssued({ _id: "0000000000000000000000e1" }, "employee")}>panel: view issued</button>
       )}
-      {props.onAddCandidate && <button onClick={props.onAddCandidate}>panel: add candidate</button>}
+      {props.canAddCandidate && <span>panel: can add candidate</span>}
     </div>
   ) : null
 );
@@ -227,18 +227,15 @@ it("goes to the person's issued letters after issuing", async () => {
   expect(screen.queryByTestId("panel")).not.toBeInTheDocument();
 });
 
-it("sends people with no candidate to offer to Offer candidates, closing the panel", async () => {
+it("lets people who manage candidates add one from the issue panel", () => {
   renderAt("issue=t-offer");
-  await userEvent.click(screen.getByText("panel: add candidate"));
-  expect(lastUrl()).toBe("tab=offers");
-  expect(screen.queryByTestId("panel")).not.toBeInTheDocument();
-  expect(screen.getByTestId("offers")).toHaveAttribute("data-focus", "true");
+  expect(screen.getByText("panel: can add candidate")).toBeInTheDocument();
 });
 
 it("does not offer adding a candidate to people who cannot manage candidates", () => {
   renderAt("issue=t-offer", { ...FULL, canManageOffers: false });
   expect(screen.getByTestId("panel")).toBeInTheDocument();
-  expect(screen.queryByText("panel: add candidate")).not.toBeInTheDocument();
+  expect(screen.queryByText("panel: can add candidate")).not.toBeInTheDocument();
 });
 
 it("limits consultancy-only issuers to the consultancy agreement, on the home screen and in the panel", () => {

@@ -5,9 +5,13 @@ import IssueLetterPanel from "../IssueLetterPanel";
 import renderWithProviders from "../testing/renderWithProviders";
 import * as templateService from "../../../services/letterTemplateService";
 import * as letterService from "../../../services/letterService";
+import * as candidateService from "../../../services/offerCandidateService";
+import * as departmentService from "../../../services/departmentService";
 
 jest.mock("../../../services/letterTemplateService");
 jest.mock("../../../services/letterService");
+jest.mock("../../../services/offerCandidateService");
+jest.mock("../../../services/departmentService");
 jest.mock("../RichTextEditor", () => {
   const { forwardRef } = require("react");
   return forwardRef(function MockEditor({ value, onChange, label, allowSource }, ref) {
@@ -253,36 +257,32 @@ describe("who the letter is for", () => {
     }
   });
 
-  it("explains when no candidate is waiting for an offer and links to Offer candidates", async () => {
+  it("explains when no candidate is waiting for an offer", async () => {
     letterService.getLetterRecipients.mockResolvedValue([]);
-    const onAddCandidate = jest.fn();
-    open({ templateId: "t2", onAddCandidate });
-    expect(
-      await screen.findByText("No candidates waiting for an offer. Add a candidate in Offer candidates first.")
-    ).toBeInTheDocument();
-    userEvent.click(screen.getByRole("button", { name: "Go to Offer candidates" }));
-    expect(onAddCandidate).toHaveBeenCalledTimes(1);
+    open({ templateId: "t2", canAddCandidate: true });
+    expect(await screen.findByText("No candidates waiting for an offer. Add a new candidate to send one.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add new candidate" })).toBeInTheDocument();
   });
 
-  it("explains the empty offer list without a link for people who cannot add candidates", async () => {
+  it("offers no Add new candidate to people who cannot add candidates, or for employee letters", async () => {
     letterService.getLetterRecipients.mockResolvedValue([]);
     open({ templateId: "t2" });
     expect(await screen.findByText(/No candidates waiting for an offer/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Go to Offer candidates" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add new candidate" })).not.toBeInTheDocument();
   });
 
   it("uses plain candidate wording when another candidate letter has nobody to go to", async () => {
     templateService.getLetterTemplates.mockResolvedValue([WARNING, OFFER, NDA]);
     letterService.getLetterRecipients.mockResolvedValue([]);
-    open({ templateId: "t5", onAddCandidate: jest.fn() });
-    expect(await screen.findByText("No candidates yet. Add a candidate in Offer candidates first.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Go to Offer candidates" })).toBeInTheDocument();
+    open({ templateId: "t5", canAddCandidate: true });
+    expect(await screen.findByText("No candidates yet. Add a new candidate to continue.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add new candidate" })).toBeInTheDocument();
     expect(screen.queryByText(/waiting for an offer/)).not.toBeInTheDocument();
   });
 
   it("keeps the no-match message while searching", async () => {
     letterService.getLetterRecipients.mockResolvedValue([]);
-    open({ templateId: "t2", onAddCandidate: jest.fn() });
+    open({ templateId: "t2", canAddCandidate: true });
     await screen.findByText(/No candidates waiting for an offer/);
     userEvent.type(screen.getByLabelText("Who is this for?"), "zed");
     expect(await screen.findByText("No one matches “zed”.")).toBeInTheDocument();
@@ -919,5 +919,131 @@ describe("letters only some people can receive (NEW-05)", () => {
     expect(screen.queryByText(/The person in the link/)).not.toBeInTheDocument();
     expect(await screen.findByTestId("issue-recipient-card")).toHaveTextContent("Asha Rao");
     expect(screen.queryByText(/The person in the link/)).not.toBeInTheDocument();
+  });
+});
+
+describe("closing with work in progress", () => {
+  it("asks before discarding typed answers, and keeps them on Keep editing", async () => {
+    const onClose = jest.fn();
+    open({ templateId: "t1", initialRecipientId: "e1", initialRecipientType: "employee", onClose });
+    await screen.findByTestId("issue-recipient-card");
+    userEvent.type(await screen.findByLabelText(/^Reason/), "Late");
+
+    userEvent.keyboard("{Escape}");
+    expect(await screen.findByRole("dialog", { name: "Discard this letter?" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Discard this letter?" })).not.toBeInTheDocument());
+    expect(screen.getByLabelText(/^Reason/)).toHaveValue("Late");
+
+    userEvent.click(screen.getByRole("button", { name: "Close" }));
+    userEvent.click(await screen.findByRole("button", { name: "Discard" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes at once when nothing was typed", async () => {
+    const onClose = jest.fn();
+    open({ templateId: "t1", onClose });
+    await screen.findByLabelText(/Incident date/);
+    userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: "Discard this letter?" })).not.toBeInTheDocument();
+  });
+});
+
+describe("letters that change records elsewhere", () => {
+  it("points termination letters to Employees → Terminate", async () => {
+    templateService.getLetterTemplates.mockResolvedValue([{ ...SIMPLE, _id: "t9", key: "termination", name: "Termination Letter" }]);
+    open({ templateId: "t9" });
+    expect(await screen.findByText(/Termination letters are issued from Employees → Terminate/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Go to Employees/ })).toHaveAttribute("target", "_blank");
+  });
+
+  it("explains that a transfer letter does not move the employee", async () => {
+    templateService.getLetterTemplates.mockResolvedValue([{ ...SIMPLE, _id: "t8", key: "transfer", name: "Transfer Letter" }]);
+    open({ templateId: "t8" });
+    expect(await screen.findByText(/This only creates the letter/)).toBeInTheDocument();
+  });
+});
+
+describe("correct and reissue", () => {
+  const OLD = {
+    _id: "64b000000000000000000011",
+    letterNumber: "ACM/WRN/2026/0003",
+    status: "issued",
+    isEdited: true,
+    values: { incidentDate: "2026-09-30", reason: "Late arrival", severity: "First" },
+  };
+
+  it("starts from the old letter's answers and replaces it when issued", async () => {
+    letterService.getIssuedLetter.mockResolvedValue(OLD);
+    letterService.issueLetter.mockResolvedValue({ letter: { _id: "L5", letterNumber: "ACM/WRN/2026/0004" }, emailed: false });
+    open({ templateId: "t1", initialRecipientId: "e1", initialRecipientType: "employee", replacesLetterId: OLD._id });
+
+    expect(await screen.findByText(/This corrects letter ACM\/WRN\/2026\/0003/)).toBeInTheDocument();
+    expect(screen.getByText(/those edits are not carried over/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText(/^Reason/)).toHaveValue("Late arrival"));
+    expect(screen.getByLabelText(/Incident date/)).toHaveValue("2026-09-30");
+    await screen.findByTestId("issue-recipient-card");
+    await waitForPreview();
+
+    userEvent.click(screen.getByRole("button", { name: "Issue letter" }));
+    await waitFor(() => expect(letterService.issueLetter).toHaveBeenCalled());
+    expect(letterService.issueLetter.mock.calls[0][0]).toMatchObject({ replacesLetterId: OLD._id, employeeId: "e1" });
+    expect(await screen.findByText("Letter ACM/WRN/2026/0003 was voided and replaced by this one.")).toBeInTheDocument();
+  });
+
+  it("issues a plain new letter when the old one is already void", async () => {
+    letterService.getIssuedLetter.mockResolvedValue({ ...OLD, status: "void" });
+    open({ templateId: "t1", initialRecipientId: "e1", initialRecipientType: "employee", replacesLetterId: OLD._id });
+    expect(await screen.findByText("Letter ACM/WRN/2026/0003 is already void, so this is issued as a new letter.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Reason/)).toHaveValue("");
+  });
+});
+
+describe("adding a candidate from the panel", () => {
+  beforeEach(() => {
+    localStorage.setItem("user", JSON.stringify({ vendorId: "v1" }));
+    departmentService.getDepartmentName.mockResolvedValue({ data: [] });
+  });
+
+  it("creates the candidate without leaving the letter and selects them", async () => {
+    candidateService.createOfferCandidate.mockResolvedValue({
+      _id: "c9",
+      name: "Meera Iyer",
+      email: "meera@example.com",
+      designation: "Analyst",
+      departmentName: "",
+      status: "draft",
+    });
+    open({ templateId: "t2", canAddCandidate: true });
+    userEvent.click(await screen.findByRole("button", { name: "Add new candidate" }));
+
+    const drawer = await screen.findByRole("dialog", { name: "Add candidate" });
+    userEvent.type(within(drawer).getByLabelText(/Full name/), "Meera Iyer");
+    userEvent.type(within(drawer).getByLabelText(/^Email/), "meera@example.com");
+    userEvent.type(within(drawer).getByLabelText(/^Role/), "Analyst");
+    userEvent.type(within(drawer).getByLabelText(/Annual CTC/), "600000");
+    userEvent.type(within(drawer).getByLabelText(/Joining date/), new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10));
+    userEvent.click(within(drawer).getByRole("button", { name: "Add candidate" }));
+
+    await waitFor(() => expect(candidateService.createOfferCandidate).toHaveBeenCalled());
+    expect(await screen.findByTestId("issue-recipient-card")).toHaveTextContent("Meera Iyer");
+    expect(screen.queryByRole("dialog", { name: "Add candidate" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Offer Letter" })).toBeInTheDocument();
+  });
+
+  it("Escape closes only the candidate form, not the letter", async () => {
+    const onClose = jest.fn();
+    open({ templateId: "t2", canAddCandidate: true, onClose });
+    userEvent.click(await screen.findByRole("button", { name: "Add new candidate" }));
+    await screen.findByRole("dialog", { name: "Add candidate" });
+
+    userEvent.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add candidate" })).not.toBeInTheDocument());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Offer Letter" })).toBeInTheDocument();
   });
 });

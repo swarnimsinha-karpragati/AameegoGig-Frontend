@@ -147,3 +147,25 @@ it("moves focus to its heading only when asked", () => {
   setup();
   expect(screen.getByRole("heading", { name: "Issued letters", level: 2 })).not.toHaveFocus();
 });
+
+it("offers Correct and reissue on issued letters that still have a template", async () => {
+  const onReissue = jest.fn();
+  const withTemplate = LETTERS.map((l) => ({ ...l, templateId: "t1" }));
+  letterService.getIssuedLetters.mockResolvedValue({ letters: withTemplate, pagination: { page: 1, limit: 20, total: 3, totalPages: 1 } });
+  setup({ onReissue });
+  await screen.findByText("WRN/2026/0001");
+
+  await openMenu("WRN/2026/0001");
+  await userEvent.click(screen.getByRole("menuitem", { name: /Correct and reissue/ }));
+  expect(onReissue).toHaveBeenCalledWith(expect.objectContaining({ _id: "L1" }));
+
+  const voidItems = (await openMenu("OFR/2026/0002")).map((el) => el.textContent);
+  expect(voidItems).not.toContain("Correct and reissue");
+});
+
+it("hides Correct and reissue for letters without a template (legacy files)", async () => {
+  setup({ onReissue: jest.fn() });
+  await screen.findByText("WRN/2026/0001");
+  const items = (await openMenu("WRN/2026/0001")).map((el) => el.textContent);
+  expect(items).not.toContain("Correct and reissue");
+});

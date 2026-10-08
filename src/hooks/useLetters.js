@@ -13,6 +13,7 @@ import {
 } from "../services/letterTemplateService";
 import {
   emailIssuedLetter,
+  getIssuedLetter,
   getIssuedLetters,
   getLetterRecipients,
   issueLetter,
@@ -125,6 +126,15 @@ export function useIssuedLetters(params = {}, options = {}) {
     queryFn: () => getIssuedLetters(params),
     placeholderData: (previous) => previous,
     ...options,
+  });
+}
+
+export function useIssuedLetter(id, options = {}) {
+  return useQuery({
+    queryKey: [ISSUED_LETTERS_KEY, "detail", id],
+    queryFn: () => getIssuedLetter(id),
+    ...options,
+    enabled: Boolean(id) && options.enabled !== false,
   });
 }
 

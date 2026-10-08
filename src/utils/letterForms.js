@@ -324,7 +324,7 @@ export const isDraftDirty = (draft, baseline) =>
   JSON.stringify(draftToPayload(draft)) !== JSON.stringify(draftToPayload(baseline));
 
 /** Request body shared by letter preview and issue. */
-export const buildLetterRequest = ({ template, recipient, values = {}, editedHtml = null, sendEmail = false }) => ({
+export const buildLetterRequest = ({ template, recipient, values = {}, editedHtml = null, sendEmail = false, replacesLetterId = "" }) => ({
   templateId: template?._id,
   recipientType: template?.recipientType,
   ...(template?.recipientType === "candidate" ? { candidateId: recipient?._id } : { employeeId: recipient?._id }),
@@ -333,6 +333,7 @@ export const buildLetterRequest = ({ template, recipient, values = {}, editedHtm
   ),
   ...(editedHtml ? { editedHtml } : {}),
   ...(sendEmail ? { sendEmail: true } : {}),
+  ...(replacesLetterId ? { replacesLetterId } : {}),
 });
 
 export const buildInputFieldChecks = (inputFields = [], values = {}) =>

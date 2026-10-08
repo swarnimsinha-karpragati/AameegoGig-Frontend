@@ -100,6 +100,7 @@ export const LETTERS_COPY = deepFreeze({
     emailAction: "Email to recipient",
     emailActionDisabled: "Email (no email on file)",
     voidAction: "Void",
+    reissueAction: "Correct and reissue",
     downloadError: "Could not download the letter.",
     emailTitle: "Email this letter?",
     emailMessage: "The PDF is sent to {email}.",
@@ -141,8 +142,8 @@ export const LETTERS_COPY = deepFreeze({
     loadPeopleError: "Could not load people. Try again in a moment.",
     noPeople: "No one found.",
     noPeopleMatch: "No one matches “{query}”.",
-    noOfferCandidates: "No candidates waiting for an offer. Add a candidate in Offer candidates first.",
-    noCandidates: "No candidates yet. Add a candidate in Offer candidates first.",
+    noOfferCandidates: "No candidates waiting for an offer. Add a new candidate to send one.",
+    noCandidates: "No candidates yet. Add a new candidate to continue.",
     /** Keyed by the template's `recipientRule` (mirrors backend RECIPIENT_RULES). */
     recipientRules: {
       consultancy: {
@@ -155,7 +156,7 @@ export const LETTERS_COPY = deepFreeze({
     },
     linkedRecipientUnavailable: "The person in the link can't receive {letter}. Choose someone below.",
     linkedRecipientError: "Couldn't load the person from the link. Choose them below.",
-    goToOffers: "Go to Offer candidates",
+    addCandidate: "Add new candidate",
     chooseRecipient: "Choose who this letter is for",
     change: "Change",
     noEmailOnFile: "No email on file",
@@ -206,6 +207,19 @@ export const LETTERS_COPY = deepFreeze({
     issueAnother: "Issue another",
     viewIssued: "View issued letters",
     done: "Done",
+    replacesNotice: "This corrects letter {number}. When you issue this one, {number} is voided automatically.",
+    replacesEditedNote: "The wording of {number} was edited by hand — those edits are not carried over, so edit the wording again if needed.",
+    replacesAlreadyVoid: "Letter {number} is already void, so this is issued as a new letter.",
+    replacesLoadError: "Couldn't load the letter being corrected. Issuing now creates a new letter and leaves the old one as it is.",
+    successReplaced: "Letter {number} was voided and replaced by this one.",
+    terminationNote:
+      "Termination letters are issued from Employees → Terminate, which also records the employee's exit. Use this only for someone who has already been terminated.",
+    goToEmployees: "Go to Employees",
+    transferNote: "This only creates the letter. To move the employee, change their department in Employees.",
+    discardTitle: "Discard this letter?",
+    discardMessage: "Your answers and wording changes will be lost.",
+    discard: "Discard",
+    keepEditing: "Keep editing",
   },
   editor: {
     questions: "Questions to ask when issuing",
