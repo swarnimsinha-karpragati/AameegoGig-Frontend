@@ -537,6 +537,14 @@ function Departments() {
             inputMode="decimal"
             value={form.geofenceRadiusMeters}
             onChange={handleChange}
+            onKeyDown={(e) => {
+              const allowedKeys = ["Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+              const isNumber = /^[0-9]$/.test(e.key);
+              const isDecimal = e.key === "." && !e.target.value.includes(".");
+              if (!isNumber && !isDecimal && !allowedKeys.includes(e.key)) {
+                e.preventDefault();
+              }
+            }}
             disabled={isDisabled}
             placeholder="e.g. 200"
             aria-invalid={Boolean(geoErrors.geofenceRadiusMeters)}
@@ -703,7 +711,7 @@ function Departments() {
                   Cancel
                 </Button>
                 <Button type="submit" form="department-core-form">
-                  {isEditing ? "Apply Changes" : "Create Group"}
+                  {isEditing ? "Apply Changes" : "Create"}
                 </Button>
               </>
             }
