@@ -4,12 +4,6 @@
     box-sizing: border-box;
 }
 
-body {
-    margin: 0;
-    padding: 0;
-    background-color: #F8FAFC;
-    overflow: hidden; /* Absolutely no page scrolling */
-}
 
 /* Strict 100vh Wrapper */
 .login-wrapper {
