@@ -1,458 +1,517 @@
-/* ================= GLOBAL LAYOUT ================= */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
 
-.bg-image {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    /* or cover */
-    z-index: -1;
-}
-
-.login-container {
-    min-height: 100vh;
-    min-height: 100dvh;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    background-repeat: no-repeat;
-    background-position: center center;
-    background-size: cover;
-    overflow-x: clip;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-.login-content {
-    display: grid;
-    grid-template-columns: 1.1fr 0.9fr;
-    width: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 40px 24px 24px;
-    align-items: center;
-    flex: 1;
-    gap: 32px;
-    min-width: 0;
+* {
     box-sizing: border-box;
 }
 
-/* ================= LEFT HERO SIDE ================= */
-.hero-section {
-    color: #ffffff;
-    padding-right: 50px;
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #F8FAFC;
+    overflow: hidden; /* Absolutely no page scrolling */
+}
+
+/* Strict 100vh Wrapper */
+.login-wrapper {
+    font-family: 'Sora', sans-serif;
+    height: 100vh; 
+    height: 100dvh; 
+    width: 100vw;
     display: flex;
     flex-direction: column;
-    gap: 30px;
-    min-width: 0;
+    background-color: #F8FAFC;
+    overflow: hidden;
 }
 
-.hero-text-block h1 {
-    font-size: 42px;
-    font-weight: 700;
-    line-height: 1.2;
-    margin-bottom: 15px;
-    margin-top: 0;
+/* Main Area: Flexes to fill remaining space */
+.login-main {
+    display: flex;
+    flex: 1;
+    padding: 2vh 4vw; 
+    background-size: cover;
+    background-position: top;
+    align-items: center; 
+    overflow: hidden;
+    position: relative; /* REQUIRED for the overlay and pills */
 }
 
-.hero-subtitle {
-    font-size: 16px;
-    opacity: 0.9;
-    line-height: 1.5;
-    max-width: 480px;
+/* The overlay layer that fills the main area */
+.login-overlay {
+    background-color: #1f5da318;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1; /* Sits right above the background image */
 }
 
-/* Feature List */
-.features-list {
+/* --- Left Side / Hero --- */
+.login-left {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    padding-top: 2rem;
+    padding-right: 2rem;
+    height: 100%;
+    position: relative; 
+    z-index: 2; /* Ensures text and pills sit ABOVE the blue overlay */
 }
 
-.feature-item {
+/* Floating Pills Styles */
+.floating-pill {
+    position: absolute;
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
+    background: #FFFFFF;
+    padding: 10px 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    pointer-events: none; /* So they don't block clicks */
 }
 
-.feature-icon {
-    background: #ffffff;
-    backdrop-filter: blur(5px);
-    width: 47px;
-    height: 46px;
+.blue-collar {
+    left: 0%;
+    top: 65%;
+}
+
+.white-collar {
+    right: 15%;
+    top: 45%;
+}
+
+.pill-icon {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
-    font-size: 18px;
 }
 
-.feature-info h3 {
-    font-size: 15px;
-    font-weight: 600;
+.blue-icon {
+    background: #E0F2FE;
+    color: #0284C7;
 }
 
-.feature-info p {
-    font-size: 13px;
-    opacity: 0.8;
+.green-icon {
+    background: #D1FAE5;
+    color: #059669;
 }
 
-/* Security Badge */
-.security-badge {
-    top: 5px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
-    padding: 14px 26px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    max-width: fit-content;
-    margin-top: 28px;
-}
-
-.shield-icon {
-    font-size: 20px;
-}
-
-.security-badge strong {
-    font-size: 12px;
-    display: block;
-    letter-spacing: 1px;
-}
-
-.security-badge p {
-    font-size: 11px;
-    opacity: 0.8;
-}
-
-/* ================= RIGHT FORM CARD SIDE ================= */
-.form-section {
+.pill-text {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    position: relative;
-    width: 100%;
-    min-width: 0;
 }
 
-.help-link {
-    position: absolute;
-    top: -35px;
-    right: 20px;
-    color: #0369a1;
-    font-weight: 600;
-    font-size: 14px;
-    cursor: pointer;
-    text-decoration: none;
+.pill-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1A2353;
 }
 
-.form-card {
-    background: #ffffff;
-    width: 100%;
-    max-width: 580px;
-    border-radius: 24px;
-    padding: 40px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-    box-sizing: border-box;
-}
-
-.form-brand {
-    display: inline-flex;
-    align-items: center;
-    margin-bottom: 24px;
-    text-decoration: none;
-}
-
-.form-brand img {
-    height: 40px;
-    width: auto;
-    max-width: 220px;
-    display: block;
-    object-fit: contain;
-}
-
-.form-header h2 {
-    font-size: 24px;
-    color: #1e293b;
-    margin: 0 0 6px;
-}
-
-.form-header p {
-    font-size: 14px;
-    color: #64748b;
-    margin: 0 0 24px;
-}
-
-/* Inputs */
-.input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 18px;
-}
-
-.input-group label {
-    font-size: 13px;
-    font-weight: 600;
-    color: #334155;
-}
-
-.input-group input {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    padding: 12px 16px;
-    font-size: 14px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    outline: none;
-    transition: border-color 0.2s;
-    color: #334155;
-}
-
-.input-group input:focus {
-    border-color: #0284c7;
-    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
-}
-
-.helper-text {
-    font-size: 11px;
-    color: #94a3b8;
+.pill-subtitle {
+    font-size: 0.65rem;
+    color: #64748B;
     margin-top: 2px;
 }
 
-/* Utilities (Remember me & Forgot links) */
-.form-utilities {
-    display: flex;
-    justify-content: space-between;
+/* Typography & Layout */
+.brand-logo { margin-bottom: 3vh; display: block; }
+.brand-logo img { height: 45px; }
+
+.hrms-pill {
+    display: inline-flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 24px;
-    font-size: 12px;
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    letter-spacing: 0.5px;
+    margin-bottom: 2vh;
+    width: fit-content;
+}
+
+.hrms-pill .dot {
+    width: 6px;
+    height: 6px;
+    background: #3B82F6;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.hero-title {
+    font-size: 3rem; 
+    line-height: 1.1;
+    font-weight: 700;
+    color: #0A1F4A;
+    margin: 0 0 2vh 0;
+}
+
+.hero-title .text-green { color: #0BA896; }
+
+.hero-subtitle {
+    font-size: 0.8rem;
+    color: #111112;
+    max-width: 50%;
+    line-height: 1.6;
+}
+
+/* --- Right Side / Form Card --- */
+.login-right {
+    width: 480px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    z-index: 10;
+    height: 100%;
+    position: relative; 
+    z-index: 2; /* Ensures form card sits ABOVE the blue overlay */
+}
+
+.form-card {
+    background: #FFFFFF;
+    border-radius: 24px;
+    padding: 4vh 3rem; 
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+    max-height: 95%; /* Prevents breaking strict 100vh on tiny screens */
+    display: flex;
+    flex-direction: column;
+}
+
+.form-card form {
+    overflow-y: auto; /* If screen is tiny, ONLY form fields scroll inside card */
+    padding-right: 4px;
+}
+
+.form-card form::-webkit-scrollbar {
+    width: 4px;
+}
+.form-card form::-webkit-scrollbar-thumb {
+    background: #E2E8F0;
+    border-radius: 4px;
+}
+
+.form-header h2 {
+    font-size: 1.7rem;
+    color: #1A2353;
+    margin: 0 0 0.5vh 0;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.form-header p {
+    font-size: 0.8rem;
+    color: #64748B;
+    margin: 0 0 2vh 0;
+    flex-shrink: 0;
+}
+
+.input-group {
+    margin-bottom: 2vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.input-group label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #1A2353;
+    margin-bottom: 0.5rem;
+}
+
+.input-group input {
+    padding: 0.85rem 1rem;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #1E293B;
+    outline: none;
+    transition: all 0.2s;
+    background: #FFFFFF; /* Ensures inputs are white even on F8FAFC background */
+}
+
+/* FIX: Removes Chrome Autocomplete Blue Background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active{
+    -webkit-box-shadow: 0 0 0 30px white inset !important;
+    -webkit-text-fill-color: #1E293B !important;
+}
+
+.input-group input:focus {
+    border-color: #59B39B;
+    background: #FFFFFF;
+    box-shadow: 0 0 0 3px rgba(89, 179, 155, 0.1);
+}
+
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrapper input {
+    width: 100%;
+    padding-right: 2.5rem;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #94A3B8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.forgot-links {
+    text-align: right;
+    margin-top: 0.5rem;
+}
+
+.forgot-link {
+    font-size: 0.85rem;
+    color: #1A2353;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.forgot-link:hover { text-decoration: underline; }
+
+.helper-text {
+    font-size: 0.75rem;
+    color: #94A3B8;
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
 }
 
 .remember-me {
     display: flex;
     align-items: center;
-    gap: 6px;
-    color: #475569;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #64748B;
+    font-weight: 600;
+    margin: 1.5vh 0;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.remember-me input {
+    width: 18px;
+    height: 18px;
+    accent-color: #1A2353;
     cursor: pointer;
 }
 
-.forgot-links {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
+.btn-login {
+    width: 100%;
+    padding: 1rem;
+    background: #0A1F4A;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    margin-bottom: 1vh;
 }
 
-.forgot-links a {
-    color: #0284c7;
-    text-decoration: none;
+.btn-login:hover { background: #0F172A; }
+.btn-login:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.error-message {
+    color: #EF4444;
+    font-size: 0.875rem;
+    margin-bottom: 1vh;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+/* --- Footer Elements --- */
+.form-footer {
+    display: flex;
+    flex-direction: column;
+    margin-top: 2vh;
+    text-align: center;
+    border-top: 1px solid #E2E8F0;
+    padding-top: 1.5vh;
+    flex-shrink: 0;
+}
+
+.form-footer p {
+    font-size: 0.75rem;
+    color: #94A3B8;
+    margin-bottom: 0.5vh;
+}
+.kp-logo-wrapper{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+.kp-logo-wrapper img { 
+    height: 2rem;
+    background-position: cover;
+}
+
+.footer-tagline {
+    font-size: 0.7rem;
+    color: #94A3B8;
     font-weight: 500;
 }
 
-.forgot-links a:hover {
-    text-decoration: underline;
-}
-
-/* Buttons */
-.btn-login {
-    width: 100%;
-    background: linear-gradient(135deg, #0284c7, #10b981);
-    color: white;
-    border: none;
-    padding: 14px;
-    font-size: 16px;
-    font-weight: 600;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: opacity 0.2s;
-}
-
-.btn-login:hover {
-    opacity: 0.95;
-}
-
-.form-divider {
-    height: 1px;
-    background-color: #f1f5f9;
-    margin: 24px 0;
-}
-
-.action-buttons-group {
+/* --- Bottom Feature Bar --- */
+.bottom-features {
     display: flex;
-    gap: 15px;
+    align-items: center;
+    background: white;
+    padding: 2.5vh 4vw;
+    gap: 3vw;
+    border-top: 1px solid #E2E8F0;
+    flex-shrink: 0; /* Ensures the footer NEVER gets squished */
+    height: auto;
 }
 
-.login-home-link {
-    text-align: center;
+.feature-heading {
+    font-weight: 800;
+    color: #1A2353;
+    font-size: clamp(0.9rem, 1.1vw, 1.125rem);
+    line-height: 1.4;
+    position: relative;
+    padding-bottom: 0.5rem;
+    white-space: nowrap;
 }
 
-.login-home-link a {
-    font-size: 14px;
-    font-weight: 600;
-    color: #0284c7;
-    text-decoration: none;
+.feature-heading::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    height: 3px;
+    background: #59B39B;
+    border-radius: 2px;
 }
 
-.login-home-link a:hover {
-    text-decoration: underline;
-}
-
-.btn-secondary {
+.feature-icons-list {
+    display: flex;
     flex: 1;
-    background: none;
-    border: 1px solid #0284c7;
-    color: #0284c7;
-    padding: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.btn-secondary:hover {
-    background-color: #f0f9ff;
-}
-
-/* ================= FOOTER ================= */
-.footer-copyright {
+.feature-icon-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    font-size: 12px;
-    width: 100%;
+    font-size: clamp(0.65rem, 0.8vw, 0.75rem);
+    color: #64748B;
     font-weight: 600;
-    color: #000000;
-    line-height: 24px;
-    letter-spacing: 0.01em;
-    padding: 12px 16px 20px;
-    box-sizing: border-box;
+    line-height: 1.4;
 }
 
-/* ================= RESPONSIVE ================= */
-@media (max-width: 1100px) {
-    .hero-text-block h1 {
-        font-size: 34px;
-    }
-
-    .hero-section {
-        padding-right: 24px;
-        gap: 22px;
-    }
+.feature-icon-item img {
+    width: 2rem;
+    height: auto;
+    margin-bottom: 8px;
+    opacity: 0.8;
 }
 
-@media (max-width: 900px) {
-    .login-content {
-        display: flex;
+/* =========================================
+   RESPONSIVE MOBILE 
+   Strict 100vh, NO Page Scroll 
+========================================= */
+@media (max-width: 992px) {
+    /* Keep body and wrapper strictly locked */
+    .login-wrapper {
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden; 
+    }
+    body { overflow: hidden; }
+
+    .login-main {
         flex-direction: column;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 0;
-        padding: max(20px, env(safe-area-inset-top, 0px)) 24px 28px;
-        width: 100%;
-    }
-
-    .hero-section {
-        display: none;
-    }
-
-    .form-section {
+        padding: 0;
+        /* Add !important to override the inline React style */
+        background-image: url('../assets/mobile-login.jpg') !important;
+        background-position: top !important; 
+        background-size: contain !important;
         align-items: stretch;
+        overflow: hidden;
+    }
+    
+    /* Top half takes 45% of screen height */
+    .login-left {
+        flex: 0.3; 
+        padding: 1.5rem 1.5rem 0 1.5rem;
+        justify-content: flex-start;
+        height: auto;
+    }
+
+    /* Position Pills inside the Top Half so they don't overlap form */
+    .blue-collar {
+        top: auto;
+        bottom: 1rem;
+        left: 1rem;
+        transform: scale(0.85);
+        transform-origin: bottom left;
+    }
+    
+    .white-collar {
+        top: auto;
+        bottom: 9.5rem;
+        right: 1rem;
+        transform: scale(0.85);
+        transform-origin: bottom right;
+    }
+
+    .brand-logo img { height: 32px; }
+    .hrms-pill { display: none; }
+    .hero-title { font-size: 1.6rem; margin-bottom: 0.5rem; }
+    .hero-subtitle { font-size: 0.8rem; max-width: 80%; color: #0e0e0f; }
+    .bottom-features { display: none; }
+    
+    /* Bottom half takes 55% of screen height */
+    .login-right {
+        flex: 0.7; 
         width: 100%;
-        max-width: 440px;
+        padding: 0;
+        margin-top: 0;
+        overflow: hidden; /* Stops card itself from scrolling page */
     }
-
+    
     .form-card {
-        max-width: none;
-        width: 100%;
-        padding: 28px 24px 24px;
+        padding: 1.5rem 1.5rem;
+        border-radius: 24px 24px 0 0;
+        box-shadow: 0 -10px 40px rgba(0,0,0,0.08);
+        height: 100%; 
+        max-height: 100%;
+        background-color: #F8FAFC; 
     }
 
-    .help-link {
-        position: static;
-        align-self: flex-end;
-        margin: 0 4px 14px;
-        width: auto;
-        text-align: right;
-        color: #0f172a;
-    }
-}
-
-@media (max-width: 640px) {
-    .login-content {
-        padding: max(16px, env(safe-area-inset-top, 0px)) 18px 24px;
-    }
-
-    .form-card {
-        padding: 22px 18px 20px;
-        border-radius: 18px;
-    }
-
-    .form-brand {
-        margin-bottom: 16px;
-    }
-
-    .form-brand img {
-        height: 32px;
-        max-width: 168px;
-    }
-
-    .form-header h2 {
-        font-size: 20px;
-    }
-
-    .form-header p {
-        font-size: 13px;
-        margin-bottom: 16px;
-        line-height: 1.4;
-    }
-
-    .input-group {
-        margin-bottom: 14px;
-    }
-
-    .input-group input {
-        font-size: 16px;
-        padding: 11px 12px;
-    }
-
-    .form-utilities {
-        margin-bottom: 16px;
-        font-size: 12px;
-        gap: 8px;
-    }
-
-    .btn-login {
-        padding: 13px;
-        font-size: 15px;
-    }
-
-    .form-divider {
-        margin: 16px 0;
-    }
-
-    .help-link {
-        font-size: 13px;
-        margin: 0 2px 12px;
-    }
-}
-
-@media (max-width: 400px) {
-    .login-content {
-        padding: max(14px, env(safe-area-inset-top, 0px)) 14px 20px;
-    }
-
-    .form-utilities {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .forgot-links {
-        align-items: flex-start;
+    /* ONLY the form fields scroll internally if screen is tiny */
+    .form-card form { 
+        flex: 1;
+        overflow-y: auto; 
     }
 }
