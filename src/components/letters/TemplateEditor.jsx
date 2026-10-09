@@ -9,6 +9,8 @@ import {
   useSaveLetterTemplate,
 } from "../../hooks/useLetters";
 import useDebouncedValue from "../../hooks/useDebouncedValue";
+import { useAiStatus } from "../../hooks/useAi";
+import { rewriteTemplateText } from "../../services/letterAiService";
 import useUnsavedChangesGuard from "../../hooks/useUnsavedChangesGuard";
 import { previewLetterTemplate } from "../../services/letterTemplateService";
 import {
@@ -27,6 +29,7 @@ import { validateField } from "../../utils/inputValidation";
 import { detailDisplayName, removeFieldFromHtml, usedFieldKeys } from "../../utils/letterPlaceholders";
 import { LETTERS_COPY, format } from "../../utils/lettersCopy";
 import { useToast } from "../Toast";
+import AiReviewPanel from "./ai/AiReviewPanel";
 import EditorSidePanel from "./editor/EditorSidePanel";
 import SaveTemplateDialog from "./editor/SaveTemplateDialog";
 import LetterPreviewFrame from "./LetterPreviewFrame";
@@ -35,11 +38,13 @@ import "./editor/TemplateEditor.css";
 
 const COPY = LETTERS_COPY.editor;
 const MANAGE_COPY = LETTERS_COPY.manage;
+const AI_COPY = LETTERS_COPY.ai;
 const TRY_ISSUING_HINT_ID = "wz-tpl-editor-try-hint";
 
-export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, onSaved, onIssue }) {
+export default function TemplateEditor({ templateId, initialDraft = null, canEdit, canIssue, onExit, onSaved, onIssue }) {
   const toast = useToast();
   const isNew = templateId === "new";
+  const aiStatus = useAiStatus();
   const {
     data: template,
     isLoading,
@@ -68,6 +73,9 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
   const [reloadError, setReloadError] = useState("");
   const [removingIndex, setRemovingIndex] = useState(null);
   const [focusRequest, setFocusRequest] = useState(null);
+  // AI wrote or changed part of the draft since the last save; the save records it.
+  const [aiAssisted, setAiAssisted] = useState(Boolean(initialDraft));
+  const [aiBanner, setAiBanner] = useState(initialDraft);
 
   const archived = template?.status === "archived";
   const readOnly = !canEdit || archived;
@@ -87,7 +95,11 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
   useEffect(() => {
     // A created template keeps its draft until the parent re-mounts the editor on the new id.
     if (isNew) {
-      if (base == null) loadTemplate(null);
+      if (base == null) {
+        loadTemplate(null);
+        // An AI draft starts as unsaved changes on an empty template, so leaving asks first.
+        if (initialDraft?.template) setDraft(templateToDraft(initialDraft.template));
+      }
       return;
     }
     if (!template) return;
@@ -95,7 +107,7 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
     // Only a newer server version replaces the draft (a refetch can return an older copy right
     // after a save), and never while there are local edits — saving those reports the conflict.
     else if (template.version > base.version && !dirty) loadTemplate(template);
-  }, [isNew, template, base, dirty, loadTemplate]);
+  }, [isNew, template, base, dirty, loadTemplate, initialDraft]);
 
   const leaveGuard = useUnsavedChangesGuard(dirty);
 
@@ -169,10 +181,15 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
   /** Saves the draft; resolves to the saved template, or null when the save failed. */
   const persist = async (note) => {
     try {
-      const payload = draftToPayload(draft, { note, version: isNew ? undefined : base?.version });
+      const payload = {
+        ...draftToPayload(draft, { note: note || (aiAssisted && isNew ? AI_COPY.saveNote : ""), version: isNew ? undefined : base?.version }),
+        ...(aiAssisted ? { aiAssisted: true } : {}),
+      };
       const saved = await save.mutateAsync({ id: isNew ? null : templateId, payload });
       toast.success(isNew ? COPY.created : format(COPY.saved, { version: saved?.version ?? "" }));
       setSaveOpen(false);
+      setAiAssisted(false);
+      setAiBanner(null);
       loadTemplate(saved);
       if (isNew && saved?._id) onSaved?.(saved._id);
       return saved;
@@ -287,6 +304,8 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
   }
 
   const missing = (preview.data?.missing || []).map((key) => detailDisplayName(key, labels));
+  const aiEditing = aiStatus.enabled && !readOnly;
+  const rewriteWithAi = async (html, preset, instruction) => (await rewriteTemplateText({ html, preset, instruction })).html;
 
   return (
     <div className="wz-tpl-editor">
@@ -361,6 +380,33 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
           {reloadError && <span className="wz-tpl-editor__conflict-error">{reloadError}</span>}
         </div>
       )}
+      {aiBanner && (
+        <div className="wz-letters__notice" role="note">
+          <p>{aiBanner.fileName ? format(AI_COPY.importedBanner, { file: aiBanner.fileName }) : AI_COPY.draftedBanner}</p>
+          {aiBanner.replacements?.length > 0 && (
+            <details>
+              <summary>{AI_COPY.replacementsTitle}</summary>
+              <ul className="wz-letters__ai-list">
+                {aiBanner.replacements.map((item) => (
+                  <li key={`${item.original}-${item.becomes}`}>
+                    “{item.original}” → {item.becomes}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {aiBanner.notes?.length > 0 && (
+            <>
+              <p>{AI_COPY.notesTitle}</p>
+              <ul className="wz-letters__ai-list">
+                {aiBanner.notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
       {archived && <p className="wz-letters__notice wz-letters__notice--warning">{COPY.archivedNotice}</p>}
       {!canEdit && !archived && <p className="wz-letters__notice">{COPY.readOnlyNotice}</p>}
 
@@ -393,6 +439,8 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
                 disabled={readOnly}
                 detailGroups={placeholderGroups}
                 questionFields={draft.inputFields}
+                onAiRewrite={aiEditing ? rewriteWithAi : undefined}
+                onAiApplied={() => setAiAssisted(true)}
               />
             ) : (
               <div className="wz-preview__state">
@@ -419,6 +467,11 @@ export default function TemplateEditor({ templateId, canEdit, canIssue, onExit, 
           onTemplateReplaced={loadTemplate}
           editingVersion={base?.version}
           onVersionConflict={showConflict}
+          checkPanel={
+            aiStatus.enabled ? (
+              <AiReviewPanel draft={draft} onUpdate={update} onApplied={() => setAiAssisted(true)} disabled={readOnly} />
+            ) : null
+          }
         />
       </div>
 

@@ -38,6 +38,7 @@ jest.mock("../../components/OrgProfileCard", () => () => <div data-testid="org-c
 jest.mock("../../components/SalaryComponentManager", () => () => <div />);
 jest.mock("../../components/SalaryStructure", () => () => <div />);
 jest.mock("../../components/AttendanceSettingsCard", () => () => <div data-testid="attendance-settings-card" />);
+jest.mock("../../components/AiSettingsCard", () => () => <div data-testid="ai-settings-card" />);
 
 const loginAs = (role) => localStorage.setItem("user", JSON.stringify({ role, vendorId: "v1" }));
 

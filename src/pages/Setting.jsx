@@ -31,6 +31,7 @@ import ProbationPolicyManager from "../components/ProbationPolicyManager";
 // import PayrollConfigCard from "../components/PayrollConfigCard";
 import OrgProfileCard from "../components/OrgProfileCard";
 import AttendanceSettingsCard from "../components/AttendanceSettingsCard";
+import AiSettingsCard from "../components/AiSettingsCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
 import SalaryStructure from "../components/SalaryStructure";
 import { roleHasPermission } from "../utils/roles";
@@ -178,7 +179,12 @@ export default function Settings() {
 
           {activeTab === "organization" && <OrgProfileCard />}
 
-          {activeTab === "configuration" && <AttendanceSettingsCard />}
+          {activeTab === "configuration" && (
+            <>
+              <AttendanceSettingsCard />
+              <AiSettingsCard />
+            </>
+          )}
 
           {activeTab === "shifts" && (
             <div className="settings-bottom-grid">

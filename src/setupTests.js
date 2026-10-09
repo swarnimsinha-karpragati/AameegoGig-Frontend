@@ -15,3 +15,6 @@ const emptyRectList = () => Object.assign([], { item: () => null });
   if (typeof proto.getBoundingClientRect !== 'function') proto.getBoundingClientRect = emptyRect;
 });
 if (typeof document.elementFromPoint !== 'function') document.elementFromPoint = () => null;
+
+// AI help is off in tests unless a test turns it on (getAiStatus.mockResolvedValue({ enabled: true, ... })).
+jest.mock('./services/aiService');

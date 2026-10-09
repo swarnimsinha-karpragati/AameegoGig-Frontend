@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
-import { Archive, ArchiveRestore, ArrowLeft, Copy, Eye, FileText, PencilLine, Plus } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Copy, Eye, FileText, FileUp, PencilLine, Plus, Sparkles } from "lucide-react";
 import { Badge, Button, ConfirmDialog, DataTable, DataToolbar, EmptyState, Input, Select } from "../../design-system";
 import useFocusOnMount from "../../hooks/useFocusOnMount";
+import { useAiStatus } from "../../hooks/useAi";
 import { useLetterTemplateAction, useLetterTemplates } from "../../hooks/useLetters";
 import { validateField } from "../../utils/inputValidation";
 import { templateGroup } from "../../utils/letterCatalog";
 import { formatLetterDate, getApiError, recipientTypeLabel } from "../../utils/letterForms";
 import { LETTERS_COPY, format } from "../../utils/lettersCopy";
 import { useToast } from "../Toast";
+import AiTemplateDialog from "./ai/AiTemplateDialog";
 
 const COPY = LETTERS_COPY.manage;
 
@@ -16,7 +18,7 @@ const STATUS_FILTERS = [
   { value: "archived", label: COPY.statusArchived },
 ];
 
-export default function ManageTemplates({ focusHeading = false, onOpen, onCreate, onBack }) {
+export default function ManageTemplates({ focusHeading = false, onOpen, onCreate, onAiDrafted, onBack }) {
   const headingRef = useFocusOnMount(focusHeading);
   const toast = useToast();
   const [search, setSearch] = useState("");
@@ -24,6 +26,9 @@ export default function ManageTemplates({ focusHeading = false, onOpen, onCreate
   const [dialog, setDialog] = useState(null);
   const [duplicateName, setDuplicateName] = useState("");
   const [duplicateError, setDuplicateError] = useState("");
+  const [aiMode, setAiMode] = useState(null);
+  const aiStatus = useAiStatus();
+  const showAi = aiStatus.enabled && Boolean(onAiDrafted);
 
   const { data: templates = [], isLoading, isError, refetch } = useLetterTemplates({ status });
   const action = useLetterTemplateAction();
@@ -117,9 +122,21 @@ export default function ManageTemplates({ focusHeading = false, onOpen, onCreate
           </h2>
           <p className="wz-letters__section-desc">{COPY.description}</p>
         </div>
-        <Button icon={<Plus size={16} />} onClick={onCreate}>
-          {COPY.create}
-        </Button>
+        <div className="wz-letters__actions">
+          {showAi && aiStatus.personalData && (
+            <Button variant="outline" icon={<FileUp size={16} />} onClick={() => setAiMode("import")}>
+              {LETTERS_COPY.ai.importWord}
+            </Button>
+          )}
+          {showAi && (
+            <Button variant="outline" icon={<Sparkles size={16} />} onClick={() => setAiMode("draft")}>
+              {LETTERS_COPY.ai.startWithAi}
+            </Button>
+          )}
+          <Button icon={<Plus size={16} />} onClick={onCreate}>
+            {COPY.create}
+          </Button>
+        </div>
       </div>
 
       <DataToolbar
@@ -169,6 +186,16 @@ export default function ManageTemplates({ focusHeading = false, onOpen, onCreate
         />
       )}
 
+      {aiMode && (
+        <AiTemplateDialog
+          mode={aiMode}
+          onCancel={() => setAiMode(null)}
+          onDrafted={(result) => {
+            setAiMode(null);
+            onAiDrafted(result);
+          }}
+        />
+      )}
       <ConfirmDialog
         open={dialog?.type === "duplicate"}
         title={COPY.duplicateTitle}

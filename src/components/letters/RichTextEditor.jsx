@@ -17,19 +17,22 @@ import {
   MoreHorizontal,
   Plus,
   Redo2,
+  Sparkles,
   Strikethrough,
   Table,
   Underline,
   Undo2,
 } from "lucide-react";
 import FloatingMenu from "../FloatingMenu";
+import { Button, Input, Spinner } from "../../design-system";
 import { useMenuNavigation } from "../../design-system/overlayHooks";
 import DetailPicker, { useDismiss } from "./editor/DetailPicker";
 import { createLetterEditorExtensions } from "./editor/letterEditorExtensions";
 import { isInOptional, optionalTarget } from "./editor/conditionalExtensions";
 import { setEditorLabels } from "./placeholderChipExtension";
-import { buildDetailGroups, detailLabels } from "../../utils/letterForms";
-import { getEditorMode, placeholderToken, unwrapFromEditor, wrapForEditor } from "../../utils/letterPlaceholders";
+import { buildDetailGroups, detailLabels, getApiError } from "../../utils/letterForms";
+import { detailDisplayName, getEditorMode, placeholderToken, unwrapFromEditor, wrapForEditor } from "../../utils/letterPlaceholders";
+import { rangeToStoredHtml, selectionToStoredHtml, templateTextPreview } from "./editor/selectionHtml";
 import { LETTERS_COPY } from "../../utils/lettersCopy";
 import "./editor/editor.css";
 
@@ -121,6 +124,8 @@ const MenuItem = ({ role = "menuitem", checked, icon: Icon, label, disabled, onC
   </button>
 );
 
+const AI_PRESETS = ["formal", "shorter", "clearer", "grammar", "hindi"];
+
 const ALIGNMENTS = [
   { value: "left", icon: AlignLeft },
   { value: "center", icon: AlignCenter },
@@ -144,6 +149,9 @@ const RichTextEditor = forwardRef(function RichTextEditor(
     detailGroups = [],
     questionFields = [],
     allowSource = true,
+    // async (storedHtml, preset, instruction) => rewritten stored HTML. Shows the AI menu when given.
+    onAiRewrite,
+    onAiApplied,
   },
   ref
 ) {
@@ -156,6 +164,10 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const optionalRef = useRef(null);
   const moreRef = useRef(null);
   const alignRef = useRef(null);
+  const aiRef = useRef(null);
+  // AI rewrite of the selection: { phase: custom | loading | ready | error, from, to, original, result?, error? }
+  const [ai, setAi] = useState(null);
+  const [aiInstruction, setAiInstruction] = useState("");
 
   const editor = useEditor({
     extensions: createLetterEditorExtensions(),
@@ -181,7 +193,13 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const selectionState = useEditorState({
     editor,
     selector: ({ editor: ed }) =>
-      ed ? { canMakeOptional: Boolean(optionalTarget(ed.state)), inOptional: isInOptional(ed.state) } : null,
+      ed
+        ? {
+            canMakeOptional: Boolean(optionalTarget(ed.state)),
+            inOptional: isInOptional(ed.state),
+            hasSelection: !ed.state.selection.empty,
+          }
+        : null,
   });
 
   // Serialised so a new array with the same labels does not re-render every chip.
@@ -262,6 +280,43 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const align = ALIGNMENTS.find(({ value: v }) => is({ textAlign: v })) || ALIGNMENTS[0];
   const AlignIcon = align.icon;
   const E = LETTERS_COPY.editor;
+  const AI = LETTERS_COPY.ai;
+  const showAi = Boolean(onAiRewrite) && mode === "rich" && !disabled;
+
+  const requestRewrite = async (target, preset, instruction = "") => {
+    setAi({ ...target, phase: "loading" });
+    try {
+      const result = await onAiRewrite(target.original, preset, instruction);
+      setAi({ ...target, phase: "ready", result });
+    } catch (err) {
+      setAi({ ...target, phase: "error", error: getApiError(err, AI.error).message });
+    }
+  };
+
+  const startAi = (preset) => {
+    const selection = editor && selectionToStoredHtml(editor);
+    if (!selection) return;
+    const target = { from: selection.from, to: selection.to, original: selection.html };
+    if (preset === "custom") {
+      setAiInstruction("");
+      setAi({ ...target, phase: "custom" });
+    } else {
+      requestRewrite(target, preset);
+    }
+  };
+
+  const applyAi = () => {
+    // The letter may have changed while AI was working; replace only the exact text that was sent.
+    if (rangeToStoredHtml(editor, ai.from, ai.to) !== ai.original) {
+      setAi({ ...ai, phase: "error", error: AI.selectionChanged });
+      return;
+    }
+    editor.chain().focus().insertContentAt({ from: ai.from, to: ai.to }, wrapForEditor(ai.result)).run();
+    setAi(null);
+    onAiApplied?.();
+  };
+
+  const aiLabels = detailLabels(detailGroups, questionFields).labels;
 
   return (
     <div className={`wz-rte${error ? " has-error" : ""}${disabled ? " is-disabled" : ""}`}>
@@ -316,6 +371,20 @@ const RichTextEditor = forwardRef(function RichTextEditor(
             onClick={() => togglePopover("optional")}
           />
         )}
+        {showAi && (
+          <>
+            <span className="wz-rte__sep" aria-hidden="true" />
+            <TextToolButton
+              label={AI.menu}
+              icon={Sparkles}
+              popup="menu"
+              expanded={popover === "ai"}
+              buttonRef={aiRef}
+              disabled={richDisabled || !selectionState?.hasSelection || ai?.phase === "loading"}
+              onClick={() => togglePopover("ai")}
+            />
+          </>
+        )}
         <span className="wz-rte__spacer" />
         <button
           ref={moreRef}
@@ -346,6 +415,75 @@ const RichTextEditor = forwardRef(function RichTextEditor(
             />
           ))}
         </ToolMenu>
+      )}
+
+      {popover === "ai" && (
+        <ToolMenu anchorEl={aiRef.current} label={AI.menuLabel} onClose={() => setPopover(null)}>
+          {[...AI_PRESETS, "custom"].map((preset) => (
+            <MenuItem key={preset} label={AI.presets[preset]} onClick={() => startAi(preset)} />
+          ))}
+        </ToolMenu>
+      )}
+
+      {ai && (
+        <div className="wz-rte__ai" role="region" aria-label={AI.suggestionTitle} aria-live="polite">
+          {ai.phase === "custom" && (
+            <form
+              className="wz-rte__ai-custom"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (aiInstruction.trim().length >= 3) requestRewrite(ai, "custom", aiInstruction.trim());
+              }}
+            >
+              <Input
+                label={AI.customLabel}
+                name="aiInstruction"
+                value={aiInstruction}
+                placeholder={AI.customPlaceholder}
+                maxLength={500}
+                autoFocus
+                onChange={(event) => setAiInstruction(event.target.value)}
+              />
+              <div className="wz-rte__ai-actions">
+                <Button type="submit" size="sm" disabled={aiInstruction.trim().length < 3}>
+                  {AI.rewrite}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setAi(null)}>
+                  {AI.discard}
+                </Button>
+              </div>
+            </form>
+          )}
+          {ai.phase === "loading" && (
+            <p className="wz-rte__ai-status">
+              <Spinner size="sm" label="" /> {AI.rewriting}
+            </p>
+          )}
+          {ai.phase === "ready" && (
+            <>
+              <p className="wz-rte__ai-title">{AI.suggestionTitle}</p>
+              <p className="wz-rte__ai-preview">{templateTextPreview(ai.result, (key) => detailDisplayName(key, aiLabels))}</p>
+              <div className="wz-rte__ai-actions">
+                <Button size="sm" onClick={applyAi}>
+                  {AI.apply}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setAi(null)}>
+                  {AI.discard}
+                </Button>
+              </div>
+            </>
+          )}
+          {ai.phase === "error" && (
+            <div className="wz-rte__ai-actions">
+              <p className="wz-rte__ai-error" role="alert">
+                {ai.error}
+              </p>
+              <Button size="sm" variant="ghost" onClick={() => setAi(null)}>
+                {AI.discard}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {popover === "insert" && (

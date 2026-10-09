@@ -1,8 +1,10 @@
 import { forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, Download, ExternalLink, PencilLine, RotateCcw, Search, Undo2, UserPlus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, ExternalLink, PencilLine, RotateCcw, Search, Sparkles, Undo2, UserPlus } from "lucide-react";
 import { Avatar, Badge, Button, Checkbox, ConfirmDialog, Drawer, Input, Select, Spinner, Textarea } from "../../design-system";
 import { useIssuedLetter, useIssueLetter, useLetterRecipients, useLetterTemplates } from "../../hooks/useLetters";
 import useDebouncedValue from "../../hooks/useDebouncedValue";
+import { useAiStatus } from "../../hooks/useAi";
+import { adjustLetterWithAi, fillAnswersWithAi } from "../../services/letterAiService";
 import { downloadDraftLetter, downloadIssuedLetter, previewLetter } from "../../services/letterService";
 import { buildLetterCatalog, describeTemplate, filterIssuableTemplates, findTemplateByKey, letterNameForKey } from "../../utils/letterCatalog";
 import {
@@ -29,6 +31,8 @@ import LetterPreviewFrame from "./LetterPreviewFrame";
 import RichTextEditor from "./RichTextEditor";
 import "./Letters.css";
 import "./IssueLetterPanel.css";
+
+const AI = LETTERS_COPY.ai;
 
 const COPY = LETTERS_COPY.issue;
 const EMPTY_PREVIEW = {
@@ -298,6 +302,15 @@ function IssueLetterSession({
   const [confirmClose, setConfirmClose] = useState(false);
   const [addingCandidate, setAddingCandidate] = useState(false);
 
+  const aiStatus = useAiStatus();
+  // AI filled answers or reworded this letter; the issued letter records it.
+  const [aiUsed, setAiUsed] = useState(false);
+  const [aiFilled, setAiFilled] = useState(() => new Set());
+  const [pasteText, setPasteText] = useState("");
+  const [pasteBusy, setPasteBusy] = useState(false);
+  const [pasteMessage, setPasteMessage] = useState({ text: "", error: false });
+  const [adjustText, setAdjustText] = useState("");
+  const [adjustBusy, setAdjustBusy] = useState(false);
   const fieldRefs = useRef({});
   const searchRef = useRef(null);
   const issuingRef = useRef(false);
@@ -332,6 +345,9 @@ function IssueLetterSession({
   const recipient = picked && template && picked.type === template.recipientType ? picked.person : null;
 
   const resetLetter = () => {
+    setAiUsed(false);
+    setAiFilled(new Set());
+    setPasteMessage({ text: "", error: false });
     setValues(NO_ANSWERS);
     setAnswersGeneration((generation) => generation + 1);
     setFieldErrors({});
@@ -467,9 +483,51 @@ function IssueLetterSession({
   const focusField = (key) => fieldRefs.current[key]?.focus();
 
   const setValue = (key, value) => {
+    setAiFilled((current) => {
+      if (!current.has(key)) return current;
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
     setValues((current) => ({ ...current, [key]: value }));
     setFieldErrors((current) => ({ ...current, [key]: undefined }));
     setIssueError(null);
+  };
+
+  const fillFromNote = async () => {
+    setPasteBusy(true);
+    setPasteMessage({ text: "", error: false });
+    try {
+      const { answers = {} } = (await fillAnswersWithAi({ templateId: template._id, text: pasteText })) || {};
+      const keys = Object.keys(answers).filter((key) => fields.some((field) => field.key === key));
+      setValues((current) => ({ ...current, ...Object.fromEntries(keys.map((key) => [key, answers[key]])) }));
+      setFieldErrors((current) => ({ ...current, ...Object.fromEntries(keys.map((key) => [key, undefined])) }));
+      setAiFilled(new Set(keys));
+      if (keys.length) setAiUsed(true);
+      setPasteMessage({ text: keys.length ? format(AI.filledCount, { count: keys.length }) : AI.filledNone, error: false });
+    } catch (error) {
+      setPasteMessage({ text: getApiError(error, AI.error).message, error: true });
+    } finally {
+      setPasteBusy(false);
+    }
+  };
+
+  const adjustWithAi = async () => {
+    setAdjustBusy(true);
+    setEditError("");
+    try {
+      const { bodyHtml } = await adjustLetterWithAi({
+        ...buildLetterRequest({ template, recipient, values }),
+        instruction: adjustText.trim(),
+      });
+      setDraftHtml(bodyHtml);
+      setAiUsed(true);
+      setAdjustText("");
+    } catch (error) {
+      setEditError(getApiError(error, AI.error).message);
+    } finally {
+      setAdjustBusy(false);
+    }
   };
 
   const startEditing = () => {
@@ -510,16 +568,17 @@ function IssueLetterSession({
     }
     issuingRef.current = true;
     try {
-      const response = await issue.mutateAsync(
-        buildLetterRequest({
+      const response = await issue.mutateAsync({
+        ...buildLetterRequest({
           template,
           recipient,
           values,
           editedHtml: editedHtml || null,
           sendEmail: emailOn,
           replacesLetterId: replaced?._id || "",
-        })
-      );
+        }),
+        ...(aiUsed ? { aiAssisted: true } : {}),
+      });
       setIssued({ ...response, emailRequested: emailOn, replacedNumber: replaced?.letterNumber || "" });
       if (replaced) setReplaceDone(true);
       if (emailOn && response?.emailed === false) {
@@ -647,23 +706,52 @@ function IssueLetterSession({
       ) : (
         <>
           {Boolean(editedHtml) && <p className="wz-letters__notice">{COPY.lockedByEdits}</p>}
+          {aiStatus.enabled && aiStatus.personalData && !locked && template?._id && (
+            <details className="wz-issue__ai-paste">
+              <summary>
+                <Sparkles size={14} aria-hidden="true" /> {AI.pasteTitle}
+              </summary>
+              <Textarea
+                label={AI.pasteLabel}
+                name="aiPaste"
+                value={pasteText}
+                rows={3}
+                maxLength={4000}
+                helperText={`${AI.pasteHint} ${AI.pasteNotice}`}
+                onChange={(event) => setPasteText(event.target.value)}
+                disabled={pasteBusy}
+              />
+              <div className="wz-rte__ai-actions">
+                <Button size="sm" variant="outline" onClick={fillFromNote} loading={pasteBusy} disabled={pasteText.trim().length < 5}>
+                  {AI.pasteFill}
+                </Button>
+                {pasteMessage.text && (
+                  <span className={pasteMessage.error ? "wz-rte__ai-error" : "wz-letters__cell-sub"} role={pasteMessage.error ? "alert" : "status"}>
+                    {pasteMessage.text}
+                  </span>
+                )}
+              </div>
+            </details>
+          )}
           <div className="wz-issue__questions">
             {fields.map((field) => (
-              <LetterInputField
-                key={field.key}
-                ref={(node) => {
-                  fieldRefs.current[field.key] = node;
-                }}
-                field={field}
-                value={values[field.key]}
-                error={fieldErrors[field.key]}
-                disabled={locked}
-                onChange={(value) => setValue(field.key, value)}
-                onBlur={() => {
-                  const error = validateLetterInput(field, values[field.key]);
-                  setFieldErrors((current) => ({ ...current, [field.key]: error || undefined }));
-                }}
-              />
+              <div key={field.key}>
+                <LetterInputField
+                  ref={(node) => {
+                    fieldRefs.current[field.key] = node;
+                  }}
+                  field={field}
+                  value={values[field.key]}
+                  error={fieldErrors[field.key]}
+                  disabled={locked}
+                  onChange={(value) => setValue(field.key, value)}
+                  onBlur={() => {
+                    const error = validateLetterInput(field, values[field.key]);
+                    setFieldErrors((current) => ({ ...current, [field.key]: error || undefined }));
+                  }}
+                />
+                {aiFilled.has(field.key) && <p className="wz-letters__ai-field-note">{AI.filledByAi}</p>}
+              </div>
             ))}
           </div>
         </>
@@ -772,6 +860,31 @@ function IssueLetterSession({
       {editing ? (
         <>
           <p className="wz-letters__notice">{COPY.editNote}</p>
+          {aiStatus.enabled && (
+            <form
+              className="wz-rte__ai-custom"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (adjustText.trim().length >= 3) adjustWithAi();
+              }}
+            >
+              <Input
+                label={AI.adjustLabel}
+                name="aiAdjust"
+                value={adjustText}
+                placeholder={AI.adjustPlaceholder}
+                helperText={AI.adjustNotice}
+                maxLength={500}
+                onChange={(event) => setAdjustText(event.target.value)}
+                disabled={adjustBusy}
+              />
+              <div>
+                <Button type="submit" size="sm" variant="outline" icon={<Sparkles size={16} />} loading={adjustBusy} disabled={adjustText.trim().length < 3}>
+                  {AI.adjustAction}
+                </Button>
+              </div>
+            </form>
+          )}
           <RichTextEditor value={draftHtml} onChange={setDraftHtml} label={COPY.editWording} minHeight={480} allowSource={false} />
           {editError && (
             <p className="wz-letters__notice wz-letters__notice--error" role="alert">
