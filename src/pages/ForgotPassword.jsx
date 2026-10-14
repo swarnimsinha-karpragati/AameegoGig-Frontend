@@ -1,25 +1,32 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { sendOtp, updatePassword, verifyOtp } from "../services/authService";
-import "../auth/LoginScreen.css"; // Reuse the exact same CSS file
+import "../auth/LoginScreen.css";
 
-// Assets
-import bgImage from "../assets/login.jpg";
+// Assets aligned with LoginScreen
+import bgImage from "../assets/login.png";
+import mobileBgImage from '../assets/mobile_login.png';
 import logo from "../assets/landing/workza-logo.png";
-import usersIcon from "../assets/users.svg";
-import attendanceIcon from "../assets/calender.svg";
-import payrollIcon from "../assets/mdi_wallet.svg";
-import leaveIcon from "../assets/mdi_aeroplane.svg";
-import reportsIcon from "../assets/fluent_arrow-growth-20-filled.svg";
+import usersIcon from '../assets/user.png';
+import attendanceIcon from '../assets/attendance.png';
+import payrollIcon from '../assets/payroll.png';
+import expenseIcon from '../assets/expense.png';
+import performanceIcon from '../assets/performance.png';
+import policyIcon  from '../assets/policy.png';
+import reportsIcon from '../assets/document.png';
 import kplogo from '../assets/kpLogo.png';
 
-function ForgotPassword() {
+export default function ForgotPassword() {
     const navigate = useNavigate();
 
     // Steps: "IDENTIFY" -> "VERIFY_OTP" -> "RESET"
     const [step, setStep] = useState("IDENTIFY");
     const [emailOrPhone, setEmailOrPhone] = useState("");
-    const [otp, setOtp] = useState("");
+    
+    // OTP state for 6 separate inputs
+    const [otp, setOtp] = useState(new Array(6).fill(""));
+    const otpRefs = useRef([]);
+
     const [vendorCode, setVendorCode] = useState("");
     const [passwordData, setPasswordData] = useState({ newPassword: "", confirmPassword: "" });
 
@@ -29,6 +36,9 @@ function ForgotPassword() {
     const [isLoading, setIsLoading] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 992);
     
+    // Resend Timer State
+    const [timer, setTimer] = useState(45);
+
     // Password visibility toggles
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -39,9 +49,40 @@ function ForgotPassword() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // Timer logic for OTP Resend
+    useEffect(() => {
+        let interval;
+        if (step === "VERIFY_OTP" && timer > 0) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [step, timer]);
+
+    // Handle single OTP input change
+    const handleOtpChange = (element, index) => {
+        if (isNaN(element.value)) return false;
+        const newOtp = [...otp];
+        newOtp[index] = element.value;
+        setOtp(newOtp);
+
+        // Focus next input
+        if (element.value !== "" && index < 5) {
+            otpRefs.current[index + 1].focus();
+        }
+    };
+
+    // Handle backspace to focus previous input
+    const handleOtpKeyDown = (e, index) => {
+        if (e.key === "Backspace" && !otp[index] && index > 0) {
+            otpRefs.current[index - 1].focus();
+        }
+    };
+
     // Step 1: Request OTP
     const handleRequestOtp = async (e) => {
-        e.preventDefault();
+        if(e) e.preventDefault();
         setIsLoading(true);
         setError("");
         try {
@@ -50,7 +91,8 @@ function ForgotPassword() {
                 return;
             }
             await sendOtp({ emailOrPhone, vendorCode: vendorCode.toUpperCase() });
-            setMessage("An OTP has been sent to your registered contact details.");
+            setMessage(""); // Clear any generic message to match design
+            setTimer(45);   // Reset timer
             setStep("VERIFY_OTP");
         } catch (err) {
             setError(err?.response?.data?.message || "Failed to send OTP. Please try again.");
@@ -64,12 +106,14 @@ function ForgotPassword() {
         e.preventDefault();
         setIsLoading(true);
         setError("");
+        const otpString = otp.join("");
+        
         try {
-            if (!otp.length) {
-                setError("OTP is required");
+            if (otpString.length < 6) {
+                setError("Please enter the complete 6-digit OTP");
                 return;
             }
-            await verifyOtp({ emailOrPhone, otp, vendorCode: vendorCode.toUpperCase() });
+            await verifyOtp({ emailOrPhone, otp: otpString, vendorCode: vendorCode.toUpperCase() });
             setStep("RESET");
             setMessage("");
         } catch (err) {
@@ -106,7 +150,6 @@ function ForgotPassword() {
         }
     };
 
-    // Reusable eye icon component for clean code
     const EyeIcon = () => (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
@@ -114,11 +157,36 @@ function ForgotPassword() {
         </svg>
     );
 
+    // Dynamic Header Content
+    const getHeaderContent = () => {
+        switch (step) {
+            case "VERIFY_OTP":
+                return {
+                    title: "Enter Verification Details!",
+                    subtitle: `Enter 6-digit code sent to ${emailOrPhone.includes('@') ? 
+                        emailOrPhone.replace(/(.{1}).*(@.*)/, '$1***e$2') : 
+                        `+91 ${emailOrPhone.replace(/.(?=.{4})/g, '*')}`}`
+                };
+            case "RESET":
+                return {
+                    title: "Reset Password",
+                    subtitle: "Change your password by entering your new details."
+                };
+            default:
+                return {
+                    title: "Forgot Password",
+                    subtitle: "Recover access to your account by verifying your identity."
+                };
+        }
+    };
+
+    const headerContent = getHeaderContent();
+
     return (
         <div className="login-wrapper">
             
             {/* Top Main Section */}
-            <div className="login-main" style={{ backgroundImage: `url(${bgImage})` }}>
+            <div className="login-main" style={{ backgroundImage: `url(${isMobile ? mobileBgImage : bgImage})` }}>
                 
                 {/* Overlay (Tint) placed correctly to cover image but sit behind text/form */}
                 <div className="login-overlay"></div>
@@ -178,15 +246,25 @@ function ForgotPassword() {
                 <div className="login-right">
                     <div className="form-card">
                         
+                        {/* Dynamic Back Navigation */}
                         <div style={{ marginBottom: "1rem" }}>
-                            <Link to="/login" className="forgot-link" style={{ fontSize: "0.875rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                                <span>&larr;</span> Back to Login
-                            </Link>
+                            {step === "IDENTIFY" ? (
+                                <Link to="/login" className="forgot-link" >
+                                    <span>&larr;</span> Back to Login
+                                </Link>
+                            ) : (
+                                <button 
+                                    onClick={() => setStep(step === "VERIFY_OTP" ? "IDENTIFY" : "VERIFY_OTP")}
+                                    className="forgot-link" 
+                                >
+                                    <span>&larr;</span> Back to details
+                                </button>
+                            )}
                         </div>
 
                         <div className="form-header">
-                            <h2>Reset Password</h2>
-                            <p>Recover access to your account by verifying your identity.</p>
+                            <h2 >{headerContent.title}</h2>
+                            <p >{headerContent.subtitle}</p>
                         </div>
 
                         {message && (
@@ -207,16 +285,7 @@ function ForgotPassword() {
                                         onChange={(e) => setVendorCode(e.target.value.toUpperCase())}
                                         required
                                     />
-                                    <span className="helper-text">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <circle cx="12" cy="12" r="10"></circle>
-                                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                                        </svg>
-                                        Provided by your HR administrator
-                                    </span>
                                 </div>
-                                
                                 <div className="input-group">
                                     <label>Work Email or Mobile Number</label>
                                     <input
@@ -226,11 +295,9 @@ function ForgotPassword() {
                                         onChange={(e) => setEmailOrPhone(e.target.value)}
                                         required
                                     />
-                                    <span className="helper-text" style={{marginTop: '0.5rem'}}>Enter your registered email or mobile number to receive a verification OTP</span>
                                 </div>
-
+                                <p style={{fontSize:'12px', fontWeight:'400', color:'#6C757D'}}>Enter your registered email or mobile number to receive a verification OTP.</p>
                                 {error && <p className="error-message">{error}</p>}
-
                                 <button type="submit" className="btn-login" disabled={isLoading} style={{ marginTop: "1rem" }}>
                                     {isLoading ? "Sending..." : "Send OTP"}
                                 </button>
@@ -239,25 +306,58 @@ function ForgotPassword() {
 
                         {/* STEP 2: VERIFY OTP */}
                         {step === "VERIFY_OTP" && (
-                            <form onSubmit={handleVerifyOtp}>
-                                <div className="input-group">
-                                    <label>Verification Code</label>
-                                    <input
-                                        type="text"
-                                        maxLength="6"
-                                        placeholder="Enter 6-Digit OTP"
-                                        value={otp}
-                                        onChange={(e) => setOtp(e.target.value)}
-                                        required
-                                    />
-                                    <span className="helper-text">
-                                        Enter the 6-digit verification code sent to <strong>{emailOrPhone}</strong>
-                                    </span>
+                            <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '300px' }}>
+                                
+                                <div style={{ flex: 1 }}>
+                                    <div className="input-group">
+                                        <label style={{ marginBottom: "0.75rem", display: 'block', fontWeight: '500' }}>Verification Code</label>
+                                        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+                                            {otp.map((data, index) => (
+                                                <input
+                                                    key={index}
+                                                    type="text"
+                                                    maxLength="1"
+                                                    ref={(el) => (otpRefs.current[index] = el)}
+                                                    value={data}
+                                                    onChange={(e) => handleOtpChange(e.target, index)}
+                                                    onKeyDown={(e) => handleOtpKeyDown(e, index)}
+                                                    style={{
+                                                        width: '45px',
+                                                        height: '50px',
+                                                        fontSize: '1.25rem',
+                                                        textAlign: 'center',
+                                                        padding: '0',             
+                                                        boxSizing: 'border-box',
+                                                        borderRadius: '8px',
+                                                        border: data ? '2px solid #111827' : '1px solid #D1D5DB',
+                                                        fontWeight: '600'
+                                                    }}
+                                                    required
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
+                                        <span style={{ color: '#6B7280' }}>Didn't receive the code?</span>
+                                        {timer > 0 ? (
+                                            <span style={{ color: '#6B7280', fontWeight: '500' }}>
+                                                Resend in <span style={{ color: '#3B82F6', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '4px' }}>0:{timer < 10 ? `0${timer}` : timer}</span>
+                                            </span>
+                                        ) : (
+                                            <button 
+                                                type="button" 
+                                                onClick={handleRequestOtp} 
+                                                disabled={isLoading}
+                                                style={{ background: 'none', border: 'none', color: '#3B82F6', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
+                                                Resend OTP
+                                            </button>
+                                        )}
+                                    </div>
+                                    {error && <p className="error-message" style={{ marginTop: '1rem' }}>{error}</p>}
                                 </div>
 
-                                {error && <p className="error-message">{error}</p>}
-
-                                <button type="submit" className="btn-login" disabled={isLoading} style={{ marginTop: "1rem" }}>
+                                <button type="submit" className="btn-login" disabled={isLoading || otp.join("").length < 6} style={{ marginTop: 'auto' }}>
                                     {isLoading ? "Verifying..." : "Verify OTP"}
                                 </button>
                             </form>
@@ -296,11 +396,9 @@ function ForgotPassword() {
                                             <EyeIcon />
                                         </button>
                                     </div>
-                                    <span className="helper-text">Please choose a strong, secure password</span>
                                 </div>
-
+                                <p style={{fontSize:'12px', fontWeight:'400', color:'#6C757D'}}>Please choose a strong, secure password.</p>
                                 {error && <p className="error-message">{error}</p>}
-
                                 <button type="submit" className="btn-login" disabled={isLoading} style={{ marginTop: "1rem" }}>
                                     {isLoading ? "Updating..." : "Update Password"}
                                 </button>
@@ -308,12 +406,12 @@ function ForgotPassword() {
                         )}
 
                         <div className="form-footer">
-                          <div className="kp-logo-wrapper">
-                              <p>Powered by</p>
-                              <img src={kplogo} alt='logo'/>
-                          </div>
-                          <span className="footer-tagline">Blue-collar · White-collar · One Workforce</span>
-                      </div>
+                            <div className="kp-logo-wrapper">
+                                <p>Powered by</p>
+                                <img src={kplogo} alt='logo'/>
+                            </div>
+                            <span className="footer-tagline">Blue-collar · White-collar · One Workforce</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -337,11 +435,11 @@ function ForgotPassword() {
                         <span>Payroll &<br/>Salary</span>
                     </div>
                     <div className="feature-icon-item">
-                        <img src={leaveIcon} alt="Claims" />
+                        <img src={expenseIcon} alt="Claims" />
                         <span>Claims &<br/>Expenses</span>
                     </div>
                     <div className="feature-icon-item">
-                        <img src={reportsIcon} alt="Performance" />
+                        <img src={performanceIcon} alt="Performance" />
                         <span>Performance<br/>& Goals</span>
                     </div>
                     <div className="feature-icon-item">
@@ -349,7 +447,7 @@ function ForgotPassword() {
                         <span>Reports &<br/>Analytics</span>
                     </div>
                     <div className="feature-icon-item">
-                        <img src={usersIcon} alt="Policies" />
+                        <img src={policyIcon} alt="Policies" />
                         <span>Policies &<br/>Documents</span>
                     </div>
                 </div>
@@ -357,5 +455,3 @@ function ForgotPassword() {
         </div>
     );
 }
-
-export default ForgotPassword;

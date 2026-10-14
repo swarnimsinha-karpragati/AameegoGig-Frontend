@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import './LoginScreen.css';
 
 // Original imports (Make sure paths match your project structure)
-import bgImage from '../assets/login.jpg';
+import bgImage from '../assets/login.png';
 import logo from '../assets/landing/workza-logo.png';
 import usersIcon from '../assets/user.png';
 import attendanceIcon from '../assets/attendance.png';
@@ -13,7 +13,7 @@ import performanceIcon from '../assets/performance.png';
 import policyIcon  from '../assets/policy.png';
 import reportsIcon from '../assets/document.png';
 import kplogo from '../assets/kpLogo.png';
-import mobileBgImage from '../assets/mobile-login.jpg'
+import mobileBgImage from '../assets/mobile_login.png'
 
 import { loginUser } from '../services/authService';
 import { vendorDashboardPath } from '../utils/vendorPath';

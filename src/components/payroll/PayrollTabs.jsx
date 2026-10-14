@@ -1,9 +1,10 @@
 import React from "react";
-import { Calculator, FileText } from "lucide-react";
+import { Calculator, FileText, Bot } from "lucide-react";
 
 const ADMIN_TABS = [
   { id: "payroll", label: "Payroll", icon: Calculator },
   { id: "payslips", label: "Payslips", icon: FileText },
+  { id: "assistant", label: "AI Assistant", icon: Bot },
 ];
 
 const EMPLOYEE_TABS = [
