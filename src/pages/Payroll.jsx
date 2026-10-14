@@ -24,6 +24,7 @@ import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER, getAvailableMonths } from "
 import { payrollHasBreakdown, enrichPayrollRecord } from "../utils/payrollRecord";
 import { downloadPayrollPdf } from "../utils/generateSalarySlipPdf";
 import PayrollManager from "../components/payroll/PayrollManager";
+import PayrollAgentChat, { AGENT_GREETING } from "../components/payroll/PayrollAgentChat";
 import PayslipsTab from "../components/payroll/PayslipsTab";
 import ConsultancyPayslipsTab from "../components/payroll/ConsultancyPayslipsTab";
 import PayrollTabs from "../components/payroll/PayrollTabs";
@@ -94,6 +95,9 @@ export default function Payroll() {
 
   const [confirmModal, setConfirmModal] = useState({ open: false, title: "", message: "", onConfirm: null });
   const [deleteModal, setDeleteModal] = useState({ open: false, payrollId: null });
+  // Assistant chat history lives HERE (page level), not in the chat panel —
+  // switching tabs unmounts the panel, and this keeps the conversation until refresh.
+  const [agentMessages, setAgentMessages] = useState([AGENT_GREETING]);
 
   const handleYearChange = (newYear) => {
     setSelectedYear(newYear);
@@ -623,7 +627,7 @@ export default function Payroll() {
 
   return (
     <MainLayout>
-      <main className="payroll-page">
+      <main className={`payroll-page${isAdminOrHR && activeTab === "assistant" ? " payroll-page--assistant" : ""}`}>
         <PayrollStatusBanner
           message={statusMessage}
           onDismiss={() => setStatusMessage({ type: "", text: "" })}
@@ -760,6 +764,10 @@ export default function Payroll() {
             onViewBreakdown={handleViewBreakdown}
             statusMessage={statusMessage}
           />
+        )}
+
+        {isAdminOrHR && activeTab === "assistant" && (
+          <PayrollAgentChat messages={agentMessages} onMessagesChange={setAgentMessages} />
         )}
 
         {activeTab === "payslips" && (

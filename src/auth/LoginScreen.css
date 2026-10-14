@@ -171,7 +171,7 @@
 .form-card {
     background: #FFFFFF;
     border-radius: 24px;
-    padding: 4vh 3rem; 
+    padding: 4vh 2rem; 
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
     max-height: 95%; /* Prevents breaking strict 100vh on tiny screens */
     display: flex;
@@ -447,7 +447,7 @@ input:-webkit-autofill:active{
         flex-direction: column;
         padding: 0;
         /* Add !important to override the inline React style */
-        background-image: url('../assets/mobile-login.jpg') !important;
+        background-image: url('../assets/mobile_login.png') !important;
         background-position: top !important; 
         background-size: contain !important;
         align-items: stretch;
@@ -456,7 +456,7 @@ input:-webkit-autofill:active{
     
     /* Top half takes 45% of screen height */
     .login-left {
-        flex: 0.3; 
+        flex: 0.35; 
         padding: 1.5rem 1.5rem 0 1.5rem;
         justify-content: flex-start;
         height: auto;
@@ -470,19 +470,19 @@ input:-webkit-autofill:active{
         transform: scale(0.85);
         transform-origin: bottom left;
     }
-    
+    .kp-logo-wrapper{margin-bottom: 4px;}
     .white-collar {
         top: auto;
-        bottom: 9.5rem;
+        bottom: 8.5rem;
         right: 1rem;
         transform: scale(0.85);
         transform-origin: bottom right;
     }
-
-    .brand-logo img { height: 32px; }
+    .brand-logo{margin-bottom: 8px; padding-bottom: 0px;}
+    .brand-logo img { height: 24px;  }
     .hrms-pill { display: none; }
-    .hero-title { font-size: 1.6rem; margin-bottom: 0.5rem; }
-    .hero-subtitle { font-size: 0.8rem; max-width: 80%; color: #0e0e0f; }
+    .hero-title { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    .hero-subtitle { font-size: 0.8rem; max-width: 100%; color: #0e0e0f; }
     .bottom-features { display: none; }
     
     /* Bottom half takes 55% of screen height */
@@ -496,7 +496,7 @@ input:-webkit-autofill:active{
     
     .form-card {
         padding: 1.5rem 1.5rem;
-        border-radius: 24px 24px 0 0;
+        border-radius: 0 0 0 0;
         box-shadow: 0 -10px 40px rgba(0,0,0,0.08);
         height: 100%; 
         max-height: 100%;
@@ -508,4 +508,14 @@ input:-webkit-autofill:active{
         flex: 1;
         overflow-y: auto; 
     }
+
+    .form-footer {
+    display: flex;
+    flex-direction: column;
+    margin-top: 1vh;
+    text-align: center;
+    border-top: 1px solid #E2E8F0;
+    padding-top: 1vh;
+    flex-shrink: 0;
+}
 }
