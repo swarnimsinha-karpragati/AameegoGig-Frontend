@@ -80,17 +80,32 @@ export default function ForgotPassword() {
         }
     };
 
+    // Complete org codes look like AMG8548 (letters + digits) — a bare
+    // prefix such as "AMG" must be rejected before any OTP is requested.
+    const ORG_CODE_PATTERN = /^[A-Z]{2,10}-?[0-9]{3,8}$/;
+    const isValidEmailFormat = (value) => /\S+@\S+\.\S+/.test(String(value || "").trim());
+
     // Step 1: Request OTP
     const handleRequestOtp = async (e) => {
         if(e) e.preventDefault();
-        setIsLoading(true);
         setError("");
+        const code = String(vendorCode || "").trim().toUpperCase();
+        const contact = String(emailOrPhone || "").trim();
+        if (!contact || !code) {
+            setError("Email/Phone or Organization Code is required");
+            return;
+        }
+        if (contact.includes("@") && !isValidEmailFormat(contact)) {
+            setError("Please enter a valid registered email ID");
+            return;
+        }
+        if (!ORG_CODE_PATTERN.test(code)) {
+            setError("Please enter a complete, valid Organization Code");
+            return;
+        }
+        setIsLoading(true);
         try {
-            if (!emailOrPhone.length || !vendorCode) {
-                setError("Email/Phone or Organization Code is required");
-                return;
-            }
-            await sendOtp({ emailOrPhone, vendorCode: vendorCode.toUpperCase() });
+            await sendOtp({ emailOrPhone: contact, vendorCode: code });
             setMessage(""); // Clear any generic message to match design
             setTimer(45);   // Reset timer
             setStep("VERIFY_OTP");
@@ -157,6 +172,17 @@ export default function ForgotPassword() {
         </svg>
     );
 
+    // Reset-step gate (mirrors the server rule): both fields present, at
+    // least 5 characters, and matching — otherwise Update stays disabled.
+    const isResetReady =
+        passwordData.newPassword.length >= 5 &&
+        passwordData.confirmPassword.length >= 5 &&
+        passwordData.newPassword === passwordData.confirmPassword;
+    const showMismatchHint =
+        passwordData.newPassword.length > 0 &&
+        passwordData.confirmPassword.length > 0 &&
+        passwordData.newPassword !== passwordData.confirmPassword;
+
     // Dynamic Header Content
     const getHeaderContent = () => {
         switch (step) {
@@ -169,12 +195,12 @@ export default function ForgotPassword() {
                 };
             case "RESET":
                 return {
-                    title: "Reset Password",
+                    title: "Reset Password!",
                     subtitle: "Change your password by entering your new details."
                 };
             default:
                 return {
-                    title: "Forgot Password",
+                    title: "Forgot Password!",
                     subtitle: "Recover access to your account by verifying your identity."
                 };
         }
@@ -253,12 +279,13 @@ export default function ForgotPassword() {
                                     <span>&larr;</span> Back to Login
                                 </Link>
                             ) : (
-                                <button 
-                                    onClick={() => setStep(step === "VERIFY_OTP" ? "IDENTIFY" : "VERIFY_OTP")}
-                                    className="forgot-link" 
+                                <Link
+                                    href="#"
+                                    onClick={(e) => { e.preventDefault(); setStep(step === "VERIFY_OTP" ? "IDENTIFY" : "VERIFY_OTP"); }}
+                                    className="forgot-link"
                                 >
                                     <span>&larr;</span> Back to details
-                                </button>
+                                </Link>
                             )}
                         </div>
 
@@ -298,7 +325,7 @@ export default function ForgotPassword() {
                                 </div>
                                 <p style={{fontSize:'12px', fontWeight:'400', color:'#6C757D'}}>Enter your registered email or mobile number to receive a verification OTP.</p>
                                 {error && <p className="error-message">{error}</p>}
-                                <button type="submit" className="btn-login" disabled={isLoading} style={{ marginTop: "1rem" }}>
+                                <button type="submit" className="btn-login" disabled={isLoading || !vendorCode.trim() || !emailOrPhone.trim()} style={{ marginTop: "1rem" }}>
                                     {isLoading ? "Sending..." : "Send OTP"}
                                 </button>
                             </form>
@@ -397,9 +424,10 @@ export default function ForgotPassword() {
                                         </button>
                                     </div>
                                 </div>
-                                <p style={{fontSize:'12px', fontWeight:'400', color:'#6C757D'}}>Please choose a strong, secure password.</p>
+                                <p style={{fontSize:'12px', fontWeight:'400', color:'#6C757D'}}>Please choose a strong, secure password (minimum 5 characters).</p>
+                                {showMismatchHint && <p className="error-message">Passwords do not match</p>}
                                 {error && <p className="error-message">{error}</p>}
-                                <button type="submit" className="btn-login" disabled={isLoading} style={{ marginTop: "1rem" }}>
+                                <button type="submit" className="btn-login" disabled={isLoading || !isResetReady} style={{ marginTop: "1rem" }}>
                                     {isLoading ? "Updating..." : "Update Password"}
                                 </button>
                             </form>

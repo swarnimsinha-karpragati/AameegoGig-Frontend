@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./DocumentPreview.css";
 
-const DocumentPreview = ({ url, isOpen, onClose }) => {
+const DocumentPreview = ({ url, isOpen, onClose, title }) => {
     const [blobUrl, setBlobUrl] = useState(null);
     const [contentType, setContentType] = useState("");
     const [loading, setLoading] = useState(false);
@@ -72,7 +72,7 @@ const DocumentPreview = ({ url, isOpen, onClose }) => {
         <div className="preview-overlay">
             <div className="preview-container">
                 <div className="preview-header">
-                    <h3>Preview</h3>
+                    <h3 title={title || "Preview"} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "80%" }}>{title || "Preview"}</h3>
                     <button className="close-btn" onClick={onClose}>
                         ✕
                     </button>
@@ -89,13 +89,13 @@ const DocumentPreview = ({ url, isOpen, onClose }) => {
                         ) : isPdf ? (
                             <iframe
                                 src={blobUrl}
-                                title="PDF Preview"
+                                title={title || "PDF Preview"}
                                 className="preview-pdf"
                             />
                         ) : (
                             <iframe
                                 src={blobUrl}
-                                title="Document Preview"
+                                title={title || "Document Preview"}
                                 className="preview-pdf"
                             />
                         )
