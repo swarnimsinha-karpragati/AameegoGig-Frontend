@@ -967,6 +967,7 @@ function EmployeesPage() {
   ] = useState(null);
 
   const [docPreviewUrl, setDocPreviewUrl] = useState(null);
+  const [docPreviewName, setDocPreviewName] = useState("");
 
 
   const [selectedEmployee, setSelectedEmployee] =
@@ -3728,7 +3729,7 @@ function EmployeesPage() {
                   <button
                     type="button"
                     className="emp-btn emp-btn--secondary"
-                    onClick={() => setDocPreviewUrl(getDocumentViewUrl(doc._id))}
+                    onClick={() => { setDocPreviewUrl(getDocumentViewUrl(doc._id)); setDocPreviewName(doc.originalName || doc.fileName || ""); }}
                   >
                     <Eye size={14} />
                     View
@@ -3910,8 +3911,9 @@ function EmployeesPage() {
 
       <DocumentPreview
         isOpen={!!docPreviewUrl}
-        onClose={() => setDocPreviewUrl(null)}
+        onClose={() => { setDocPreviewUrl(null); setDocPreviewName(""); }}
         url={docPreviewUrl}
+        title={docPreviewName || "Preview"}
       />
 
       <ProbationHistoryModal

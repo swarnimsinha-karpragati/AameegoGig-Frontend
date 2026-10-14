@@ -19,7 +19,6 @@ import {
   CalendarClock,
   Lock,
   LockOpen,
-  Mail,
 } from "lucide-react";
 
 import {
@@ -720,6 +719,7 @@ export default function InternsTab() {
   const [docFile, setDocFile] = useState(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [docPreviewUrl, setDocPreviewUrl] = useState(null);
+  const [docPreviewName, setDocPreviewName] = useState("");
 
   const { data: internData, refetch: refetchInterns } = useInterns({
     departmentId: departmentFilter || undefined,
@@ -1628,7 +1628,6 @@ export default function InternsTab() {
                 </button>
               )}
               {menuIntern.hasAppLogin && (
-                <>
                   <button
                     type="button"
                     onClick={() => {
@@ -1642,16 +1641,6 @@ export default function InternsTab() {
                       <><LockOpen size={16} /> Enable App Login</>
                     )}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeMenu();
-                      handleResendCredentials(menuIntern._id, menuIntern.name);
-                    }}
-                  >
-                    <Mail size={16} /> Send Credentials
-                  </button>
-                </>
               )}
               <button
                 type="button"
@@ -2225,7 +2214,7 @@ export default function InternsTab() {
                     <button
                       type="button"
                       className="emp-btn emp-btn--secondary"
-                      onClick={() => setDocPreviewUrl(getDocumentViewUrl(doc._id))}
+                      onClick={() => { setDocPreviewUrl(getDocumentViewUrl(doc._id)); setDocPreviewName(doc.originalName || doc.fileName || ""); }}
                     >
                       <Eye size={14} />
                       View
@@ -2250,8 +2239,9 @@ export default function InternsTab() {
 
       <DocumentPreview
         isOpen={!!docPreviewUrl}
-        onClose={() => setDocPreviewUrl(null)}
+        onClose={() => { setDocPreviewUrl(null); setDocPreviewName(""); }}
         url={docPreviewUrl}
+        title={docPreviewName || "Preview"}
       />
 
       {/* ============ APP LOGIN CREDENTIALS (shown once) ============ */}
