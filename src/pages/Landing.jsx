@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import useFormValidation from "../hooks/useFormValidation";
 import {
   LIMITS,
@@ -10,10 +10,18 @@ import {
 } from "../utils/demoRequestValidation";
 import { ToastProvider, useToast } from "../components/Toast";
 import LandingSelect from "../components/LandingSelect";
+import {
+  LandingHeader,
+  LandingFooter,
+  scrollToSection,
+  FaqList,
+  FIELD_HRMS_PATH,
+  OFFICE_HRMS_PATH,
+} from "../components/LandingChrome";
+import usePageMeta from "../hooks/usePageMeta";
 import { submitDemoRequest } from "../services/demoRequestService";
 import "./Landing.css";
 
-import workzaLogo from "../assets/landing/workza-logo.png";
 import roundLogo from "../assets/landing/round-logo.png";
 import checkIcon from "../assets/landing/check.svg";
 import playIcon from "../assets/landing/play.svg";
@@ -109,7 +117,7 @@ function LandingStat({ value, label, play, delayMs }) {
 
   return (
     <div className="landing-stat">
-      <strong ref={valueRef}>{formatStatNumber(0, grouped, suffix)}</strong>
+      <strong ref={valueRef}>{value}</strong>
       <span>{label}</span>
     </div>
   );
@@ -232,27 +240,69 @@ const FEATURES = [
   {
     icon: iconUsers,
     title: "Employee Management",
-    desc: "Centralize employee records, org charts, and documents in one place.",
+    desc: "Keep every employee record, document, department, and site in one searchable directory. Bulk-import existing staff, assign roles and reporting managers, and replace scattered spreadsheets with one source of truth.",
   },
   {
     icon: iconWallet,
     title: "Payroll & Compliance",
-    desc: "Run multi-country payroll with built-in tax and labor law compliance.",
+    desc: "Run monthly payroll straight from attendance, leave, and overtime data. Configure salary structures, handle PF, ESIC, professional tax, LWF, and TDS, and publish payslips employees download themselves.",
   },
   {
     icon: iconClock,
     title: "Attendance & Leave",
-    desc: "Track time, manage shifts, and automate leave approvals effortlessly.",
+    desc: "Capture geofenced, selfie-verified attendance at field sites, manage shifts, week-offs, and overtime, and let employees regularize missed punches. Leave accrues by policy and routes to the right approver.",
   },
   {
     icon: iconStar,
     title: "Onboarding & Offboarding",
-    desc: "Create seamless first-day and last-day experiences at scale.",
+    desc: "Generate offer and appointment letters from templates, collect joining documents, and track probation. Resignations, notice periods, and full-and-final settlements follow a clear, auditable workflow.",
   },
   {
     icon: iconChart,
     title: "Reports & Analytics",
-    desc: "Set OKRs, run 360° reviews, and build a feedback culture.",
+    desc: "See headcount, attendance, leave, and payroll trends at a glance, and export reports for leadership, auditors, and clients in minutes — decisions run on live workforce data, not last month's spreadsheet.",
+  },
+];
+
+const SOLUTIONS = [
+  {
+    to: FIELD_HRMS_PATH,
+    title: "Blue-collar & field workforce HRMS",
+    body: "For logistics, warehousing, quick-commerce, facility, and staffing teams spread across sites. Allocate shifts, verify attendance with geofenced selfie check-ins, and pay wages that match the hours actually worked.",
+    cta: "Explore field workforce HRMS",
+  },
+  {
+    to: OFFICE_HRMS_PATH,
+    title: "White-collar & office HRMS",
+    body: "For corporate and office teams that need clean approval workflows, statutory payroll compliance, and payroll metrics leadership can trust — with self-service that keeps HR out of the inbox.",
+    cta: "Explore office HRMS",
+  },
+];
+
+const HOME_FAQS = [
+  {
+    q: "What is Workza?",
+    a: "Workza is a cloud HRMS and payroll platform for Indian businesses that run both office teams and field or blue-collar workforces. Employee records, attendance, shifts, leave, payroll, statutory compliance, HR letters, and exits all live in one system.",
+  },
+  {
+    q: "Does Workza work for blue-collar and field teams?",
+    a: "Yes. Each work site can have its own geofence, so employees check in from their phone with a selfie only when they are on site. Supervisors manage shifts, week-offs, and overtime, and payroll is calculated from the attendance that was actually recorded.",
+  },
+  {
+    q: "Which statutory deductions does Workza payroll handle?",
+    a: "Payroll supports PF, ESIC, professional tax, labour welfare fund (LWF), and TDS, configured through your salary structures and components. Every run produces payslips that employees can view and download from their own login.",
+  },
+  {
+    q: "Can employees use Workza themselves?",
+    a: "Every employee gets a self-service view to apply for leave or WFH, regularize missed attendance, submit expenses and advance requests, and download payslips and documents. Managers approve requests from their own dashboard.",
+  },
+  {
+    q: "How long does it take to go live?",
+    a: "Our team handles most of the setup: we import your employee data, configure payroll rules, leave policies, and approval flows, and check everything before go-live. The timeline depends on your team size and how many sites you run — we'll give you a plan during the demo.",
+  },
+  {
+    q: "Who can see salary and personal data?",
+    a: "Access is role-based. Admins decide what HR, managers, and employees can see and do, so salary data and personal records are only visible to the people whose role needs them.",
   },
 ];
 
@@ -273,11 +323,6 @@ const STEPS = [
     body: "Employees, HR, Managers and admins all onboard together, with a guided walkthrough for every role and support included from day one.",
   },
 ];
-
-const scrollTo = (id) => {
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-};
 
 const DEMO_INITIAL = {
   fullName: "",
@@ -311,13 +356,25 @@ function LandingPage() {
   const [statsInView, setStatsInView] = useState(false);
   const statsRef = useRef(null);
   const pageRef = useRef(null);
-  const [navOpen, setNavOpen] = useState(false);
   const [demoForm, setDemoForm] = useState(DEMO_INITIAL);
   const [demoSubmitting, setDemoSubmitting] = useState(false);
   const [demoStatus, setDemoStatus] = useState(null);
   const [demoTouched, setDemoTouched] = useState({});
   const { errors, setErrors, clearAll } = useFormValidation();
   const role = ROLE_CONTENT[activeRole];
+  const { hash } = useLocation();
+
+  usePageMeta({
+    title: "Workza — Blue-Collar & White-Collar HRMS & Automated Payroll",
+    description:
+      "Workza is HRMS and payroll software for office and field teams in India — geofenced attendance, shifts, leave, PF/ESIC-compliant payroll, and HR letters in one platform. Book a free demo.",
+    path: "/",
+  });
+
+  // Arriving from another page via /#section: React Router doesn't scroll to hashes itself.
+  useEffect(() => {
+    if (hash) scrollToSection(hash.slice(1));
+  }, [hash]);
 
   useEffect(() => {
     if (roleRotatePaused) return undefined;
@@ -435,11 +492,6 @@ function LandingPage() {
     setRoleRotateKey((key) => key + 1);
   };
 
-  const goTo = (id) => {
-    setNavOpen(false);
-    scrollTo(id);
-  };
-
   const applyDemoFieldError = (name, form) => {
     const result = validateDemoRequestPayload(form);
     setErrors((prev) => {
@@ -527,55 +579,7 @@ function LandingPage() {
 
   return (
     <div className="landing-page" ref={pageRef}>
-      <header className={`landing-nav${navOpen ? " is-open" : ""}`}>
-        <Link to="/" className="landing-logo" aria-label="Workza home">
-          <img src={workzaLogo} alt="Workza" />
-        </Link>
-
-        <nav
-          className="landing-nav-links"
-          id="landing-nav-links"
-          aria-label="Primary"
-        >
-          <button type="button" onClick={() => goTo("platform")}>
-            Platform
-          </button>
-          <button type="button" onClick={() => goTo("who-its-for")}>
-            Who it&apos;s for
-          </button>
-          <button type="button" onClick={() => goTo("features")}>
-            Features
-          </button>
-          <button type="button" onClick={() => goTo("how-it-works")}>
-            How it works
-          </button>
-        </nav>
-
-        <div className="landing-nav-actions">
-          <Link to="/login" className="landing-btn landing-btn--text">
-            Login
-          </Link>
-          <button
-            type="button"
-            className="landing-btn landing-btn--primary"
-            onClick={() => goTo("demo")}
-          >
-            Request a demo
-          </button>
-        </div>
-        <button
-          type="button"
-          className="landing-nav-toggle"
-          aria-label={navOpen ? "Close menu" : "Open menu"}
-          aria-expanded={navOpen}
-          aria-controls="landing-nav-links"
-          onClick={() => setNavOpen((open) => !open)}
-        >
-          <span />
-          <span />
-          <span />
-        </button>
-      </header>
+      <LandingHeader />
 
       <section className="landing-hero" id="platform">
         <div className="landing-hero-inner">
@@ -621,7 +625,7 @@ function LandingPage() {
               type="button"
               className="landing-hero-cta lp-hero-item"
               style={{ "--lp-d": "460ms" }}
-              onClick={() => scrollTo("how-it-works")}
+              onClick={() => scrollToSection("how-it-works")}
             >
               <span className="landing-hero-cta-icon" aria-hidden="true">
                 <img src={playIcon} alt="" width={16} height={16} />
@@ -841,6 +845,38 @@ function LandingPage() {
         </div>
       </section>
 
+      <section className="landing-steps" id="solutions">
+        <div className="landing-steps-inner">
+          <div className="landing-steps-header lp-reveal">
+            <div className="landing-steps-kicker">
+              <span className="landing-steps-rule" aria-hidden="true" />
+              <p>SOLUTIONS</p>
+            </div>
+            <h2>An HRMS built for how your people actually work.</h2>
+            <p className="landing-who-sub">
+              A delivery rider, a warehouse picker, and a finance analyst need very
+              different things from HR software. Workza adapts to each.
+            </p>
+          </div>
+
+          <div className="landing-steps-grid landing-steps-grid--2">
+            {SOLUTIONS.map((sol, index) => (
+              <article
+                key={sol.to}
+                className="landing-step lp-reveal"
+                style={{ "--lp-d": `${index * 100}ms` }}
+              >
+                <h3>{sol.title}</h3>
+                <p>{sol.body}</p>
+                <Link to={sol.to} className="landing-solution-link">
+                  {sol.cta} →
+                </Link>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="landing-steps" id="how-it-works">
         <div className="landing-steps-inner">
           <div className="landing-steps-header lp-reveal">
@@ -867,6 +903,19 @@ function LandingPage() {
               </article>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="landing-steps landing-faq" id="faq">
+        <div className="landing-steps-inner">
+          <div className="landing-steps-header lp-reveal">
+            <div className="landing-steps-kicker">
+              <span className="landing-steps-rule" aria-hidden="true" />
+              <p>FAQ</p>
+            </div>
+            <h2>Frequently asked questions</h2>
+          </div>
+          <FaqList faqs={HOME_FAQS} />
         </div>
       </section>
 
@@ -1087,28 +1136,7 @@ function LandingPage() {
         </div>
       </section>
 
-      <footer className="landing-footer">
-        <Link to="/" className="landing-footer-brand" aria-label="Workza home">
-          <img src={workzaLogo} alt="Workza" />
-        </Link>
-        <nav className="landing-footer-links" aria-label="Footer">
-          <button type="button" onClick={() => scrollTo("platform")}>
-            Platform
-          </button>
-          <button type="button" onClick={() => scrollTo("who-its-for")}>
-            Who it&apos;s for
-          </button>
-          <button type="button" onClick={() => scrollTo("features")}>
-            Features
-          </button>
-          <button type="button" onClick={() => scrollTo("how-it-works")}>
-            How it works
-          </button>
-        </nav>
-        <p className="landing-footer-copy">
-          © 2026 Kar Pragati Technologies Pvt. Ltd.
-        </p>
-      </footer>
+      <LandingFooter />
     </div>
   );
 }

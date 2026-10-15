@@ -1,3 +1,5 @@
+import { templateGroup } from "./letterCatalog";
+
 function deepFreeze(obj) {
   Object.values(obj).forEach((value) => {
     if (value && typeof value === "object") deepFreeze(value);
@@ -535,11 +537,44 @@ export const LETTERS_COPY = deepFreeze({
     filledNone: "The note did not answer any of this letter's questions.",
     filledByAi: "Filled by AI. Check it.",
     adjustLabel: "Adjust with AI",
-    adjustPlaceholder: "e.g. Add a line thanking them for 5 years of service",
+    adjustPlaceholder: "e.g. Add a sentence that fits this letter",
     adjustAction: "Adjust",
     adjustNotice: "AI starts from the template's wording, so edits you made here are replaced. Review the result before applying.",
   },
 });
+
+/** Example instruction for Adjust with AI, matched to the letter that is open. */
+const ADJUST_PLACEHOLDERS = {
+  offer: "e.g. Mention that the offer is valid for 7 days",
+  internship: "e.g. Add that the stipend is paid monthly",
+  appointment: "e.g. Add the joining location and reporting manager",
+  confirmation: "e.g. Congratulate them on completing probation",
+  promotion: "e.g. Congratulate them on the new role",
+  increment: "e.g. Thank them for their work this year",
+  transfer: "e.g. Mention the new location and the transfer date",
+  "employment-verification": "e.g. Address it to the bank that asked for it",
+  noc: "e.g. State what the no-objection certificate is for",
+  "show-cause": "e.g. Ask them to reply in writing within 3 days",
+  warning: "e.g. Ask them to improve attendance this month",
+  relieving: "e.g. Wish them well in their next role",
+  experience: "e.g. Add a line thanking them for 5 years of service",
+  termination: "e.g. State the last working day clearly",
+  "consultancy-agreement": "e.g. Add that fees are paid against a monthly invoice",
+};
+
+const ADJUST_PLACEHOLDERS_BY_GROUP = {
+  joining: "e.g. Add the joining location",
+  during: "e.g. Mention the effective date of this change",
+  disciplinary: "e.g. Ask them to reply in writing",
+  leaving: "e.g. Wish them well for the future",
+  consultants: "e.g. Add how and when the fees are paid",
+};
+
+export function adjustPlaceholderFor(template) {
+  if (template?.key && ADJUST_PLACEHOLDERS[template.key]) return ADJUST_PLACEHOLDERS[template.key];
+  const group = template ? templateGroup(template).id : "";
+  return ADJUST_PLACEHOLDERS_BY_GROUP[group] || LETTERS_COPY.ai.adjustPlaceholder;
+}
 
 export function format(str, vars = {}) {
   const values = vars || {};

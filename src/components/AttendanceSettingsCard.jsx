@@ -71,7 +71,7 @@ export default function AttendanceSettingsCard() {
         </div>
       </div>
 
-      <div className="attendance-settings__row">
+      <div className="attendance-settings__row wz-ds">
         <Toggle
           label="Mark employees present automatically every day"
           checked={checked}

@@ -549,7 +549,16 @@ const RichTextEditor = forwardRef(function RichTextEditor(
           }}
         />
       ) : (
-        <div className="wz-rte__surface" style={{ minHeight }}>
+        <div
+          className="wz-rte__surface"
+          style={{ minHeight }}
+          onMouseDown={(event) => {
+            // The padding around the text: put the cursor at the end, as a word processor does.
+            if (event.target !== event.currentTarget || !editor?.isEditable) return;
+            event.preventDefault();
+            editor.commands.focus("end");
+          }}
+        >
           <EditorContent editor={editor} />
         </div>
       )}

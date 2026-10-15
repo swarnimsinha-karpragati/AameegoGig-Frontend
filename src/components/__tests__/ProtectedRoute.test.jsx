@@ -60,7 +60,7 @@ it("waits for a custom role's permissions before redirecting on an empty cache, 
   expect(screen.queryByText(REDIRECTED)).not.toBeInTheDocument();
 
   await waitFor(() => expect(getSession).toHaveBeenCalled());
-  resolve({ user: CUSTOM, roleName: "consult-lead", permissions: ["consultancy:view", "consultancy:manage"] });
+  resolve({ user: CUSTOM, roleName: "consult-lead", permissions: ["letters:view"] });
   expect(await screen.findByText("Page content")).toBeInTheDocument();
   expect(spinner()).not.toBeInTheDocument();
 });
@@ -160,7 +160,7 @@ it("loads the session once when it succeeded: later navigations decide straight 
 it("decides immediately for a role already in the local catalog", () => {
   localStorage.setItem(
     "rbac_roles",
-    JSON.stringify({ __v: RBAC_VERSION, "consult-lead": { permissions: ["consultancy:manage"] } })
+    JSON.stringify({ __v: RBAC_VERSION, "consult-lead": { permissions: ["letters:view"] } })
   );
   renderAt("/acme/letters");
   expect(screen.getByText("Page content")).toBeInTheDocument();

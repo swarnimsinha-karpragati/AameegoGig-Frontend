@@ -203,6 +203,17 @@ describe("Issue panel AI help", () => {
     await waitFor(() => expect(letterService.issueLetter).toHaveBeenCalledWith(expect.objectContaining({ aiAssisted: true })));
   });
 
+  it("suggests an adjustment that fits the letter being edited", async () => {
+    aiOn(true);
+    await openWithRecipient();
+    userEvent.type(screen.getByLabelText(/Incident date/), "2026-09-30");
+    userEvent.type(screen.getByLabelText(/^Reason/), "Repeated late arrival");
+    const edit = await screen.findByRole("button", { name: "Edit wording for this letter" });
+    await waitFor(() => expect(edit).toBeEnabled());
+    userEvent.click(edit);
+    expect(screen.getByLabelText(AI.adjustLabel)).toHaveAttribute("placeholder", "e.g. Ask them to improve attendance this month");
+  });
+
   it("hides Paste details without the personal-data switch", async () => {
     aiOn(false);
     await openWithRecipient();

@@ -137,25 +137,25 @@ describe("letters module access", () => {
     expect(canAccessRoute("Employee", "/letters")).toBe(false);
   });
 
-  test("HR without the letters module keeps only the consultancy agreement, like Admin (as on the backend)", () => {
+  test("HR without the letters module has no Letters access", () => {
     const restricted = ["dashboard", "settings", "employees"];
-    expect(getLetterAccess({ role: "HR", allowedModules: restricted })).toMatchObject({
+    expect(getLetterAccess({ role: "HR", allowedModules: restricted })).toEqual({
       canView: false,
-      canIssueConsultancyAgreement: true,
+      canEdit: false,
+      canIssue: false,
+      canManageOffers: false,
+      canIssueConsultancyAgreement: false,
     });
-    expect(canAccessRoute("HR", "/letters", restricted)).toBe(true);
-    saveCatalog({ HR: { permissions: ["employees:view"] } });
-    expect(canAccessRoute("HR", "/letters", restricted)).toBe(true);
-    expect(getLetterAccess({ role: "HR", allowedModules: restricted }).canView).toBe(false);
+    expect(canAccessRoute("HR", "/letters", restricted)).toBe(false);
     expect(canAccessRoute("HR", "/letters", ["dashboard", "settings", "letters"])).toBe(true);
   });
 
-  test("legacy employees:letters grants issuing and viewing, not template editing", () => {
+  test("only the Letters permissions grant Letters; the old employees:letters grant does not", () => {
     saveCatalog({ Finance: { permissions: ["employees:letters"] } });
-    expect(canIssueLetters("Finance")).toBe(true);
-    expect(canViewLetters("Finance")).toBe(true);
-    expect(canEditLetterTemplates("Finance")).toBe(false);
-    expect(canManageOfferCandidates("Finance")).toBe(false);
+    for (const helper of [canViewLetters, canIssueLetters, canEditLetterTemplates, canManageOfferCandidates]) {
+      expect([helper.name, helper("Finance")]).toEqual([helper.name, false]);
+    }
+    expect(canAccessRoute("Finance", "/letters")).toBe(false);
   });
 
   test("any letters grant opens the module for custom roles", () => {
@@ -170,7 +170,7 @@ describe("letters module access", () => {
     expect(grantableModulesForRole("Employee").map((m) => m.key)).not.toContain("letters");
   });
 
-  test("getLetterAccess needs the module as well as the permission (matches the backend)", () => {
+  test("HR with its default permissions has full Letters access, module included", () => {
     expect(getLetterAccess({ role: "HR" })).toEqual({
       canView: true,
       canEdit: true,
@@ -178,36 +178,22 @@ describe("letters module access", () => {
       canManageOffers: true,
       canIssueConsultancyAgreement: true,
     });
-    const restrictedHr = getLetterAccess({ role: "HR", allowedModules: ["dashboard", "settings", "employees"] });
-    expect(restrictedHr).toMatchObject({ canView: false, canEdit: false, canIssue: false, canManageOffers: false });
   });
 
-  test("consultancy managers without Letters may only issue the consultancy agreement", () => {
-    saveCatalog({ ConsultLead: { permissions: ["consultancy:manage"] }, Clerk: { permissions: [] } });
+  test("consultancy managers without a Letters permission have no Letters access", () => {
+    saveCatalog({ ConsultLead: { permissions: ["consultancy:view", "consultancy:manage"] } });
     expect(getLetterAccess({ role: "ConsultLead" })).toEqual({
       canView: false,
       canEdit: false,
       canIssue: false,
       canManageOffers: false,
-      canIssueConsultancyAgreement: true,
+      canIssueConsultancyAgreement: false,
     });
-    expect(getLetterAccess({ role: "Clerk" }).canIssueConsultancyAgreement).toBe(false);
+    expect(canAccessRoute("ConsultLead", "/letters")).toBe(false);
     expect(getLetterAccess(null).canView).toBe(false);
   });
 
-  test("consultancy managers without Letters can open /letters (for the consultancy agreement); others cannot", () => {
-    saveCatalog({
-      ConsultLead: { permissions: ["consultancy:view", "consultancy:manage"] },
-      ConsultViewer: { permissions: ["consultancy:view"] },
-      Clerk: { permissions: [] },
-    });
-    expect(canAccessRoute("ConsultLead", "/acme/letters")).toBe(true);
-    expect(canAccessRoute("ConsultLead", "/letters", ["dashboard", "settings"])).toBe(true);
-    expect(canAccessRoute("ConsultViewer", "/letters")).toBe(false);
-    expect(canAccessRoute("Clerk", "/letters")).toBe(false);
-  });
-
-  test("/letters route access is exactly 'can view letters or can issue the consultancy agreement'", () => {
+  test("/letters route access is exactly 'can view letters'", () => {
     saveCatalog({
       ConsultLead: { permissions: ["consultancy:manage"] },
       Recruiter: { permissions: ["letters:offers"] },
@@ -224,45 +210,30 @@ describe("letters module access", () => {
       ["Clerk", undefined],
     ];
     for (const [role, allowedModules] of cases) {
-      const access = getLetterAccess({ role, allowedModules });
       expect([role, allowedModules, canAccessRoute(role, "/letters", allowedModules)]).toEqual([
         role,
         allowedModules,
-        access.canView || access.canIssueConsultancyAgreement,
+        getLetterAccess({ role, allowedModules }).canView,
       ]);
     }
   });
 
-  test("HR has exactly Admin's Letters access even when its role row has no letters permissions", () => {
-    saveCatalog({ HR: { permissions: ["employees:view"] } });
-    expect(LETTERS_FULL_ACCESS_ROLES).toEqual(["Admin", "HR"]);
+  test("an HR role whose Letters permissions were removed in Role & Access cannot see or open Letters (QA bug)", () => {
+    saveCatalog({ HR: { permissions: ["employees:view", "employees:letters", "consultancy:manage"] } });
+    expect(LETTERS_FULL_ACCESS_ROLES).toEqual(["Admin"]);
     for (const helper of [canViewLetters, canEditLetterTemplates, canIssueLetters, canManageOfferCandidates]) {
-      expect([helper.name, helper("HR")]).toEqual([helper.name, helper("Admin")]);
-      expect([helper.name, helper("HR")]).toEqual([helper.name, true]);
+      expect([helper.name, helper("HR")]).toEqual([helper.name, false]);
+      expect([helper.name, helper("Admin")]).toEqual([helper.name, true]);
     }
-    expect(getLetterAccess({ role: "HR" })).toEqual(getLetterAccess({ role: "Admin" }));
     expect(getLetterAccess({ role: "HR" })).toEqual({
-      canView: true,
-      canEdit: true,
-      canIssue: true,
-      canManageOffers: true,
-      canIssueConsultancyAgreement: true,
-    });
-  });
-
-  test("the Letters module gate applies to HR exactly as to Admin", () => {
-    saveCatalog({ HR: { permissions: ["employees:view"] } });
-    const withoutLetters = ["dashboard", "settings", "employees"];
-    const hr = getLetterAccess({ role: "HR", allowedModules: withoutLetters });
-    expect(hr).toEqual(getLetterAccess({ role: "Admin", allowedModules: withoutLetters }));
-    expect(hr).toEqual({
       canView: false,
       canEdit: false,
       canIssue: false,
       canManageOffers: false,
-      canIssueConsultancyAgreement: true,
+      canIssueConsultancyAgreement: false,
     });
-    expect(canAccessRoute("HR", "/letters", withoutLetters)).toBe(canAccessRoute("Admin", "/letters", withoutLetters));
+    expect(canAccessRoute("HR", "/letters")).toBe(false);
+    expect(canAccessRoute("HR", "/acme/letters")).toBe(false);
   });
 
   test("custom roles get exactly their letters grants", () => {

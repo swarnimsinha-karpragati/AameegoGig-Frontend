@@ -170,14 +170,25 @@
   line-height: 16px;
 }
 
+/* The writing area fills the whole editor box, so a click anywhere in it places the cursor
+   (EditorContent adds a wrapper div between the surface and the editable element). */
 .wz-rte__surface {
   padding: var(--wz-space-6) var(--wz-space-8);
   overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  cursor: text;
+}
+
+.wz-rte__surface > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .wz-rte__content {
   outline: none;
-  min-height: inherit;
+  flex: 1;
 }
 
 .wz-rte__source {

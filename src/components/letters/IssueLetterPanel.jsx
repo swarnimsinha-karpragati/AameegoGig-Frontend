@@ -21,7 +21,7 @@ import {
   validateLetterInput,
   validateLetterInputs,
 } from "../../utils/letterForms";
-import { LETTERS_COPY, format } from "../../utils/lettersCopy";
+import { LETTERS_COPY, adjustPlaceholderFor, format } from "../../utils/lettersCopy";
 import { recipientStatusBadge } from "../../utils/recipientStatus";
 import { employeeSearchPath } from "../../utils/lettersNavigation";
 import { ORG_PROFILE_SETTINGS_PATH, vendorScopedPath } from "../../utils/vendorPath";
@@ -872,7 +872,7 @@ function IssueLetterSession({
                 label={AI.adjustLabel}
                 name="aiAdjust"
                 value={adjustText}
-                placeholder={AI.adjustPlaceholder}
+                placeholder={adjustPlaceholderFor(template)}
                 helperText={AI.adjustNotice}
                 maxLength={500}
                 onChange={(event) => setAdjustText(event.target.value)}

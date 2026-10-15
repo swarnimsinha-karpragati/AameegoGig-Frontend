@@ -141,8 +141,9 @@ const CUSTOM_ROLE_MODULE_PERMISSION = {
 /**
  * Roles with every Letters permission whatever their role row holds; mirrors the backend
  * FULL_ACCESS_ROLES (services/letters/letterAccess.js). The Letters module still gates them.
+ * HR is not one: it follows its role permissions, so Role & Access can take Letters away from it.
  */
-export const LETTERS_FULL_ACCESS_ROLES = Object.freeze(["Admin", "HR"]);
+export const LETTERS_FULL_ACCESS_ROLES = Object.freeze(["Admin"]);
 
 const hasFullLetterAccess = (role) => LETTERS_FULL_ACCESS_ROLES.includes(role);
 const letterPermission = (role, permissionKey) =>
@@ -165,21 +166,20 @@ export const canViewEmployees = (role) =>
   role === "Admin" || roleHasPermission(role, "employees:view");
 
 /**
- * Letters access for a user; mirrors the backend letterAccess resolver. Full access
- * needs the Letters module (route access) plus the matching letters permission (Admin
- * and HR hold them all). Without it, Admin, HR and consultancy managers may still issue
- * the consultancy agreement only.
+ * Letters access for a user; mirrors the backend letterAccess resolver: the Letters module
+ * (route access) plus the matching letters permission (Admin holds them all).
  */
 export const getLetterAccess = (user) => {
   const role = user?.role;
   const hasModule = Boolean(role) && moduleRouteAccess(role, "/letters", user?.allowedModules);
   const canIssue = hasModule && canIssueLetters(role);
   return {
-    canView: hasModule,
+    canView: hasModule && canViewLetters(role),
     canEdit: hasModule && canEditLetterTemplates(role),
     canIssue,
     canManageOffers: hasModule && canManageOfferCandidates(role),
-    canIssueConsultancyAgreement: canIssue || hasFullLetterAccess(role) || canManageConsultancy(role),
+    // Issuing the consultancy agreement is ordinary letter issuing.
+    canIssueConsultancyAgreement: canIssue,
   };
 };
 
@@ -238,12 +238,8 @@ export const canAccessRoute = (role, path, allowedModules) => {
     return false;
   }
 
-  // Letters opens for anyone who can view letters, and for consultancy
-  // managers who may only issue the consultancy agreement there.
-  if (appPath === "/letters") {
-    const access = getLetterAccess({ role, allowedModules });
-    return access.canView || access.canIssueConsultancyAgreement;
-  }
+  // Letters opens only for users with the Letters module and a Letters permission.
+  if (appPath === "/letters") return getLetterAccess({ role, allowedModules }).canView;
 
   return moduleRouteAccess(role, appPath, allowedModules);
 };
@@ -528,11 +524,10 @@ export const roleHasPermission = (role, permissionKey) => {
   )
     return true;
   if (permissionKey === "documents:view" && perms.includes("documents:view-all")) return true;
-  // employees:letters predates the Letters module and keeps granting letter issuing.
-  if (permissionKey === "letters:issue" && perms.includes("employees:letters")) return true;
+  // Only the Letters permissions grant Letters (employees:letters is the termination-letter grant).
   if (
     permissionKey === "letters:view" &&
-    ["letters:templates", "letters:issue", "letters:offers", "employees:letters"].some((p) => perms.includes(p))
+    ["letters:templates", "letters:issue", "letters:offers"].some((p) => perms.includes(p))
   )
     return true;
   if (

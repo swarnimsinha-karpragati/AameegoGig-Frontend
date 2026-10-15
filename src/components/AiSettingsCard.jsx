@@ -65,15 +65,25 @@ export default function AiSettingsCard() {
       </div>
 
       {!data.enabled ? (
-        <p className="attendance-settings__help">
-          AI help is not switched on for your organization. Contact Workza support to turn it on.
-        </p>
+        <div className="attendance-settings__row">
+          <div className="attendance-settings__help">
+            <p>AI help is not switched on for your organization. Contact Workza support to turn it on.</p>
+          </div>
+        </div>
       ) : (
         <>
-          <p className="attendance-settings__help">
-            Used this month: {usd(data.usedThisMonthUsd)} of {usd(data.monthlyBudgetUsd)}. The allowance resets on the 1st.
-          </p>
           <div className="attendance-settings__row">
+            <div className="attendance-settings__stat">
+              <span>Used this month</span>
+              <strong>
+                {usd(data.usedThisMonthUsd)} of {usd(data.monthlyBudgetUsd)}
+              </strong>
+            </div>
+            <div className="attendance-settings__help">
+              <p>The allowance resets on the 1st of each month.</p>
+            </div>
+          </div>
+          <div className="attendance-settings__row wz-ds">
             <Toggle
               label="Allow AI features that use personal details"
               checked={pending ?? data.personalData}

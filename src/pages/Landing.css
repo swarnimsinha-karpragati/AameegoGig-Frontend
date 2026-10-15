@@ -191,8 +191,9 @@ body:has(.landing-page) {
   grid-area: links;
 }
 
-.landing-nav-links button {
+.landing-nav-links :is(button, a) {
   font-size: 14px;
+  text-decoration: none;
   font-weight: 600;
   line-height: 22px;
   color: #1755a6;
@@ -200,7 +201,7 @@ body:has(.landing-page) {
   white-space: nowrap;
 }
 
-.landing-nav-links button:hover {
+.landing-nav-links :is(button, a):hover {
   opacity: 0.75;
 }
 
@@ -1427,6 +1428,58 @@ body:has(.landing-page) {
   color: #5a6580;
 }
 
+.landing-steps-grid--2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.landing-solution-link {
+  margin-top: auto;
+  font-family: "Sora", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1755a6;
+  text-decoration: none;
+}
+
+.landing-solution-link:hover {
+  text-decoration: underline;
+}
+
+.landing-faq {
+  background: #f6f8fc;
+}
+
+.landing-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(860px, 100%);
+}
+
+.landing-faq-item {
+  background: #ffffff;
+  border: 1px solid #e7eaf6;
+  border-radius: 12px;
+  padding: 18px 22px;
+}
+
+.landing-faq-item summary {
+  cursor: pointer;
+  font-family: "Sora", sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  color: #0f1d3a;
+}
+
+.landing-faq-item p {
+  margin: 12px 0 0;
+  font-family: "Sora", sans-serif;
+  font-size: 15px;
+  line-height: 24px;
+  color: #5a6580;
+}
+
 /* ========== Demo — Figma 1:199 ========== */
 .landing-demo {
   position: relative;
@@ -1923,8 +1976,9 @@ body:has(.landing-page) {
   min-width: 0;
 }
 
-.landing-footer-links button {
+.landing-footer-links :is(button, a) {
   font-family: "Sora", sans-serif;
+  text-decoration: none;
   font-size: 13px;
   font-weight: 600;
   line-height: 20.8px;
@@ -1936,7 +1990,7 @@ body:has(.landing-page) {
   white-space: nowrap;
 }
 
-.landing-footer-links button:hover {
+.landing-footer-links :is(button, a):hover {
   color: #1755a6;
 }
 
@@ -2196,8 +2250,9 @@ body:has(.landing-page) {
     margin-top: 8px;
   }
 
-  .landing-nav-links button {
+  .landing-nav-links :is(button, a) {
     width: 100%;
+    display: block;
     text-align: left;
     padding: 14px 4px;
     font-size: 16px;
