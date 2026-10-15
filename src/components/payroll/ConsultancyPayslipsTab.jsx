@@ -30,6 +30,7 @@ export default function ConsultancyPayslipsTab({ hideIfEmpty = false }) {
   const [error, setError] = useState("");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewName, setPreviewName] = useState("");
 
   const yearOptions = useMemo(
     () => Array.from({ length: 16 }, (_, index) => currentYear - index),
@@ -67,6 +68,7 @@ export default function ConsultancyPayslipsTab({ hideIfEmpty = false }) {
       return;
     }
     setPreviewUrl(getDocumentViewUrl(payment.payslipDocumentId));
+    setPreviewName(`Consultancy_Payslip_${MONTH_LABEL(payment.month)}_${payment.year}.pdf`);
     setIsPreviewOpen(true);
   };
 
@@ -256,7 +258,9 @@ export default function ConsultancyPayslipsTab({ hideIfEmpty = false }) {
           onClose={() => {
             setIsPreviewOpen(false);
             setPreviewUrl(null);
+            setPreviewName("");
           }}
+          title={previewName || "Preview"}
         />,
         document.body
       )}

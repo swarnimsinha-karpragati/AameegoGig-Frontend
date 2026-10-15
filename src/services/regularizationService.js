@@ -23,3 +23,9 @@ export const directEditAttendance = async (payload) =>
 
 export const directEditLeave = async (leaveRequestId, payload) =>
   (await API.patch(`/regularization/direct/leave/${leaveRequestId}`, payload)).data;
+
+export const getRegularizationConfig = async () =>
+  (await API.get("/regularization/config")).data;
+
+export const updateRegularizationConfig = async (payload) =>
+  (await API.put("/regularization/config", payload)).data;

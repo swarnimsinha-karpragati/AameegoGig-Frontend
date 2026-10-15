@@ -1,7 +1,10 @@
 import {
   validateDemoRequestPayload,
   normalizePhone,
-  GOAL_MIN_LENGTH,
+  sanitizeDemoPhone,
+  validateTenDigitPhone,
+  PHONE_MIN_DIGITS,
+  PHONE_MAX_DIGITS,
 } from "./demoRequestValidation";
 
 const validPayload = {
@@ -31,17 +34,39 @@ describe("demoRequestValidation (frontend)", () => {
     expect(result.errors.goal).toMatch(/required/i);
   });
 
-  test("rejects a one-word name, personal-format phone, and short goal", () => {
+  test("accepts single-word names, international phones and short goals", () => {
     const result = validateDemoRequestPayload({
       ...validPayload,
       fullName: "Priya",
-      phone: "1234567890",
+      phone: "+1 415 555 2671",
       goal: "Payroll",
     });
+    expect(result.valid).toBe(true);
+    expect(result.values.phone).toBe("14155552671");
+  });
+
+  test("rejects digits in the name and letters in the phone", () => {
+    const result = validateDemoRequestPayload({
+      ...validPayload,
+      fullName: "Priya123",
+      phone: "98abc76543",
+    });
     expect(result.valid).toBe(false);
-    expect(result.errors.fullName).toMatch(/first and last/i);
-    expect(result.errors.phone).toMatch(/indian mobile/i);
-    expect(result.errors.goal).toMatch(new RegExp(String(GOAL_MIN_LENGTH)));
+    expect(result.errors.fullName).toMatch(/only letters/i);
+    expect(result.errors.phone).toMatch(/only numbers/i);
+  });
+
+  test("rejects a too-short phone and an invalid team size", () => {
+    const result = validateDemoRequestPayload({
+      ...validPayload,
+      teamSize: "thousands",
+      phone: "12345",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.teamSize).toMatch(/valid option/i);
+    expect(result.errors.phone).toMatch(
+      new RegExp(`${PHONE_MIN_DIGITS}.*${PHONE_MAX_DIGITS}`)
+    );
   });
 
   test("rejects unsafe characters and invalid email", () => {
@@ -60,5 +85,13 @@ describe("demoRequestValidation (frontend)", () => {
   test("normalizes leading 0 and 91 country code", () => {
     expect(normalizePhone("09876543210")).toBe("9876543210");
     expect(normalizePhone("919876543210")).toBe("9876543210");
+  });
+
+  test("landing phone helpers: digits-only capped at 10, exactly 10 required", () => {
+    expect(sanitizeDemoPhone("+91 98765 43210")).toBe("9876543210");
+    expect(sanitizeDemoPhone("98ab765432109")).toBe("9876543210");
+    expect(validateTenDigitPhone("")).toBeNull();
+    expect(validateTenDigitPhone("9876543210")).toBeNull();
+    expect(validateTenDigitPhone("98765")).toMatch(/exactly 10 digits/);
   });
 });

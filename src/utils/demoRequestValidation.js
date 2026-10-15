@@ -20,14 +20,31 @@ const TEAM_SIZES = [
 ];
 export const WORKFORCE_TYPES = ["Office Staff", "Field Staff", "Both"];
 export { LIMITS };
-export const GOAL_MIN_LENGTH = 10;
-const INDIAN_MOBILE = /^[6-9][0-9]{9}$/;
+// Phone numbers: 7–15 digits after normalization (international-friendly;
+// the old 10-digit Indian-mobile-only rule blocked legitimate requests).
+export const PHONE_MIN_DIGITS = 7;
+export const PHONE_MAX_DIGITS = 15;
 
 export const normalizePhone = (value) => {
   let digits = String(value || "").replace(/\D/g, "");
   if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
   else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
   return digits;
+};
+
+// Landing form hardening (stricter than the shared 7–15 digit rule): digits
+// only, capped at 10 while typing (+91 / leading-0 prefixes fold in first,
+// so pasting a full Indian number still lands on the right 10 digits).
+export const sanitizeDemoPhone = (value) =>
+  normalizePhone(value).slice(0, 10);
+
+// Landing form rule: exactly 10 digits once something is typed (blank is
+// still the shared required check's job).
+export const validateTenDigitPhone = (value) => {
+  const digits = normalizePhone(value);
+  if (!digits) return null;
+  if (digits.length !== 10) return "Phone must be exactly 10 digits";
+  return null;
 };
 
 const normalizeTeamSize = (value) => String(value || "").replace(/-/g, "–").trim();
@@ -37,8 +54,11 @@ const buildDemoFields = (body) => [
     name: "fullName",
     label: "Full name",
     value: body.fullName,
-    kind: "person_name",
+    // Neutral kind: any real name is accepted (the default person_name kind
+    // would reject numbers and single names).
+    kind: "text",
     required: true,
+    maxLength: LIMITS.TEXT_SHORT,
   },
   {
     name: "email",
@@ -58,8 +78,11 @@ const buildDemoFields = (body) => [
     name: "phone",
     label: "Phone",
     value: normalizePhone(body.phone),
-    inputType: "tel",
+    // Neutral kind: the 7–15 digit domain rule below governs (the default
+    // phone kind would force exactly 10 digits).
+    kind: "text",
     required: true,
+    maxLength: 20,
   },
   {
     name: "teamSize",
@@ -83,17 +106,26 @@ const buildDemoFields = (body) => [
 ];
 
 const applyDomainRules = (body, errors) => {
+  // Name: text only (letters incl. unicode, spaces and common name marks —
+  // no digits or symbols).
   const fullName = String(body.fullName || "").trim();
-  if (fullName && !errors.fullName) {
-    const parts = fullName.split(/\s+/).filter(Boolean);
-    if (parts.length < 2) {
-      errors.fullName = "Full name must include first and last name";
-    }
+  if (fullName && !errors.fullName && !/^\p{L}[\p{L}\s.'-]*$/u.test(fullName)) {
+    errors.fullName = "Full name must contain only letters";
   }
 
+  // Phone: digits and a leading + only — letters/symbols are rejected
+  // outright (normalization alone would silently swallow them).
+  const rawPhone = String(body.phone || "").trim();
+  if (rawPhone && !/^[+]?[0-9\s\-().]+$/.test(rawPhone)) {
+    errors.phone = "Phone must contain only numbers and +";
+  }
   const phone = normalizePhone(body.phone);
-  if (phone && !errors.phone && !INDIAN_MOBILE.test(phone)) {
-    errors.phone = "Phone must be a valid 10-digit Indian mobile number";
+  if (
+    phone &&
+    !errors.phone &&
+    (phone.length < PHONE_MIN_DIGITS || phone.length > PHONE_MAX_DIGITS)
+  ) {
+    errors.phone = `Phone must be a valid phone number (${PHONE_MIN_DIGITS}–${PHONE_MAX_DIGITS} digits)`;
   }
 
   const teamSize = normalizeTeamSize(body.teamSize);
@@ -108,11 +140,6 @@ const applyDomainRules = (body, errors) => {
   const workforceType = String(body.workforceType || "").trim();
   if (workforceType && !WORKFORCE_TYPES.includes(workforceType)) {
     errors.workforceType = "Workforce type must be a valid option";
-  }
-
-  const goal = String(body.goal || "").trim();
-  if (goal && !errors.goal && goal.length < GOAL_MIN_LENGTH) {
-    errors.goal = `What are you hoping to solve? must be at least ${GOAL_MIN_LENGTH} characters`;
   }
 };
 

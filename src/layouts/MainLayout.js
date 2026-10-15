@@ -140,6 +140,7 @@ function MainLayout({ children }) {
     if (
       user?.role === "HR" ||
       user?.role === "Employee" ||
+      user?.role === "Intern" ||
       !SYSTEM_ROLE_NAMES.includes(user?.role)
     ) {
       return user?.name || user?.employeeName || user?.vendorName || "User";

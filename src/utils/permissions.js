@@ -9,7 +9,7 @@
 // Permission key format: module:feature  (e.g. "payroll:manage")
 // ============================================================
 
-export const RBAC_VERSION = 3;
+export const RBAC_VERSION = 5;
 
 // ---------- Employee baseline (everyone gets these) ----------
 export const BASELINE_PERMISSIONS = [
@@ -298,11 +298,30 @@ const EMPLOYEE_ROLE = {
   permissions: [...BASELINE_PERMISSIONS],
 };
 
+const INTERN_ROLE = {
+  displayName: "Intern",
+  description: "Intern self-service — attendance, leave, documents and settings only",
+  isSystem: true,
+  permissions: [
+    "dashboard:view",
+    "attendance:view",
+    "leave:view",
+    "leave:apply",
+    "leave:balance",
+    "documents:view",
+    "documents:upload",
+    "settings:profile",
+    "settings:security",
+    "settings:notifications",
+  ],
+};
+
 export const SYSTEM_ROLES = {
   Admin: ADMIN_ROLE,
   HR: HR_ROLE,
   Manager: MANAGER_ROLE,
   Employee: EMPLOYEE_ROLE,
+  Intern: INTERN_ROLE,
 };
 
 export const DEFAULT_ROLES = SYSTEM_ROLES;

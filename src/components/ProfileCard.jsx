@@ -28,6 +28,16 @@ import ProbationHistoryModal from "./ProbationHistoryModal";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import "./ProfileCard.css";
 import Button from "./Button";
+
+// DD/MM/YYYY for UTC date-only values (matches the employee detail view).
+const toDDMMYYYY = (value) => {
+  if (!value) return "-";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getUTCFullYear()}`;
+};
 function InputField({
   icon,
   label,
@@ -430,18 +440,18 @@ export default function ProfileCard() {
             </span>
           </div>
         ) : null}
-        {role !== "Admin" ? (
+        {role !== "Admin" && role !== "Intern" ? (
           <div className="profile-info-item">
             <span className="profile-info-icon profile-info-icon--amber"><CalendarDays size={15} /></span>
             <span className="profile-info-copy">
               <span className="profile-info-label">Date of Joining</span>
               <span className="profile-info-value">
-                {dateOfJoining ? new Date(dateOfJoining).toLocaleDateString() : "-"}
+                {toDDMMYYYY(dateOfJoining)}
               </span>
             </span>
           </div>
         ) : null}
-        {employmentStatus ? (
+        {employmentStatus && role !== "Intern" ? (
           <div className="profile-info-item">
             <span className="profile-info-icon profile-info-icon--green"><ShieldCheck size={15} /></span>
             <span className="profile-info-copy">

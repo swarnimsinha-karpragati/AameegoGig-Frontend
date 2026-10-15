@@ -17,10 +17,10 @@ function SessionList({
       </div>
     );
   }
-
   return (
     <div className="attendance-sessions-timeline">
       {sessions.map((session, index) => (
+        
         <article
           key={session.sessionNumber || index}
           className={`attendance-timeline-item ${session.isOpen ? "open" : ""}`}
@@ -78,6 +78,8 @@ function SessionList({
                 </button>
               )}
 
+              <SessionLocationLink location={session.checkInLocation} status={session?.checkInLocation?.checkInStatus && session?.checkInLocation?.checkInStatus} prefix="Check-in" />
+
               {session.checkOutSelfieUrl && (
                 <button
                   type="button"
@@ -94,9 +96,8 @@ function SessionList({
                 </button>
               )}
 
-              <SessionLocationLink location={session.checkInLocation} prefix="Check-in" />
               {!session.isOpen && (
-                <SessionLocationLink location={session.checkOutLocation} prefix="Check-out" />
+                <SessionLocationLink location={session.checkOutLocation} status={session?.checkOutLocation?.checkOutStatus && session?.checkOutLocation?.checkOutStatus} prefix="Check-out" />
               )}
             </div>
           </div>

@@ -1,6 +1,11 @@
 import * as Yup from "yup";
 import { PATTERNS, LIMITS } from "../utils/inputValidation";
 import { getMaxDateOfBirthInputValue } from "./employeeValidation";
+import {
+  EMPLOYEE_CODE_PATTERN,
+  EMPLOYEE_CODE_MAX_LENGTH,
+  EMPLOYEE_CODE_HINT,
+} from "../utils/employeeCodeFormat";
 
 export const MIN_INTERN_AGE = 14;
 export const MAX_MONTHLY_STIPEND = LIMITS.MONTHLY_AMOUNT_MAX; // 10,000,000
@@ -40,15 +45,31 @@ const todayStart = () => {
 };
 
 export const internValidationSchema = Yup.object().shape({
-  // internCode is generated server-side (INT-0001) when left blank.
-  internCode: Yup.string()
+  // Optional manual code (blank auto-generates server-side). Strict format:
+  // 1–10 letters, one optional hyphen, 1–8 digits, max 20 chars, at least
+  // one non-zero digit. Uniqueness is checked by the server.
+  employeeCode: Yup.string()
     .trim()
-    .nullable()
-    .transform(emptyToNull)
-    .matches(PATTERNS.EMPLOYEE_CODE, {
-      message: "Intern code must be 2–32 letters, numbers, hyphens, or underscores",
+    .uppercase()
+    .max(
+      EMPLOYEE_CODE_MAX_LENGTH,
+      `Employee Code must be at most ${EMPLOYEE_CODE_MAX_LENGTH} characters`
+    )
+    .matches(EMPLOYEE_CODE_PATTERN, {
+      message: EMPLOYEE_CODE_HINT,
       excludeEmptyString: true,
     })
+    .test(
+      "non-zero-digit",
+      "Employee Code must contain at least one non-zero digit",
+      (value) => {
+        if (!value) return true;
+        const digits = String(value).replace(/\D/g, "");
+        return digits.length > 0 && !/^0+$/.test(digits);
+      }
+    )
+    .nullable()
+    .transform(emptyToNull)
     .default(null),
 
   name: Yup.string()

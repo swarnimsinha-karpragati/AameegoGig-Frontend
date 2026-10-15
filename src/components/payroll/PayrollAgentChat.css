@@ -1,0 +1,259 @@
+/* PayrollAgentChat — chat panel inside the Payroll page (Admin/HR tab). */
+
+.agent-chat {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  padding: 20px;
+  /* Full width of the Payroll page content area (below the tabs bar). */
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  /* Full height: when the assistant tab is active, .payroll-page becomes a
+     locked flex column (no page scroll) and the chat fills all of it —
+     only the message list scrolls internally. See .payroll-page--assistant. */
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---- Full-height mode (assistant tab): lock the whole layout chain ---- */
+/* .page-content isn't a flex container by default, so become one only when
+   it hosts the assistant — other pages are untouched. */
+.dashboard-layout .page-content:has(.payroll-page--assistant) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.payroll-page--assistant {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.payroll-page--assistant .agent-chat {
+  flex: 1;
+  min-height: 0;
+}
+
+.agent-chat-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.agent-chat-headings {
+  flex: 1;
+}
+
+/* "New chat" — resets frontend history (backend session lapses via TTL). */
+.agent-newchat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.agent-newchat:hover:not(:disabled) {
+  border-color: #4f46e5;
+  color: #4f46e5;
+}
+
+.agent-newchat:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.agent-chat-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.agent-chat-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.agent-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px 12px;
+  /* min-height:0 lets the message list shrink and scroll internally instead
+     of pushing the whole page taller when the chat fills the viewport. */
+  min-height: 0;
+}
+
+.agent-msg {
+  display: flex;
+}
+
+.agent-msg--user {
+  justify-content: flex-end;
+}
+
+.agent-msg--agent {
+  justify-content: flex-start;
+}
+
+.agent-bubble {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.agent-msg--user .agent-bubble {
+  background: #4f46e5;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.agent-msg--agent .agent-bubble {
+  background: rgba(148, 163, 184, 0.16);
+  border-bottom-left-radius: 4px;
+}
+
+.agent-msg--error .agent-bubble {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.agent-bubble--typing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.8;
+}
+
+.agent-spin {
+  animation: agent-spin 1s linear infinite;
+}
+
+@keyframes agent-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.agent-inputbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.agent-inputbar input {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  font-size: 14px;
+  background: transparent;
+  color: inherit;
+}
+
+.agent-inputbar input:focus {
+  outline: none;
+  border-color: #4f46e5;
+}
+
+.agent-inputbar button {
+  width: 46px;
+  border-radius: 12px;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-inputbar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- Markdown inside agent bubbles (preview tables, bold, lists) ---- */
+
+.agent-bubble .agent-md-p {
+  margin: 0 0 8px;
+}
+
+.agent-bubble .agent-md-p:last-child {
+  margin-bottom: 0;
+}
+
+.agent-md-list {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.agent-md-list li {
+  margin-bottom: 4px;
+}
+
+.agent-md-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 12px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.agent-md-table th,
+.agent-md-table td {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.agent-md-table th {
+  background: rgba(79, 70, 229, 0.12);
+  font-weight: 700;
+}
+
+.agent-md-table td:last-child,
+.agent-md-table th:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* "Show all N rows" toggle under collapsed tables — a real button,
+   expanded in place without another server round-trip. */
+.agent-table-toggle {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #4f46e5;
+  background: transparent;
+  color: #4f46e5;
+  cursor: pointer;
+  margin: 0 0 12px;
+}
+
+.agent-table-toggle:hover {
+  background: rgba(79, 70, 229, 0.12);
+}
