@@ -38,6 +38,7 @@ function Documents() {
   const [uploadFile, setUploadFile] = useState(null);
   const [message, setMessage] = useState("");
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewName, setPreviewName] = useState("");
 
   useEffect(() => {
     try {
@@ -131,8 +132,9 @@ function Documents() {
 
       <DocumentPreview
         isOpen={!!previewUrl}
-        onClose={() => setPreviewUrl(null)}
+        onClose={() => { setPreviewUrl(null); setPreviewName(""); }}
         url={previewUrl}
+        title={previewName || "Preview"}
       />
       <div className="documents-page">
         {/* UPLOAD — employees only. Admin uploads per-employee in Employees. */}
@@ -247,7 +249,7 @@ function Documents() {
                     <div className="document-actions">
                       <button
                         className="document-actions__view"
-                        onClick={() => setPreviewUrl(getDocumentViewUrl(doc._id))}
+                        onClick={() => { setPreviewUrl(getDocumentViewUrl(doc._id)); setPreviewName(doc.originalName || doc.fileName || ""); }}
                       >
                         <Eye size={15} />
                         View

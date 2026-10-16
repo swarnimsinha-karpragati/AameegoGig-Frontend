@@ -67,9 +67,9 @@ export const buildTodayRowFromAttendanceResponse = (response, user) => {
   };
 };
 
-export const getMonthlyAttendance = async (year, month, target = "self") => {
+export const getMonthlyAttendance = async (year, month, target = "self", employeeId) => {
   const res = await API.get("/attendance/month", {
-    params: { year, month, target },
+    params: { year, month, target, ...(employeeId ? { employeeId } : {}) },
   });
   return res.data;
 };
@@ -150,6 +150,14 @@ export const bulkMarkToday = async (records) => {
 
 export const monthReport = async (vendorId,reportMonth,reportYear) => {
   const res = await API.get(`/attendance/download-monthy-report?vendorId=${vendorId}&reportMonth=${reportMonth}&reportYear=${reportYear}`,{ responseType: 'blob' });
+  return res.data;
+};
+
+export const downloadMonthlyUploadTemplate = async ({ month, year }) => {
+  const res = await API.get("/attendance/markMonth/bulk-upload/template", {
+    params: { month, year },
+    responseType: "blob",
+  });
   return res.data;
 };
 

@@ -28,6 +28,10 @@ export default function PayslipsTab({
   onDownloadPdf,
   onDownloadWageSheet,
   downloadingWageSheet,
+  departments = [],
+  siteLabel = "Department",
+  wageDeptId = "",
+  onWageDeptChange,
   onEmailPayslip,
   onReopenPayroll,
   onReleasePayroll,
@@ -36,6 +40,9 @@ export default function PayslipsTab({
   const availableMonths = getAvailableMonths(selectedYear);
   const canDownloadWageSheet = Boolean(payrollSummary?.canDownloadWageSheet);
   const displayRecords = records || [];
+  const wageDeptName = wageDeptId
+    ? (departments || []).find((d) => String(d._id) === String(wageDeptId))?.name
+    : "";
 
   return (
     <div className="history-table-container glass-morphism payroll-list-card">
@@ -58,7 +65,9 @@ export default function PayslipsTab({
             title={
               !canDownloadWageSheet
                 ? `No payroll records for ${availableMonths[selectedMonth - 1]?.label} ${selectedYear}. Generate payroll first.`
-                : "Download month-wise wage sheet (Excel) — available even before approval"
+                : wageDeptName
+                  ? `Download ${wageDeptName} wage sheet (Excel) for ${availableMonths[selectedMonth - 1]?.label} ${selectedYear}`
+                  : "Download month-wise wage sheet (Excel) — available even before approval"
             }
           >
             {downloadingWageSheet ? "Preparing…" : "Wage sheet"}
@@ -83,19 +92,40 @@ export default function PayslipsTab({
           onYearChange={onYearChange}
         />
         {isAdminOrHR && (
-          <div className="control-group payroll-filter-field">
-            <label>Type</label>
-            <div className="pm-type-switch">
-              {["all", "monthly", "daily"].map((t) => (
-                <Button
-                  key={t}
-                  className={`generic-btn ${typeFilter === t ? "active" : "not-active"}`}
-                  onClick={() => onTypeFilterChange(t)}
-                  type="button"
-                >
-                  {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
-                </Button>
-              ))}
+          <div className="payroll-type-site-row">
+            <div className="control-group payroll-filter-field">
+              <label>Type</label>
+              <div className="pm-type-switch">
+                {["all", "monthly", "daily"].map((t) => (
+                  <Button
+                    key={t}
+                    className={`generic-btn ${typeFilter === t ? "active" : "not-active"}`}
+                    onClick={() => onTypeFilterChange(t)}
+                    type="button"
+                  >
+                    {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="control-group payroll-filter-field">
+              <label>{siteLabel}</label>
+              <select
+                className="pm-calc-select pm-calc-select--truncate"
+                value={wageDeptId}
+                onChange={(e) => onWageDeptChange?.(e.target.value)}
+                aria-label={`${siteLabel} filter for payslips and wage sheet download`}
+                title={wageDeptName
+                  ? `${wageDeptName} — showing payslips for this ${siteLabel.toLowerCase()} only`
+                  : `Filter payslips and wage sheet by ${siteLabel.toLowerCase()}`}
+              >
+                <option value="">All {siteLabel}s</option>
+                {(departments || []).map((d) => (
+                  <option key={d._id} value={d._id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         )}

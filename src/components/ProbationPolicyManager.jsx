@@ -32,7 +32,7 @@ export default function ProbationPolicyManager() {
   const [errors, setErrors] = useState({});
   // HR/Admin-only screen: Employee role must never see or edit this policy.
   const storedRole = getStoredUser()?.role;
-  const canManage = storedRole !== "Employee" && canManageProbationPolicy(storedRole);
+  const canManage = storedRole !== "Employee" && storedRole !== "Intern" && canManageProbationPolicy(storedRole);
   const isAdmin = storedRole === "Admin";
   const [running, setRunning] = useState(false);
   const [runStatus, setRunStatus] = useState({ type: "", message: "" });

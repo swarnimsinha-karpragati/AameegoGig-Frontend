@@ -8,6 +8,14 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^13.5.0",
+    "@tiptap/core": "^3.31.4",
+    "@tiptap/extension-image": "^3.31.4",
+    "@tiptap/extension-table": "^3.31.4",
+    "@tiptap/extension-text-align": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
+    "@tiptap/react": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
+    "@vis.gl/react-google-maps": "^1.10.1",
     "axios": "^1.15.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
@@ -28,8 +36,15 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "postbuild": "node scripts/prerender.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^@tiptap/pm/(.*)$": "<rootDir>/node_modules/@tiptap/pm/dist/$1/index.cjs",
+      "^@tiptap/core/(jsx-runtime|jsx-dev-runtime)$": "<rootDir>/node_modules/@tiptap/core/$1/index.cjs"
+    }
   },
   "eslintConfig": {
     "extends": [
@@ -48,5 +63,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "jsdom": "^16.7.0"
   }
 }

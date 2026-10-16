@@ -166,6 +166,58 @@
   cursor: not-allowed;
 }
 
+.org-profile-card__field-error {
+  font-size: 12px;
+  font-weight: 500;
+  color: #b91c1c;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.org-profile-card__grid [aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+.org-profile-card__section {
+  margin: 18px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.org-profile-card__section h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.org-profile-card__section p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.org-profile-card__branding {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.org-profile-card__branding .org-profile-card__logo-row {
+  margin-bottom: 0;
+}
+
+.org-profile-card__image-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
 .org-profile-card__footer {
   display: flex;
   flex-wrap: wrap;
@@ -233,7 +285,8 @@
 }
 
 @media (max-width: 768px) {
-  .org-profile-card__grid {
+  .org-profile-card__grid,
+  .org-profile-card__branding {
     grid-template-columns: 1fr;
   }
 

@@ -1,0 +1,116 @@
+.wz-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-space-3);
+  padding: var(--wz-space-3) var(--wz-space-4);
+}
+
+.wz-pagination__summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-text-primary);
+}
+
+.wz-pagination__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-space-2);
+}
+
+.wz-pagination__pages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--wz-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-pagination__step,
+.wz-pagination__page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--wz-space-1);
+  height: var(--wz-control-height-sm);
+  border: 1px solid var(--wz-color-border-default);
+  border-radius: var(--wz-radius-sm);
+  background: var(--wz-color-surface-default);
+  color: var(--wz-color-text-primary);
+  font-family: var(--wz-font-family);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--wz-font-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--wz-duration-fast) ease, border-color var(--wz-duration-fast) ease;
+}
+
+.wz-pagination__step {
+  padding: 0 var(--wz-space-3);
+}
+
+.wz-pagination__step svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wz-pagination__page {
+  min-width: var(--wz-control-height-sm);
+  padding: 0 var(--wz-space-2);
+}
+
+.wz-pagination__step:hover:not(:disabled),
+.wz-pagination__page:hover:not(.wz-pagination__page--active) {
+  background: var(--wz-color-surface-subtle);
+  border-color: var(--wz-color-border-strong);
+}
+
+.wz-pagination__page--active {
+  background: var(--wz-color-action-primary);
+  border-color: var(--wz-color-action-primary);
+  color: var(--wz-color-text-inverse);
+  cursor: default;
+}
+
+.wz-pagination__step:disabled {
+  cursor: not-allowed;
+  color: var(--wz-color-status-disabled-text);
+  background: var(--wz-color-surface-subtle);
+}
+
+.wz-pagination__step:focus-visible,
+.wz-pagination__page:focus-visible {
+  outline: none;
+  box-shadow: var(--wz-focus-shadow);
+}
+
+.wz-pagination__ellipsis {
+  min-width: var(--wz-space-6);
+  color: var(--wz-color-text-muted);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .wz-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wz-pagination__nav {
+    justify-content: center;
+  }
+
+  .wz-pagination__step span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+}

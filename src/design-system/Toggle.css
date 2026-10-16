@@ -1,0 +1,67 @@
+.wz-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-space-2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--wz-radius-full);
+  background: transparent;
+  font-family: var(--wz-font-family);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--wz-color-text-primary);
+  cursor: pointer;
+}
+
+.wz-toggle:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.wz-toggle:focus-visible .wz-toggle__track {
+  box-shadow: var(--wz-focus-shadow);
+}
+
+.wz-toggle__track {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
+  border-radius: var(--wz-radius-full);
+  background: var(--wz-color-text-muted);
+  transition: background-color var(--wz-duration-base) ease;
+}
+
+.wz-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--wz-radius-full);
+  background: var(--wz-color-surface-default);
+  box-shadow: var(--wz-elevation-1);
+  transition: transform var(--wz-duration-base) ease;
+}
+
+.wz-toggle--on .wz-toggle__track {
+  background: var(--wz-color-action-primary);
+}
+
+.wz-toggle--on .wz-toggle__thumb {
+  transform: translateX(16px);
+}
+
+.wz-toggle:disabled {
+  cursor: not-allowed;
+  color: var(--wz-color-text-muted);
+}
+
+.wz-toggle:disabled .wz-toggle__track {
+  background: var(--wz-color-status-disabled);
+}
+
+.wz-toggle--on:disabled .wz-toggle__track {
+  background: var(--wz-color-action-selected-hover);
+}

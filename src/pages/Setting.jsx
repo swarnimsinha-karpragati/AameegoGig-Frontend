@@ -12,6 +12,7 @@ import {
   Timer,
   Lock,
   UserCheck,
+  SlidersHorizontal,
   // ShieldCheck, // Roles tab commented
 } from "lucide-react";
 
@@ -29,6 +30,8 @@ import LeavePolicyManager from "../components/LeavePolicyManager";
 import ProbationPolicyManager from "../components/ProbationPolicyManager";
 // import PayrollConfigCard from "../components/PayrollConfigCard";
 import OrgProfileCard from "../components/OrgProfileCard";
+import AttendanceSettingsCard from "../components/AttendanceSettingsCard";
+import AiSettingsCard from "../components/AiSettingsCard";
 import SalaryComponentManager from "../components/SalaryComponentManager";
 import SalaryStructure from "../components/SalaryStructure";
 import { roleHasPermission } from "../utils/roles";
@@ -60,6 +63,7 @@ export default function Settings() {
     const list = [{ id: "profile", label: "Profile", icon: User }];
     if (roleHasPermission(role, "settings:org")) {
       list.push({ id: "organization", label: "Organization", icon: Building2 });
+      list.push({ id: "configuration", label: "Configuration", icon: SlidersHorizontal });
     }
     if (roleHasPermission(role, "settings:shifts")) {
       list.push({ id: "shifts", label: "Shifts & Week Off", icon: Clock });
@@ -70,11 +74,12 @@ export default function Settings() {
     if (roleHasPermission(role, "settings:leave-policy")) {
       list.push({ id: "leave-policy", label: "Leave Policy", icon: FileText });
     }
-    // Probation policy is HR/Admin-only: never visible for the Employee role,
-    // even if a stale/custom catalog grants the permission.
+    // Probation policy is HR/Admin-only: never visible for the Employee or
+    // Intern roles, even if a stale/custom catalog grants the permission.
     if (
       role &&
       role !== "Employee" &&
+      role !== "Intern" &&
       (roleHasPermission(role, "settings:probation") ||
         roleHasPermission(role, "probation:manage"))
     ) {
@@ -175,6 +180,13 @@ export default function Settings() {
 
           {activeTab === "organization" && <OrgProfileCard />}
 
+          {activeTab === "configuration" && (
+            <>
+              <AttendanceSettingsCard />
+              <AiSettingsCard />
+            </>
+          )}
+
           {activeTab === "shifts" && (
             <div className="settings-bottom-grid">
               <ShiftManager vendorId={user?.vendorId} />
@@ -190,6 +202,7 @@ export default function Settings() {
 
           {activeTab === "probation" &&
             user?.role !== "Employee" &&
+            user?.role !== "Intern" &&
             (roleHasPermission(user?.role, "settings:probation") ||
               roleHasPermission(user?.role, "probation:manage")) && (
               <ProbationPolicyManager />

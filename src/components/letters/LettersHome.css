@@ -1,0 +1,115 @@
+.wz-lhome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-5);
+  min-width: 0;
+}
+
+.wz-lhome__search {
+  max-width: 420px;
+}
+
+.wz-lhome__notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-space-3);
+}
+
+.wz-lhome__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-2);
+}
+
+.wz-lhome__group-title {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--wz-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--wz-color-text-muted);
+}
+
+.wz-lhome__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--wz-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-lhome__grid > li {
+  display: flex;
+}
+
+.wz-lhome__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--wz-space-1);
+  width: 100%;
+  min-height: 84px;
+  padding: var(--wz-space-4);
+  border: 1px solid var(--wz-color-border-default);
+  border-radius: var(--wz-radius-md);
+  background: var(--wz-color-surface-default);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--wz-duration-fast), background var(--wz-duration-fast);
+}
+
+.wz-lhome__card:hover {
+  border-color: var(--wz-color-action-selected-hover);
+  background: var(--wz-color-action-selected);
+}
+
+.wz-lhome__card:focus-visible {
+  outline: none;
+  box-shadow: var(--wz-focus-shadow);
+}
+
+.wz-lhome__card-name {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-text-heading);
+}
+
+.wz-lhome__card-desc {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--wz-color-text-muted);
+}
+
+.wz-lhome__recent-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wz-lhome__recent-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-space-3);
+  padding: var(--wz-space-3) 0;
+  border-top: 1px solid var(--wz-color-border-default);
+}
+
+.wz-lhome__recent-item:first-child {
+  border-top: none;
+}
+
+.wz-lhome__recent-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-space-3);
+}

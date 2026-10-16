@@ -1,0 +1,218 @@
+/* position: relative makes the wrapper the containing block of absolutely positioned cell
+   content (e.g. .wz-sr-only), so it scrolls inside the table instead of widening the page. */
+.wz-table-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--wz-color-border-default);
+  border-radius: var(--wz-radius-md);
+  background: var(--wz-color-surface-default);
+  -webkit-overflow-scrolling: touch;
+}
+
+.wz-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--wz-color-text-primary);
+}
+
+.wz-table__head {
+  height: 44px;
+  padding: 0 var(--wz-space-4);
+  background: var(--wz-color-surface-subtle);
+  border-bottom: 1px solid var(--wz-color-border-default);
+  color: var(--wz-color-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--wz-font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.wz-table__cell {
+  height: 64px;
+  padding: var(--wz-space-3) var(--wz-space-4);
+  border-bottom: 1px solid var(--wz-color-border-default);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.wz-table tbody tr:last-child > .wz-table__cell {
+  border-bottom: 0;
+}
+
+.wz-table__cell--left {
+  text-align: left;
+}
+
+.wz-table__cell--center {
+  text-align: center;
+}
+
+.wz-table__cell--right {
+  text-align: right;
+}
+
+.wz-table__cell--actions {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.wz-table__row {
+  transition: background-color var(--wz-duration-fast) ease;
+}
+
+.wz-table__row:not(.wz-table__row--empty):not(.wz-table__row--skeleton):hover {
+  background: var(--wz-color-surface-subtle);
+}
+
+.wz-table__row--clickable {
+  cursor: pointer;
+}
+
+.wz-table__row--clickable:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--wz-color-focus-ring);
+}
+
+.wz-table__cell--empty {
+  height: auto;
+  padding: 0;
+}
+
+.wz-table__empty-text {
+  margin: 0;
+  padding: var(--wz-space-10) var(--wz-space-4);
+  color: var(--wz-color-text-muted);
+  text-align: center;
+}
+
+.wz-table__skeleton {
+  display: block;
+  width: 70%;
+  height: 12px;
+  border-radius: var(--wz-radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--wz-color-status-disabled) 0%,
+    var(--wz-color-surface-subtle) 50%,
+    var(--wz-color-status-disabled) 100%
+  );
+  background-size: 200% 100%;
+  animation: wz-skeleton 1.2s ease-in-out infinite;
+}
+
+.wz-table__kebab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--wz-control-height-sm);
+  height: var(--wz-control-height-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--wz-radius-sm);
+  background: transparent;
+  color: var(--wz-color-text-secondary);
+  cursor: pointer;
+}
+
+.wz-table__kebab svg {
+  width: 18px;
+  height: 18px;
+}
+
+.wz-table__kebab:hover,
+.wz-table__kebab[aria-expanded="true"] {
+  background: var(--wz-color-action-selected);
+  color: var(--wz-color-action-primary);
+}
+
+.wz-table__kebab:focus-visible {
+  outline: none;
+  box-shadow: var(--wz-focus-shadow);
+}
+
+.wz-table-menu {
+  min-width: 168px;
+  overflow-y: auto;
+  padding: var(--wz-space-1);
+  background: var(--wz-color-surface-default);
+  border: 1px solid var(--wz-color-border-default);
+  border-radius: var(--wz-radius-md);
+  box-shadow: var(--wz-elevation-2);
+}
+
+.wz-table-menu__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.wz-table-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--wz-space-2);
+  width: 100%;
+  min-height: var(--wz-control-height-sm);
+  padding: var(--wz-space-2) var(--wz-space-3);
+  border: 0;
+  border-radius: var(--wz-radius-sm);
+  background: transparent;
+  color: var(--wz-color-text-primary);
+  font-family: var(--wz-font-family);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wz-table-menu__item:hover:not(:disabled),
+.wz-table-menu__item:focus-visible {
+  outline: none;
+  box-shadow: none;
+  background: var(--wz-color-action-selected);
+}
+
+.wz-table-menu__item--danger {
+  color: var(--wz-color-status-error);
+}
+
+.wz-table-menu__item--danger:hover:not(:disabled),
+.wz-table-menu__item--danger:focus-visible {
+  background: var(--wz-color-status-error-bg);
+}
+
+.wz-table-menu__item:disabled {
+  cursor: not-allowed;
+  color: var(--wz-color-status-disabled-text);
+}
+
+.wz-table-menu__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.wz-table-menu__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+@keyframes wz-skeleton {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wz-table__skeleton {
+    animation: none;
+  }
+}

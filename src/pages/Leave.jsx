@@ -323,7 +323,12 @@ function LeaveInner() {
     coPurpose === "credit";
 
   const slRequiredWhenDaysGt = useMemo(() => {
-    const sl = leavePolicy?.types?.find((t) => t?.code === "SL");
+    // Policy API is Admin/HR-only: employees get no policy, so fall back to
+    // the standard threshold (both built-in templates require SL docs when
+    // days > 1). This keeps "Apply for My Leave" identical to the org form
+    // and matches backend enforcement (getOrCreatePolicy → standard policy).
+    if (!leavePolicy?.types?.length) return 1;
+    const sl = leavePolicy.types.find((t) => t?.code === "SL");
     return sl?.documents?.requiredWhenDaysGt ?? null;
   }, [leavePolicy]);
 
@@ -977,34 +982,6 @@ function LeaveInner() {
           </div>
         ) : null}
 
-        {leaveForm.leaveType === "SL" ? (
-          <div className="leave-field">
-            <label htmlFor="leave-medical-doc">
-              Medical Doc (required for SL &gt; 1 day)
-            </label>
-            <input
-              id="leave-medical-doc"
-              type="file"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-              className="leave-control"
-              onChange={(e) => setMedicalDocFile(e.target.files?.[0] || null)}
-            />
-            {slRequiredWhenDaysGt != null ? (
-              <p className="leave-upload-hint">
-                Required only when your SL days &gt; {slRequiredWhenDaysGt}.{" "}
-                {computedLeaveDays != null ? (
-                  <>You selected: <strong>{computedLeaveDays} day(s)</strong>.</>
-                ) : null}
-              </p>
-            ) : null}
-            {medicalDocFile ? (
-              <p className="leave-upload-hint">
-                Selected: <strong>{medicalDocFile.name}</strong>
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
         <div className="leave-field">
           <label htmlFor="leave-start">Start Date</label>
           <input
@@ -1056,6 +1033,64 @@ function LeaveInner() {
             </select>
           </div>
         ) : null}
+        {isMedicalDocRequired ? (
+          <div className="leave-field">
+            <label htmlFor="leave-medical-doc">
+              Medical Document <span style={{ color: "#e53e3e" }}>*</span>
+            </label>
+            <div className="leave-file-zone">
+              <input
+                id="leave-medical-doc"
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                className="leave-file-input"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  if (file && !/\.(pdf|png|jpe?g)$/i.test(file.name || "")) {
+                    toast.error("Only PDF, PNG, JPG files are allowed for Sick Leave medical documents");
+                    e.target.value = "";
+                    setMedicalDocFile(null);
+                    return;
+                  }
+                  setMedicalDocFile(file);
+                }}
+              />
+              <span className="leave-file-zone__label">
+                {medicalDocFile ? medicalDocFile.name : "Choose file"}
+              </span>
+              {medicalDocFile ? (
+                <button
+                  type="button"
+                  className="leave-file-zone__clear"
+                  aria-label="Remove selected file"
+                  onClick={() => setMedicalDocFile(null)}
+                >
+                  <X size={14} />
+                </button>
+              ) : null}
+            </div>
+            <p className="leave-upload-hint">
+              PDF, PNG or JPG — required when SL days &gt; {slRequiredWhenDaysGt}
+              {computedLeaveDays != null ? (
+                <> · You selected: <strong>{computedLeaveDays} day(s)</strong></>
+              ) : null}
+            </p>
+          </div>
+        ) : null}
+        <div className="leave-field leave-field--full">
+          <label htmlFor="leave-reason">Reason <span style={{ color: "#e53e3e" }}>*</span></label>
+          <input
+            id="leave-reason"
+            type="text"
+            className="leave-control"
+            placeholder={leaveForm.leaveType === "CO" && coPurpose === "credit" ? "Which off-day did you work?" : "Reason for leave"}
+            value={leaveForm.reason}
+            onChange={(e) =>
+              setLeaveForm((p) => ({ ...p, reason: e.target.value }))
+            }
+            required
+          />
+        </div>
         {leaveForm.startDate && leaveForm.endDate ? (
           <div
             id="leave-date-feedback"
@@ -1154,20 +1189,6 @@ function LeaveInner() {
             </div>
           </div>
         ) : null}
-        <div className="leave-field leave-field--full">
-          <label htmlFor="leave-reason">Reason <span style={{ color: "#e53e3e" }}>*</span></label>
-          <input
-            id="leave-reason"
-            type="text"
-            className="leave-control"
-            placeholder={leaveForm.leaveType === "CO" && coPurpose === "credit" ? "Which off-day did you work?" : "Reason for leave"}
-            value={leaveForm.reason}
-            onChange={(e) =>
-              setLeaveForm((p) => ({ ...p, reason: e.target.value }))
-            }
-            required
-          />
-        </div>
         <div className="leave-form-actions">
           <Button
             type="submit"

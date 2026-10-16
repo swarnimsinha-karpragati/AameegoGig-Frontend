@@ -1,0 +1,98 @@
+/* flex-shrink: 0 — as a scroll container its min-height is 0, so inside a height-limited flex column it would collapse. */
+.wz-switcher {
+  display: flex;
+  flex-shrink: 0;
+  align-items: stretch;
+  gap: var(--wz-space-1);
+  max-width: 100%;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--wz-color-border-default);
+  scrollbar-width: none;
+}
+
+.wz-switcher::-webkit-scrollbar {
+  display: none;
+}
+
+.wz-switcher__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-space-2);
+  flex: 0 0 auto;
+  height: var(--wz-control-height-md);
+  padding: 0 var(--wz-space-3);
+  border: 0;
+  border-radius: var(--wz-radius-sm) var(--wz-radius-sm) 0 0;
+  background: transparent;
+  color: var(--wz-color-text-secondary);
+  font-family: var(--wz-font-family);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--wz-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wz-switcher__tab::after {
+  content: "";
+  position: absolute;
+  left: var(--wz-space-2);
+  right: var(--wz-space-2);
+  bottom: -1px;
+  height: 2px;
+  border-radius: var(--wz-radius-full);
+  background: transparent;
+}
+
+.wz-switcher__tab:hover {
+  color: var(--wz-color-text-primary);
+}
+
+.wz-switcher__tab--active {
+  color: var(--wz-color-action-primary);
+  font-weight: var(--wz-font-weight-semibold);
+}
+
+.wz-switcher__tab--active::after {
+  background: var(--wz-color-action-primary);
+}
+
+.wz-switcher__tab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--wz-color-focus-ring);
+}
+
+.wz-switcher__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--wz-radius-full);
+  background: var(--wz-color-status-disabled);
+  color: var(--wz-color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: var(--wz-font-weight-semibold);
+}
+
+.wz-switcher__tab--active .wz-switcher__count {
+  background: var(--wz-color-action-primary);
+  color: var(--wz-color-text-inverse);
+}
+
+/* Phones: tabs share the width and labels wrap, so every tab stays readable without scrolling. */
+@media (max-width: 480px) {
+  .wz-switcher__tab {
+    flex: 1 1 0;
+    min-width: 0;
+    height: auto;
+    min-height: var(--wz-control-height-md);
+    padding: var(--wz-space-1) var(--wz-space-2);
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+}

@@ -1,0 +1,21 @@
+.wz-spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--wz-radius-full);
+  animation: wz-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes wz-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wz-spinner {
+    animation-duration: 1.6s;
+  }
+}

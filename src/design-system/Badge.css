@@ -1,0 +1,47 @@
+.wz-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wz-space-1);
+  height: 22px;
+  padding: 0 var(--wz-space-2);
+  border-radius: var(--wz-radius-sm);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--wz-font-weight-medium);
+  white-space: nowrap;
+}
+
+.wz-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.wz-badge--success {
+  background: var(--wz-color-status-success-bg);
+  color: var(--wz-color-status-success-hover);
+}
+
+.wz-badge--warning {
+  background: var(--wz-color-status-warning-bg);
+  color: var(--wz-color-status-warning-text);
+}
+
+.wz-badge--error {
+  background: var(--wz-color-status-error-bg);
+  color: var(--wz-color-status-error-hover);
+}
+
+.wz-badge--info {
+  background: var(--wz-color-status-info-bg);
+  color: var(--wz-color-action-primary);
+}
+
+.wz-badge--neutral {
+  background: var(--wz-color-status-disabled);
+  color: var(--wz-color-text-secondary);
+}
+
+.wz-badge--brand {
+  background: var(--wz-color-action-selected);
+  color: var(--wz-color-action-primary-hover);
+}

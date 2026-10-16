@@ -1,0 +1,113 @@
+.wz-drawer-root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--wz-z-drawer);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.wz-drawer-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--wz-color-overlay);
+  animation: wz-drawer-fade var(--wz-duration-base) ease;
+}
+
+.wz-drawer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--wz-drawer-width, 520px), 100%);
+  height: 100%;
+  background: var(--wz-color-surface-default);
+  box-shadow: var(--wz-elevation-2);
+  animation: wz-drawer-in var(--wz-duration-base) ease;
+}
+
+.wz-drawer:focus {
+  outline: none;
+}
+
+.wz-drawer__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--wz-space-3);
+  flex: 0 0 auto;
+  padding: var(--wz-space-5) var(--wz-space-6);
+  border-bottom: 1px solid var(--wz-color-border-default);
+}
+
+.wz-drawer__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-1);
+  min-width: 0;
+}
+
+.wz-drawer__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: var(--wz-font-weight-semibold);
+  color: var(--wz-color-text-heading);
+}
+
+.wz-drawer__subtitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--wz-color-text-muted);
+}
+
+.wz-drawer__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--wz-space-6);
+}
+
+.wz-drawer__footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--wz-space-3);
+  flex: 0 0 auto;
+  padding: var(--wz-space-4) var(--wz-space-6);
+  border-top: 1px solid var(--wz-color-border-default);
+  background: var(--wz-color-surface-default);
+}
+
+@media (max-width: 639px) {
+  .wz-drawer {
+    width: 100%;
+  }
+
+  .wz-drawer__header,
+  .wz-drawer__body,
+  .wz-drawer__footer {
+    padding-left: var(--wz-space-4);
+    padding-right: var(--wz-space-4);
+  }
+}
+
+@keyframes wz-drawer-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes wz-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wz-drawer,
+  .wz-drawer-overlay {
+    animation: none;
+  }
+}

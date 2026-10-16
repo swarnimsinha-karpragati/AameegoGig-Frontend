@@ -10,12 +10,14 @@ function AttendanceCalendar({
   onPrev,
   onNext,
   showLeaveWfh = true,
+  headerFilter = null,
 }) {
   return (
     <section className="attendance-panel attendance-glass attendance-calendar-card">
       <header className="attendance-panel__head calendar-toolbar" style={{ display: 'flex', flexDirection: 'row' }}>
         <h2>{monthLabel}</h2>
         <div className="calendar-nav">
+          {headerFilter}
           <button type="button" aria-label="Previous month" onClick={onPrev}>
             <ChevronLeft size={18} />
           </button>

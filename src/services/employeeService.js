@@ -1,7 +1,8 @@
 import API from "./apiClient";
 
 const EMPLOYEE_PAYLOAD_FIELDS = [
-  // employeeCode is generated server-side (PREFIX-0001), never sent from here.
+  // Optional manual code (blank auto-generates server-side from the shared
+  // per-vendor series). Normalized below to match generated codes.
   "employeeCode",
   "name",
   "email",
@@ -95,6 +96,11 @@ export const buildEmployeePayload = (data, extras = {}) => {
     }
   }
 
+  // Always sent when present (even empty) so removing every member clears the list.
+  if (Array.isArray(data.familyMembers)) {
+    payload.familyMembers = data.familyMembers;
+  }
+
   const modules = extras.allowedModules ?? data.allowedModules;
   if (Array.isArray(modules)) {
     payload.allowedModules = modules;
@@ -102,6 +108,11 @@ export const buildEmployeePayload = (data, extras = {}) => {
 
   if (data.email) {
     payload.email = String(data.email).trim().toLowerCase();
+  }
+
+  if (payload.employeeCode) {
+    payload.employeeCode = String(payload.employeeCode).trim().toUpperCase();
+    if (!payload.employeeCode) delete payload.employeeCode;
   }
 
   return payload;

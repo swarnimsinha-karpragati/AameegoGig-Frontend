@@ -223,8 +223,7 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
 
 
   // Actions
-  const handleSwitchMode = (mode) => {
-    if (inputMode === mode) return;
+  const handleSwitchMode = (mode) => {    if (inputMode === mode) return;
     if (safeComponents.length > 0) {
       if (!window.confirm("Switching mode will clear current component data. Continue?")) return;
     }
@@ -486,11 +485,26 @@ export default forwardRef(function EmployeeSalaryStructureEditor({
     }
   };
 
+  // True once the user has typed/picked anything worth validating or
+  // saving (a chosen template counts as intent even before amounts land).
+  const hasEnteredSalaryInput = () => {
+    if (Number(ctcAnnual) > 0) return true;
+    if (Number(dailyWage) > 0) return true;
+    if (selectedStructureId) return true;
+    const comps = Array.isArray(safeComponents) ? safeComponents : [];
+    return comps.some(
+      (c) => Number(c.monthlyAmount) > 0 || Number(c.dailyAmount) > 0
+    );
+  };
+
   useImperativeHandle(ref, () => ({
     saveStructure: handleSave,
-    hasUnsavedChanges: isRevising,
+    // Nothing entered (and no template picked) means "set salary later" —
+    // the parent employee save must not be blocked, and there is nothing
+    // to persist. Any partial entry still validates + saves as before.
+    hasUnsavedChanges: Boolean(isRevising && hasEnteredSalaryInput()),
     validateStructure: () => {
-      if (!isRevising) return "";
+      if (!isRevising || !hasEnteredSalaryInput()) return "";
       if (isCalendarDaily) {
         const wageErr = validateDailyWage(dailyWage);
         if (wageErr) { setError(wageErr); return wageErr; }

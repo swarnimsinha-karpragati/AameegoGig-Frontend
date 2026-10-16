@@ -1,0 +1,101 @@
+.family-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.family-editor__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.family-editor__empty {
+  padding: 14px 16px;
+  border: 1px dashed #d1d9e6;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  color: #64748b;
+  text-align: center;
+}
+
+.family-editor__card {
+  padding: 14px 16px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.family-editor__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.family-editor__remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #b91c1c;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.family-editor__remove:hover {
+  background: #fee2e2;
+}
+
+.family-editor__add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px dashed #2563eb;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.family-editor__add:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.family-editor__add:disabled {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.family-editor__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.family-editor__table th,
+.family-editor__table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.family-editor__table th {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}

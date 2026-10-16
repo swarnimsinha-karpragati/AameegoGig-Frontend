@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import {
   UserCheck,
   Clock,
@@ -32,6 +31,7 @@ import {
   getAttendanceList,
   getCheckInSelfieUrl,
   buildTodayRowFromAttendanceResponse,
+  downloadMonthlyUploadTemplate,
 } from "../services/attendanceService";
 import {
   getAttendanceViewKey,
@@ -57,6 +57,8 @@ import {
 } from "../components/attendance/attendanceUtils";
 import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
 import { validateField } from "../utils/inputValidation";
+import { useOnLeave } from "../hooks/useLeave";
+import { parseBlobError } from "../utils/blobError";
 
 function Attendance() {
   const user = getStoredUser();
@@ -96,6 +98,7 @@ function Attendance() {
   const [monthlyUploadLoading, setMonthlyUploadLoading] = useState(false);
   const [monthlyUploadResult, setMonthlyUploadResult] = useState(null);
   const [monthlyUploadDragActive, setMonthlyUploadDragActive] = useState(false);
+  const [monthlyTemplateDownloading, setMonthlyTemplateDownloading] = useState(false);
   const monthlyUploadInputRef = useRef(null);
 
   const createInitialFilters = () => ({
@@ -115,6 +118,9 @@ function Attendance() {
   const [selfPagination, setSelfPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [orgPagination, setOrgPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [teamPagination, setTeamPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+
+  // Organization calendar employee filter — "" means All Employees.
+  const [orgEmployeeId, setOrgEmployeeId] = useState("");
 
   const [markForm, setMarkForm] = useState({
     employeeId: "",
@@ -138,12 +144,14 @@ function Attendance() {
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
   const canMarkForOthers = canMarkAttendance(user?.role);
-  const { data: employees = [] } = useAllEmployees({ enabled: canMarkForOthers });
-  const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
-  const canSelfCheckIn = hasLinkedEmployeeProfile(user);
   // Org section (stats/table/calendar): attendance:view-org or manage.
   // Mark permission alone does NOT unlock org data.
   const canViewOrg = canViewOrgAttendance(user?.role);
+  // The org calendar employee picker needs the directory for everyone who
+  // may view org data — not just users who can mark for others.
+  const { data: employees = [] } = useAllEmployees({ enabled: canMarkForOthers || canViewOrg });
+  const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
+  const canSelfCheckIn = hasLinkedEmployeeProfile(user);
 
   const markAttendanceMutation = useMarkAttendance();
   const markMonthAttendanceMutation = useMarkMonthAttendance();
@@ -229,6 +237,12 @@ function Attendance() {
     }
   };
 
+  const { employeeId } = user || {};
+
+  const { data:onLeaveData, isPending:onLeavePending } = useOnLeave({ employeeId });
+
+  console.log(onLeaveData)
+
   const loadOrgData = async () => {
     if (!canViewOrg) return;
     try {
@@ -236,7 +250,7 @@ function Attendance() {
       const month = orgViewDate.getMonth() + 1;
       const params = buildListParams("org", orgViewDate, selectedOrgDay, orgFilters, orgPagination);
       const [monthData, listRes] = await Promise.all([
-        getMonthlyAttendance(year, month, "org"),
+        getMonthlyAttendance(year, month, "org", orgEmployeeId || undefined),
         getAttendanceList(params),
       ]);
 
@@ -246,7 +260,11 @@ function Attendance() {
         weekOffs: monthData.weekOffs || {},
         dayRecords: monthData.dayRecords || {},
       });
-      setOrgStats(monthData.stats || EMPTY_STATS);
+      // The org table + stats stay organization-wide; only the calendar
+      // narrows to the picked employee.
+      if (!orgEmployeeId) {
+        setOrgStats(monthData.stats || EMPTY_STATS);
+      }
       setOrgRows(listRes.rows || []);
       if (listRes.pagination) {
         setOrgPagination(prev => ({ ...prev, total: listRes.pagination.total, pages: listRes.pagination.pages }));
@@ -282,12 +300,12 @@ function Attendance() {
     // eslint-disable-next-line
   }, [user?.role]);
 
-  // Initial + filter/page/month change loads. 
+  // Initial + filter/page/month/employee change loads.
   useEffect(() => {
     loadSelfData();
     loadOrgData();
     // eslint-disable-next-line
-  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role]);
+  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role, orgEmployeeId]);
 
   useEffect(() => {
     if (employees.length > 0 && (!markForm.employeeId || !markMonthForm.employeeId)) {
@@ -630,26 +648,29 @@ function Attendance() {
     setMonthlyUploadFileSafely(event.dataTransfer.files?.[0]);
   };
 
-  const downloadMonthlyUploadTemplate = () => {
-    const rows = [
-      ["INSTRUCTIONS FOR MONTHLY ATTENDANCE BULK UPLOAD"],
-      ["1. Employee Code (Required): Use the exact employee code, e.g. GRV-0026."],
-      ["2. Month and Year (Required): Use full month name, e.g. August, and a four-digit year."],
-      ["3. Total Working Days (Required): Use whole or half days, e.g. 27 or 27.5."],
-      ["4. Incentive Days and Notes (Optional): Incentive Days can include 0.5. Leave it blank to use 0."],
-      [],
-      ["Employee Code", "Month", "Year", "Total Working Days", "Incentive Days", "Notes"],
-      ["GRV-0026", "August", 2026, 27.5, 0, "Monthly attendance upload"],
-    ];
-    const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    worksheet["!cols"] = [
-      { wch: 18 }, { wch: 15 }, { wch: 10 }, { wch: 22 },
-      { wch: 14 }, { wch: 18 }, { wch: 32 },
-    ];
-    worksheet["!merges"] = [0, 1, 2, 3, 4].map((row) => ({ s: { r: row, c: 0 }, e: { r: row, c: 6 } }));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Monthly Attendance");
-    XLSX.writeFile(workbook, "monthly-attendance-bulk-upload-template.xlsx");
+  const handleDownloadMonthlyUploadTemplate = async () => {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    setMonthlyTemplateDownloading(true);
+    try {
+      const blob = await downloadMonthlyUploadTemplate({ month, year });
+      const monthName = now.toLocaleString("en-US", { month: "long" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Monthly_Attendance_Template_${monthName}_${year}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      const data = (await parseBlobError(downloadError))?.response?.data;
+      const parsedMessage = data instanceof Blob ? null : data?.message;
+      toast.error(parsedMessage || "Unable to download the template. Please try again.");
+    } finally {
+      setMonthlyTemplateDownloading(false);
+    }
   };
 
   const handleMarkAttendance = async (e) => {
@@ -761,7 +782,7 @@ function Attendance() {
     setIsReportModalOpen(false);
   }
 
-  const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext, showLeaveWfh = true }) => (
+  const renderCalendarSection = ({ title, viewDateObj, calendarDays, selectedDay, onDaySelect, onPrev, onNext, showLeaveWfh = true, headerFilter = null }) => (
     <AttendanceCalendar
       monthLabel={title}
       calendarDays={calendarDays}
@@ -770,7 +791,29 @@ function Attendance() {
       onPrev={onPrev}
       onNext={onNext}
       showLeaveWfh={showLeaveWfh}
+      headerFilter={headerFilter}
     />
+  );
+
+  // Organization calendar employee picker — "All Employees" by default,
+  // rendered inside the calendar header just before the month arrows.
+  const orgSelectedEmployee = orgEmployeeId
+    ? employees.find((emp) => String(emp._id) === String(orgEmployeeId))
+    : null;
+  const orgCalendarTitle = orgSelectedEmployee
+    ? `${orgMonthLabel} — ${orgSelectedEmployee.name}`
+    : `${orgMonthLabel} — Organization`;
+
+  const orgEmployeeFilter = (
+    <span className="calendar-employee-filter">
+      <SearchableEmployeeSelectServer
+        value={orgEmployeeId}
+        onChange={(id) => setOrgEmployeeId(id || "")}
+        placeholder="All Employees"
+        controlClassName="attendance-control"
+        dropDirection="down"
+      />
+    </span>
   );
 
   const renderSelfAttendanceSection = (title = "My Check In / Out") => {
@@ -808,7 +851,7 @@ function Attendance() {
               : statusTextClass[myTodayRow.status]?.replace("status-text-", "") || "absent"
               }`}
           >
-            {myTodayRow.isCheckedIn ? "● Checked In" : myTodayRow.status}
+            {myTodayRow.isCheckedIn ? "● Checked In" : (onLeaveData?.isOnLeave?`You are on ${onLeaveData?.leaveDetails?.requestType}`:myTodayRow.status)}
           </span>
         </div>
 
@@ -826,7 +869,7 @@ function Attendance() {
             type="button"
             icon={<LogIn size={18} />}
             onClick={handleCheckIn}
-            disabled={actionLoading || myTodayRow.isCheckedIn}
+            disabled={actionLoading || myTodayRow.isCheckedIn || onLeaveData?.isOnLeave || onLeavePending}
           >
             {actionLoading ? "Processing..." : "Check In"}
           </Button>
@@ -835,7 +878,7 @@ function Attendance() {
             className="secondary-btn"
             icon={<LogOut size={18} />}
             onClick={handleCheckOut}
-            disabled={actionLoading || !myTodayRow.isCheckedIn}
+            disabled={actionLoading || !myTodayRow.isCheckedIn || (!myTodayRow.isCheckedIn && onLeaveData?.isOnLeave) || onLeavePending}
           >
             {actionLoading ? "Processing..." : "Check Out"}
           </Button>
@@ -1204,7 +1247,7 @@ function Attendance() {
       {canMarkForOthers ? renderMarkForm(employees, "Mark Attendance") : null}
       {canManageAttendance ? renderMarkMonthForm(employees, "Mark / Month Attendance") : null}
       {renderCalendarSection({
-        title: `${orgMonthLabel} — Organization`,
+        title: orgCalendarTitle,
         viewDateObj: orgViewDate,
         calendarDays: orgCalendarDays,
         selectedDay: selectedOrgDay,
@@ -1212,6 +1255,7 @@ function Attendance() {
         onPrev: () => shiftOrgMonth(-1),
         onNext: () => shiftOrgMonth(1),
         showLeaveWfh: false,
+        headerFilter: orgEmployeeFilter,
       })}
       <TodayAttendanceTable
         key={
@@ -1342,7 +1386,7 @@ function Attendance() {
           {canViewOrg ? (
             <>
               {renderCalendarSection({
-                title: `${orgMonthLabel} — Organization`,
+                title: orgCalendarTitle,
                 viewDateObj: orgViewDate,
                 calendarDays: orgCalendarDays,
                 selectedDay: selectedOrgDay,
@@ -1350,6 +1394,7 @@ function Attendance() {
                 onPrev: () => shiftOrgMonth(-1),
                 onNext: () => shiftOrgMonth(1),
                 showLeaveWfh: false,
+                headerFilter: orgEmployeeFilter,
               })}
               <TodayAttendanceTable
                 key={
@@ -1526,7 +1571,9 @@ function Attendance() {
               <div className="month-upload-modal__body">
                 <div className="month-upload-template-download">
                   <span>Need the required format?</span>
-                  <button type="button" onClick={downloadMonthlyUploadTemplate}>Download Sample Excel Template</button>
+                  <button type="button" onClick={handleDownloadMonthlyUploadTemplate} disabled={monthlyTemplateDownloading}>
+                    {monthlyTemplateDownloading ? "Preparing template..." : "Download Sample Excel Template"}
+                  </button>
                 </div>
                 <div
                   className={`month-upload-drop-zone ${monthlyUploadDragActive ? "drag-active" : ""}`}
@@ -1557,7 +1604,7 @@ function Attendance() {
                   <div className={`month-upload-result ${monthlyUploadResult.errors?.length ? "month-upload-result--errors" : ""}`}>
                     {monthlyUploadResult.totalRows !== undefined ? (
                       <p className="month-upload-summary">
-                        Total: {monthlyUploadResult.totalRows} · Uploaded: {monthlyUploadResult.uploaded} · Failed: {monthlyUploadResult.failed}
+                        Total: {monthlyUploadResult.totalRows} · Uploaded: {monthlyUploadResult.uploaded} · Failed: {monthlyUploadResult.failed} · Skipped (no attendance entered): {monthlyUploadResult.skipped || 0}
                       </p>
                     ) : null}
                     {monthlyUploadResult.errors?.length ? (
@@ -1569,7 +1616,13 @@ function Attendance() {
                           </li>
                         ))}
                       </ul>
-                    ) : monthlyUploadResult.uploaded ? <p className="month-upload-success">All rows were uploaded successfully.</p> : null}
+                    ) : monthlyUploadResult.uploaded ? (
+                      <p className="month-upload-success">
+                        {monthlyUploadResult.skipped ? "All filled rows were uploaded successfully." : "All rows were uploaded successfully."}
+                      </p>
+                    ) : monthlyUploadResult.totalRows !== undefined ? (
+                      <p className="month-upload-summary">No attendance was entered in the uploaded file.</p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

@@ -45,6 +45,7 @@
    ========================================================================== */
 .manage-depts-toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
@@ -55,7 +56,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1;
+  flex: 1 1 280px;
+  min-width: min(100%, 240px);
   max-width: 720px;
 }
 
@@ -443,5 +445,12 @@
   .manage-depts-toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* In a column the flex-basis would apply to height; size the search by its content instead. */
+  .manage-depts-toolbar .manage-depts-search {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
   }
 }

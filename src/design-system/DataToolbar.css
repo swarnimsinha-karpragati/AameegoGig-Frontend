@@ -1,0 +1,116 @@
+.wz-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wz-space-3);
+  min-width: 0;
+}
+
+.wz-toolbar__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--wz-space-3);
+}
+
+.wz-toolbar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 280px;
+  min-width: min(100%, 240px);
+  max-width: 420px;
+}
+
+.wz-toolbar__search-icon {
+  position: absolute;
+  left: var(--wz-space-3);
+  display: inline-flex;
+  color: var(--wz-color-text-muted);
+  pointer-events: none;
+}
+
+.wz-toolbar__search-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.wz-toolbar__search-input {
+  width: 100%;
+  height: var(--wz-control-height-md);
+  padding: 0 var(--wz-space-3) 0 calc(var(--wz-space-3) + 16px + var(--wz-space-2));
+  border: 1px solid var(--wz-color-border-default);
+  border-radius: var(--wz-radius-sm);
+  background: var(--wz-color-surface-default);
+  color: var(--wz-color-text-primary);
+  font-family: var(--wz-font-family);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.wz-toolbar__search-input::placeholder {
+  color: var(--wz-color-text-muted);
+}
+
+.wz-toolbar__search-input:hover {
+  border-color: var(--wz-color-border-strong);
+}
+
+.wz-toolbar__search-input:focus,
+.wz-toolbar__search-input:focus-visible {
+  outline: none;
+  border-color: var(--wz-color-action-primary);
+  box-shadow: 0 0 0 3px var(--wz-color-action-selected);
+}
+
+.wz-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--wz-space-3);
+  margin-left: auto;
+}
+
+.wz-toolbar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--wz-space-3);
+}
+
+@media (max-width: 768px) {
+  .wz-toolbar__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wz-toolbar__search,
+  .wz-toolbar__actions {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .wz-toolbar__actions {
+    justify-content: stretch;
+  }
+
+  .wz-toolbar__actions > * {
+    flex: 1 1 auto;
+  }
+
+  .wz-toolbar__filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Two classes so this beats a page's own filter sizing (a flex-basis in a column is a height). */
+  .wz-toolbar .wz-toolbar__filters > * {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+}

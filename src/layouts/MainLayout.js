@@ -16,17 +16,22 @@ import {
   ShieldCheck,
   Menu,
   X,
-  ChevronsLeft
+  ChevronsLeft,
+  Mails
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
-import { canAccessRoute, getRoleLabel, getStoredUser, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer, refreshSessionFromServer } from "../utils/roles";
+import { canAccessRoute, canReadOrgProfile, getRoleLabel, getStoredUser, SYSTEM_ROLE_NAMES, fetchRolesCatalog, rolesCatalogKey, syncRolesFromServer, refreshSessionFromServer } from "../utils/roles";
 import { loadRoles, saveRoles } from "../utils/permissions";
 import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
 import { isSiteVendor } from "../utils/vendorIdhelper";
-import { clearAuthData } from "../utils/authStorage";
+import { replaceVendorSegment, toVendorSlug, vendorDashboardPath } from "../utils/vendorPath";
+import { clearAuthData, getOrganisations, replaceAuthSession } from "../utils/authStorage";
+import { switchOrganisation } from "../services/authService";
+import OrganisationSwitcher from "../components/OrganisationSwitcher";
+import { requestNavigation } from "../utils/navigationGuard";
 import queryClient from "../queryClient";
 import HelpDeskWidget from "../components/HelpDeskWidget";
 
@@ -34,6 +39,10 @@ function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
+  const [organisations, setOrganisations] = useState(() => getOrganisations());
+  const [switchBusy, setSwitchBusy] = useState(false);
+  const [switchError, setSwitchError] = useState("");
+  const [switchChallenge, setSwitchChallenge] = useState(null);
   const [avatarBroken, setAvatarBroken] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("sidebar-collapsed") === "1"
@@ -86,6 +95,7 @@ function MainLayout({ children }) {
     const refreshUser = () => {
       const storedUser = getStoredUser();
       setUser(storedUser);
+      setOrganisations(getOrganisations());
       setAvatarBroken(false);
     };
     const refreshRoles = () => {
@@ -130,15 +140,14 @@ function MainLayout({ children }) {
   }, [location.pathname]);
 
   // Compute fresh Vendor Code slug whenever user vendorName changes
-  const vendorCode = useMemo(() => {
-    return user?.vendorName?.trim()?.replace(/\//g, "")?.replace(/\s+/g, "-").toLowerCase() || "";
-  }, [user?.vendorName]);
+  const vendorCode = useMemo(() => toVendorSlug(user?.vendorName), [user?.vendorName]);
 
   // Dynamic Name Resolution
   const displayName = useMemo(() => {
     if (
       user?.role === "HR" ||
       user?.role === "Employee" ||
+      user?.role === "Intern" ||
       !SYSTEM_ROLE_NAMES.includes(user?.role)
     ) {
       return user?.name || user?.employeeName || user?.vendorName || "User";
@@ -148,16 +157,9 @@ function MainLayout({ children }) {
 
   // Sync URL when vendorCode changes dynamically
   useEffect(() => {
-    if (!vendorCode) return;
-    const pathSegments = location.pathname.split("/").filter(Boolean);
-    const currentVendorInUrl = pathSegments[0];
-
-    // If URL vendorCode doesn't match updated vendorCode state, update URL params
-    if (currentVendorInUrl && currentVendorInUrl !== vendorCode) {
-      const remainingPath = pathSegments.slice(1).join("/");
-      navigate(`/${vendorCode}/${remainingPath}`, { replace: true });
-    }
-  }, [vendorCode, location.pathname, navigate]);
+    const target = replaceVendorSegment(location, vendorCode);
+    if (target) navigate(target, { replace: true });
+  }, [vendorCode, location, navigate]);
 
   const avatarSrc = resolveMediaUrl(user?.photoDisplayUrl, user?.photoUrl);
   const isSite = isSiteVendor();
@@ -189,6 +191,7 @@ function MainLayout({ children }) {
     "/advance-loan": { title: "Advance Loan", subtitle: "Submit and manage Advance Loan claims" },
     "/resignation": { title: "Resignation", subtitle: "Submit and manage resignation" },
     "/documents": { title: "Documents", subtitle: "Store and manage company documents" },
+    "/letters": { title: "Letters", subtitle: "Issue letters, find issued letters and send offers" },
     "/settings": { title: "Settings", subtitle: "Configure your HRMS preferences" },
     "/roles": { title: "Roles & Access", subtitle: "Manage role-based access control" },
   };
@@ -206,6 +209,7 @@ function MainLayout({ children }) {
     { label: "Expenses", path: "/expenses", icon: ReceiptText },
     { label: "Advance Loan", path: "/advance-loan", icon: Wallet },
     { label: "Documents", path: "/documents", icon: FileText },
+    { label: "Letters", path: "/letters", icon: Mails },
     { label: "Resignation", path: "/resignation", icon: FileSignature },
     { label: "Settings", path: "/settings", icon: Settings },
   ].filter((item) => canAccessRoute(user?.role, item.path, user?.allowedModules));
@@ -232,6 +236,7 @@ function MainLayout({ children }) {
         if (isMounted) setLogo(userLogo);
         return;
       }
+      if (!canReadOrgProfile(user?.role)) return;
 
       try {
         const res = await getOrgProfile();
@@ -261,6 +266,26 @@ function MainLayout({ children }) {
     // eslint-disable-next-line
   }, []);
 
+  const applyOrganisationSwitch = async (vendorCode, otp) => {
+    setSwitchBusy(true);
+    setSwitchError("");
+    try {
+      const res = await switchOrganisation({ vendorCode, otp });
+      if (res?.twoFactorRequired) {
+        setSwitchChallenge({ code: vendorCode, sendTo: res.sendTo || "" });
+        return;
+      }
+      await queryClient.cancelQueries();
+      replaceAuthSession(res.token, res.user, res.organisations);
+      queryClient.clear();
+      setSwitchChallenge(null);
+      navigate(vendorDashboardPath(res.user));
+    } catch (err) {
+      setSwitchError(err.response?.data?.message || "Could not switch organisation");
+    } finally {
+      setSwitchBusy(false);
+    }
+  };
 
   return (
     <div
@@ -331,8 +356,10 @@ function MainLayout({ children }) {
                   className={`menu-item ${isActive ? "active" : ""}`}
                   title={item.label}
                   onClick={() => {
-                    navigate(`/${vendorCode}${item.path}`);
-                    if (isMobile) setMobileNavOpen(false);
+                    requestNavigation(() => {
+                      navigate(`/${vendorCode}${item.path}`);
+                      if (isMobile) setMobileNavOpen(false);
+                    });
                   }}
                 >
                   <Icon size={20} />
@@ -397,18 +424,39 @@ function MainLayout({ children }) {
             </div>
           </div>
 
-          <button
-            type="button"
-            className="logout-btn"
-            onClick={() => {
-              queryClient.clear();
-              clearAuthData();
-              navigate("/login");
-            }}
-          >
-            <LogOut size={18} />
-            Logout
-          </button>
+          <div className="topbar-actions">
+            <OrganisationSwitcher
+              organisations={organisations}
+              currentCode={user?.vendor_code}
+              busy={switchBusy}
+              error={switchError}
+              challenge={switchChallenge}
+              onSelect={(vendorCode) => {
+                requestNavigation(() => {
+                  applyOrganisationSwitch(vendorCode);
+                });
+              }}
+              onConfirmOtp={(vendorCode, otp) => applyOrganisationSwitch(vendorCode, otp)}
+              onCancelChallenge={() => {
+                setSwitchChallenge(null);
+                setSwitchError("");
+              }}
+            />
+            <button
+              type="button"
+              className="logout-btn"
+              onClick={() => {
+                requestNavigation(() => {
+                  queryClient.clear();
+                  clearAuthData();
+                  navigate("/login");
+                });
+              }}
+            >
+              <LogOut size={18} />
+              Logout
+            </button>
+          </div>
         </div>
 
         <main className="page-content">{children}</main>

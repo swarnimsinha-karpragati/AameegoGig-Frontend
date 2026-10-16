@@ -23,6 +23,7 @@ import Button from "./Button";
  *  onInputChange – (value: string) => void
  *  inputPlaceholder – string
  *  confirmDisabled – boolean: disables confirm button
+ *  inputError – string: validation message shown under the textarea (modal stays open)
  */
 function ConfirmModal({
   open,
@@ -39,6 +40,7 @@ function ConfirmModal({
   onInputChange,
   inputPlaceholder = "",
   confirmDisabled = false,
+  inputError = "",
 }) {
   const cancelRef = useRef(null);
 
@@ -113,13 +115,16 @@ function ConfirmModal({
           <div className="confirm-modal-input-block">
             <label className="confirm-modal-input-label">{inputLabel}</label>
             <textarea
-              className="confirm-modal-textarea"
+              className={`confirm-modal-textarea${inputError ? " confirm-modal-textarea--error" : ""}`}
               placeholder={inputPlaceholder}
               value={inputValue}
               onChange={(e) => onInputChange?.(e.target.value)}
               rows={3}
               disabled={loading}
             />
+            {inputError ? (
+              <span className="confirm-modal-input-error" role="alert">{inputError}</span>
+            ) : null}
           </div>
         ) : null}
 

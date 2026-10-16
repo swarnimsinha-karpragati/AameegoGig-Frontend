@@ -124,6 +124,22 @@
   border-color: #6366f1;
 }
 
+.confirm-modal-textarea--error {
+  border-color: #ef4444;
+}
+
+.confirm-modal-textarea--error:focus {
+  border-color: #ef4444;
+}
+
+.confirm-modal-input-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #dc2626;
+}
+
 /* ── Actions ── */
 .confirm-modal-actions {
   display: flex;

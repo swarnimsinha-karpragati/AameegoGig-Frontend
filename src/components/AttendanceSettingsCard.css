@@ -1,0 +1,56 @@
+/* One setting per row; rows also carry `wz-ds` so the design-system Toggle gets its tokens. */
+.attendance-settings__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #fafbfc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-family: inherit;
+}
+
+.attendance-settings__row:last-of-type {
+  margin-bottom: 0;
+}
+
+.attendance-settings__row .wz-toggle__label {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* Help under a switch lines up with the switch's label (36px track + 8px gap). */
+.attendance-settings__row .wz-toggle + .attendance-settings__help {
+  padding-left: 44px;
+}
+
+.attendance-settings__stat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.attendance-settings__stat span {
+  font-weight: 600;
+}
+
+.attendance-settings__stat strong {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.attendance-settings__help p {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.attendance-settings__help p:last-child {
+  margin-bottom: 0;
+}

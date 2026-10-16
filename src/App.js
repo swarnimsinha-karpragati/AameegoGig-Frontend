@@ -23,18 +23,28 @@ import Resignations from './pages/Resignations';
 import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
 import { syncRolesFromServer } from './utils/roles';
+import { clearAuthData, currentUserToStore, getToken } from './utils/authStorage';
 import queryClient from './queryClient';
 import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
+import Solution from './pages/Solution';
 import AdvanceLoanRequest from './components/AdvanceLoan';
 import Roles from './pages/Roles';
+import Letters from './pages/Letters';
+
+
+import {APIProvider} from '@vis.gl/react-google-maps'
 
 function App() {
   const token = localStorage.getItem("token");
 
   const { data, isError, isSuccess } = useQuery({
     queryKey: ['auth'],
-    queryFn: getCurrentUser,
+    queryFn: async () => {
+      const tokenAtRequest = getToken();
+      const result = await getCurrentUser();
+      return { result, tokenAtRequest };
+    },
     staleTime: 1000 * 60 * 5,
     retry: false,
     enabled: !!token,
@@ -43,16 +53,20 @@ function App() {
   useEffect(() => {
     if (isError) {
       queryClient.clear();
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
+      clearAuthData();
     }
-    if (isSuccess && data?.user) {
-      localStorage.setItem("user", JSON.stringify(data.user));
-      window.dispatchEvent(new Event("user-updated"));
-      syncRolesFromServer();
+    if (isSuccess) {
+      const user = currentUserToStore(data?.result, data?.tokenAtRequest, getToken());
+      if (user) {
+        localStorage.setItem("user", JSON.stringify(user));
+        window.dispatchEvent(new Event("user-updated"));
+        syncRolesFromServer();
+      }
     }
 
     const path = window.location.pathname;
+    // Marketing pages set their own SEO title via usePageMeta.
+    if (path === "/" || path.startsWith("/solutions/")) return;
     const lastPath = path.split("/").filter(Boolean).pop() || "Home";
     const pageName = lastPath
       .replace(/[-_]+/g, " ")
@@ -65,10 +79,14 @@ function App() {
     // eslint-disable-next-line
   }, [isError, isSuccess, data]);
 
+  console.log(process.env.GOOGLE_MAPS_API_KEY)
+
   return (
     <div className="app-shell">
+      <APIProvider apiKey={'AIzaSyDUns7-K4KmSoWv5zsQnqzbQ814yCMWZpo'} onLoad={() => console.log('Maps API has loaded.')}>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/solutions/:slug" element={<Solution />} />
         <Route path="/login" element={<UnProtectedRoute><Login /></UnProtectedRoute>} />
         <Route path="/create-org" element={<UnProtectedRoute><CreateOrg /></UnProtectedRoute>} />
         <Route path="/join" element={<UnProtectedRoute><JoinOrg /></UnProtectedRoute>} />
@@ -91,8 +109,10 @@ function App() {
         <Route path=":vendor/advance-loan" element={<ProtectedRoute><AdvanceLoanRequest /></ProtectedRoute>} />
         <Route path=":vendor/roles" element={<ProtectedRoute><Roles /></ProtectedRoute>} />
         <Route path=":vendor/resignation" element={<ProtectedRoute><Resignations /></ProtectedRoute>} />
+        <Route path=":vendor/letters" element={<ProtectedRoute><Letters /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </APIProvider>
     </div>
   );
 }

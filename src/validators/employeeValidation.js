@@ -1,5 +1,10 @@
 import * as Yup from "yup";
-import { PATTERNS } from "../utils/inputValidation";
+import { PATTERNS, isValidEmailFormat } from "../utils/inputValidation";
+import {
+  EMPLOYEE_CODE_PATTERN,
+  EMPLOYEE_CODE_MAX_LENGTH,
+  EMPLOYEE_CODE_HINT,
+} from "../utils/employeeCodeFormat";
 
 export const MIN_EMPLOYEE_AGE = 18;
 
@@ -14,8 +19,32 @@ export const getMaxDateOfBirthInputValue = () =>
   getMaxDateOfBirth().toISOString().slice(0, 10);
 
 export const employeeValidationSchema = Yup.object().shape({
-  // employeeCode is generated server-side (PREFIX-0001), not entered here.
-  employeeCode: Yup.string().trim(),
+  // Optional manual code (blank auto-generates server-side). Strict format:
+  // 1–10 letters, one optional hyphen, 1–8 digits, max 20 chars, at least
+  // one non-zero digit. Uniqueness is checked by the server.
+  employeeCode: Yup.string()
+    .trim()
+    .uppercase()
+    .max(
+      EMPLOYEE_CODE_MAX_LENGTH,
+      `Employee Code must be at most ${EMPLOYEE_CODE_MAX_LENGTH} characters`
+    )
+    .matches(EMPLOYEE_CODE_PATTERN, {
+      message: EMPLOYEE_CODE_HINT,
+      excludeEmptyString: true,
+    })
+    .test(
+      "non-zero-digit",
+      "Employee Code must contain at least one non-zero digit",
+      (value) => {
+        if (!value) return true;
+        const digits = String(value).replace(/\D/g, "");
+        return digits.length > 0 && !/^0+$/.test(digits);
+      }
+    )
+    .nullable()
+    .transform((value) => (value === "" ? null : value))
+    .default(null),
   name: Yup.string()
     .trim()
     .required("Name is required")
@@ -24,9 +53,16 @@ export const employeeValidationSchema = Yup.object().shape({
   email: Yup.string()
     .trim()
     .lowercase()
-    .email("Invalid email format")
     .nullable()
-    .transform((value) => (value === "" ? null : value)),
+    .transform((value) => (value === "" ? null : value))
+    // NOTE: Yup .email() bahut loose hai — "2@h", "a@b", "test@test" ko bhi
+    // pass kar deta hai. Isliye strict regex + format check (employee /
+    // consultant add-edit dono ke liye).
+    .matches(PATTERNS.EMAIL, "Invalid email format")
+    .test("strict-email", "Invalid email format", (value) => {
+      if (value == null || value === "") return true;
+      return isValidEmailFormat(value);
+    }),
 
   phone: Yup.string()
     .trim()
@@ -177,7 +213,7 @@ export const employeeValidationSchema = Yup.object().shape({
   monthlyConsultancyPay: Yup.number()
     .transform((value, originalValue) => (originalValue === "" ? null : value))
     .nullable()
-    .min(0, "Amount must be 0 or greater.")
+    .min(0, "Consultancy Pay cannot be negative.")
     .test(
       "consultancy-pay-required",
       "Monthly Consultancy Pay must be greater than ₹0.",

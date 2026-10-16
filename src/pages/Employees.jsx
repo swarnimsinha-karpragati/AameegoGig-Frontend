@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import * as XLSX from "xlsx";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import {
   buildEmployeePayload,
@@ -42,14 +42,14 @@ import {
   Mail,
   Copy,
   Check,
-  TriangleAlert,
   OctagonX,
   UserCheck,
   Clock,
   ChevronDown,
   Info,
+  FilePlus2,
 } from "lucide-react";
-import { getStoredUser, canManageEmployees, canManageProbation, roleHasPermission } from "../utils/roles";
+import { getStoredUser, canManageEmployees, canManageProbation, getLetterAccess, roleHasPermission } from "../utils/roles";
 import { loadRoles } from "../utils/permissions";
 import {
   confirmProbationEmployee,
@@ -58,18 +58,21 @@ import {
 } from "../services/probationService";
 import ProbationHistoryModal from "../components/ProbationHistoryModal";
 
-
-import {
-  generateAppointmentLetter,
-  generateWarningLetter,
-  generateConsultancyAgreement,
-} from "../services/letterService";
 import { createTermination } from "../services/terminationService";
+import IssueLetterPanel from "../components/letters/IssueLetterPanel";
+import { CONSULTANCY_RECIPIENT_RULE, EMPLOYEE_PARAMS, employeeLetterActions, issuedLettersPath, readEmployeesSearch } from "../utils/lettersNavigation";
+import { ToastProvider, useToast } from "../components/Toast";
+import { EMPLOYEE_ADD_COPY, employeeAddedNotice } from "../utils/employeeAddNotice";
+import { getOfferCandidateConversion, linkOfferCandidateEmployee } from "../services/offerCandidateService";
+import { OFFER_CANDIDATES_KEY } from "../hooks/useLetters";
+import { candidatePrefillToForm } from "../utils/offerConversion";
+import { isInitialReload } from "../utils/initialReload";
+import { useQueryClient } from "@tanstack/react-query";
 import EmployeeSalaryStructureEditor, { hasSalaryData } from "../components/EmployeeSalaryStructureEditor";
 import Pagination from "../components/Pagination";
+import FloatingMenu from "../components/FloatingMenu";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import EmployeeSalaryStructureView from "../components/EmployeeSalaryStructureView";
-import AppointmentLetterSalary from "../components/AppointmentLetterSalary";
 import { saveEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
@@ -84,21 +87,48 @@ import {
   employeeValidationSchema,
   getMaxDateOfBirthInputValue,
 } from "../validators/employeeValidation";
-import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, validateComponentsMatchCalendarDaily, sumLetterMonthlyGross } from "../utils/salaryValidation";
+import { validateStructureDraft, validateComponentsMatchCtc, validateComponentsMatchDailyWage, validateComponentsMatchCalendarDaily } from "../utils/salaryValidation";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
 import DocumentPreview from "../components/DocumentPreview";
 import { isSiteVendor, canUseCalendarDailyPay } from "../utils/vendorIdhelper";
 import { defaultSelectedModules } from "../utils/roles";
 import { downloadCredentialExcel } from "../utils/credentialExcel";
+import { maskEmployeeCode } from "../utils/employeeCodeFormat";
 import { getRoles } from "../services/roleService";
 import ConsultancyPayments from "../components/consultancy/ConsultancyPayments";
 import "../components/consultancy/ConsultancyPayments.css";
+import InternsTab from "../components/interns/InternsTab";
+import FamilyMembersEditor from "../components/employees/FamilyMembersEditor";
+import {
+  coverageLabel,
+  familyMemberErrorMap,
+  familyMembersToForm,
+  formatFamilyDob,
+  mergeFamilyMemberErrors,
+} from "../utils/familyMembers";
 
 const isSite = isSiteVendor();
 const name = isSite ? "Site" : "Department";
 
-const EMPLOYEE_FORM_SECTIONS = [
+
+export function convertUTCtoDDMMYYYY(utcDateString) {
+    const date = new Date(utcDateString);
+
+    // Ensure the date is valid
+    if (isNaN(date.getTime())) {
+        return "Invalid Date";
+    }
+
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+    const year = date.getUTCFullYear();
+
+    return `${day}/${month}/${year}`;
+}
+
+
+export const EMPLOYEE_FORM_SECTIONS = [
   {
     id: "basic",
     title: "Basic Information",
@@ -127,6 +157,12 @@ const EMPLOYEE_FORM_SECTIONS = [
       { key: "nationality", label: "Nationality" },
       { key: "maritalStatus", label: "Marital Status", type: "select-marital" },
     ],
+  },
+  {
+    id: "familyMembers",
+    title: "Family Members (ESIC / Medical)",
+    custom: "family-members",
+    fields: [],
   },
   {
     id: "personal",
@@ -240,6 +276,10 @@ const consultancyPreviewError = (gross, tdsPercent) => {
   return "";
 };
 
+// already shows the identical message — one message per pay rule.
+const fieldErrorOnce = (fieldError, previewMessage) =>
+  fieldError && previewMessage && fieldError === previewMessage ? "" : fieldError || "";
+
 function FormSection({ title, description, children, fullWidth = false }) {
   return (
     <section className="emp-form-section">
@@ -265,7 +305,7 @@ function FormField({ label, htmlFor, required, hint, fullWidth, children }) {
   );
 }
 
-function EmployeeFormFields({
+export function EmployeeFormFields({
   sections,
   values,
   onFieldChange,
@@ -454,7 +494,17 @@ function EmployeeFormFields({
       }))
     : sections;
 
-  return visibleSections.map((section) => (
+  return visibleSections.map((section) => section.custom === "family-members" ? (
+    <FormSection key={section.id} title={section.title} fullWidth>
+      <FamilyMembersEditor
+        members={values.familyMembers}
+        errors={errors}
+        onChange={(members, meta) =>
+          onFieldChange({ target: { name: "familyMembers", value: members, familyMeta: meta } })
+        }
+      />
+    </FormSection>
+  ) : (
     <FormSection
       key={section.id}
       title={section.title}
@@ -482,6 +532,7 @@ function EmployeeFormFields({
 
 const DEFAULT_ROLE_OPTIONS = [
   { roleName: "Employee", displayName: "Employee" },
+  { roleName: "Intern", displayName: "Intern" },
   { roleName: "Manager", displayName: "Manager" },
   { roleName: "HR", displayName: "HR" },
 ];
@@ -569,7 +620,7 @@ function AppLoginSection({
   );
 }
 
-function Employees() {
+function EmployeesPage() {
   /* =========================
      STATES
   ========================= */
@@ -584,12 +635,22 @@ function Employees() {
     roleHasPermission(user?.role, "consultancy:manage");
   const canManageConsultancy =
     user?.role === "Admin" || roleHasPermission(user?.role, "consultancy:manage");
+  // Interns share the employee permission set (same HR operators, separate data).
+  const canViewInterns = canViewEmployees || canManage;
   const canLetters = roleHasPermission(user?.role, "employees:letters");
+  const letterAccess = getLetterAccess(user);
+  const rowLetterActions = (emp) => employeeLetterActions(letterAccess, emp, { canTerminate: canLetters });
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { vendor } = useParams();
+  const [letterDrawer, setLetterDrawer] = useState(null);
   // Consultancy lives inside Employees page: consultancy-only users get
   // Employees menu access but must see only the Consultancy tab.
   const isConsultancyOnly = !canViewEmployees && !canManage && canViewConsultancy;
 
   const initialForm = {
+    employeeCode: "",
     name: "", email: "", phone: "",
     designation: "", departmentId: "", location: "",
     isConsultancy: false, monthlyConsultancyPay: "", tdsPercent: "",
@@ -600,6 +661,7 @@ function Employees() {
     relationWithMember: "",
     nationality: "",
     maritalStatus: "",
+    familyMembers: [],
     permanentAddress: "",
     nameAsPerPan: "",
     nameAsPerAadhaar: "",
@@ -623,7 +685,6 @@ function Employees() {
   const [directoryType, setDirectoryType] = useState(() =>
     isConsultancyOnly ? "consultancy" : "employee"
   );
-  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [consultancyRefreshKey, setConsultancyRefreshKey] = useState(0);
@@ -636,17 +697,10 @@ function Employees() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStatus = searchParams.get("status") || "";
-  const isPageReload = (() => {
-    try {
-      const nav = performance.getEntriesByType("navigation")[0];
-      if (nav && nav.type) return nav.type === "reload";
-      if (performance.navigation) return performance.navigation.type === 1;
-    } catch {
-      /* ignore — deep-link apply hoga */
-    }
-    return false;
-  })();
+  const location = useLocation();
+  const isPageReload = isInitialReload(location);
   const [statusFilter, setStatusFilter] = useState(isPageReload ? "" : urlStatus);
+  const [search, setSearch] = useState(() => (isPageReload ? "" : readEmployeesSearch(searchParams)));
 
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -655,7 +709,7 @@ function Employees() {
   // roles, but Admin is never offered here. Read fresh every render so
   // newly created roles appear immediately.
   const roleFilterOptions = (() => {
-    const systemRoles = ["Admin", "HR", "Manager", "Employee"];
+    const systemRoles = ["Admin", "HR", "Manager", "Employee", "Intern"];
     const withoutAdmin = (roles) => (roles || []).filter((role) => role !== "Admin");
     try {
       const catalog = loadRoles();
@@ -700,6 +754,7 @@ function Employees() {
   const resendCredentialsMutation = useResendCredentials();
 
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownAnchorEl, setDropdownAnchorEl] = useState(null);
   // Accordion: which menu category is open (one at a time)
   const [expandedMenuSection, setExpandedMenuSection] = useState("general");
 
@@ -851,12 +906,19 @@ function Employees() {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (!e.target.closest(".action-dropdown-wrapper")) {
+      if (!e.target.closest(".action-dropdown-wrapper, .action-dropdown-menu")) {
         setOpenDropdownId(null);
       }
     };
+    const handleEscape = (e) => {
+      if (e.key === "Escape") setOpenDropdownId(null);
+    };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   useEffect(() => {
@@ -905,6 +967,7 @@ function Employees() {
   ] = useState(null);
 
   const [docPreviewUrl, setDocPreviewUrl] = useState(null);
+  const [docPreviewName, setDocPreviewName] = useState("");
 
 
   const [selectedEmployee, setSelectedEmployee] =
@@ -932,66 +995,39 @@ function Employees() {
   const initialSalaryDraft = { wageType: "MONTHLY", ctcAnnual: 0, dailyWage: 0, components: [] };
   const [salaryDraft, setSalaryDraft] = useState(initialSalaryDraft);
 
+  // Offer candidate being converted; linked to the new employee once it is saved.
+  const [pendingCandidateId, setPendingCandidateId] = useState(null);
+  const prefillCandidateId = searchParams.get(EMPLOYEE_PARAMS.prefillCandidate);
+
+  useEffect(() => {
+    if (!prefillCandidateId) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete(EMPLOYEE_PARAMS.prefillCandidate);
+    setSearchParams(next, { replace: true });
+    if (!canManage) return;
+    getOfferCandidateConversion(prefillCandidateId)
+      .then((prefill) => {
+        const { form: prefilled, salaryDraft: draft } = candidatePrefillToForm(prefill, initialForm, initialSalaryDraft);
+        setDirectoryType("employee");
+        setForm(prefilled);
+        setSalaryDraft(draft);
+        setErrors({});
+        setPendingCandidateId(prefillCandidateId);
+        setShowAddModal(true);
+      })
+      .catch((error) => {
+        toast.error(error.response?.data?.message || EMPLOYEE_ADD_COPY.candidateLoadFailed);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillCandidateId]);
+
+  useEffect(() => {
+    if (!showAddModal) setPendingCandidateId(null);
+  }, [showAddModal]);
+
   const [showUploadModal, setShowUploadModal] =
     useState(false);
 
-  const [
-    showLetterModal,
-    setShowLetterModal,
-  ] = useState(false);
-
-  const [letterData, setLetterData] =
-    useState({
-      employeeId: "",
-      employeeName: "",
-      designation: "",
-      joiningDate: "",
-      annualCTC: "",
-      monthlySalary: "",
-      workLocation: "Gurgaon",
-      salaryComponents: [],
-    });
-
-  const [letterEmployeeId, setLetterEmployeeId] = useState(null);
-
-  const [
-    showWarningModal,
-    setShowWarningModal,
-  ] = useState(false);
-
-  const [warningData, setWarningData] =
-    useState({
-      employeeId: "",
-      employeeName: "",
-      employeeCode: "",
-      designation: "",
-      department: "",
-      incidentDate: "",
-      reason: "",
-      severity: "First",
-      actionTaken: "",
-      responsePeriod: "5",
-    });
-
-  const [
-    showConsultancyModal,
-    setShowConsultancyModal,
-  ] = useState(false);
-
-  const [consultancyData, setConsultancyData] =
-    useState({
-      employeeId: "",
-      consultantName: "",
-      employeeCode: "",
-      designation: "",
-      department: "",
-      effectiveDate: "",
-      tenure: "",
-      scopeOfWork: "",
-      consultancyFees: "",
-      paymentTerms: "",
-      noticePeriod: "30 days",
-    });
 
   const [
     showTerminationModal,
@@ -1036,7 +1072,11 @@ function Employees() {
       setDirectoryType("consultancy");
       setPage(1);
     }
-  }, [canViewConsultancy, isConsultancyOnly, directoryType]);
+    if (directoryType === "intern" && (!canViewInterns || isConsultancyOnly)) {
+      setDirectoryType(isConsultancyOnly ? "consultancy" : "employee");
+      setPage(1);
+    }
+  }, [canViewConsultancy, isConsultancyOnly, directoryType, canViewInterns]);
 
   useEffect(() => {
     setStatusFilter(urlStatus);
@@ -1088,16 +1128,17 @@ function Employees() {
   };
 
   const collectEmployeeFormErrors = async (values) => {
+    const familyErrors = familyMemberErrorMap(values.familyMembers);
     try {
       await employeeValidationSchema.validate(values, { abortEarly: false });
-      return {};
+      return familyErrors;
     } catch (err) {
       if (!err.inner) throw err;
       const newErrors = {};
       err.inner.forEach((e) => {
         newErrors[e.path] = e.message;
       });
-      return newErrors;
+      return { ...newErrors, ...familyErrors };
     }
   };
 
@@ -1106,10 +1147,20 @@ function Employees() {
   const handleChange = (e) => {
     const { name, type, checked, value } = e.target;
 
+    if (name === "familyMembers") {
+      setForm((prev) => ({ ...prev, familyMembers: value }));
+      setErrors((prev) => mergeFamilyMemberErrors(prev, value, e.target.familyMeta));
+      return;
+    }
+
+    // Employee codes are masked live (invalid keystrokes are swallowed), so
+    // the field rarely needs a validation message at all.
     const finalValue =
       name === "ifscCode" || name === "panNumber"
         ? value.toUpperCase()
-        : value;
+        : name === "employeeCode"
+          ? maskEmployeeCode(value)
+          : value;
 
     const nextForm = {
       ...form,
@@ -1124,10 +1175,20 @@ function Employees() {
 
   const handleEditFieldChange = (e) => {
     const { name, type, checked, value } = e.target;
+
+    if (name === "familyMembers") {
+      setSelectedEmployee((prev) => ({ ...prev, familyMembers: value }));
+      setErrors((prev) => mergeFamilyMemberErrors(prev, value, e.target.familyMeta));
+      return;
+    }
+    // Employee codes are masked live (invalid keystrokes are swallowed), so
+    // the field rarely needs a validation message at all.
     const finalValue =
       name === "ifscCode" || name === "panNumber"
         ? value.toUpperCase()
-        : value;
+        : name === "employeeCode"
+          ? maskEmployeeCode(value)
+          : value;
 
     const nextEmployee = {
       ...selectedEmployee,
@@ -1220,7 +1281,7 @@ function Employees() {
       !form.email?.trim() &&
       !form.phone?.trim()
     ) {
-      alert("Please enter either an email or a phone number.");
+      toast.warning(EMPLOYEE_ADD_COPY.needContact);
       return;
     }
 
@@ -1242,7 +1303,7 @@ function Employees() {
           setErrors({
             salaryStructure: structureErrors.join("; "),
           });
-          alert(structureErrors.join("; "));
+          toast.error(structureErrors.join("; "));
           setSubmitting(false)
           return;
         }
@@ -1257,7 +1318,7 @@ function Employees() {
                 : validateComponentsMatchCtc(salaryDraft);
           if (matchError) {
             setErrors({ salaryStructure: matchError });
-            alert(matchError);
+            toast.error(matchError);
             setErrors({});
             setSubmitting(false)
             return;
@@ -1300,23 +1361,22 @@ function Employees() {
           }
           await saveEmployeeStructure(newEmployeeId, structurePayload);
         } catch (structureError) {
-          alert(
-            structureError.response?.data?.message ||
-            "Employee was created but salary structure could not be saved. Edit the employee to set salary."
-          );
+          toast.warning(structureError.response?.data?.message || EMPLOYEE_ADD_COPY.structureNotSaved);
         }
       }
 
-      if (data.loginInfo) {
-        showLoginCredentials(form.name, data.loginInfo, newEmployeeId);
-      } else if (form.createAppLogin) {
-        alert(
-          data.message ||
-          "Employee was saved but app login was not created. Check API URL in .env / src/config/api.js, ensure backend is running, and email is provided."
-        );
-      } else {
-        alert(data.message || "Employee added successfully");
+      if (newEmployeeId && pendingCandidateId) {
+        try {
+          await linkOfferCandidateEmployee(pendingCandidateId, newEmployeeId);
+          queryClient.invalidateQueries({ queryKey: [OFFER_CANDIDATES_KEY] });
+        } catch (linkError) {
+          toast.warning(linkError.response?.data?.message || EMPLOYEE_ADD_COPY.candidateNotLinked);
+        }
       }
+
+      if (data.loginInfo) showLoginCredentials(form.name, data.loginInfo, newEmployeeId);
+      const notice = employeeAddedNotice(data, { createAppLogin: form.createAppLogin });
+      if (notice) toast[notice.type](notice.message);
 
       setForm(initialForm);
       setSalaryDraft(initialSalaryDraft);
@@ -1328,7 +1388,7 @@ function Employees() {
       // Bug 253/267: surface duplicate email/phone/code on the field itself
       // instead of failing silently behind a generic alert.
       const serverData = error.response?.data || {};
-      const serverMessage = serverData.message || "Failed to add employee";
+      const serverMessage = serverData.message || EMPLOYEE_ADD_COPY.addFailed;
       const field = serverData.field;
       setSubmitting(false)
       if (field) {
@@ -1350,7 +1410,7 @@ function Employees() {
       } else {
         setErrors({});
       }
-      alert(serverMessage);
+      toast.error(serverMessage);
     } finally {
       setSubmitting(false);
     }
@@ -1593,6 +1653,7 @@ function Employees() {
     relationWithMember: emp.relationWithMember || emp.relation || "",
     nationality: emp.nationality || "",
     maritalStatus: emp.maritalStatus || "",
+    familyMembers: familyMembersToForm(emp.familyMembers),
     permanentAddress: emp.permanentAddress || emp.address || "",
     aadhaarNumber: emp.aadhaarNumber || "",
     nameAsPerAadhaar: emp.nameAsPerAadhaar || "",
@@ -1853,162 +1914,6 @@ function Employees() {
     }
   };
 
-  /* =====================================
-     Generate Employee Appointment letter
-  ======================================== */
-
-  const patchLetterData = (patch) => {
-    setLetterData((prev) => ({ ...prev, ...patch }));
-  };
-
-
-  const handleGenerateLetter =
-    async () => {
-      const monthlyGross = sumLetterMonthlyGross(letterData.salaryComponents);
-
-      if (
-        !letterData.employeeName ||
-        !letterData.designation ||
-        !letterData.joiningDate ||
-        !letterData.annualCTC ||
-        !monthlyGross ||
-        !letterData.workLocation ||
-        !letterData.salaryComponents?.length
-      ) {
-        alert(
-          "Please fill all mandatory fields and apply a CTC split or enter salary components"
-        );
-        return;
-      }
-
-
-
-      try {
-        setLoading(true);
-        await generateAppointmentLetter({
-          ...letterData,
-          monthlySalary: monthlyGross,
-          salaryComponents: (letterData.salaryComponents || []).map((c) => ({
-            code: c.code,
-            componentName: c.componentName || c.name,
-            monthly: c.monthly !== "" && c.monthly != null ? c.monthly : Math.round((Number(c.annual) || 0) / 12),
-            annual: c.annual !== "" && c.annual != null ? c.annual : (Number(c.monthly) || 0) * 12,
-          })),
-        });
-
-        alert(
-          "Appointment Letter Generated Successfully"
-        );
-
-        setShowLetterModal(false);
-
-      } catch (error) {
-        alert(
-          error.response?.data
-            ?.message ||
-          "Generation failed"
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  /* =========================
-       GENERATE WARNING LETTER
-     ========================= */
-
-  const handleGenerateWarning =
-    async () => {
-      if (
-        !warningData.employeeName ||
-        !warningData.designation ||
-        !warningData.incidentDate ||
-        !warningData.reason?.trim()
-      ) {
-        alert(
-          "Please fill all mandatory fields (employee, designation, incident date, and reason)"
-        );
-        return;
-      }
-
-      try {
-        setLoading(true);
-        await generateWarningLetter({
-          employeeId: warningData.employeeId,
-          employeeName: warningData.employeeName,
-          employeeCode: warningData.employeeCode,
-          designation: warningData.designation,
-          department: warningData.department,
-          incidentDate: warningData.incidentDate,
-          reason: warningData.reason,
-          severity: warningData.severity,
-          actionTaken: warningData.actionTaken,
-          responsePeriod: warningData.responsePeriod,
-        });
-
-        alert(
-          "Warning Letter Generated Successfully"
-        );
-
-        setShowWarningModal(false);
-
-      } catch (error) {
-        alert(
-          error.response?.data
-            ?.message ||
-          "Generation failed"
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  /* =========================
-       GENERATE CONSULTANCY AGREEMENT
-     ========================= */
-
-  const handleGenerateConsultancy =
-    async () => {
-      if (
-        !consultancyData.consultantName ||
-        !consultancyData.designation ||
-        !consultancyData.effectiveDate
-      ) {
-        alert(
-          "Please fill all mandatory fields (consultant name, designation, and effective date)"
-        );
-        return;
-      }
-
-      try {
-        setLoading(true);
-        await generateConsultancyAgreement({
-          employeeId: consultancyData.employeeId,
-          consultantName: consultancyData.consultantName,
-          employeeCode: consultancyData.employeeCode,
-          designation: consultancyData.designation,
-          department: consultancyData.department,
-          effectiveDate: consultancyData.effectiveDate,
-          tenure: consultancyData.tenure,
-          scopeOfWork: consultancyData.scopeOfWork,
-          consultancyFees: consultancyData.consultancyFees,
-          paymentTerms: consultancyData.paymentTerms,
-          noticePeriod: consultancyData.noticePeriod,
-        });
-
-        alert("Consultancy Agreement Generated Successfully");
-
-        setShowConsultancyModal(false);
-      } catch (error) {
-        alert(
-          error.response?.data?.message ||
-          "Generation failed"
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
   /* =========================
        GENERATE TERMINATION LETTER
      ========================= */
@@ -2225,12 +2130,21 @@ function Employees() {
               {directoryType === "consultancy" ? <span className="employee-directory-tab__badge">{pagination?.total || 0}</span> : null}
             </button>
           ) : null}
+          {canViewInterns ? (
+            <button type="button" className={`employee-directory-tab ${directoryType === "intern" ? "active" : ""}`} onClick={() => switchDirectoryType("intern")}>
+              Interns
+            </button>
+          ) : null}
         </div>
 
         {/* <p className="employee-page__count">
           Total {directoryType === "consultancy" ? "consultants" : "employees"}: <strong>{pagination?.total || 0}</strong>
         </p> */}
 
+        {directoryType === "intern" ? (
+          <InternsTab />
+        ) : (
+          <>
         <div className="employee-toolbar">
 
           {/* SEARCH */}
@@ -2243,6 +2157,16 @@ function Employees() {
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPage(1);
+                if (searchParams.has(EMPLOYEE_PARAMS.search)) {
+                  setSearchParams(
+                    (prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.delete(EMPLOYEE_PARAMS.search);
+                      return next;
+                    },
+                    { replace: true }
+                  );
+                }
               }}
             />
           </div>
@@ -2360,7 +2284,7 @@ function Employees() {
           </div>
         </div>
 
-        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} departmentFilter={departmentFilter} employeeStatusFilter={statusFilter} canManage={canManageConsultancy} /> : null}
+        {directoryType === "consultancy" ? <ConsultancyPayments refreshKey={consultancyRefreshKey} search={search} departmentFilter={departmentFilter} employeeStatusFilter={statusFilter} roleFilter={roleFilter} canManage={canManageConsultancy} /> : null}
 
         <div className="employee-table-card">
           <div className="employee-table-scroll">
@@ -2526,8 +2450,8 @@ function Employees() {
                                   </button>
                                 </span>
                                 {emp.probationEndDate ? (
-                                  <span className="emp-probation-date" title={`Probation ends ${new Date(emp.probationEndDate).toLocaleDateString()}`}>
-                                    Ends {new Date(emp.probationEndDate).toLocaleDateString()}
+                                  <span className="emp-probation-date" title={`Probation ends ${ convertUTCtoDDMMYYYY(emp.probationEndDate)}`}>
+                                    Ends {convertUTCtoDDMMYYYY(emp.probationEndDate)}
                                   </span>
                                 ) : (
                                   <span className="emp-probation-date emp-probation-date--none">End date —</span>
@@ -2551,16 +2475,23 @@ function Employees() {
                               if (openDropdownId !== emp._id) {
                                 setExpandedMenuSection("general");
                               }
+                              setDropdownAnchorEl(e.currentTarget);
                               setOpenDropdownId(
                                 openDropdownId === emp._id ? null : emp._id
                               );
                             }}
+                            aria-haspopup="menu"
+                            aria-expanded={openDropdownId === emp._id}
                           >
                             <MoreVertical size={18} />
                           </button>
 
                           {openDropdownId === emp._id && (
-                            <div className="action-dropdown-menu">
+                            <FloatingMenu
+                              anchorEl={dropdownAnchorEl}
+                              className="action-dropdown-menu"
+                              role="menu"
+                            >
                               {renderMenuSectionToggle("general", "General")}
                               {expandedMenuSection === "general" && (
                                 <>
@@ -2630,35 +2561,33 @@ function Employees() {
                                 </>
                               ) : null}
 
-                              {(canLetters || (directoryType === "consultancy" && canManageConsultancy)) && renderMenuSectionToggle("letters", "Letters")}
+                              {rowLetterActions(emp).any && renderMenuSectionToggle("letters", "Letters")}
 
-                              {canLetters && !emp.isConsultancy && expandedMenuSection === "letters" && (
+                              {rowLetterActions(emp).issue && expandedMenuSection === "letters" && (
                                 <button
                                   type="button"
-                                  disabled={!emp.isActive}
-                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
                                   onClick={() => {
-                                    if (!emp.isActive) return;
                                     setOpenDropdownId(null);
-                                    setLetterEmployeeId(emp._id);
-                                    setLetterData({
-                                      employeeId: emp._id,
-                                      employeeName: emp.name || "",
-                                      designation: emp.designation || "",
-                                      joiningDate: emp.dateOfJoining?.split("T")[0] || "",
-                                      annualCTC: "",
-                                      monthlySalary: "",
-                                      workLocation: emp.location || "Gurgaon",
-                                      salaryComponents: [],
-                                    });
-                                    setShowLetterModal(true);
+                                    setLetterDrawer({ employeeId: emp._id, recipientRule: null });
                                   }}
                                 >
-                                  <FileText size={16} /> Appointment Letter
+                                  <FilePlus2 size={16} /> Issue a letter…
                                 </button>
                               )}
 
-                              {(canLetters || canManageConsultancy) && emp.isConsultancy && expandedMenuSection === "letters" && (
+                              {rowLetterActions(emp).viewIssued && expandedMenuSection === "letters" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenDropdownId(null);
+                                    navigate(issuedLettersPath(vendor, { recipientId: emp._id }));
+                                  }}
+                                >
+                                  <FileText size={16} /> View issued letters
+                                </button>
+                              )}
+
+                              {rowLetterActions(emp).consultancyAgreement && expandedMenuSection === "letters" && (
                                 <button
                                   type="button"
                                   disabled={!emp.isActive}
@@ -2666,54 +2595,14 @@ function Employees() {
                                   onClick={() => {
                                     if (!emp.isActive) return;
                                     setOpenDropdownId(null);
-                                    setConsultancyData({
-                                      employeeId: emp._id,
-                                      consultantName: emp.name || "",
-                                      employeeCode: emp.employeeCode || "",
-                                      designation: emp.designation || "",
-                                      department: emp.department || "",
-                                      effectiveDate: emp.dateOfJoining?.split("T")[0] || new Date().toISOString().split("T")[0],
-                                      tenure: "",
-                                      scopeOfWork: "",
-                                      consultancyFees: emp.monthlyConsultancyPay ? `₹${Number(emp.monthlyConsultancyPay).toLocaleString("en-IN")} per month` : "",
-                                      paymentTerms: "",
-                                      noticePeriod: "30 days",
-                                    });
-                                    setShowConsultancyModal(true);
+                                    setLetterDrawer({ employeeId: emp._id, recipientRule: CONSULTANCY_RECIPIENT_RULE });
                                   }}
                                 >
                                   <FileText size={16} /> Consultancy Agreement
                                 </button>
                               )}
 
-                              {canLetters && expandedMenuSection === "letters" && (
-                                <button
-                                  type="button"
-                                  disabled={!emp.isActive}
-                                  className={!emp.isActive ? "dropdown-item-disabled" : ""}
-                                  onClick={() => {
-                                    if (!emp.isActive) return;
-                                    setOpenDropdownId(null);
-                                    setWarningData({
-                                      employeeId: emp._id,
-                                      employeeName: emp.name || "",
-                                      employeeCode: emp.employeeCode || "",
-                                      designation: emp.designation || "",
-                                      department: emp.department || "",
-                                      incidentDate: new Date().toISOString().split("T")[0],
-                                      reason: "",
-                                      severity: "First",
-                                      actionTaken: "",
-                                      responsePeriod: "5",
-                                    });
-                                    setShowWarningModal(true);
-                                  }}
-                                >
-                                  <TriangleAlert size={16} /> Warning Letter
-                                </button>
-                              )}
-
-                              {canLetters && expandedMenuSection === "letters" && (
+                              {rowLetterActions(emp).termination && expandedMenuSection === "letters" && (
                                 <button
                                   type="button"
                                   disabled={!emp.isActive}
@@ -2818,7 +2707,7 @@ function Employees() {
                                   <Trash2 size={16} /> Delete {directoryType === "consultancy" ? "Consultant" : "Employee"}
                                 </button>
                               )}
-                            </div>
+                            </FloatingMenu>
                           )}
                         </div>
                       </td>
@@ -2852,6 +2741,8 @@ function Employees() {
               setPage(1);
             }}
           />
+        )}
+          </>
         )}
 
         {/* ================= ADD EMPLOYEE MODAL ================= */}
@@ -2901,11 +2792,11 @@ function Employees() {
                 <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
                   <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
                     <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={form.monthlyConsultancyPay} onChange={handleChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
-                    <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
+                    <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldErrorOnce(errors.monthlyConsultancyPay, consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent)) || " "}</p>
                   </FormField>
                   <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
                     <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={form.tdsPercent} onChange={handleChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
-                    <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
+                    <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldErrorOnce(errors.tdsPercent, consultancyPreviewError(form.monthlyConsultancyPay, form.tdsPercent)) || " "}</p>
                   </FormField>
                   <div className="consultancy-net-summary">
                     <span>Gross: ₹{calculateNetConsultancy(form.monthlyConsultancyPay, form.tdsPercent).gross.toLocaleString("en-IN")}</span>
@@ -3077,11 +2968,11 @@ function Employees() {
                   <FormSection title="Consultancy Payment" description="Consultants are paid monthly and excluded from payroll. TDS is deducted from the monthly amount.">
                     <FormField label="Monthly Consultancy Pay" htmlFor="emp-field-monthlyConsultancyPay" required>
                       <input id="emp-field-monthlyConsultancyPay" name="monthlyConsultancyPay" type="number" min="0" value={selectedEmployee.monthlyConsultancyPay ?? ""} onChange={handleEditFieldChange} placeholder="Enter monthly amount" className={errors.monthlyConsultancyPay ? "emp-field-input--error" : undefined} />
-                      <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.monthlyConsultancyPay || " "}</p>
+                      <p className={`emp-field-error${errors.monthlyConsultancyPay ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldErrorOnce(errors.monthlyConsultancyPay, consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent)) || " "}</p>
                     </FormField>
                     <FormField label="TDS %" htmlFor="emp-field-tdsPercent">
                       <input id="emp-field-tdsPercent" name="tdsPercent" type="number" min="0" max="100" value={selectedEmployee.tdsPercent ?? ""} onChange={handleEditFieldChange} placeholder="e.g. 10" className={errors.tdsPercent ? "emp-field-input--error" : undefined} />
-                      <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{errors.tdsPercent || " "}</p>
+                      <p className={`emp-field-error${errors.tdsPercent ? "" : " emp-field-error--empty"}`} aria-live="polite">{fieldErrorOnce(errors.tdsPercent, consultancyPreviewError(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent)) || " "}</p>
                     </FormField>
                     <div className="consultancy-net-summary">
                       <span>Gross: ₹{calculateNetConsultancy(selectedEmployee.monthlyConsultancyPay, selectedEmployee.tdsPercent).gross.toLocaleString("en-IN")}</span>
@@ -3197,9 +3088,9 @@ function Employees() {
                       <label>Date Of Joining</label>
                       <span>
                         {selectedEmployee.dateOfJoining
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.dateOfJoining
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>
@@ -3233,9 +3124,9 @@ function Employees() {
                         <label>Probation End Date</label>
                         <span>
                           {selectedEmployee.probationEndDate
-                            ? new Date(
+                            ? convertUTCtoDDMMYYYY(
                               selectedEmployee.probationEndDate
-                            ).toLocaleDateString()
+                            )
                             : "-"}
                         </span>
                       </div>
@@ -3245,7 +3136,7 @@ function Employees() {
                       <div>
                         <label>Confirmation Date</label>
                         <span>
-                          {new Date(selectedEmployee.confirmationDate).toLocaleDateString()}
+                          {convertUTCtoDDMMYYYY(selectedEmployee.confirmationDate)}
                         </span>
                       </div>
                     ) : null}
@@ -3254,9 +3145,9 @@ function Employees() {
                       <label>Relieving Date</label>
                       <span>
                         {selectedEmployee.relievingDate
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.relievingDate
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>
@@ -3308,9 +3199,9 @@ function Employees() {
                       <label>Date Of Birth</label>
                       <span>
                         {selectedEmployee.dob
-                          ? new Date(
+                          ? convertUTCtoDDMMYYYY(
                             selectedEmployee.dob
-                          ).toLocaleDateString()
+                          )
                           : "-"}
                       </span>
                     </div>
@@ -3355,6 +3246,34 @@ function Employees() {
                       <span>{selectedEmployee.emergencyContact || "-"}</span>
                     </div>
                   </div>
+                </div>
+
+                <div className="profile-section">
+                  <h4>Family Members (ESIC / Medical)</h4>
+                  {selectedEmployee.familyMembers?.length ? (
+                    <table className="family-editor__table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Relation</th>
+                          <th>Date of Birth</th>
+                          <th>Covered Under</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedEmployee.familyMembers.map((member, index) => (
+                          <tr key={`${member.name}-${index}`}>
+                            <td>{member.name || "-"}</td>
+                            <td>{member.relation || "-"}</td>
+                            <td>{formatFamilyDob(member.dob)}</td>
+                            <td>{coverageLabel(member.coverage) || "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="emp-field-hint">No family members added.</p>
+                  )}
                 </div>
 
                 <div className="profile-section">
@@ -3447,443 +3366,18 @@ function Employees() {
           </EmpModal>
         ) : null}
 
-        {/* ================= APPOINTMENT LETTER MODAL ================= */}
-        {showLetterModal ? (
-          <EmpModal
-            title="Generate Appointment Letter"
-            onClose={() => {
-              setShowLetterModal(false);
-              setLetterEmployeeId(null);
-            }}
-            size="xl"
-            footer={
-              <>
-                <Button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() => {
-                    setShowLetterModal(false);
-                    setLetterEmployeeId(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleGenerateLetter}
-                  disabled={loading}
-                >
-                  {loading ? "Generating…" : "Generate Letter"}
-                </Button>
-              </>
-            }
-          >
-            <FormSection
-              title="Employee Details"
-              description="Information printed on the appointment letter"
-            >
-              <FormField label="Employee Name" htmlFor="letter-name" required>
-                <input
-                  id="letter-name"
-                  required
-                  value={letterData.employeeName}
-                  onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
-                      employeeName: e.target.value,
-                    })
-                  }
-                  placeholder="Full name"
-                />
-              </FormField>
-              <FormField label="Designation" htmlFor="letter-designation" required>
-                <input
-                  id="letter-designation"
-                  required
-                  value={letterData.designation}
-                  onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
-                      designation: e.target.value,
-                    })
-                  }
-                  placeholder="Job title"
-                />
-              </FormField>
-              <FormField label="Joining Date" htmlFor="letter-joining" required>
-                <input
-                  id="letter-joining"
-                  required
-                  type="date"
-                  value={letterData.joiningDate}
-                  onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
-                      joiningDate: e.target.value,
-                    })
-                  }
-                />
-              </FormField>
-              <FormField label="Work Location" htmlFor="letter-location" required>
-                <input
-                  id="letter-location"
-                  required
-                  value={letterData.workLocation}
-                  onChange={(e) =>
-                    setLetterData({
-                      ...letterData,
-                      workLocation: e.target.value,
-                    })
-                  }
-                  placeholder="City / office"
-                />
-              </FormField>
-              <FormField label="Annual CTC" htmlFor="letter-ctc" required>
-                <input
-                  id="letter-ctc"
-                  required
-                  type="number"
-                  value={letterData.annualCTC}
-                  onChange={(e) =>
-                    patchLetterData({
-                      annualCTC: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 600000"
-                />
-              </FormField>
-              <FormField label="Monthly Salary" htmlFor="letter-monthly" required>
-                <input
-                  id="letter-monthly"
-                  required
-                  type="number"
-                  value={letterData.monthlySalary}
-                  onChange={(e) =>
-                    patchLetterData({
-                      monthlySalary: e.target.value,
-                    })
-                  }
-                  placeholder="Auto-filled from components"
-                  readOnly
-                />
-              </FormField>
-            </FormSection>
-
-            <FormSection
-              title="Salary Structure"
-              description="From your organization component library — split from CTC or apply to employee record"
-              fullWidth
-            >
-              <AppointmentLetterSalary
-                employeeId={letterEmployeeId}
-                letterData={letterData}
-                onChange={patchLetterData}
-              />
-            </FormSection>
-          </EmpModal>
-        ) : null}
-
-        {showWarningModal ? (
-          <EmpModal
-            title="Generate Warning Letter"
-            onClose={() => setShowWarningModal(false)}
-            size="md"
-            footer={
-              <Button
-                type="button"
-                icon={<TriangleAlert size={16} />}
-                onClick={handleGenerateWarning}
-                disabled={loading}
-                style={{ flex: 1 }}
-              >
-                {loading ? "Generating…" : "Generate Warning Letter"}
-              </Button>
-            }
-          >
-            <FormSection
-              title="Employee Details"
-              description="Auto-filled from the selected employee"
-            >
-              <FormField label="Employee Name" htmlFor="warn-name" required>
-                <input
-                  id="warn-name"
-                  required
-                  value={warningData.employeeName}
-                  readOnly
-                />
-              </FormField>
-              <FormField label="Employee Code" htmlFor="warn-code">
-                <input
-                  id="warn-code"
-                  value={warningData.employeeCode}
-                  readOnly
-                />
-              </FormField>
-              <FormField label="Designation" htmlFor="warn-designation" required>
-                <input
-                  id="warn-designation"
-                  required
-                  value={warningData.designation}
-                  readOnly
-                />
-              </FormField>
-            </FormSection>
-
-            <FormSection
-              title="Incident Details"
-              description="Provide details regarding the incident and action"
-            >
-              <FormField label="Incident Date" htmlFor="warn-incident-date" required>
-                <input
-                  id="warn-incident-date"
-                  required
-                  type="date"
-                  value={warningData.incidentDate}
-                  onChange={(e) =>
-                    setWarningData({
-                      ...warningData,
-                      incidentDate: e.target.value,
-                    })
-                  }
-                />
-              </FormField>
-
-              <FormField label="Warning Severity" htmlFor="warn-severity">
-                <select
-                  id="warn-severity"
-                  value={warningData.severity}
-                  onChange={(e) =>
-                    setWarningData({
-                      ...warningData,
-                      severity: e.target.value,
-                    })
-                  }
-                >
-                  <option value="First">First</option>
-                  <option value="Second">Second</option>
-                  <option value="Final">Final</option>
-                </select>
-              </FormField>
-
-              <FormField label="Reason / Description" htmlFor="warn-reason" fullWidth required>
-                <textarea
-                  id="warn-reason"
-                  required
-                  rows={4}
-                  value={warningData.reason}
-                  onChange={(e) =>
-                    setWarningData({
-                      ...warningData,
-                      reason: e.target.value,
-                    })
-                  }
-                  placeholder="Describe the incident / violation in detail"
-                />
-              </FormField>
-
-              <FormField label="Action Taken" htmlFor="warn-action" fullWidth>
-                <textarea
-                  id="warn-action"
-                  rows={2}
-                  value={warningData.actionTaken}
-                  onChange={(e) =>
-                    setWarningData({
-                      ...warningData,
-                      actionTaken: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. deduction, suspension, coaching, etc."
-                />
-              </FormField>
-
-              <FormField label="Response Period (days)" htmlFor="warn-response">
-                <input
-                  id="warn-response"
-                  type="number"
-                  min="1"
-                  value={warningData.responsePeriod}
-                  onChange={(e) =>
-                    setWarningData({
-                      ...warningData,
-                      responsePeriod: e.target.value,
-                    })
-                  }
-                />
-              </FormField>
-            </FormSection>
-          </EmpModal>
-        ) : null}
-
-        {showConsultancyModal ? (
-          <EmpModal
-            title="Generate Consultancy Agreement"
-            onClose={() => setShowConsultancyModal(false)}
-            size="lg"
-            footer={
-              <>
-                <Button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() => setShowConsultancyModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  icon={<FileText size={16} />}
-                  onClick={handleGenerateConsultancy}
-                  disabled={loading}
-                >
-                  {loading ? "Generating…" : "Generate Consultancy Agreement"}
-                </Button>
-              </>
-            }
-          >
-            <FormSection
-              title="Consultant Details"
-              description="Auto-filled from the selected consultant"
-            >
-              <FormField label="Consultant Name" htmlFor="ca-name" required>
-                <input
-                  id="ca-name"
-                  required
-                  value={consultancyData.consultantName}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      consultantName: e.target.value,
-                    })
-                  }
-                />
-              </FormField>
-              <FormField label="Consultant ID" htmlFor="ca-code">
-                <input
-                  id="ca-code"
-                  value={consultancyData.employeeCode}
-                  readOnly
-                />
-              </FormField>
-              <FormField label="Designation / Role" htmlFor="ca-designation" required>
-                <input
-                  id="ca-designation"
-                  required
-                  value={consultancyData.designation}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      designation: e.target.value,
-                    })
-                  }
-                />
-              </FormField>
-              <FormField label="Department" htmlFor="ca-department">
-                <input
-                  id="ca-department"
-                  value={consultancyData.department}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      department: e.target.value,
-                    })
-                  }
-                />
-              </FormField>
-            </FormSection>
-
-            <FormSection
-              title="Engagement Details"
-              description="Contract duration, fees and payment terms"
-            >
-              <FormField label="Effective Date" htmlFor="ca-effective" required>
-                <input
-                  id="ca-effective"
-                  required
-                  type="date"
-                  value={consultancyData.effectiveDate}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      effectiveDate: e.target.value,
-                    })
-                  }
-                />
-              </FormField>
-              <FormField label="Contract Duration / Tenure" htmlFor="ca-tenure">
-                <input
-                  id="ca-tenure"
-                  value={consultancyData.tenure}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      tenure: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 12 months, renewable"
-                />
-              </FormField>
-              <FormField label="Consultancy Fees" htmlFor="ca-fees">
-                <input
-                  id="ca-fees"
-                  value={consultancyData.consultancyFees}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      consultancyFees: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. ₹50,000 per month"
-                />
-              </FormField>
-              <FormField label="Notice Period" htmlFor="ca-notice">
-                <input
-                  id="ca-notice"
-                  value={consultancyData.noticePeriod}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      noticePeriod: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 30 days"
-                />
-              </FormField>
-              <FormField label="Payment Terms" htmlFor="ca-payment" fullWidth>
-                <textarea
-                  id="ca-payment"
-                  rows={2}
-                  value={consultancyData.paymentTerms}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      paymentTerms: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. Monthly invoice, payable within 15 days, subject to TDS"
-                />
-              </FormField>
-            </FormSection>
-
-            <FormSection
-              title="Scope & Terms"
-              description="Scope of work (legal clauses use standard defaults)"
-            >
-              <FormField label="Scope of Work / Responsibilities" htmlFor="ca-scope" fullWidth>
-                <textarea
-                  id="ca-scope"
-                  rows={4}
-                  value={consultancyData.scopeOfWork}
-                  onChange={(e) =>
-                    setConsultancyData({
-                      ...consultancyData,
-                      scopeOfWork: e.target.value,
-                    })
-                  }
-                  placeholder="Describe the consultant's responsibilities and deliverables"
-                />
-              </FormField>
-            </FormSection>
-          </EmpModal>
-        ) : null}
+        <IssueLetterPanel
+          open={Boolean(letterDrawer)}
+          onClose={() => setLetterDrawer(null)}
+          initialRecipientId={letterDrawer?.employeeId || ""}
+          initialRecipientType="employee"
+          recipientRule={letterDrawer?.recipientRule || null}
+          onViewIssued={
+            letterAccess.canView
+              ? (recipient) => navigate(issuedLettersPath(vendor, { recipientId: recipient?._id }))
+              : undefined
+          }
+        />
 
         {showTerminationModal ? (
           <EmpModal
@@ -4235,7 +3729,7 @@ function Employees() {
                   <button
                     type="button"
                     className="emp-btn emp-btn--secondary"
-                    onClick={() => setDocPreviewUrl(getDocumentViewUrl(doc._id))}
+                    onClick={() => { setDocPreviewUrl(getDocumentViewUrl(doc._id)); setDocPreviewName(doc.originalName || doc.fileName || ""); }}
                   >
                     <Eye size={14} />
                     View
@@ -4401,7 +3895,7 @@ function Employees() {
           </div>
           {extendEmp.probationEndDate ? (
             <p className="emp-field-hint">
-              Current end: {new Date(extendEmp.probationEndDate).toLocaleDateString()}
+              Current end: {convertUTCtoDDMMYYYY(extendEmp.probationEndDate)}
             </p>
           ) : null}
           <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
@@ -4417,8 +3911,9 @@ function Employees() {
 
       <DocumentPreview
         isOpen={!!docPreviewUrl}
-        onClose={() => setDocPreviewUrl(null)}
+        onClose={() => { setDocPreviewUrl(null); setDocPreviewName(""); }}
         url={docPreviewUrl}
+        title={docPreviewName || "Preview"}
       />
 
       <ProbationHistoryModal
@@ -4551,4 +4046,10 @@ function Employees() {
   );
 }
 
-export default Employees;
+export default function Employees() {
+  return (
+    <ToastProvider>
+      <EmployeesPage />
+    </ToastProvider>
+  );
+}
