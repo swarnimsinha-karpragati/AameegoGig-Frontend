@@ -1,9 +1,9 @@
 export const toVendorSlug = (vendorName) =>
   String(vendorName || "")
     .trim()
-    .replace(/\//g, "")
-    .replace(/\s+/g, "-")
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
 export const vendorDashboardPath = (user) => {
   const slug = toVendorSlug(user?.vendorName);

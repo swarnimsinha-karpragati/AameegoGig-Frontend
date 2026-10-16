@@ -18,6 +18,12 @@ describe("toVendorSlug", () => {
     expect(toVendorSlug("  Repro Payroll / 274652 ")).toBe("repro-payroll-274652");
   });
 
+  it("drops periods so names like Pvt. Ltd. stay a single path segment", () => {
+    expect(toVendorSlug("Genexit Facility Management Solutions Pvt. Ltd.")).toBe(
+      "genexit-facility-management-solutions-pvt-ltd"
+    );
+  });
+
   it("returns empty string for missing names", () => {
     expect(toVendorSlug(undefined)).toBe("");
     expect(toVendorSlug("   ")).toBe("");
