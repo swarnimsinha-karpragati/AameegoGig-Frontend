@@ -17,6 +17,7 @@ import mobileBgImage from '../assets/mobile_login.png'
 
 import { loginUser } from '../services/authService';
 import { vendorDashboardPath } from '../utils/vendorPath';
+import { setOrganisations } from '../utils/authStorage';
 
 export default function LoginScreen() {
     const navigate = useNavigate();
@@ -85,6 +86,7 @@ export default function LoginScreen() {
 
             localStorage.setItem('token', res.token);
             localStorage.setItem('user', JSON.stringify(res.user));
+            setOrganisations(res.organisations);
             navigate(vendorDashboardPath(res.user));
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');

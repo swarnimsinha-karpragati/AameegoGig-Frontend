@@ -27,8 +27,10 @@ import { resolveMediaUrl } from "../utils/mediaUrl";
 import defaultLogo from "../assets/logo.png";
 import { getOrgProfile } from "../services/vendorService";
 import { isSiteVendor } from "../utils/vendorIdhelper";
-import { replaceVendorSegment, toVendorSlug } from "../utils/vendorPath";
-import { clearAuthData } from "../utils/authStorage";
+import { replaceVendorSegment, toVendorSlug, vendorDashboardPath } from "../utils/vendorPath";
+import { clearAuthData, getOrganisations, replaceAuthSession } from "../utils/authStorage";
+import { switchOrganisation } from "../services/authService";
+import OrganisationSwitcher from "../components/OrganisationSwitcher";
 import { requestNavigation } from "../utils/navigationGuard";
 import queryClient from "../queryClient";
 import HelpDeskWidget from "../components/HelpDeskWidget";
@@ -37,6 +39,10 @@ function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
+  const [organisations, setOrganisations] = useState(() => getOrganisations());
+  const [switchBusy, setSwitchBusy] = useState(false);
+  const [switchError, setSwitchError] = useState("");
+  const [switchChallenge, setSwitchChallenge] = useState(null);
   const [avatarBroken, setAvatarBroken] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("sidebar-collapsed") === "1"
@@ -89,6 +95,7 @@ function MainLayout({ children }) {
     const refreshUser = () => {
       const storedUser = getStoredUser();
       setUser(storedUser);
+      setOrganisations(getOrganisations());
       setAvatarBroken(false);
     };
     const refreshRoles = () => {
@@ -259,6 +266,26 @@ function MainLayout({ children }) {
     // eslint-disable-next-line
   }, []);
 
+  const applyOrganisationSwitch = async (vendorCode, otp) => {
+    setSwitchBusy(true);
+    setSwitchError("");
+    try {
+      const res = await switchOrganisation({ vendorCode, otp });
+      if (res?.twoFactorRequired) {
+        setSwitchChallenge({ code: vendorCode, sendTo: res.sendTo || "" });
+        return;
+      }
+      await queryClient.cancelQueries();
+      replaceAuthSession(res.token, res.user, res.organisations);
+      queryClient.clear();
+      setSwitchChallenge(null);
+      navigate(vendorDashboardPath(res.user));
+    } catch (err) {
+      setSwitchError(err.response?.data?.message || "Could not switch organisation");
+    } finally {
+      setSwitchBusy(false);
+    }
+  };
 
   return (
     <div
@@ -397,20 +424,39 @@ function MainLayout({ children }) {
             </div>
           </div>
 
-          <button
-            type="button"
-            className="logout-btn"
-            onClick={() => {
-              requestNavigation(() => {
-                queryClient.clear();
-                clearAuthData();
-                navigate("/login");
-              });
-            }}
-          >
-            <LogOut size={18} />
-            Logout
-          </button>
+          <div className="topbar-actions">
+            <OrganisationSwitcher
+              organisations={organisations}
+              currentCode={user?.vendor_code}
+              busy={switchBusy}
+              error={switchError}
+              challenge={switchChallenge}
+              onSelect={(vendorCode) => {
+                requestNavigation(() => {
+                  applyOrganisationSwitch(vendorCode);
+                });
+              }}
+              onConfirmOtp={(vendorCode, otp) => applyOrganisationSwitch(vendorCode, otp)}
+              onCancelChallenge={() => {
+                setSwitchChallenge(null);
+                setSwitchError("");
+              }}
+            />
+            <button
+              type="button"
+              className="logout-btn"
+              onClick={() => {
+                requestNavigation(() => {
+                  queryClient.clear();
+                  clearAuthData();
+                  navigate("/login");
+                });
+              }}
+            >
+              <LogOut size={18} />
+              Logout
+            </button>
+          </div>
         </div>
 
         <main className="page-content">{children}</main>
