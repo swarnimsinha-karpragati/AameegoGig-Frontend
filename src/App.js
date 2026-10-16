@@ -23,7 +23,7 @@ import Resignations from './pages/Resignations';
 import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
 import { syncRolesFromServer } from './utils/roles';
-import { clearAuthData } from './utils/authStorage';
+import { clearAuthData, currentUserToStore, getToken } from './utils/authStorage';
 import queryClient from './queryClient';
 import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
@@ -39,7 +39,11 @@ function App() {
 
   const { data, isError, isSuccess } = useQuery({
     queryKey: ['auth'],
-    queryFn: getCurrentUser,
+    queryFn: async () => {
+      const tokenAtRequest = getToken();
+      const result = await getCurrentUser();
+      return { result, tokenAtRequest };
+    },
     staleTime: 1000 * 60 * 5,
     retry: false,
     enabled: !!token,
@@ -50,10 +54,13 @@ function App() {
       queryClient.clear();
       clearAuthData();
     }
-    if (isSuccess && data?.user) {
-      localStorage.setItem("user", JSON.stringify(data.user));
-      window.dispatchEvent(new Event("user-updated"));
-      syncRolesFromServer();
+    if (isSuccess) {
+      const user = currentUserToStore(data?.result, data?.tokenAtRequest, getToken());
+      if (user) {
+        localStorage.setItem("user", JSON.stringify(user));
+        window.dispatchEvent(new Event("user-updated"));
+        syncRolesFromServer();
+      }
     }
 
     const path = window.location.pathname;

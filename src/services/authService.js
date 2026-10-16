@@ -7,6 +7,14 @@ export const signupUser = async (payload) => {
   return response.data;
 };
 
+export const switchOrganisation = async ({ vendorCode, otp }) => {
+  const response = await API.post(authPath("switch-organisation"), {
+    vendorCode,
+    ...(otp ? { otp } : {}),
+  });
+  return response.data;
+};
+
 export const loginUser = async (payload) => {
   // skipAuthRedirect: a failed login (401) must reach the form's catch block
   // to show the inline error — the global 401 redirect would hard-reload
