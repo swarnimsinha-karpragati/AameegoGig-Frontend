@@ -48,6 +48,8 @@ function LettersInner() {
   const issueRecipientRule = getIssueRecipientRule(permissions);
   // Moving to another screen via a button focuses that screen's heading; tablist changes keep focus on the tab (ARIA tabs pattern).
   const [focusHeading, setFocusHeading] = useState(false);
+  // An unsaved AI draft for the new-template editor; lost on reload like any unsaved draft.
+  const [aiDraft, setAiDraft] = useState(null);
 
   const { data: filterMatches = [] } = useLetterRecipients(
     { recipientType: view.forType, id: view.forRecipient },
@@ -87,17 +89,31 @@ function LettersInner() {
           <TemplateEditor
             key={view.templateId}
             templateId={view.templateId}
+            initialDraft={view.templateId === "new" ? aiDraft : null}
             canEdit={permissions.canEdit}
             canIssue={permissions.canIssue}
-            onExit={() => goTo(lettersChanges.closeTemplate())}
-            onSaved={(id) => update(lettersChanges.openTemplate(id), { replace: true })}
+            onExit={() => {
+              setAiDraft(null);
+              goTo(lettersChanges.closeTemplate());
+            }}
+            onSaved={(id) => {
+              setAiDraft(null);
+              update(lettersChanges.openTemplate(id), { replace: true });
+            }}
             onIssue={(templateId) => openIssue({ templateId })}
           />
         ) : (
           <ManageTemplates
             focusHeading={focusHeading}
             onOpen={(id) => update(lettersChanges.openTemplate(id))}
-            onCreate={() => update(lettersChanges.openTemplate("new"))}
+            onCreate={() => {
+              setAiDraft(null);
+              update(lettersChanges.openTemplate("new"));
+            }}
+            onAiDrafted={(result) => {
+              setAiDraft(result);
+              update(lettersChanges.openTemplate("new"));
+            }}
             onBack={() => goTo(lettersChanges.closeManage())}
           />
         ))}

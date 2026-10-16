@@ -1,3 +1,5 @@
+import { templateGroup } from "./letterCatalog";
+
 function deepFreeze(obj) {
   Object.values(obj).forEach((value) => {
     if (value && typeof value === "object") deepFreeze(value);
@@ -470,7 +472,109 @@ export const LETTERS_COPY = deepFreeze({
       notesHint: "Internal only. Not shown in letters.",
     },
   },
+  ai: {
+    error: "AI help is not available right now. Try again in a minute.",
+    startWithAi: "Start with AI",
+    importWord: "Import from Word",
+    draftTitle: "Start a template with AI",
+    draftDescriptionLabel: "Describe the letter",
+    draftDescriptionHint:
+      "Say what the letter is for and what HR fills in each time, e.g. “Diwali bonus letter with the bonus amount and payout date”.",
+    draftWhoFor: "Who is this letter for?",
+    draftCreate: "Draft template",
+    draftedBanner: "Drafted with AI. Read it carefully and check the questions before saving.",
+    importedBanner: "Imported from {file} with AI. Check every replaced value before saving.",
+    replacementsTitle: "What was replaced",
+    notesTitle: "Check before saving",
+    saveNote: "Drafted with AI",
+    importTitle: "Import a letter from Word",
+    importFileLabel: "Word file (.docx, up to 2 MB)",
+    importFileRequired: "Choose a Word file to import",
+    importNotice:
+      "The letter's text is sent to the AI provider to turn it into a template, including any names or salaries in it.",
+    importAction: "Import",
+    menu: "AI",
+    menuLabel: "Rewrite with AI",
+    presets: {
+      formal: "More formal",
+      shorter: "Shorter",
+      clearer: "Clearer",
+      grammar: "Fix grammar",
+      hindi: "Translate to Hindi",
+      custom: "Your own instruction…",
+    },
+    customLabel: "How should AI change the selected text?",
+    customPlaceholder: "e.g. Make it warmer and mention the team",
+    rewrite: "Rewrite",
+    rewriting: "AI is rewriting the selected text…",
+    suggestionTitle: "AI suggestion",
+    apply: "Replace selected text",
+    discard: "Discard",
+    selectionChanged: "The letter changed while AI was working. Select the text again and retry.",
+    checkTab: "Check",
+    checkIntro:
+      "AI reads the template and suggests fixes: fixed values that should be details, missing content, unused questions and wording. It is not legal advice.",
+    checkRun: "Check this template",
+    checkAgain: "Check again",
+    checkEmpty: "No suggestions. The template looks complete.",
+    checkStale: "The template changed since this check. Check again for up-to-date suggestions.",
+    suggestionTypes: {
+      hardcoded_value: "Fixed value",
+      missing_content: "Missing content",
+      unused_question: "Unused question",
+      tone: "Tone",
+      grammar: "Grammar",
+    },
+    applySuggestion: "Apply",
+    dismissSuggestion: "Dismiss",
+    applied: "Suggestion applied.",
+    pasteTitle: "Fill answers from a note",
+    pasteHint: "Paste an email or note, e.g. “Revised CTC 12 LPA from 1 Nov”. AI fills the answers it finds.",
+    pasteNotice: "The note is sent to the AI provider.",
+    pasteLabel: "Note",
+    pasteFill: "Fill answers",
+    filledCount: "Filled {count} answer(s). Check them before issuing.",
+    filledNone: "The note did not answer any of this letter's questions.",
+    filledByAi: "Filled by AI. Check it.",
+    adjustLabel: "Adjust with AI",
+    adjustPlaceholder: "e.g. Add a sentence that fits this letter",
+    adjustAction: "Adjust",
+    adjustNotice: "AI starts from the template's wording, so edits you made here are replaced. Review the result before applying.",
+  },
 });
+
+/** Example instruction for Adjust with AI, matched to the letter that is open. */
+const ADJUST_PLACEHOLDERS = {
+  offer: "e.g. Mention that the offer is valid for 7 days",
+  internship: "e.g. Add that the stipend is paid monthly",
+  appointment: "e.g. Add the joining location and reporting manager",
+  confirmation: "e.g. Congratulate them on completing probation",
+  promotion: "e.g. Congratulate them on the new role",
+  increment: "e.g. Thank them for their work this year",
+  transfer: "e.g. Mention the new location and the transfer date",
+  "employment-verification": "e.g. Address it to the bank that asked for it",
+  noc: "e.g. State what the no-objection certificate is for",
+  "show-cause": "e.g. Ask them to reply in writing within 3 days",
+  warning: "e.g. Ask them to improve attendance this month",
+  relieving: "e.g. Wish them well in their next role",
+  experience: "e.g. Add a line thanking them for 5 years of service",
+  termination: "e.g. State the last working day clearly",
+  "consultancy-agreement": "e.g. Add that fees are paid against a monthly invoice",
+};
+
+const ADJUST_PLACEHOLDERS_BY_GROUP = {
+  joining: "e.g. Add the joining location",
+  during: "e.g. Mention the effective date of this change",
+  disciplinary: "e.g. Ask them to reply in writing",
+  leaving: "e.g. Wish them well for the future",
+  consultants: "e.g. Add how and when the fees are paid",
+};
+
+export function adjustPlaceholderFor(template) {
+  if (template?.key && ADJUST_PLACEHOLDERS[template.key]) return ADJUST_PLACEHOLDERS[template.key];
+  const group = template ? templateGroup(template).id : "";
+  return ADJUST_PLACEHOLDERS_BY_GROUP[group] || LETTERS_COPY.ai.adjustPlaceholder;
+}
 
 export function format(str, vars = {}) {
   const values = vars || {};

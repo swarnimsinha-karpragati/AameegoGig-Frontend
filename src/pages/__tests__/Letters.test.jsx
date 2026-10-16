@@ -31,6 +31,7 @@ jest.mock(
 jest.mock("../../layouts/MainLayout", () => ({ children }) => <div>{children}</div>);
 jest.mock("../../utils/roles", () => ({ getLetterAccess: () => mockAccess }));
 const mockUseLetterRecipients = jest.fn();
+jest.mock("../../hooks/useAi", () => ({ useAiStatus: () => ({ enabled: false, personalData: false }) }));
 jest.mock("../../hooks/useLetters", () => ({
   useLetterRecipients: (...args) => mockUseLetterRecipients(...args),
   useLetterTemplates: () => ({ data: mockTemplates, isLoading: false, isError: false, refetch: jest.fn() }),

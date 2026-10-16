@@ -44,7 +44,7 @@ const FIELD_SELECTORS = {
  * save errors can switch to the tab that needs attention; `focusTarget` then focuses the field.
  */
 const EditorSidePanel = forwardRef(function EditorSidePanel(
-  { tab, onTabChange, draft, errors = {}, readOnly, template, isNew, dirty, keyLocks, onUpdate, onInsert, onRemoveQuestion, onTemplateReplaced, editingVersion, onVersionConflict },
+  { tab, onTabChange, draft, errors = {}, readOnly, template, isNew, dirty, keyLocks, onUpdate, onInsert, onRemoveQuestion, onTemplateReplaced, editingVersion, onVersionConflict, checkPanel = null },
   ref
 ) {
   const toast = useToast();
@@ -87,7 +87,7 @@ const EditorSidePanel = forwardRef(function EditorSidePanel(
     <aside ref={containerRef} className="wz-tpl-side" aria-label={COPY.sidePanelLabel}>
       <ModuleSwitcher
         className="wz-tpl-side__tabs"
-        tabs={EDITOR_TABS}
+        tabs={checkPanel ? [...EDITOR_TABS, { id: "check", label: LETTERS_COPY.ai.checkTab }] : EDITOR_TABS}
         activeId={tab}
         onChange={onTabChange}
         ariaLabel={COPY.sidePanelLabel}
@@ -107,6 +107,12 @@ const EditorSidePanel = forwardRef(function EditorSidePanel(
           />
         </section>
       </TabPanel>
+
+      {checkPanel && (
+        <TabPanel id="check" active={tab}>
+          {checkPanel}
+        </TabPanel>
+      )}
 
       <TabPanel id="letterhead" active={tab}>
         <section className="wz-tpl-side__section">

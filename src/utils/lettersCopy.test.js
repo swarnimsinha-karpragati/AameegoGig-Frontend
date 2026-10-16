@@ -1,4 +1,4 @@
-import { LETTERS_COPY, format } from "./lettersCopy";
+import { LETTERS_COPY, adjustPlaceholderFor, format } from "./lettersCopy";
 
 /** Every string a user can see; object keys are internal codes and are skipped. */
 const displayedText = (node) =>
@@ -187,5 +187,19 @@ describe("format", () => {
     expect(format("hi {name}")).toBe("hi {name}");
     expect(format("", { a: 1 })).toBe("");
     expect(format("{a}", { a: "" })).toBe("");
+  });
+});
+
+describe("adjustPlaceholderFor", () => {
+  it("suggests something that fits the built-in letter", () => {
+    expect(adjustPlaceholderFor({ key: "offer", category: "Onboarding" })).toBe("e.g. Mention that the offer is valid for 7 days");
+    expect(adjustPlaceholderFor({ key: "warning", category: "Disciplinary" })).toBe("e.g. Ask them to improve attendance this month");
+    expect(adjustPlaceholderFor({ key: "experience", category: "Exit" })).toBe("e.g. Add a line thanking them for 5 years of service");
+  });
+
+  it("uses the letter's group when the template is a copy", () => {
+    expect(adjustPlaceholderFor({ key: "offer-letter-2", category: "Onboarding" })).toBe("e.g. Add the joining location");
+    expect(adjustPlaceholderFor({ key: "my-nda", category: "Custom" })).toBe(LETTERS_COPY.ai.adjustPlaceholder);
+    expect(adjustPlaceholderFor(null)).toBe(LETTERS_COPY.ai.adjustPlaceholder);
   });
 });

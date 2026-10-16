@@ -27,6 +27,7 @@ import { clearAuthData, currentUserToStore, getToken } from './utils/authStorage
 import queryClient from './queryClient';
 import NotFound from './pages/NotFound';
 import Landing from './pages/Landing';
+import Solution from './pages/Solution';
 import AdvanceLoanRequest from './components/AdvanceLoan';
 import Roles from './pages/Roles';
 import Letters from './pages/Letters';
@@ -64,6 +65,8 @@ function App() {
     }
 
     const path = window.location.pathname;
+    // Marketing pages set their own SEO title via usePageMeta.
+    if (path === "/" || path.startsWith("/solutions/")) return;
     const lastPath = path.split("/").filter(Boolean).pop() || "Home";
     const pageName = lastPath
       .replace(/[-_]+/g, " ")
@@ -83,6 +86,7 @@ function App() {
       <APIProvider apiKey={'AIzaSyDUns7-K4KmSoWv5zsQnqzbQ814yCMWZpo'} onLoad={() => console.log('Maps API has loaded.')}>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/solutions/:slug" element={<Solution />} />
         <Route path="/login" element={<UnProtectedRoute><Login /></UnProtectedRoute>} />
         <Route path="/create-org" element={<UnProtectedRoute><CreateOrg /></UnProtectedRoute>} />
         <Route path="/join" element={<UnProtectedRoute><JoinOrg /></UnProtectedRoute>} />
