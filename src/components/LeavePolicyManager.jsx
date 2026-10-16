@@ -36,7 +36,7 @@ const STANDARD_CODES = ["CL", "SL", "EL"];
 const needsMonthlyCredit = (method) =>
   ["fixed_monthly", "prorate_paid_days", "full_if_min_present"].includes(method);
 
-const describeType = (t) => {
+const describeType = (t, policy) => {
   if (!t?.enabled) return "Turned off — employees cannot apply for this type.";
 
   if (t.code === "WFH") {
@@ -67,14 +67,18 @@ const describeType = (t) => {
     return `${earnPart} Unused days can be carried forward.`;
   }
 
-  // Standard 18-day policy: CL/SL/EL fixed 0.5/mo.
-  // "How they earn" is fixed — carry-forward (lapse vs carry) is configurable.
   if (STANDARD_CODES.includes(t.code)) {
     const monthly = t.accrual?.monthlyCredit ?? 0.5;
     const cap = t.accrual?.yearlyCap ?? 6;
-    const parts = [
-      `${monthly} day${monthly === 1 ? "" : "s"} added each month, up to ${cap} per year.`,
-    ];
+    const parts = [];
+    if (t.code === "EL" && t.accrual?.method === "full_if_min_present") {
+      const min = t.accrual?.minPresentDays ?? 0;
+      parts.push(
+        `${monthly} day${monthly === 1 ? "" : "s"} added after a month closes if paid days reach ${min}, up to ${cap} per year.`
+      );
+    } else {
+      parts.push(`${monthly} day${monthly === 1 ? "" : "s"} added each month, up to ${cap} per year.`);
+    }
     if (t.yearEnd?.lapseUnused !== false) {
       parts.push("Unused days expire at year end.");
     } else if (t.yearEnd?.carryForwardMax != null && t.yearEnd.carryForwardMax !== "") {
@@ -82,8 +86,10 @@ const describeType = (t) => {
     } else {
       parts.push("Unused days can be carried forward.");
     }
-    if (t.code === "EL") {
-      parts.push("EL starts only after probation (probation: only CL + SL).");
+    if (policy?.accruePaidLeaveDuringProbation !== true) {
+      parts.push("No CL, SL, or EL during probation.");
+    } else if (t.code === "EL") {
+      parts.push("EL can accrue during probation.");
     }
     if (t.code === "SL" && t.documents?.requiredWhenDaysGt != null) {
       parts.push(`Medical document needed when sick leave is more than ${t.documents.requiredWhenDaysGt} day${t.documents.requiredWhenDaysGt === 1 ? "" : "s"}.`);
@@ -306,19 +312,27 @@ export default function LeavePolicyManager() {
         templateKey: "custom",
         yearStartMonth: asNumberOrNull(yearStartMonth) ?? 1,
         yearStartDay: asNumberOrNull(yearStartDay) ?? 1,
+        accruePaidLeaveDuringProbation: policy.accruePaidLeaveDuringProbation === true,
         types: (policy.types || []).map((t) => {
-          // Standard CL/SL/EL: force fixed 0.5/mo, no encashment.
-          // Carry-forward (lapse vs carry + limit) passes through from UI.
-          if (STANDARD_CODES.includes(t.code)) {
+          // CL/SL stay a fixed monthly credit. EL may instead credit the full
+          // month only after paid days reach a minimum. Carry-forward passes through.
+          if (t.code === "CL" || t.code === "SL" || t.code === "EL") {
+            const method =
+              t.code === "EL" && t.accrual?.method === "full_if_min_present"
+                ? "full_if_min_present"
+                : "fixed_monthly";
             return {
               ...t,
               hasBalance: true,
               accrual: {
                 ...(t.accrual || {}),
-                method: "fixed_monthly",
+                method,
                 monthlyCredit: Number(t.accrual?.monthlyCredit ?? 0.5),
                 yearlyCap: Number(t.accrual?.yearlyCap ?? 6),
-                minPresentDays: 0,
+                minPresentDays:
+                  method === "full_if_min_present"
+                    ? Math.max(0, Number(t.accrual?.minPresentDays) || 0)
+                    : 0,
               },
               yearEnd: {
                 ...(t.yearEnd || {}),
@@ -457,6 +471,14 @@ export default function LeavePolicyManager() {
             />
           </Field>
         </div>
+        <Toggle
+          checked={policy.accruePaidLeaveDuringProbation === true}
+          onChange={(accruePaidLeaveDuringProbation) =>
+            setLocalPolicy((prev) => (prev ? { ...prev, accruePaidLeaveDuringProbation } : prev))
+          }
+          label="Accrue paid leave during probation"
+          hint="Off: a probation month earns no CL, SL, or EL, and those leaves cannot be applied. On: CL and SL accrue as usual, and EL follows the rule below."
+        />
       </div>
 
       <div className="lp-types">
@@ -480,7 +502,7 @@ export default function LeavePolicyManager() {
                 >
                   <span className="lp-type-titles">
                     <h3>{t.name || t.code}</h3>
-                    <p>{describeType(t)}</p>
+                    <p>{describeType(t, policy)}</p>
                   </span>
                   <ChevronDown
                     size={18}
@@ -509,10 +531,32 @@ export default function LeavePolicyManager() {
 
                   {t.hasBalance ? (
                     <>
-                      {isStandard ? (
+                      {t.code === "EL" ? (
+                        <Field
+                          label="How EL is earned"
+                          hint="Minimum paid days counts Present, Late, Half Day, approved paid leave, and work from home. Credit is added on the 1st for the month that just ended."
+                        >
+                          <select
+                            className="lp-input"
+                            aria-label="How EL is earned"
+                            value={method === "full_if_min_present" ? "full_if_min_present" : "fixed_monthly"}
+                            onChange={(e) =>
+                              updateAccrual(t.code, {
+                                method: e.target.value,
+                                minPresentDays:
+                                  e.target.value === "full_if_min_present"
+                                    ? t.accrual?.minPresentDays || 0
+                                    : 0,
+                              })
+                            }
+                          >
+                            <option value="fixed_monthly">Fixed days each month</option>
+                            <option value="full_if_min_present">Full credit if minimum paid days</option>
+                          </select>
+                        </Field>
+                      ) : isStandard ? (
                         <p className="lp-field-hint" style={{ marginBottom: "8px" }}>
-                          Standard policy: 0.5 day added every month, up to 6 per year.
-                          {t.code === "EL" ? " EL starts only after probation." : ""}
+                          Standard policy: a fixed amount added every month, up to the yearly maximum.
                         </p>
                       ) : null}
 
@@ -527,7 +571,11 @@ export default function LeavePolicyManager() {
                         {(isStandard || (needsMonthlyCredit(method) && t.code !== "WFH" && t.code !== "CO")) ? (
                           <Field
                             label="Days each month"
-                            hint="Accrues monthly, starting from the joining month."
+                            hint={
+                              t.code === "EL" && method === "full_if_min_present"
+                                ? "Added on the 1st for the closed month when the minimum is met."
+                                : "Accrues monthly, starting from the joining month."
+                            }
                           >
                             <input
                               className="lp-input lp-input-sm"
@@ -558,13 +606,14 @@ export default function LeavePolicyManager() {
                             />
                           </Field>
                         ) : null}
-                        {!isStandard && method === "full_if_min_present" && t.code !== "CO" ? (
+                        {(t.code === "EL" || !isStandard) && method === "full_if_min_present" && t.code !== "CO" ? (
                           <Field label="Minimum paid days in the month">
                             <input
                               className="lp-input lp-input-sm"
                               type="number"
                               min={0}
                               step="1"
+                              aria-label="Minimum paid days in the month"
                               value={t.accrual?.minPresentDays ?? 0}
                               onChange={(e) =>
                                 updateAccrual(t.code, {
