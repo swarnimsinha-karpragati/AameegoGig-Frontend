@@ -435,13 +435,13 @@ input:-webkit-autofill:active{
    Strict 100vh, NO Page Scroll 
 ========================================= */
 @media (max-width: 992px) {
-    /* Keep body and wrapper strictly locked */
+    /* Lock only the login screen. A body rule here applies to every page,
+       because this file is bundled globally, and it blocks scrolling on phones. */
     .login-wrapper {
         height: 100vh;
         height: 100dvh;
         overflow: hidden; 
     }
-    body { overflow: hidden; }
 
     .login-main {
         flex-direction: column;

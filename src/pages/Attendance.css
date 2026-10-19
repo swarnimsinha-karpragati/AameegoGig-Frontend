@@ -1389,9 +1389,55 @@ input.attendance-control[type="time"] {
    ============================================================ */
 
 @media (max-width: 900px) {
+  /* The page must grow with its content and scroll with the window.
+     overflow-y: auto here becomes a nested scroll box that is only as tall
+     as the screen, and a touch drag on that box does not move the page —
+     Check In / Check Out stay below the fold. */
   .attendance-page {
     padding: 0 0 16px;
     gap: 14px;
+    flex: none;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    touch-action: pan-y;
+  }
+
+  .attendance-checkin-card,
+  .attendance-checkin-card--hero,
+  .attendance-employee-primary .attendance-checkin-card--hero {
+    height: auto;
+    max-height: none;
+  }
+
+  .attendance-checkin-card--hero {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .attendance-checkin-card--hero .attendance-checkin-hero {
+    order: 1;
+  }
+
+  .attendance-checkin-card--hero .attendance-checkin-actions--center {
+    order: 2;
+  }
+
+  .attendance-checkin-card--hero .attendance-metrics-grid {
+    order: 3;
+  }
+
+  .attendance-checkin-card--hero .attendance-save-msg {
+    order: 4;
+  }
+
+  .attendance-checkin-card--hero .attendance-checkin-proof {
+    order: 5;
+  }
+
+  .attendance-checkin-card--hero .attendance-today-sessions {
+    order: 6;
+    flex: none;
   }
 
   .attendance-header-banner {

@@ -2267,7 +2267,11 @@ body {
 html,
 body {
   max-width: 100%;
+  /* clip on x only. overflow-y must stay visible: auto/hidden on body
+     makes the body a viewport-tall scroll box, and phones scroll the
+     document, so every screen feels stuck. */
   overflow-x: clip;
+  overflow-y: visible;
 }
 
 .dashboard-layout,
@@ -2472,6 +2476,15 @@ body {
 
   .dashboard-layout .page-content {
     padding: 14px 14px 24px;
+  }
+
+  /* Attendance must not be trapped in a viewport-tall flex child.
+     Let that page grow so the window can scroll to Check In / Check Out. */
+  .dashboard-layout .page-content:has(.attendance-page) {
+    flex: none;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .bottom-grid,
