@@ -34,7 +34,12 @@ const monthLabel = (month) => MONTHS.find((m) => m.value === Number(month))?.lab
 const STANDARD_CODES = ["CL", "SL", "EL"];
 
 const needsMonthlyCredit = (method) =>
-  ["fixed_monthly", "prorate_paid_days", "full_if_min_present"].includes(method);
+  [
+    "fixed_monthly",
+    "prorate_paid_days",
+    "prorate_calendar_paid_days",
+    "full_if_min_present",
+  ].includes(method);
 
 const describeType = (t, policy) => {
   if (!t?.enabled) return "Turned off — employees cannot apply for this type.";
@@ -76,6 +81,13 @@ const describeType = (t, policy) => {
       parts.push(
         `${monthly} day${monthly === 1 ? "" : "s"} added after a month closes if paid days reach ${min}, up to ${cap} per year.`
       );
+    } else if (
+      t.code === "EL" &&
+      t.accrual?.method === "prorate_calendar_paid_days"
+    ) {
+      parts.push(
+        `${monthly} day${monthly === 1 ? "" : "s"} each month, prorated by paid days (attendance, week offs, paid leave and holidays) out of the month's total days, up to ${cap} per year.`
+      );
     } else {
       parts.push(`${monthly} day${monthly === 1 ? "" : "s"} added each month, up to ${cap} per year.`);
     }
@@ -107,6 +119,10 @@ const describeType = (t, policy) => {
   } else if (method === "prorate_paid_days") {
     parts.push(
       `Up to ${monthly} day${monthly === 1 ? "" : "s"} each month based on paid attendance, up to ${cap} per year.`
+    );
+  } else if (method === "prorate_calendar_paid_days") {
+    parts.push(
+      `Up to ${monthly} day${monthly === 1 ? "" : "s"} each month, prorated by paid days (attendance, week offs, paid leave and holidays) out of the month's total days, up to ${cap} per year.`
     );
   } else if (method === "full_if_min_present") {
     parts.push(
@@ -317,9 +333,10 @@ export default function LeavePolicyManager() {
           // CL/SL stay a fixed monthly credit. EL may instead credit the full
           // month only after paid days reach a minimum. Carry-forward passes through.
           if (t.code === "CL" || t.code === "SL" || t.code === "EL") {
+            const EL_METHODS = ["full_if_min_present", "prorate_calendar_paid_days"];
             const method =
-              t.code === "EL" && t.accrual?.method === "full_if_min_present"
-                ? "full_if_min_present"
+              t.code === "EL" && EL_METHODS.includes(t.accrual?.method)
+                ? t.accrual.method
                 : "fixed_monthly";
             return {
               ...t,
@@ -534,12 +551,16 @@ export default function LeavePolicyManager() {
                       {t.code === "EL" ? (
                         <Field
                           label="How EL is earned"
-                          hint="Minimum paid days counts Present, Late, Half Day, approved paid leave, and work from home. Credit is added on the 1st for the month that just ended."
+                          hint="Credit is added on the 1st at 5 AM for the month that just ended. Minimum paid days counts Present, Late, Half Day, approved paid leave, and work from home. Prorated by paid days also counts week offs and holidays, then divides by the month's total days."
                         >
                           <select
                             className="lp-input"
                             aria-label="How EL is earned"
-                            value={method === "full_if_min_present" ? "full_if_min_present" : "fixed_monthly"}
+                            value={
+                              ["full_if_min_present", "prorate_calendar_paid_days"].includes(method)
+                                ? method
+                                : "fixed_monthly"
+                            }
                             onChange={(e) =>
                               updateAccrual(t.code, {
                                 method: e.target.value,
@@ -551,6 +572,9 @@ export default function LeavePolicyManager() {
                             }
                           >
                             <option value="fixed_monthly">Fixed days each month</option>
+                            <option value="prorate_calendar_paid_days">
+                              Prorated by paid days in the month
+                            </option>
                             <option value="full_if_min_present">Full credit if minimum paid days</option>
                           </select>
                         </Field>
@@ -574,6 +598,9 @@ export default function LeavePolicyManager() {
                             hint={
                               t.code === "EL" && method === "full_if_min_present"
                                 ? "Added on the 1st for the closed month when the minimum is met."
+                                : t.code === "EL" &&
+                                  method === "prorate_calendar_paid_days"
+                                ? "Full credit when every day in the month is paid; otherwise prorated (paid days ÷ month days)."
                                 : "Accrues monthly, starting from the joining month."
                             }
                           >
