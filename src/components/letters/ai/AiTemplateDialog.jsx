@@ -2,24 +2,31 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { ConfirmDialog, Input, Select, Textarea } from "../../../design-system";
 import { draftTemplateWithAi, importWordTemplate } from "../../../services/letterAiService";
+import { useLetterTemplates } from "../../../hooks/useLetters";
 import { RECIPIENT_TYPES, getApiError } from "../../../utils/letterForms";
 import { LETTERS_COPY } from "../../../utils/lettersCopy";
 
 const AI = LETTERS_COPY.ai;
 
 /**
- * Start with AI (mode "draft") or Import from Word (mode "import"). On success calls
- * onDrafted({ template, notes, replacements, fileName }) with an unsaved draft for the editor.
+ * Start with AI (mode "draft"), optionally in the format of one of the company's templates, or
+ * Import from Word (mode "import"). On success calls onDrafted({ template, notes, replacements,
+ * removed, copies, fileName }) with an unsaved draft for the editor.
  */
 export default function AiTemplateDialog({ mode, onDrafted, onCancel }) {
   const isImport = mode === "import";
   const [recipientType, setRecipientType] = useState("employee");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState(null);
+  const [formatTemplateId, setFormatTemplateId] = useState("");
   const [error, setError] = useState("");
+  const { data: templates = [] } = useLetterTemplates({ status: "active" }, { enabled: !isImport });
 
   const request = useMutation({
-    mutationFn: () => (isImport ? importWordTemplate({ file, recipientType }) : draftTemplateWithAi({ description, recipientType })),
+    mutationFn: () =>
+      isImport
+        ? importWordTemplate({ file, recipientType })
+        : draftTemplateWithAi({ description, recipientType, formatTemplateId }),
   });
 
   const submit = async () => {
@@ -86,6 +93,18 @@ export default function AiTemplateDialog({ mode, onDrafted, onCancel }) {
           }}
           disabled={request.isPending}
           required
+        />
+      )}
+      {!isImport && templates.length > 0 && (
+        <Select
+          label={AI.formatLabel}
+          name="aiFormatTemplate"
+          value={formatTemplateId}
+          placeholder={AI.formatNone}
+          options={templates.map((t) => ({ value: t._id, label: t.name }))}
+          helperText={AI.formatHint}
+          onChange={(event) => setFormatTemplateId(event.target.value)}
+          disabled={request.isPending}
         />
       )}
     </ConfirmDialog>

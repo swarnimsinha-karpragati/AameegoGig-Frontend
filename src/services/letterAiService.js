@@ -6,11 +6,24 @@ import API from "./apiClient";
  */
 const dataOf = (response) => response.data?.data;
 
-/** -> { template: { name, category, recipientType, bodyHtml, inputFields, layout }, notes } */
-export const draftTemplateWithAi = async ({ description, recipientType, category }) =>
-  dataOf(await API.post("/letter-templates/ai/draft", { description, recipientType, ...(category ? { category } : {}) }));
+/**
+ * -> { template: { name, category, recipientType, bodyHtml, inputFields, layout }, notes }.
+ * formatTemplateId: one of the company's templates whose format the draft follows.
+ */
+export const draftTemplateWithAi = async ({ description, recipientType, category, formatTemplateId }) =>
+  dataOf(
+    await API.post("/letter-templates/ai/draft", {
+      description,
+      recipientType,
+      ...(category ? { category } : {}),
+      ...(formatTemplateId ? { formatTemplateId } : {}),
+    })
+  );
 
-/** -> { template, notes, replacements: [{ original, becomes }] } */
+/**
+ * -> { template, notes, replacements: [{ original, becomes }], removed: [letterhead/footer lines], copies }.
+ * A file of several filled copies is compared on the server, so only its fixed wording reaches the AI.
+ */
 export const importWordTemplate = async ({ file, recipientType }) => {
   const form = new FormData();
   form.append("file", file);
@@ -18,9 +31,16 @@ export const importWordTemplate = async ({ file, recipientType }) => {
   return dataOf(await API.post("/letter-templates/ai/import", form));
 };
 
-/** Rewrites stored template HTML (with {{details}}) -> { html } */
-export const rewriteTemplateText = async ({ html, preset, instruction }) =>
-  dataOf(await API.post("/letter-templates/ai/rewrite", { html, preset, ...(instruction ? { instruction } : {}) }));
+/** Rewrites stored template HTML (with {{details}}) -> { html }. Preset "match" needs formatTemplateId. */
+export const rewriteTemplateText = async ({ html, preset, instruction, formatTemplateId }) =>
+  dataOf(
+    await API.post("/letter-templates/ai/rewrite", {
+      html,
+      preset,
+      ...(instruction ? { instruction } : {}),
+      ...(formatTemplateId ? { formatTemplateId } : {}),
+    })
+  );
 
 /** -> { suggestions: [{ type, message, find, replace }] }; find is "" when there is no automatic fix. */
 export const reviewTemplateWithAi = async ({ name, category, recipientType, bodyHtml, inputFields }) =>

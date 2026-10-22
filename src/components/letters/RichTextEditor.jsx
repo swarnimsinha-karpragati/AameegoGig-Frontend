@@ -24,7 +24,7 @@ import {
   Undo2,
 } from "lucide-react";
 import FloatingMenu from "../FloatingMenu";
-import { Button, Input, Spinner } from "../../design-system";
+import { Button, Input, Select, Spinner } from "../../design-system";
 import { useMenuNavigation } from "../../design-system/overlayHooks";
 import DetailPicker, { useDismiss } from "./editor/DetailPicker";
 import { createLetterEditorExtensions } from "./editor/letterEditorExtensions";
@@ -32,7 +32,7 @@ import { isInOptional, optionalTarget } from "./editor/conditionalExtensions";
 import { setEditorLabels } from "./placeholderChipExtension";
 import { buildDetailGroups, detailLabels, getApiError } from "../../utils/letterForms";
 import { detailDisplayName, getEditorMode, placeholderToken, unwrapFromEditor, wrapForEditor } from "../../utils/letterPlaceholders";
-import { rangeToStoredHtml, selectionToStoredHtml, templateTextPreview } from "./editor/selectionHtml";
+import { documentToStoredHtml, rangeToStoredHtml, selectionToStoredHtml, templateTextPreview } from "./editor/selectionHtml";
 import { LETTERS_COPY } from "../../utils/lettersCopy";
 import "./editor/editor.css";
 
@@ -149,9 +149,12 @@ const RichTextEditor = forwardRef(function RichTextEditor(
     detailGroups = [],
     questionFields = [],
     allowSource = true,
-    // async (storedHtml, preset, instruction) => rewritten stored HTML. Shows the AI menu when given.
+    // async (storedHtml, preset, instruction, formatTemplateId) => rewritten stored HTML. Shows the AI menu when given.
+    // With nothing selected, AI edits the whole letter.
     onAiRewrite,
     onAiApplied,
+    // [{ value, label }] templates whose format "Match another template's format" can follow.
+    aiFormatOptions = [],
   },
   ref
 ) {
@@ -165,9 +168,10 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const moreRef = useRef(null);
   const alignRef = useRef(null);
   const aiRef = useRef(null);
-  // AI rewrite of the selection: { phase: custom | loading | ready | error, from, to, original, result?, error? }
+  // AI rewrite of the selection or whole letter: { phase: custom | match | loading | ready | error, from, to, whole, original, result?, error? }
   const [ai, setAi] = useState(null);
   const [aiInstruction, setAiInstruction] = useState("");
+  const [aiFormat, setAiFormat] = useState("");
 
   const editor = useEditor({
     extensions: createLetterEditorExtensions(),
@@ -283,10 +287,10 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const AI = LETTERS_COPY.ai;
   const showAi = Boolean(onAiRewrite) && mode === "rich" && !disabled;
 
-  const requestRewrite = async (target, preset, instruction = "") => {
+  const requestRewrite = async (target, preset, instruction = "", formatTemplateId = "") => {
     setAi({ ...target, phase: "loading" });
     try {
-      const result = await onAiRewrite(target.original, preset, instruction);
+      const result = await onAiRewrite(target.original, preset, instruction, formatTemplateId);
       setAi({ ...target, phase: "ready", result });
     } catch (err) {
       setAi({ ...target, phase: "error", error: getApiError(err, AI.error).message });
@@ -294,12 +298,16 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   };
 
   const startAi = (preset) => {
-    const selection = editor && selectionToStoredHtml(editor);
-    if (!selection) return;
-    const target = { from: selection.from, to: selection.to, original: selection.html };
+    if (!editor) return;
+    const selection = selectionToStoredHtml(editor);
+    const range = selection || documentToStoredHtml(editor);
+    const target = { from: range.from, to: range.to, original: range.html, whole: !selection };
     if (preset === "custom") {
       setAiInstruction("");
       setAi({ ...target, phase: "custom" });
+    } else if (preset === "match") {
+      setAiFormat("");
+      setAi({ ...target, phase: "match" });
     } else {
       requestRewrite(target, preset);
     }
@@ -380,7 +388,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
               popup="menu"
               expanded={popover === "ai"}
               buttonRef={aiRef}
-              disabled={richDisabled || !selectionState?.hasSelection || ai?.phase === "loading"}
+              disabled={richDisabled || ai?.phase === "loading"}
               onClick={() => togglePopover("ai")}
             />
           </>
@@ -418,8 +426,8 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       )}
 
       {popover === "ai" && (
-        <ToolMenu anchorEl={aiRef.current} label={AI.menuLabel} onClose={() => setPopover(null)}>
-          {[...AI_PRESETS, "custom"].map((preset) => (
+        <ToolMenu anchorEl={aiRef.current} label={selectionState?.hasSelection ? AI.menuLabel : AI.menuLabelWhole} onClose={() => setPopover(null)}>
+          {[...AI_PRESETS, "custom", ...(aiFormatOptions.length ? ["match"] : [])].map((preset) => (
             <MenuItem key={preset} label={AI.presets[preset]} onClick={() => startAi(preset)} />
           ))}
         </ToolMenu>
@@ -454,6 +462,32 @@ const RichTextEditor = forwardRef(function RichTextEditor(
               </div>
             </form>
           )}
+          {ai.phase === "match" && (
+            <form
+              className="wz-rte__ai-custom"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (aiFormat) requestRewrite(ai, "match", "", aiFormat);
+              }}
+            >
+              <Select
+                label={AI.matchLabel}
+                name="aiFormatTemplate"
+                value={aiFormat}
+                placeholder={AI.matchPlaceholder}
+                options={aiFormatOptions}
+                onChange={(event) => setAiFormat(event.target.value)}
+              />
+              <div className="wz-rte__ai-actions">
+                <Button type="submit" size="sm" disabled={!aiFormat}>
+                  {AI.rewrite}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setAi(null)}>
+                  {AI.discard}
+                </Button>
+              </div>
+            </form>
+          )}
           {ai.phase === "loading" && (
             <p className="wz-rte__ai-status">
               <Spinner size="sm" label="" /> {AI.rewriting}
@@ -465,7 +499,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
               <p className="wz-rte__ai-preview">{templateTextPreview(ai.result, (key) => detailDisplayName(key, aiLabels))}</p>
               <div className="wz-rte__ai-actions">
                 <Button size="sm" onClick={applyAi}>
-                  {AI.apply}
+                  {ai.whole ? AI.applyWhole : AI.apply}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setAi(null)}>
                   {AI.discard}

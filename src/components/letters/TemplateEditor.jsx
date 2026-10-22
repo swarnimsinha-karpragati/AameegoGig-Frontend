@@ -6,6 +6,7 @@ import {
   LETTER_TEMPLATES_KEY,
   useLetterPlaceholders,
   useLetterTemplate,
+  useLetterTemplates,
   useSaveLetterTemplate,
 } from "../../hooks/useLetters";
 import useDebouncedValue from "../../hooks/useDebouncedValue";
@@ -52,6 +53,12 @@ export default function TemplateEditor({ templateId, initialDraft = null, canEdi
     refetch: refetchTemplate,
   } = useLetterTemplate(isNew ? null : templateId);
   const save = useSaveLetterTemplate();
+  // Other templates whose format "Match another template's format" can follow.
+  const { data: activeTemplates = [] } = useLetterTemplates({ status: "active" }, { enabled: aiStatus.enabled && canEdit });
+  const formatOptions = useMemo(
+    () => activeTemplates.filter((t) => t._id !== templateId).map((t) => ({ value: t._id, label: t.name })),
+    [activeTemplates, templateId]
+  );
   const editorRef = useRef(null);
   const nameRef = useRef(null);
   const panelRef = useRef(null);
@@ -305,7 +312,8 @@ export default function TemplateEditor({ templateId, initialDraft = null, canEdi
 
   const missing = (preview.data?.missing || []).map((key) => detailDisplayName(key, labels));
   const aiEditing = aiStatus.enabled && !readOnly;
-  const rewriteWithAi = async (html, preset, instruction) => (await rewriteTemplateText({ html, preset, instruction })).html;
+  const rewriteWithAi = async (html, preset, instruction, formatTemplateId) =>
+    (await rewriteTemplateText({ html, preset, instruction, formatTemplateId })).html;
 
   return (
     <div className="wz-tpl-editor">
@@ -383,6 +391,7 @@ export default function TemplateEditor({ templateId, initialDraft = null, canEdi
       {aiBanner && (
         <div className="wz-letters__notice" role="note">
           <p>{aiBanner.fileName ? format(AI_COPY.importedBanner, { file: aiBanner.fileName }) : AI_COPY.draftedBanner}</p>
+          {aiBanner.copies > 1 && <p>{format(AI_COPY.importedCopies, { count: aiBanner.copies })}</p>}
           {aiBanner.replacements?.length > 0 && (
             <details>
               <summary>{AI_COPY.replacementsTitle}</summary>
@@ -391,6 +400,17 @@ export default function TemplateEditor({ templateId, initialDraft = null, canEdi
                   <li key={`${item.original}-${item.becomes}`}>
                     “{item.original}” → {item.becomes}
                   </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {aiBanner.removed?.length > 0 && (
+            <details>
+              <summary>{AI_COPY.removedTitle}</summary>
+              <p>{AI_COPY.removedHint}</p>
+              <ul className="wz-letters__ai-list">
+                {aiBanner.removed.map((line) => (
+                  <li key={line}>{line}</li>
                 ))}
               </ul>
             </details>
@@ -440,6 +460,7 @@ export default function TemplateEditor({ templateId, initialDraft = null, canEdi
                 detailGroups={placeholderGroups}
                 questionFields={draft.inputFields}
                 onAiRewrite={aiEditing ? rewriteWithAi : undefined}
+                aiFormatOptions={formatOptions}
                 onAiApplied={() => setAiAssisted(true)}
               />
             ) : (
