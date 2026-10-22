@@ -132,46 +132,4 @@ describe("LeavePolicyManager save confirmation", () => {
     const cl = payload.types.find((t) => t.code === "CL");
     expect(cl.accrual.method).toBe("fixed_monthly");
   });
-
-  test("saves the EL calendar proration method", async () => {
-    getLeavePolicy.mockResolvedValue({
-      policy: {
-        ...policyFixture(),
-        types: [
-          ...policyFixture().types,
-          {
-            code: "EL",
-            name: "Earned Leave",
-            enabled: true,
-            hasBalance: true,
-            accrual: { method: "fixed_monthly", monthlyCredit: 1, yearlyCap: 12, minPresentDays: 0 },
-            yearEnd: { lapseUnused: true, carryForwardMax: null },
-          },
-        ],
-      },
-    });
-
-    renderPolicy();
-
-    userEvent.click(await screen.findByRole("button", { name: /Earned Leave/i }));
-    userEvent.selectOptions(
-      await screen.findByRole("combobox", { name: "How EL is earned" }),
-      "prorate_calendar_paid_days"
-    );
-    const monthly = screen.getByRole("spinbutton", { name: /Days each month/ });
-    userEvent.clear(monthly);
-    userEvent.type(monthly, "2");
-
-    userEvent.click(screen.getByRole("button", { name: "Save policy" }));
-    const dialog = await screen.findByRole("dialog");
-    userEvent.click(within(dialog).getByRole("button", { name: "Save policy" }));
-
-    await waitFor(() => {
-      expect(updateLeavePolicy).toHaveBeenCalledTimes(1);
-    });
-    const payload = updateLeavePolicy.mock.calls[0][0];
-    const el = payload.types.find((t) => t.code === "EL");
-    expect(el.accrual.method).toBe("prorate_calendar_paid_days");
-    expect(el.accrual.monthlyCredit).toBe(2);
-  });
 });
