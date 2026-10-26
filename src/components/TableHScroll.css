@@ -5,10 +5,22 @@
 
 .table-hscroll__scroller {
   overflow-x: auto;
+  overflow-y: hidden;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: #64748b #e2e8f0;
+}
+
+/* WebKit ignores min-width on width:100% tables and squishes headers (RECEIPT). */
+.table-hscroll__scroller > table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.table-hscroll__scroller > table th,
+.table-hscroll__scroller > table td {
+  white-space: nowrap;
 }
 
 .table-hscroll__scroller::-webkit-scrollbar {
@@ -31,7 +43,7 @@
   content: "";
   pointer-events: none;
   position: absolute;
-  top: 0;
+  top: 2.75rem;
   bottom: 10px;
   width: 36px;
   z-index: 2;
@@ -50,7 +62,7 @@
 .table-hscroll__hint {
   position: absolute;
   right: 8px;
-  top: 10px;
+  bottom: 14px;
   z-index: 3;
   pointer-events: none;
   padding: 3px 8px;

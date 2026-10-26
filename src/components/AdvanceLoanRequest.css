@@ -419,8 +419,8 @@ button.advance-tabs-refresh {
 
 /* ── Enhanced Tables ── */
 .advance-table {
-    width: 100%;
-    min-width: 40rem;
+    width: max-content;
+    min-width: 100%;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.875rem;
@@ -621,6 +621,8 @@ button.advance-tabs-refresh {
     font-weight: 600;
     text-transform: capitalize;
     letter-spacing: 0.02em;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .advance-status.pending {
@@ -2486,17 +2488,5 @@ button.advance-tabs-refresh {
     color: #2563eb;
 }
 
-/* ── Rejection Reason (shown in request list/row) ── */
-.rejection-reason {
-    display: block;
-    margin-top: 4px;
-    font-size: 0.75rem;
-    color: #b91c1c;
-    background: #fee2e2;
-    border: 1px solid #fecaca;
-    border-radius: 6px;
-    padding: 3px 6px;
-    max-width: 220px;
-    white-space: normal;
-}
+/* Rejection notes use StatusNoteButton (hover + click), not an inline wrap. */
 

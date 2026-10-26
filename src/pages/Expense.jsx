@@ -686,7 +686,7 @@ function ExpenseInner() {
               <th>Date</th>
               <th>Receipt</th>
               <th>Status</th>
-              {showEmployee ? <th>Approve By (RM)</th> : null}
+              {showEmployee ? <th title="Approve By (Reporting Manager)">Approver</th> : null}
               {showActions ? <th className="expense-table__actions">Actions</th> : null}
             </tr>
           </thead>

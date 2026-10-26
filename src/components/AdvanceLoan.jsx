@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
+import StatusNoteButton, { statusNoteDialog } from "../components/StatusNoteButton";
 import { ToastProvider, useToast } from "../components/Toast";
 import { getRequestDetails } from "../services/advanceLoanService";
 import {
@@ -42,7 +43,7 @@ import {
     canViewAllAdvanceLoan,
     roleHasPermission,
 } from "../utils/roles";
-import { getRepaymentLabel, getTypeLabel } from "../utils/advanceLoanLabels";
+import { getRepaymentLabel, getTypeLabel, rejectionReasonOf } from "../utils/advanceLoanLabels";
 import "./AdvanceLoanRequest.css";
 import Card from "../components/Card";
 import TableHScroll from "./TableHScroll";
@@ -1554,10 +1555,18 @@ function AdvanceLoanInner() {
                                     <td>{getRepaymentLabel(req, { compact: true })}</td>
                                     <td>{formatDate(req.createdAt)}</td>
                                     <td>
-                                        <span className={STATUS_CLASS[req.status] || "advance-status"}>{STATUS_LABELS[req.status] || req.status}</span>
-                                        {req.status === "REJECTED" && (req.rejectionReason || req.reasonForRejection) && (
-                                            <span className="rejection-reason" title={(req.rejectionReason || req.reasonForRejection)}>Reason: {req.rejectionReason || req.reasonForRejection}</span>
-                                        )}
+                                        <div className="status-note-cell">
+                                            <span className={STATUS_CLASS[req.status] || "advance-status"}>{STATUS_LABELS[req.status] || req.status}</span>
+                                            {req.status === "REJECTED" ? (
+                                                <StatusNoteButton
+                                                    title="Rejection reason"
+                                                    message={rejectionReasonOf(req)}
+                                                    onOpen={({ title, message }) =>
+                                                        openModal(statusNoteDialog({ title, message, onClose: closeModal }))
+                                                    }
+                                                />
+                                            ) : null}
+                                        </div>
                                     </td>
                                     <td><span className={getPriorityBadge(req.priority, req.status)}>{req.priority}</span></td>
                                     {showActions ? (
@@ -1764,7 +1773,7 @@ function AdvanceLoanInner() {
                         <PaymentModal open={showPaymentModal} onClose={() => { setShowPaymentModal(false); setSelectedRequest(null); }} request={selectedRequest} onSubmit={handleRecordPayment} />
                         <ApproveModal open={showApproveModal} request={approveRequestData} loading={actionLoading} onClose={() => { setShowApproveModal(false); setApproveRequestData(null); }} onSubmit={handleApproveSubmit} />
                         <DetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} request={detailRequest} />
-                        <ConfirmModal open={modal.open} title={modal.title} message={modal.message} confirmLabel={modal.confirmLabel} variant={modal.variant} loading={actionLoading} onConfirm={modal.onConfirm} onCancel={closeModal} inputLabel={modal.inputLabel} inputValue={modal.inputValue} onInputChange={(val) => { modalInputRef.current = val; setModal((m) => ({ ...m, inputValue: val, inputError: "" })); }} inputPlaceholder={modal.inputPlaceholder} inputError={modal.inputError} />
+                        <ConfirmModal open={modal.open} title={modal.title} message={modal.message} confirmLabel={modal.confirmLabel} cancelLabel={modal.cancelLabel} variant={modal.variant} loading={actionLoading} onConfirm={modal.onConfirm} onCancel={closeModal} inputLabel={modal.inputLabel} inputValue={modal.inputValue} onInputChange={(val) => { modalInputRef.current = val; setModal((m) => ({ ...m, inputValue: val, inputError: "" })); }} inputPlaceholder={modal.inputPlaceholder} inputError={modal.inputError} />
                     </>
                 )}
             </div>

@@ -216,11 +216,10 @@
 }
 
 .expense-table {
-  width: 100%;
-  min-width: 40rem;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  gap: 1rem;
 }
 
 .expense-table th {
@@ -241,6 +240,7 @@
   color: #334155;
   text-align: left;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .expense-table tbody tr:hover {
@@ -507,7 +507,24 @@
   margin-top: 4px;
 }
 
+@media (max-width: 720px) {
+  .expense-table th.expense-table__actions,
+  .expense-table td.expense-table__actions {
+    position: static;
+    box-shadow: none;
+    padding-left: 10px;
+  }
+}
+
 @media (max-width: 600px) {
+  .expense-page {
+    padding: 12px 12px 24px;
+  }
+
+  .expense-card {
+    padding: 16px 12px;
+  }
+
   .expense-form-row {
     grid-template-columns: 1fr;
   }

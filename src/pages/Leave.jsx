@@ -10,13 +10,13 @@ import {
   Download,
   Users,
   ShieldCheck,
-  Info,
   Pencil,
   Loader2,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
+import StatusNoteButton, { statusNoteDialog } from "../components/StatusNoteButton";
 import LeaveEditModal from "../components/leave/LeaveEditModal";
 import { ToastProvider, useToast } from "../components/Toast";
 import { useAllEmployees } from "../hooks/useEmployees";
@@ -1276,7 +1276,7 @@ function LeaveInner() {
 
                     {/* STATUS COLUMN WITH INLINE REASON TOOLTIP */}
                     <td>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <div className="status-note-cell">
                         <span
                           className={
                             leaveStatusClass[item.status] || "leave-status"
@@ -1284,29 +1284,15 @@ function LeaveInner() {
                         >
                           {item.status}
                         </span>
-                        {item.status === "Cancelled" && item.cancelReason && (
-                          <span
-                            title={`Cancel Reason: ${item.cancelReason}`}
-                            style={{
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              color: "#6b7280",
-                            }}
-                            onClick={() =>
-                              openModal({
-                                title: "Cancellation Reason",
-                                message: item.cancelReason || "No reason specified.",
-                                variant: "info",
-                                confirmLabel: "Close",
-                                cancelLabel: null,
-                                showCancel: false,
-                              })
+                        {item.status === "Cancelled" ? (
+                          <StatusNoteButton
+                            title="Cancellation reason"
+                            message={item.cancelReason}
+                            onOpen={({ title, message }) =>
+                              openModal(statusNoteDialog({ title, message, onClose: closeModal }))
                             }
-                          >
-                            <Info size={15} />
-                          </span>
-                        )}
+                          />
+                        ) : null}
                       </div>
                     </td>
 
@@ -1680,7 +1666,7 @@ function LeaveInner() {
                 </td>
                 <td>{formatLeaveDays(item)}</td>
                 <td>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <div className="status-note-cell">
                     <span
                       className={
                         leaveStatusClass[item.status] || "leave-status"
@@ -1688,29 +1674,15 @@ function LeaveInner() {
                     >
                       {item.status}
                     </span>
-                    {item.status === "Cancelled" && item.cancelReason && (
-                      <span
-                        title={`Cancel Reason: ${item.cancelReason}`}
-                        style={{
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          color: "#6b7280",
-                        }}
-                        onClick={() =>
-                          openModal({
-                            title: "Cancellation Reason",
-                            message: item.cancelReason || "No reason specified.",
-                            variant: "info",
-                            confirmLabel: "Close",
-                            cancelLabel: null,
-                            showCancel: false,
-                          })
+                    {item.status === "Cancelled" ? (
+                      <StatusNoteButton
+                        title="Cancellation reason"
+                        message={item.cancelReason}
+                        onOpen={({ title, message }) =>
+                          openModal(statusNoteDialog({ title, message, onClose: closeModal }))
                         }
-                      >
-                        <Info size={15} />
-                      </span>
-                    )}
+                      />
+                    ) : null}
                   </div>
                 </td>
                 <td>{item.status === "Pending" ? (item.employeeId?.managerId?.name || "-") : (item.approverId?.name || "-")}</td>
@@ -1947,6 +1919,7 @@ function LeaveInner() {
           title={modal.title}
           message={modal.message}
           confirmLabel={modal.confirmLabel}
+          cancelLabel={modal.cancelLabel}
           variant={modal.variant}
           loading={actionLoading}
           onConfirm={modal.onConfirm}
