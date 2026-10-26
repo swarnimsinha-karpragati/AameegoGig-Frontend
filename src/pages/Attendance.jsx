@@ -62,6 +62,8 @@ import { parseBlobError } from "../utils/blobError";
 
 function Attendance() {
   const user = getStoredUser();
+  const { employeeId } = user || {};
+  const { data:onLeaveData, isPending:onLeavePending } = useOnLeave({ employeeId });
   const viewRole = getAttendanceViewKey(user?.role);
   const [personalViewDate, setPersonalViewDate] = useState(() => new Date());
   const [orgViewDate, setOrgViewDate] = useState(() => new Date());
@@ -237,11 +239,7 @@ function Attendance() {
     }
   };
 
-  const { employeeId } = user || {};
 
-  const { data:onLeaveData, isPending:onLeavePending } = useOnLeave({ employeeId });
-
-  console.log(onLeaveData)
 
   const loadOrgData = async () => {
     if (!canViewOrg) return;
