@@ -51,6 +51,7 @@ import {
 import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
+import TableHScroll from "../components/TableHScroll";
 import Card from "../components/Card";
 import Pagination from "../components/Pagination";
 
@@ -1238,7 +1239,7 @@ function LeaveInner() {
         <header className="leave-panel__head">
           <h3>{title}</h3>
         </header>
-        <div className="leave-table-wrap">
+        <TableHScroll className="leave-table-wrap" label="Leave requests">
           <table className="leave-table">
             <thead>
               <tr>
@@ -1398,7 +1399,7 @@ function LeaveInner() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableHScroll>
       </section >
     );
   };
@@ -1642,7 +1643,7 @@ function LeaveInner() {
           </span>
         ) : null}
       </header>
-      <div className="leave-table-wrap">
+      <TableHScroll className="leave-table-wrap" label="Team leave requests">
         <table className="leave-table">
           <thead>
             <tr>
@@ -1734,7 +1735,7 @@ function LeaveInner() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       {opts.showPagination && opts.totalPages > 1 ? (
         <Pagination
           currentPage={opts.page}

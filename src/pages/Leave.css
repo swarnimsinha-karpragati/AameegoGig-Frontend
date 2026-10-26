@@ -582,8 +582,8 @@ select.leave-control {
 /* ─── Tables ─── */
 
 .leave-table-wrap {
-  overflow-x: auto;
   flex: 1;
+  min-width: 0;
 }
 
 .leave-table {

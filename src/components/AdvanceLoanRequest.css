@@ -420,6 +420,7 @@ button.advance-tabs-refresh {
 /* ── Enhanced Tables ── */
 .advance-table {
     width: 100%;
+    min-width: 40rem;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.875rem;
@@ -444,6 +445,7 @@ button.advance-tabs-refresh {
     color: #334155;
     text-align: left;
     vertical-align: middle;
+    white-space: nowrap;
 }
 
 .advance-table tbody tr {

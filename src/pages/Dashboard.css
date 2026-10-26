@@ -329,7 +329,7 @@ body {
 /* PAGE */
 
 .dashboard-layout .page-content {
-  padding: 20px 24px 32px;
+  padding: 20px 24px var(--hdw-fab-clearance, 88px);
   flex: 1;
   min-width: 0;
   overflow-x: auto;
@@ -1180,7 +1180,7 @@ body {
   }
 
   .dashboard-layout .page-content {
-    padding: 16px 18px 28px;
+    padding: 16px 18px var(--hdw-fab-clearance, 88px);
   }
 }
 
@@ -2431,7 +2431,7 @@ body {
   }
 
   .dashboard-layout .page-content {
-    padding: 16px 18px 28px;
+    padding: 16px 18px var(--hdw-fab-clearance, 88px);
   }
 }
 
@@ -2475,7 +2475,7 @@ body {
   }
 
   .dashboard-layout .page-content {
-    padding: 14px 14px 24px;
+    padding: 14px 14px var(--hdw-fab-clearance, 88px);
   }
 
   /* Attendance must not be trapped in a viewport-tall flex child.

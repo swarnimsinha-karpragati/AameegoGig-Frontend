@@ -42,8 +42,10 @@ import {
     canViewAllAdvanceLoan,
     roleHasPermission,
 } from "../utils/roles";
+import { getRepaymentLabel, getTypeLabel } from "../utils/advanceLoanLabels";
 import "./AdvanceLoanRequest.css";
 import Card from "../components/Card";
+import TableHScroll from "./TableHScroll";
 import LoanConfiguration from "./LoanConfiguration";
 
 const PAYMENT_METHODS = ["SALARY_DEDUCTION", "CASH", "BANK_TRANSFER", "OTHER"];
@@ -76,18 +78,6 @@ const formatDate = (date) => {
         month: "short",
         year: "numeric",
     });
-};
-
-const getTypeLabel = (type) => {
-    return type === "ADVANCE" ? "Advance" : "Loan";
-};
-
-const getRepaymentLabel = (req) => {
-    if (!req?.repaymentOption) return "-";
-    if (req.repaymentOption === "ONE_TIME") return `One Time Payment (${req.tenure || req.totalInstallments || 0} months)`;
-    if (req.repaymentOption === "MONTHLY_INSTALLMENTS") return `Monthly Installments (${req.totalInstallments || 0} months)`;
-    if (req.repaymentOption === "CUSTOM") return "Custom Schedule";
-    return req.repaymentOption;
 };
 
 const getPriorityBadge = (priority, status) => {
@@ -1531,7 +1521,7 @@ function AdvanceLoanInner() {
     const renderRequestTable = ({ title, items, showEmployee = false, showActions = false, actionMode = "owner" }) => (
         <section className="advance-card">
             <h3>{title}</h3>
-            <div style={{ overflow: "visible" }}>
+            <TableHScroll label="Advance and loan requests">
                 <table className="advance-table">
                     <thead><tr>
                         {showEmployee ? <th>Employee</th> : null}
@@ -1561,7 +1551,7 @@ function AdvanceLoanInner() {
                                     {showEmployee ? <td>{empName || "-"}</td> : null}
                                     <td><span className="advance-type-badge">{getTypeLabel(req.requestType)}</span></td>
                                     <td className="amount-cell">{formatCurrency(req.amount)}</td>
-                                    <td>{getRepaymentLabel(req)}</td>
+                                    <td>{getRepaymentLabel(req, { compact: true })}</td>
                                     <td>{formatDate(req.createdAt)}</td>
                                     <td>
                                         <span className={STATUS_CLASS[req.status] || "advance-status"}>{STATUS_LABELS[req.status] || req.status}</span>
@@ -1620,7 +1610,7 @@ function AdvanceLoanInner() {
                         })}
                     </tbody>
                 </table>
-            </div>
+            </TableHScroll>
         </section>
     );
 

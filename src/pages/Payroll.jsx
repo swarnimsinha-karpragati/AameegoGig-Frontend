@@ -23,6 +23,7 @@ import { getStoredUser, canManagePayroll } from "../utils/roles";
 import { MONTH_NUMBER_TO_NAME, MONTH_NAME_TO_NUMBER, getAvailableMonths } from "../utils/payrollConstants";
 import { payrollHasBreakdown, enrichPayrollRecord } from "../utils/payrollRecord";
 import { downloadPayrollPdf } from "../utils/generateSalarySlipPdf";
+import { saveDownload } from "../utils/saveDownload";
 import PayrollManager from "../components/payroll/PayrollManager";
 import PayrollAgentChat, { AGENT_GREETING } from "../components/payroll/PayrollAgentChat";
 import PayslipsTab from "../components/payroll/PayslipsTab";
@@ -507,13 +508,11 @@ export default function Payroll() {
       const blob = new Blob([res.data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
       const deptSuffix = wageDeptName ? ` - ${wageDeptName}` : "";
-      link.download = `Wage Sheet ${MONTH_NUMBER_TO_NAME[selectedMonth].slice(0, 3)} ${selectedYear}${deptSuffix}.xlsx`;
-      link.click();
-      URL.revokeObjectURL(url);
+      await saveDownload(
+        blob,
+        `Wage Sheet ${MONTH_NUMBER_TO_NAME[selectedMonth].slice(0, 3)} ${selectedYear}${deptSuffix}.xlsx`
+      );
       setStatusMessage({
         type: "success",
         text: `Wage sheet for ${MONTH_NUMBER_TO_NAME[selectedMonth]} ${selectedYear}${wageDeptName ? ` (${siteLabel}: ${wageDeptName})` : ""} downloaded.`,

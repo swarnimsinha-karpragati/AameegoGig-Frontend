@@ -7,6 +7,7 @@ import AttendanceEditModal from "./AttendanceEditModal";
 import { getCheckInSelfieUrl } from "../../services/attendanceService";
 import { useDownloadAttendanceReport } from "../../hooks/useAttendance";
 import { normalizeRecord, statusTextClass } from "./attendanceUtils";
+import { saveDownload } from "../../utils/saveDownload";
 import { useToast } from "../Toast";
 import "./TodayAttendanceTable.css";
 
@@ -77,15 +78,9 @@ function TodayAttendanceTable({
         year: filters.year,
       };
       const blob = await downloadMutation.mutateAsync(params);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      toast.success("Attendance report downloaded");
+      const fileName = `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`;
+      const { method } = await saveDownload(blob, fileName);
+      if (method === "anchor") toast.success("Attendance report downloaded");
     } catch (err) {
       const msg =
         err?.response?.status === 404

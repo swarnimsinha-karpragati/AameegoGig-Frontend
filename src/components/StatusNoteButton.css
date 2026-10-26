@@ -1,0 +1,32 @@
+.status-note-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.status-note-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.status-note-btn:hover,
+.status-note-btn:focus-visible {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.status-note-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
