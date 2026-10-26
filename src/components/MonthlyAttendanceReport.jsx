@@ -5,6 +5,7 @@ import {X} from "lucide-react";
 import { getStoredUser } from '../utils/roles';
 import { useMonthReport } from '../hooks/useAttendance';
 import { parseBlobError } from '../utils/blobError';
+import { saveDownload } from '../utils/saveDownload';
 
 const MonthlyAttendanceReport = ({ handleReportModalClose }) => {
     const handleClose = () => {
@@ -53,16 +54,10 @@ const MonthlyAttendanceReport = ({ handleReportModalClose }) => {
         try {
             setLoading(true);
             const blobData = await monthReportMutation.mutateAsync({ vendorId: user?.vendorId, reportMonth, reportYear });
-
-            const url = window.URL.createObjectURL(new Blob([blobData]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `Attendance_Report_${reportMonth}_${reportYear}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            
-            window.URL.revokeObjectURL(url);
+            await saveDownload(
+              new Blob([blobData]),
+              `Attendance_Report_${reportMonth}_${reportYear}.xlsx`
+            );
             handleReportModalClose();
         } catch (error) {
             const data = (await parseBlobError(error))?.response?.data;

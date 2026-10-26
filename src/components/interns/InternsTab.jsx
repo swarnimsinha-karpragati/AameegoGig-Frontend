@@ -46,6 +46,7 @@ import {
   getDocumentViewUrl,
   deleteDocument,
 } from "../../services/documentService";
+import { saveDownload } from "../../utils/saveDownload";
 import { useDepartmentNames } from "../../hooks/useDepartments";
 import Pagination from "../Pagination";
 import Button from "../Button";
@@ -1335,14 +1336,7 @@ export default function InternsTab() {
       const contentDisposition = res.headers?.["content-disposition"] || "";
       const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
       const fileName = fileNameMatch?.[1] || `Interns-Export-${new Date().toISOString().split("T")[0]}.xlsx`;
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await saveDownload(blob, fileName);
     } catch (error) {
       alert(error.response?.data?.message || "Failed to download interns Excel");
     } finally {

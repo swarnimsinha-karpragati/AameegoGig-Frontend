@@ -23,6 +23,7 @@ import { useDepartmentNames } from "../hooks/useDepartments";
 import {
   getDocumentViewUrl,
 } from "../services/documentService";
+import { saveDownload } from "../utils/saveDownload";
 import { useEmployeeDocuments, useUploadEmployeeDocument } from "../hooks/useDocuments";
 
 import {
@@ -1579,14 +1580,7 @@ function EmployeesPage() {
       const fileName =
         fileNameMatch?.[1] ||
         `${directoryType === "consultancy" ? "Consultants" : "Employees"}-Export-${new Date().toISOString().split("T")[0]}.xlsx`;
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await saveDownload(blob, fileName);
     } catch (error) {
       const serverMessage =
         error.response?.data instanceof Blob

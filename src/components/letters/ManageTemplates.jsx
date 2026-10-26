@@ -123,7 +123,7 @@ export default function ManageTemplates({ focusHeading = false, onOpen, onCreate
           <p className="wz-letters__section-desc">{COPY.description}</p>
         </div>
         <div className="wz-letters__actions">
-          {showAi && aiStatus.personalData && (
+          {showAi && (
             <Button variant="outline" icon={<FileUp size={16} />} onClick={() => setAiMode("import")}>
               {LETTERS_COPY.ai.importWord}
             </Button>
