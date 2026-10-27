@@ -54,14 +54,18 @@ import {
   EMPTY_STATS,
   EMPTY_MY_ROW,
   FILTER_LABELS,
+  attendanceSuccessMessage,
 } from "../components/attendance/attendanceUtils";
 import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
 import { validateField } from "../utils/inputValidation";
 import { useOnLeave } from "../hooks/useLeave";
 import { parseBlobError } from "../utils/blobError";
+import { saveDownload } from "../utils/saveDownload";
 
 function Attendance() {
   const user = getStoredUser();
+  const { employeeId } = user || {};
+  const { data:onLeaveData, isPending:onLeavePending } = useOnLeave({ employeeId });
   const viewRole = getAttendanceViewKey(user?.role);
   const [personalViewDate, setPersonalViewDate] = useState(() => new Date());
   const [orgViewDate, setOrgViewDate] = useState(() => new Date());
@@ -237,11 +241,7 @@ function Attendance() {
     }
   };
 
-  const { employeeId } = user || {};
 
-  const { data:onLeaveData, isPending:onLeavePending } = useOnLeave({ employeeId });
-
-  console.log(onLeaveData)
 
   const loadOrgData = async () => {
     if (!canViewOrg) return;
@@ -656,14 +656,7 @@ function Attendance() {
     try {
       const blob = await downloadMonthlyUploadTemplate({ month, year });
       const monthName = now.toLocaleString("en-US", { month: "long" });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Monthly_Attendance_Template_${monthName}_${year}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await saveDownload(blob, `Monthly_Attendance_Template_${monthName}_${year}.xlsx`);
     } catch (downloadError) {
       const data = (await parseBlobError(downloadError))?.response?.data;
       const parsedMessage = data instanceof Blob ? null : data?.message;
@@ -739,14 +732,10 @@ function Attendance() {
         res = await checkOutMutation.mutateAsync({ selfieFile: selfieBlob, location });
       }
 
-      const successMsg =
-        res?.message ||
-        (attendanceAction === "checkin"
-          ? "Checked in successfully!"
-          : "Checked out successfully!");
+      const successMsg = attendanceSuccessMessage(attendanceAction);
 
       setCheckInMessage(successMsg);
-      alert(successMsg);
+      toast.success(successMsg);
 
       applyTodayRowUpdate(res);
       setShowSelfieModal(false);
@@ -759,7 +748,7 @@ function Attendance() {
         "Unable to process attendance. Please try again.";
 
       setCheckInMessage(errorMsg);
-      alert(`Error: ${errorMsg}`);
+      toast.error(errorMsg);
     } finally {
       setActionLoading(false);
       setCheckInSubmitting(false);

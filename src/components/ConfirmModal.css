@@ -76,6 +76,7 @@
 .confirm-modal-icon.danger  { color: #ef4444; }
 .confirm-modal-icon.warning { color: #f59e0b; }
 .confirm-modal-icon.success { color: #10b981; }
+.confirm-modal-icon.info    { color: #2563eb; }
 
 .confirm-modal-title {
   font-size: 1.05rem;
@@ -90,6 +91,8 @@
   color: #6b7280;
   margin: 0 0 18px;
   line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ── Textarea input slot ── */

@@ -10,13 +10,13 @@ import {
   Download,
   Users,
   ShieldCheck,
-  Info,
   Pencil,
   Loader2,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import ConfirmModal from "../components/ConfirmModal";
+import StatusNoteButton, { statusNoteDialog } from "../components/StatusNoteButton";
 import LeaveEditModal from "../components/leave/LeaveEditModal";
 import { ToastProvider, useToast } from "../components/Toast";
 import { useAllEmployees } from "../hooks/useEmployees";
@@ -51,6 +51,7 @@ import {
 import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
+import TableHScroll from "../components/TableHScroll";
 import Card from "../components/Card";
 import Pagination from "../components/Pagination";
 
@@ -1238,7 +1239,7 @@ function LeaveInner() {
         <header className="leave-panel__head">
           <h3>{title}</h3>
         </header>
-        <div className="leave-table-wrap">
+        <TableHScroll className="leave-table-wrap" label="Leave requests">
           <table className="leave-table">
             <thead>
               <tr>
@@ -1275,7 +1276,7 @@ function LeaveInner() {
 
                     {/* STATUS COLUMN WITH INLINE REASON TOOLTIP */}
                     <td>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <div className="status-note-cell">
                         <span
                           className={
                             leaveStatusClass[item.status] || "leave-status"
@@ -1283,29 +1284,15 @@ function LeaveInner() {
                         >
                           {item.status}
                         </span>
-                        {item.status === "Cancelled" && item.cancelReason && (
-                          <span
-                            title={`Cancel Reason: ${item.cancelReason}`}
-                            style={{
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              color: "#6b7280",
-                            }}
-                            onClick={() =>
-                              openModal({
-                                title: "Cancellation Reason",
-                                message: item.cancelReason || "No reason specified.",
-                                variant: "info",
-                                confirmLabel: "Close",
-                                cancelLabel: null,
-                                showCancel: false,
-                              })
+                        {item.status === "Cancelled" ? (
+                          <StatusNoteButton
+                            title="Cancellation reason"
+                            message={item.cancelReason}
+                            onOpen={({ title, message }) =>
+                              openModal(statusNoteDialog({ title, message, onClose: closeModal }))
                             }
-                          >
-                            <Info size={15} />
-                          </span>
-                        )}
+                          />
+                        ) : null}
                       </div>
                     </td>
 
@@ -1398,7 +1385,7 @@ function LeaveInner() {
               })}
             </tbody>
           </table>
-        </div>
+        </TableHScroll>
       </section >
     );
   };
@@ -1642,7 +1629,7 @@ function LeaveInner() {
           </span>
         ) : null}
       </header>
-      <div className="leave-table-wrap">
+      <TableHScroll className="leave-table-wrap" label="Team leave requests">
         <table className="leave-table">
           <thead>
             <tr>
@@ -1679,7 +1666,7 @@ function LeaveInner() {
                 </td>
                 <td>{formatLeaveDays(item)}</td>
                 <td>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <div className="status-note-cell">
                     <span
                       className={
                         leaveStatusClass[item.status] || "leave-status"
@@ -1687,29 +1674,15 @@ function LeaveInner() {
                     >
                       {item.status}
                     </span>
-                    {item.status === "Cancelled" && item.cancelReason && (
-                      <span
-                        title={`Cancel Reason: ${item.cancelReason}`}
-                        style={{
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          color: "#6b7280",
-                        }}
-                        onClick={() =>
-                          openModal({
-                            title: "Cancellation Reason",
-                            message: item.cancelReason || "No reason specified.",
-                            variant: "info",
-                            confirmLabel: "Close",
-                            cancelLabel: null,
-                            showCancel: false,
-                          })
+                    {item.status === "Cancelled" ? (
+                      <StatusNoteButton
+                        title="Cancellation reason"
+                        message={item.cancelReason}
+                        onOpen={({ title, message }) =>
+                          openModal(statusNoteDialog({ title, message, onClose: closeModal }))
                         }
-                      >
-                        <Info size={15} />
-                      </span>
-                    )}
+                      />
+                    ) : null}
                   </div>
                 </td>
                 <td>{item.status === "Pending" ? (item.employeeId?.managerId?.name || "-") : (item.approverId?.name || "-")}</td>
@@ -1734,7 +1707,7 @@ function LeaveInner() {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
       {opts.showPagination && opts.totalPages > 1 ? (
         <Pagination
           currentPage={opts.page}
@@ -1946,6 +1919,7 @@ function LeaveInner() {
           title={modal.title}
           message={modal.message}
           confirmLabel={modal.confirmLabel}
+          cancelLabel={modal.cancelLabel}
           variant={modal.variant}
           loading={actionLoading}
           onConfirm={modal.onConfirm}

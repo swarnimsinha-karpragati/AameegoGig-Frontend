@@ -582,14 +582,14 @@ select.leave-control {
 /* ─── Tables ─── */
 
 .leave-table-wrap {
-  overflow-x: auto;
   flex: 1;
+  min-width: 0;
 }
 
 .leave-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
-  min-width: 520px;
 }
 
 .leave-table th {
@@ -610,6 +610,7 @@ select.leave-control {
   font-size: 14px;
   color: #334155;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .leave-table tbody tr:last-child td {

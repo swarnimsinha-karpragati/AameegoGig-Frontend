@@ -17,6 +17,12 @@ export const selectionToStoredHtml = (editor) => {
   return { from, to, html: rangeToStoredHtml(editor, from, to) };
 };
 
+/** The whole letter as stored template HTML, with its range (for "Edit the whole letter"). */
+export const documentToStoredHtml = (editor) => {
+  const to = editor.state.doc.content.size;
+  return { from: 0, to, html: rangeToStoredHtml(editor, 0, to) };
+};
+
 const BLOCK_TOKEN = /\{\{\s*(?:[#/][^}]*|else)\s*\}\}/g;
 const DETAIL_TOKEN = /\{\{\{?\s*([\w.]+)\s*\}?\}\}/g;
 

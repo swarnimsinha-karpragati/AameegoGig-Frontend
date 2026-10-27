@@ -35,9 +35,15 @@ const ensureApiSuffix = (url) => {
 };
 
 // Map the site's own hostname to a backend environment.
-const envFromHostname = (hostname) => {
+export const envFromHostname = (hostname) => {
   if (hostname === "localhost" || hostname === "127.0.0.1") return "local";
-  if (hostname.includes("gig-dev")) return "development"; // dev frontend
+  if (
+    hostname === "dev.workza.ai" ||
+    hostname.endsWith(".dev.workza.ai") ||
+    hostname.includes("gig-dev")
+  ) {
+    return "development";
+  }
   return "production";
 };
 

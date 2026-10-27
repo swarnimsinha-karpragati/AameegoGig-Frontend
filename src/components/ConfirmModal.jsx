@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { AlertTriangle, CheckCircle2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 import "./ConfirmModal.css";
 import Button from "./Button";
 
@@ -11,8 +11,8 @@ import Button from "./Button";
  *  title       – string: modal heading
  *  message     – string | ReactNode: descriptive body text
  *  confirmLabel – string (default "Confirm"): text for the confirm button
- *  cancelLabel  – string (default "Cancel")
- *  variant     – "danger" | "warning" | "success" (default "danger")
+ *  cancelLabel  – string (default "Cancel"); pass null to hide Cancel (read-only notes)
+ *  variant     – "danger" | "warning" | "success" | "info" (default "danger")
  *  onConfirm   – () => void
  *  onCancel    – () => void
  *  loading     – boolean: disables buttons while action is in-flight
@@ -43,13 +43,14 @@ function ConfirmModal({
   inputError = "",
 }) {
   const cancelRef = useRef(null);
+  const confirmRef = useRef(null);
+  const showCancel = cancelLabel != null && cancelLabel !== "";
 
-  /* Focus cancel on open for keyboard accessibility */
+  /* Focus cancel on open; Close-only notes focus the confirm button */
   useEffect(() => {
-    if (open) {
-      cancelRef.current?.focus();
-    }
-  }, [open]);
+    if (!open) return;
+    (showCancel ? cancelRef : confirmRef).current?.focus();
+  }, [open, showCancel]);
 
   /* Close on Escape */
   useEffect(() => {
@@ -67,6 +68,7 @@ function ConfirmModal({
     danger: <AlertTriangle size={22} className="confirm-modal-icon danger" />,
     warning: <AlertTriangle size={22} className="confirm-modal-icon warning" />,
     success: <CheckCircle2 size={22} className="confirm-modal-icon success" />,
+    info: <Info size={22} className="confirm-modal-icon info" />,
   };
 
   return (
@@ -130,16 +132,19 @@ function ConfirmModal({
 
         {/* Actions */}
         <div className="confirm-modal-actions">
+          {showCancel ? (
+            <Button
+              ref={cancelRef}
+              type="button"
+              className="secondary-btn"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              {cancelLabel}
+            </Button>
+          ) : null}
           <Button
-            ref={cancelRef}
-            type="button"
-            className="secondary-btn"
-            onClick={onCancel}
-            disabled={loading}
-          >
-            {cancelLabel}
-          </Button>
-          <Button
+            ref={confirmRef}
             type="button"
             onClick={onConfirm}
             disabled={loading || confirmDisabled}

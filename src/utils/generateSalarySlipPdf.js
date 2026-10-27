@@ -5,6 +5,7 @@ import { previewPayroll, downloadServerPayslip } from "../services/payrollServic
 import { resolvePayrollLines, buildPairedPdfRows } from "./payrollLines";
 import { convertNumberToWords } from "./currencyWords";
 import { MONTH_NAME_TO_NUMBER } from "./payrollConstants";
+import { saveDownload } from "./saveDownload";
 
 function formatPdfDate(value) {
   if (!value) return "-";
@@ -15,7 +16,7 @@ function formatPdfDate(value) {
   return `${day}-${month}-${d.getFullYear()}`;
 }
 
-export function generateSalarySlipPdf(data) {
+export async function generateSalarySlipPdf(data) {
   const doc = new jsPDF("p", "mm", "a4");
   doc.addImage(kpLogo, "JPEG", 80, 5, 50, 25);
 
@@ -139,7 +140,10 @@ export function generateSalarySlipPdf(data) {
     { align: "center" }
   );
 
-  doc.save(`${data.empId}-SalarySlip-${data.month.replace(" ", "_")}.pdf`);
+  await saveDownload(
+    doc.output("blob"),
+    `${data.empId}-SalarySlip-${data.month.replace(" ", "_")}.pdf`
+  );
 }
 
 export async function downloadPayrollPdf(record, { isAdminOrHR = false } = {}) {
@@ -147,12 +151,7 @@ export async function downloadPayrollPdf(record, { isAdminOrHR = false } = {}) {
     try {
       const res = await downloadServerPayslip(record._id);
       const blob = new Blob([res.data], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${record.employeeCode}-SalarySlip-${record.month}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
+      await saveDownload(blob, `${record.employeeCode}-SalarySlip-${record.month}.pdf`);
       return;
     } catch {
       // fallback to client PDF
@@ -165,7 +164,7 @@ export async function downloadPayrollPdf(record, { isAdminOrHR = false } = {}) {
   const details = previewRes.data.data;
   const { earnings, deductions } = resolvePayrollLines(details);
 
-  generateSalarySlipPdf({
+  await generateSalarySlipPdf({
     month: `${details.month} ${details.year}`,
     name: details.employeeName,
     empId: details.employeeCode,

@@ -1,5 +1,6 @@
 import API from './apiClient';
 import { parseBlobError } from '../utils/blobError';
+import { saveDownload } from '../utils/saveDownload';
 
 /** Letter APIs use the standard `{ success, data }` envelope. */
 const dataOf = (response) => response.data?.data;
@@ -68,25 +69,14 @@ const requestIssuedLetterPdf = (id) => API.get(`/letters/${id}/download`, { resp
 
 export const fetchIssuedLetterPdf = (id) => fetchBlob(() => requestIssuedLetterPdf(id));
 
-const saveBlob = (blob, fileName) => {
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', fileName);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
-};
-
 /** Saves an issued letter under the server's name (template + letter number); `fallbackName` only when the header is missing. */
 export const downloadIssuedLetter = async (id, fallbackName = `letter-${id}.pdf`) => {
   const response = await fetchFile(() => requestIssuedLetterPdf(id));
-  saveBlob(response.data, fileNameFromDisposition(response.headers?.['content-disposition']) || fallbackName);
+  await saveDownload(response.data, fileNameFromDisposition(response.headers?.['content-disposition']) || fallbackName);
 };
 
 /** Watermarked PDF of an unissued letter; takes the same payload as previewLetter and records nothing. */
 export const downloadDraftLetter = async (payload, fileName = 'letter_DRAFT.pdf') => {
   const blob = await fetchBlob(() => API.post('/letters/preview/pdf', payload, { responseType: 'blob' }));
-  saveBlob(blob, fileName);
+  await saveDownload(blob, fileName);
 };
