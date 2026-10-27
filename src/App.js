@@ -31,6 +31,7 @@ import Solution from './pages/Solution';
 import AdvanceLoanRequest from './components/AdvanceLoan';
 import Roles from './pages/Roles';
 import Letters from './pages/Letters';
+import PrivacyPolicy, { PRIVACY_PATH } from './pages/PrivacyPolicy';
 
 
 import {APIProvider} from '@vis.gl/react-google-maps'
@@ -66,7 +67,7 @@ function App() {
 
     const path = window.location.pathname;
     // Marketing pages set their own SEO title via usePageMeta.
-    if (path === "/" || path.startsWith("/solutions/")) return;
+    if (path === "/" || path.startsWith("/solutions/") || path === "/privacy-policy") return;
     const lastPath = path.split("/").filter(Boolean).pop() || "Home";
     const pageName = lastPath
       .replace(/[-_]+/g, " ")
@@ -87,6 +88,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/solutions/:slug" element={<Solution />} />
+        <Route path={PRIVACY_PATH} element={<PrivacyPolicy />} />
         <Route path="/login" element={<UnProtectedRoute><Login /></UnProtectedRoute>} />
         <Route path="/create-org" element={<UnProtectedRoute><CreateOrg /></UnProtectedRoute>} />
         <Route path="/join" element={<UnProtectedRoute><JoinOrg /></UnProtectedRoute>} />
