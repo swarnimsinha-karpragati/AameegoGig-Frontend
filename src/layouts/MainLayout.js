@@ -34,6 +34,7 @@ import OrganisationSwitcher from "../components/OrganisationSwitcher";
 import { requestNavigation } from "../utils/navigationGuard";
 import queryClient from "../queryClient";
 import HelpDeskWidget from "../components/HelpDeskWidget";
+import NotificationBell from "../components/NotificationBell";
 
 function MainLayout({ children }) {
   const navigate = useNavigate();
@@ -194,6 +195,7 @@ function MainLayout({ children }) {
     "/letters": { title: "Letters", subtitle: "Issue letters, find issued letters and send offers" },
     "/settings": { title: "Settings", subtitle: "Configure your HRMS preferences" },
     "/roles": { title: "Roles & Access", subtitle: "Manage role-based access control" },
+    "/notifications": { title: "Notifications", subtitle: "Updates on your requests and approvals" },
   };
 
   const currentPage = pageMeta[currentPath] || pageMeta["/dashboard"];
@@ -425,6 +427,7 @@ function MainLayout({ children }) {
           </div>
 
           <div className="topbar-actions">
+            <NotificationBell vendorCode={vendorCode} />
             <OrganisationSwitcher
               organisations={organisations}
               currentCode={user?.vendor_code}

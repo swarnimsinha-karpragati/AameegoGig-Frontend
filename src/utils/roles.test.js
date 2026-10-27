@@ -43,6 +43,12 @@ describe("module route access", () => {
     expect(canAccessRoute("Employee", "/settings", modules)).toBe(true);
   });
 
+  test("notifications open for every signed-in role, whatever its modules", () => {
+    expect(canAccessRoute("Intern", "/acme-org/notifications", ["dashboard"])).toBe(true);
+    expect(canAccessRoute("SomeCustomRole", "/notifications", [])).toBe(true);
+    expect(canAccessRoute(undefined, "/notifications")).toBe(false);
+  });
+
   test("normalizes vendor-prefixed paths", () => {
     const modules = ["dashboard", "settings", "leave"];
     expect(canAccessRoute("Employee", "/acme-org/leave", modules)).toBe(true);

@@ -56,3 +56,23 @@ export const updateNotification = async (data) => {
 export const getNotification = async () => {
   return API.get(`/notification/update`);
 };
+
+export const getNotificationInbox = ({ page = 1, limit = 20 } = {}) => {
+  return API.get(`/notification/inbox`, { params: { page, limit } });
+};
+
+export const getUnreadNotificationCount = () => {
+  return API.get(`/notification/unread-count`);
+};
+
+export const markNotificationRead = (id) => {
+  return API.patch(`/notification/inbox/${id}/read`);
+};
+
+export const markAllNotificationsRead = () => {
+  return API.post(`/notification/inbox/read-all`);
+};
+
+export const registerPushDevice = (token, platform = "web") => {
+  return API.post(`/notification/devices`, { token, platform });
+};

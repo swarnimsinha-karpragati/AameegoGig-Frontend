@@ -32,6 +32,8 @@ import AdvanceLoanRequest from './components/AdvanceLoan';
 import Roles from './pages/Roles';
 import Letters from './pages/Letters';
 import PrivacyPolicy, { PRIVACY_PATH } from './pages/PrivacyPolicy';
+import Notifications from './pages/Notifications';
+import { ToastProvider } from './components/Toast';
 
 
 import {APIProvider} from '@vis.gl/react-google-maps'
@@ -85,6 +87,7 @@ function App() {
   return (
     <div className="app-shell">
       <APIProvider apiKey={'AIzaSyDUns7-K4KmSoWv5zsQnqzbQ814yCMWZpo'} onLoad={() => console.log('Maps API has loaded.')}>
+      <ToastProvider>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/solutions/:slug" element={<Solution />} />
@@ -112,8 +115,10 @@ function App() {
         <Route path=":vendor/roles" element={<ProtectedRoute><Roles /></ProtectedRoute>} />
         <Route path=":vendor/resignation" element={<ProtectedRoute><Resignations /></ProtectedRoute>} />
         <Route path=":vendor/letters" element={<ProtectedRoute><Letters /></ProtectedRoute>} />
+        <Route path=":vendor/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </ToastProvider>
       </APIProvider>
     </div>
   );
