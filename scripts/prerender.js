@@ -14,6 +14,7 @@ const ROUTES = {
   "/": 600,
   "/solutions/blue-collar-field-hrms": 800,
   "/solutions/white-collar-office-hrms": 800,
+  "/privacy-policy": 900,
 };
 
 const shell = fs.readFileSync(path.join(BUILD, "index.html"), "utf8");

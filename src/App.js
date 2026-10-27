@@ -31,6 +31,9 @@ import Solution from './pages/Solution';
 import AdvanceLoanRequest from './components/AdvanceLoan';
 import Roles from './pages/Roles';
 import Letters from './pages/Letters';
+import PrivacyPolicy, { PRIVACY_PATH } from './pages/PrivacyPolicy';
+import Notifications from './pages/Notifications';
+import { ToastProvider } from './components/Toast';
 
 
 import {APIProvider} from '@vis.gl/react-google-maps'
@@ -66,7 +69,7 @@ function App() {
 
     const path = window.location.pathname;
     // Marketing pages set their own SEO title via usePageMeta.
-    if (path === "/" || path.startsWith("/solutions/")) return;
+    if (path === "/" || path.startsWith("/solutions/") || path === "/privacy-policy") return;
     const lastPath = path.split("/").filter(Boolean).pop() || "Home";
     const pageName = lastPath
       .replace(/[-_]+/g, " ")
@@ -84,9 +87,11 @@ function App() {
   return (
     <div className="app-shell">
       <APIProvider apiKey={'AIzaSyDUns7-K4KmSoWv5zsQnqzbQ814yCMWZpo'} onLoad={() => console.log('Maps API has loaded.')}>
+      <ToastProvider>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/solutions/:slug" element={<Solution />} />
+        <Route path={PRIVACY_PATH} element={<PrivacyPolicy />} />
         <Route path="/login" element={<UnProtectedRoute><Login /></UnProtectedRoute>} />
         <Route path="/create-org" element={<UnProtectedRoute><CreateOrg /></UnProtectedRoute>} />
         <Route path="/join" element={<UnProtectedRoute><JoinOrg /></UnProtectedRoute>} />
@@ -110,8 +115,10 @@ function App() {
         <Route path=":vendor/roles" element={<ProtectedRoute><Roles /></ProtectedRoute>} />
         <Route path=":vendor/resignation" element={<ProtectedRoute><Resignations /></ProtectedRoute>} />
         <Route path=":vendor/letters" element={<ProtectedRoute><Letters /></ProtectedRoute>} />
+        <Route path=":vendor/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </ToastProvider>
       </APIProvider>
     </div>
   );

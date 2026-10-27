@@ -19,6 +19,7 @@ jest.mock("../../services/vendorService", () => ({ getOrgProfile: jest.fn() }));
 jest.mock("../../services/roleService", () => ({ getRoles: jest.fn(), getSession: jest.fn() }));
 jest.mock("../../services/authService", () => ({ switchOrganisation: jest.fn() }));
 jest.mock("../../components/HelpDeskWidget", () => () => null);
+jest.mock("../../components/NotificationBell", () => () => null);
 jest.mock("../../queryClient", () => ({ clear: jest.fn(), cancelQueries: jest.fn() }));
 
 const signIn = (user) => localStorage.setItem("user", JSON.stringify({ vendorName: "Acme", ...user }));
@@ -111,7 +112,8 @@ describe("organisation switcher", () => {
     const unregister = registerNavigationGuard(request);
     render(<MainLayout>page</MainLayout>);
 
-    fireEvent.change(screen.getByLabelText("Organisation"), { target: { value: "AMG6865" } });
+    fireEvent.click(screen.getByRole("button", { name: "Organisation" }));
+    fireEvent.click(screen.getByRole("option", { name: "Genex IT" }));
     expect(authService.switchOrganisation).not.toHaveBeenCalled();
     request.mock.calls[0][0]();
 

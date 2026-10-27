@@ -85,6 +85,7 @@ export function LandingFooter() {
         <SectionLink id="how-it-works">How it works</SectionLink>
         <SectionLink id="faq">FAQ</SectionLink>
         <SectionLink id="demo">Request a demo</SectionLink>
+        <Link to="/privacy-policy">Privacy policy</Link>
         <Link to="/login">Login</Link>
       </nav>
       <p className="landing-footer-copy">
