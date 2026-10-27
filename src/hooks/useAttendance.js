@@ -10,6 +10,7 @@ import {
   downloadAttendanceReport,
   monthReport,
 } from "../services/attendanceService";
+import { TODAY_ATTENDANCE_QUERY_KEY } from "./useDashboard";
 
 const MONTHLY_ATTENDANCE_KEY = "monthlyAttendance";
 const ATTENDANCE_LIST_KEY = "attendanceList";
@@ -63,6 +64,8 @@ export function useCheckIn() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [ATTENDANCE_LIST_KEY] });
       queryClient.invalidateQueries({ queryKey: [MONTHLY_ATTENDANCE_KEY] });
+      queryClient.invalidateQueries({ queryKey: [TODAY_ATTENDANCE_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
@@ -75,6 +78,8 @@ export function useCheckOut() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [ATTENDANCE_LIST_KEY] });
       queryClient.invalidateQueries({ queryKey: [MONTHLY_ATTENDANCE_KEY] });
+      queryClient.invalidateQueries({ queryKey: [TODAY_ATTENDANCE_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }

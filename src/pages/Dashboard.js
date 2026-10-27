@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Users,
@@ -13,6 +13,8 @@ import {
   UserPlus,
   Wallet,
   UserMinus,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import {
   BarChart,
@@ -25,7 +27,8 @@ import {
 } from "recharts";
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
-import { useDashboard } from "../hooks/useDashboard";
+import { useDashboard, useTodayAttendance } from "../hooks/useDashboard";
+import { formatWorkedHours } from "../services/attendanceService";
 import { getStoredUser, userHasModule, visibleDashboardStats, roleHasPermission } from "../utils/roles";
 import "./Dashboard.css";
 import Card from "../components/Card";
@@ -82,9 +85,92 @@ function StatCard({ stat, onClick }) {
   )
 }
 
+/**
+ * Maps the backend's `myAttendance` snapshot to the copy and CTA shown on the
+ * dashboard. States: not-marked | checked-in | checked-out | on-leave | wfh.
+ */
+const buildAttendanceCta = (attendance, workedLabel) => {
+  if (!attendance) return null;
+
+  const { state, status, checkIn, checkOut, hasSessions, leave, sessionCount } = attendance;
+  const sessionSuffix = sessionCount > 1 ? ` · ${sessionCount} sessions` : "";
+
+  switch (state) {
+    case "checked-in":
+      return {
+        badge: "Checked In",
+        title: checkIn ? `Checked in at ${checkIn}` : "You're checked in",
+        detail: `${workedLabel} worked today${sessionSuffix}`,
+        label: "Check Out",
+        action: "checkout",
+        secondary: true,
+        icon: <LogIn size={22} />,
+      };
+    case "checked-out":
+      if (!hasSessions) {
+        return {
+          badge: status || "Marked",
+          title:
+            status === "Absent"
+              ? "You're marked absent for today"
+              : `You're marked ${String(status || "present").toLowerCase()} for today`,
+          detail: "Attendance was updated for you.",
+          label: "View Attendance",
+          action: null,
+          secondary: false,
+          icon: <CheckCircle2 size={22} />,
+        };
+      }
+      return {
+        badge: status || "Completed",
+        title:
+          checkOut && checkIn
+            ? `Checked in ${checkIn} · Checked out ${checkOut}`
+            : `Checked in at ${checkIn}`,
+        detail: `${workedLabel} worked today${sessionSuffix}`,
+        label: "Check In Again",
+        action: "checkin",
+        secondary: true,
+        icon: <CheckCircle2 size={22} />,
+      };
+    case "on-leave":
+      return {
+        badge: "On Leave",
+        title: leave?.leaveLabel || leave?.requestType || "Approved leave",
+        detail: "You're on approved leave today, so no check-in is needed.",
+        label: "View Attendance",
+        action: null,
+        secondary: false,
+        icon: <CalendarDays size={22} />,
+      };
+    case "wfh":
+      return {
+        badge: "Work From Home",
+        title: "You're working from home today",
+        detail: "Your attendance is marked as WFH.",
+        label: "View Attendance",
+        action: null,
+        secondary: false,
+        icon: <Clock3 size={22} />,
+      };
+    default:
+      return {
+        badge: "Not Marked",
+        title: "You haven't checked in today",
+        detail: "Mark your attendance to start tracking your day.",
+        label: "Mark Attendance",
+        action: "checkin",
+        secondary: false,
+        icon: <Clock3 size={22} />,
+      };
+  }
+};
+
+
 function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(() => getStoredUser());
+  const [now, setNow] = useState(() => Date.now());
   const vendorName = useParams().vendor;
 
   const { data, isLoading: loading, error: queryError } = useDashboard();
@@ -121,6 +207,44 @@ function Dashboard() {
   const showExpenses = hasModule("expenses");
   const showPayroll = hasModule("payroll");
   const showEmployees = hasModule("employees");
+
+  // Own attendance snapshot. The dashboard payload already carries it; the
+  // lightweight hook keeps the card fresh (polling) while the page stays open.
+  const { data: todayAttendanceData } = useTodayAttendance({
+    enabled: !isOrgView && Boolean(showAttendance),
+  });
+  const myAttendance =
+    todayAttendanceData?.myAttendance ?? data?.myAttendance ?? null;
+
+  const myAttendanceLiveMinutes = useMemo(() => {
+    const base = myAttendance?.workedMinutes || 0;
+    if (!myAttendance?.isCheckedIn || !myAttendance?.activeCheckInAt) return base;
+
+    const startedAt = new Date(myAttendance.activeCheckInAt).getTime();
+    if (!Number.isFinite(startedAt)) return base;
+
+    return base + Math.max(0, Math.floor((now - startedAt) / 60000));
+  }, [myAttendance, now]);
+
+  useEffect(() => {
+    if (!myAttendance?.isCheckedIn) return undefined;
+
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, [myAttendance?.isCheckedIn, myAttendance?.activeCheckInAt]);
+
+  const attendanceCta = buildAttendanceCta(
+    myAttendance,
+    formatWorkedHours(myAttendanceLiveMinutes)
+  );
+
+  const handleAttendanceCta = () => {
+    const action = attendanceCta?.action;
+    navigate(
+      `/${vendorName}/attendance${action ? `?action=${action}` : ""}`
+    );
+  };
+
   const stats = visibleDashboardStats(
     data?.stats,
     user,
@@ -203,6 +327,47 @@ function Dashboard() {
                     />
                   );
                 })}
+              </div>
+            )}
+
+            {user?.role !== "Admin" && showAttendance && attendanceCta && (
+              <div className="attendance-cta-wrapper">
+                <div className={`attendance-cta is-${myAttendance?.state || "not-marked"}`}>
+                  <div className="attendance-cta-main">
+                    <span className="attendance-cta-icon">{attendanceCta.icon}</span>
+                    <div className="attendance-cta-copy">
+                      <div className="attendance-cta-heading">
+                        <h3>Today&apos;s Attendance</h3>
+                        <span
+                          className={`attendance-cta-badge is-${myAttendance?.state || "not-marked"}`}
+                        >
+                          {attendanceCta.badge}
+                        </span>
+                      </div>
+                      <p className="attendance-cta-status">{attendanceCta.title}</p>
+                      {attendanceCta.detail ? (
+                        <p className="attendance-cta-detail">{attendanceCta.detail}</p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="attendance-cta-actions">
+                    {attendanceCta.secondary ? (
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => navigate(`/${vendorName}/attendance`)}
+                      >
+                        View attendance <ArrowRight size={14} />
+                      </button>
+                    ) : null}
+                    <button type="button" className="primary" onClick={handleAttendanceCta}>
+                      {attendanceCta.action === "checkout" ? <LogOut size={16} /> : null}
+                      {attendanceCta.action === "checkin" ? <LogIn size={16} /> : null}
+                      {attendanceCta.label}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
