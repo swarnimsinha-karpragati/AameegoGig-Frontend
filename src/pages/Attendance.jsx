@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   UserCheck,
   Clock,
@@ -87,6 +88,8 @@ function Attendance() {
   const [orgStats, setOrgStats] = useState(EMPTY_STATS);
   const [teamRows] = useState([]);
   const [todaySelfRow, setTodaySelfRow] = useState(EMPTY_MY_ROW);
+  const [todayLoaded, setTodayLoaded] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [hasTeam, setHasTeam] = useState(false);
   const [loading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -290,8 +293,35 @@ function Attendance() {
       setTodaySelfRow(mine ? { ...EMPTY_MY_ROW, ...mine } : EMPTY_MY_ROW);
     } catch (err) {
       if (err.response?.status === 403) return;
+    } finally {
+      setTodayLoaded(true);
     }
   };
+
+  // Deep link from the dashboard card: /attendance?action=checkin|checkout
+  // opens the correct selfie flow once today's status has been loaded.
+  useEffect(() => {
+    if (!todayLoaded) return;
+
+    const action = searchParams.get("action");
+    if (!action) return;
+
+    // Consume the param so a refresh or back-navigation does not re-open it.
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("action");
+    setSearchParams(nextParams, { replace: true });
+
+    if (!canSelfCheckIn || onLeaveData?.isOnLeave) return;
+
+    if (action === "checkin" && !todaySelfRow.isCheckedIn) {
+      setAttendanceAction("checkin");
+      setShowSelfieModal(true);
+    } else if (action === "checkout" && todaySelfRow.isCheckedIn) {
+      setAttendanceAction("checkout");
+      setShowSelfieModal(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayLoaded, searchParams, canSelfCheckIn, onLeaveData, todaySelfRow.isCheckedIn]);
 
   useEffect(() => {
     loadTodaySelf();
