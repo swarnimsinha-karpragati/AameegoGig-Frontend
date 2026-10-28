@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Layers, Pencil, Trash2, AlertCircle, Settings, SlidersHorizontal } from "lucide-react";
+import { X, Layers, Pencil, Trash2, AlertCircle, Settings, SlidersHorizontal, Copy, Check } from "lucide-react";
 import Button from "../components/Button";
 import { getStoredUser } from "../utils/roles";
 import { 
@@ -103,6 +103,7 @@ const SalaryStructure = () => {
     const [editingId, setEditingId] = useState(null);
     const [formLoading, setFormLoading] = useState(false);
     const [error, setError] = useState("");
+    const [copiedStructureName, setCopiedStructureName] = useState("");
 
     // Per-component override modal state
     const [overrideTarget, setOverrideTarget] = useState(null); // { comp, category }
@@ -228,6 +229,28 @@ const SalaryStructure = () => {
         });
         setError("");
         setShowModal(true);
+    };
+
+    const handleCopyStructureName = async (structureName) => {
+        if (!structureName) return;
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(structureName);
+            } else {
+                const textarea = document.createElement("textarea");
+                textarea.value = structureName;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textarea);
+            }
+            setCopiedStructureName(structureName);
+            setTimeout(() => {
+                setCopiedStructureName((prev) => (prev === structureName ? "" : prev));
+            }, 1500);
+        } catch (err) {
+            console.error("Copy failed", err);
+        }
     };
 
     const handleDelete = async (struct) => {
@@ -532,7 +555,18 @@ const SalaryStructure = () => {
                                 {data.map((struct) => (
                                     <tr key={struct._id}>
                                         <td>
-                                            <div className="struct-name-cell">{struct.name}</div>
+                                            <div className="struct-name-cell">
+                                                <span>{struct.name}</span>
+                                                <button
+                                                    type="button"
+                                                    className="struct-copy-btn"
+                                                    title="Copy structure name"
+                                                    aria-label={`Copy ${struct.name}`}
+                                                    onClick={() => handleCopyStructureName(struct.name)}
+                                                >
+                                                    {copiedStructureName === struct.name ? <Check size={13} /> : <Copy size={13} />}
+                                                </button>
+                                            </div>
                                         </td>
                                         <td>
                                             <div className="struct-desc-cell">
