@@ -4,6 +4,10 @@ import Button from "./Button";
 import ConfirmModal from "./ConfirmModal";
 import { runLeaveAccrual } from "../services/leaveService";
 import { getStoredUser } from "../utils/roles";
+import {
+  formatLeaveAccrualResultMessage,
+  isWholeRunSkipped,
+} from "../utils/leaveAccrualResult";
 import "./LeaveAccrualCard.css";
 
 const MONTHS = [
@@ -179,35 +183,19 @@ function LeaveAccrualModal({ onClose }) {
 
         {error ? <div className="lp-banner error">{error}</div> : null}
 
-        {result && result.skipped !== true ? (
-          <div className="lp-banner success">
-            {result.message ||
-              `Leave accrual completed for ${monthLabel(result.month)} ${result.year}.`}{" "}
-            {typeof result.credited === "number" ? (
-              <span className="la-counts">
-                Credited: <strong>{result.credited}</strong>
-                {typeof result.alreadyCredited === "number" ? (
-                  <>
-                    {" · "}Already credited: <strong>{result.alreadyCredited}</strong>
-                  </>
-                ) : null}
-                {typeof result.skipped === "number" ? (
-                  <>
-                    {" · "}Skipped: <strong>{result.skipped}</strong>
-                  </>
-                ) : null}
-              </span>
-            ) : null}
+        {result && !isWholeRunSkipped(result) ? (
+          <div className="lp-banner success" data-testid="leave-accrual-result">
+            {formatLeaveAccrualResultMessage(result)}
           </div>
         ) : null}
 
-        {result?.skipped === true ? (
-          <div className="lp-banner info">
-            {result.message || "Leave accrual skipped — nothing to credit."}
+        {isWholeRunSkipped(result) ? (
+          <div className="lp-banner info" data-testid="leave-accrual-skipped">
+            {formatLeaveAccrualResultMessage(result)}
           </div>
         ) : null}
 
-        {detailRows.length > 0 && result?.skipped !== true ? (
+        {detailRows.length > 0 && !isWholeRunSkipped(result) ? (
           <details className="la-details">
             <summary>
               Employee-wise result ({detailRows.length})
