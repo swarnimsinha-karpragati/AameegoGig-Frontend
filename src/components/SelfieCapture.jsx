@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, RotateCcw, X } from "lucide-react";
+import { cameraAccessErrorMessage } from "./selfieCaptureCopy";
 
 function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "checkin" }) {
   const videoRef = useRef(null);
@@ -60,11 +61,8 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
         };
       }
     } catch (err) {
-      setError(
-        err?.name === "NotAllowedError"
-          ? "Camera permission denied. Please allow camera access to check in."
-          : "Unable to access camera. Please try again."
-      );
+      setCameraReady(false);
+      setError(cameraAccessErrorMessage(err));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopCamera]);
@@ -278,11 +276,11 @@ function SelfieCapture({ open, onClose, onCapture, submitting = false, mode = "c
               <button
                 type="button"
                 className="selfie-btn primary"
-                onClick={handleCapture}
-                disabled={!cameraReady || isProcessing}
+                onClick={error && !cameraReady ? startCamera : handleCapture}
+                disabled={isProcessing || (!cameraReady && !error)}
               >
                 <Camera size={16} />
-                Capture Selfie
+                {error && !cameraReady ? "Allow camera" : "Capture Selfie"}
               </button>
             </>
           )}

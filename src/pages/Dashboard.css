@@ -255,9 +255,9 @@ body {
 
 .dashboard-layout .page-content {
   padding: 20px 24px var(--hdw-fab-clearance, 88px);
-  flex: 1;
+  flex: 1 0 auto;
   min-width: 0;
-  overflow-x: auto;
+  overflow: visible;
 }
 
 /* STATS */
@@ -2192,11 +2192,11 @@ body {
 html,
 body {
   max-width: 100%;
-  /* clip on x only. overflow-y must stay visible: auto/hidden on body
-     makes the body a viewport-tall scroll box, and phones scroll the
-     document, so every screen feels stuck. */
-  overflow-x: clip;
-  overflow-y: visible;
+  /* overflow-x: clip|hidden with overflow-y: visible computes to
+     overflow-y: auto in Chromium. That makes html/body a viewport-tall
+     scrollport; Android WebView then cannot pan. One scrollport = the
+     document. Side overflow is clipped on cards/tables, not here. */
+  overflow: visible;
 }
 
 .dashboard-layout,
@@ -2213,7 +2213,7 @@ body {
    (sidebar fixed hai, main-area max 100% hai). */
 
 .dashboard-layout .page-content {
-  overflow-x: clip;
+  overflow: visible;
 }
 
 .brand-row {
@@ -2405,16 +2405,29 @@ body {
   }
 
   .dashboard-layout .page-content {
-    padding: 14px 14px var(--hdw-fab-clearance, 88px);
-  }
-
-  /* Attendance must not be trapped in a viewport-tall flex child.
-     Let that page grow so the window can scroll to Check In / Check Out. */
-  .dashboard-layout .page-content:has(.attendance-page) {
     flex: none;
     height: auto;
     max-height: none;
     overflow: visible;
+    padding: 14px 14px var(--hdw-fab-clearance, 88px);
+  }
+
+  /* Attendance and regularization pages also drop inner overflow:auto. */
+  .dashboard-layout .page-content:has(.attendance-page),
+  .dashboard-layout .page-content:has(.regularization-page) {
+    flex: none;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .dashboard-layout .topbar-left p {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: unset;
   }
 
   .bottom-grid,
