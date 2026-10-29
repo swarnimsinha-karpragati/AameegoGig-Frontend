@@ -164,3 +164,20 @@
     height: 40px;
   }
 }
+
+/* The bell isn't the last topbar item on phones, so a right-anchored panel runs off the left edge.
+   Pin it to the viewport instead; `top: auto` keeps it just below the bell (its static position). */
+@media (max-width: 600px) {
+  .notif-panel {
+    position: fixed;
+    top: auto;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    margin-top: 8px;
+  }
+
+  .notif-panel__body {
+    max-height: 55vh;
+  }
+}

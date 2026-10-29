@@ -126,16 +126,14 @@ export default function NotificationBell({ vendorCode }) {
         <div className="notif-panel" role="dialog" aria-label="Notifications">
           <div className="notif-panel__header">
             <span className="notif-panel__title">Notifications</span>
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                className="notif-link"
-                disabled={markAllRead.isPending}
-                onClick={() => markAllRead.mutate()}
-              >
-                Mark all read
-              </button>
-            )}
+            <button
+              type="button"
+              className="notif-link"
+              disabled={unreadCount === 0 || markAllRead.isPending}
+              onClick={() => markAllRead.mutate()}
+            >
+              Mark all read
+            </button>
           </div>
 
           {permission === "default" && (
