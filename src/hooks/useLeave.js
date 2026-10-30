@@ -152,6 +152,7 @@ export function useOnLeave(filters, options = {}) {
   return useQuery({
     queryKey: [LEAVE_REQUESTS_KEY, filters?.employeeId],
     queryFn: () => onLeave(filters.employeeId),
+    staleTime: 1000 * 60 * 5, // 5 minutes
     enabled: Boolean(filters?.employeeId), 
     ...options,
   });

@@ -132,4 +132,128 @@ describe("LeavePolicyManager save confirmation", () => {
     const cl = payload.types.find((t) => t.code === "CL");
     expect(cl.accrual.method).toBe("fixed_monthly");
   });
+
+  test("saves EL prorated by a set full-month working days", async () => {
+    getLeavePolicy.mockResolvedValue({
+      policy: {
+        ...policyFixture(),
+        types: [
+          ...policyFixture().types,
+          {
+            code: "EL",
+            name: "Earned Leave",
+            enabled: true,
+            hasBalance: true,
+            accrual: { method: "fixed_monthly", monthlyCredit: 1.5, yearlyCap: 18, minPresentDays: 0 },
+            yearEnd: { lapseUnused: true, carryForwardMax: null },
+          },
+        ],
+      },
+    });
+
+    renderPolicy();
+
+    userEvent.click(await screen.findByRole("button", { name: /Earned Leave/i }));
+    userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "How EL is earned" }),
+      "prorate_paid_days"
+    );
+    const workingDays = screen.getByRole("spinbutton", {
+      name: "Working days in a full month",
+    });
+    userEvent.clear(workingDays);
+    userEvent.type(workingDays, "26");
+
+    userEvent.click(screen.getByRole("button", { name: "Save policy" }));
+    const dialog = await screen.findByRole("dialog");
+    userEvent.click(within(dialog).getByRole("button", { name: "Save policy" }));
+
+    await waitFor(() => {
+      expect(updateLeavePolicy).toHaveBeenCalledTimes(1);
+    });
+    const el = updateLeavePolicy.mock.calls[0][0].types.find((t) => t.code === "EL");
+    expect(el.accrual.method).toBe("prorate_paid_days");
+    expect(el.accrual.standardWorkingDays).toBe(26);
+    expect(el.accrual.monthlyCredit).toBe(1.5);
+  });
+
+  test("saves EL proration together with a minimum paid days threshold", async () => {
+    getLeavePolicy.mockResolvedValue({
+      policy: {
+        ...policyFixture(),
+        types: [
+          ...policyFixture().types,
+          {
+            code: "EL",
+            name: "Earned Leave",
+            enabled: true,
+            hasBalance: true,
+            accrual: { method: "fixed_monthly", monthlyCredit: 1.5, yearlyCap: 15, minPresentDays: 0 },
+            yearEnd: { lapseUnused: true, carryForwardMax: null },
+          },
+        ],
+      },
+    });
+
+    renderPolicy();
+
+    userEvent.click(await screen.findByRole("button", { name: /Earned Leave/i }));
+    userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "How EL is earned" }),
+      "prorate_paid_days"
+    );
+
+    const workingDays = screen.getByRole("spinbutton", {
+      name: "Working days in a full month",
+    });
+    const minimum = screen.getByRole("spinbutton", {
+      name: "Minimum paid days in the month",
+    });
+    userEvent.clear(workingDays);
+    userEvent.type(workingDays, "26");
+    userEvent.clear(minimum);
+    userEvent.type(minimum, "21");
+
+    userEvent.click(screen.getByRole("button", { name: "Save policy" }));
+    const dialog = await screen.findByRole("dialog");
+    userEvent.click(within(dialog).getByRole("button", { name: "Save policy" }));
+
+    await waitFor(() => {
+      expect(updateLeavePolicy).toHaveBeenCalledTimes(1);
+    });
+    const el = updateLeavePolicy.mock.calls[0][0].types.find((t) => t.code === "EL");
+    expect(el.accrual.method).toBe("prorate_paid_days");
+    expect(el.accrual.monthlyCredit).toBe(1.5);
+    expect(el.accrual.yearlyCap).toBe(15);
+    expect(el.accrual.standardWorkingDays).toBe(26);
+    expect(el.accrual.minPresentDays).toBe(21);
+  });
+
+  test("warns when monthly EL credit would exceed the yearly maximum", async () => {
+    getLeavePolicy.mockResolvedValue({
+      policy: {
+        ...policyFixture(),
+        types: [
+          ...policyFixture().types,
+          {
+            code: "EL",
+            name: "Earned Leave",
+            enabled: true,
+            hasBalance: true,
+            accrual: { method: "fixed_monthly", monthlyCredit: 1.5, yearlyCap: 15 },
+            yearEnd: { lapseUnused: true, carryForwardMax: null },
+          },
+        ],
+      },
+    });
+
+    renderPolicy();
+    userEvent.click(await screen.findByRole("button", { name: /Earned Leave/i }));
+
+    expect(
+      await screen.findByText(
+        /Annual credit of 18 days \(1\.5 × 12\) exceeds the yearly maximum of 15 days/
+      )
+    ).toBeInTheDocument();
+  });
 });

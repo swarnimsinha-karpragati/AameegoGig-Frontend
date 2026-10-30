@@ -8,10 +8,14 @@ export const signupUser = async (payload) => {
 };
 
 export const switchOrganisation = async ({ vendorCode, otp }) => {
-  const response = await API.post(authPath("switch-organisation"), {
-    vendorCode,
-    ...(otp ? { otp } : {}),
-  });
+  const response = await API.post(
+    authPath("switch-organisation"),
+    {
+      vendorCode,
+      ...(otp ? { otp } : {}),
+    },
+    { skipAuthRedirect: true }
+  );
   return response.data;
 };
 

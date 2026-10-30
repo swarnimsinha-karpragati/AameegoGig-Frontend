@@ -39,6 +39,8 @@ import {
   // canManageExpensePolicy,  // reserved for expense policy management feature
   hasLinkedEmployeeProfile,
 } from "../utils/roles";
+import { expenseRowActions, isViewerExpense } from "../utils/expenseRowActions";
+import TableHScroll from "../components/TableHScroll";
 import "./Expense.css";
 import Card from "../components/Card";
 import Button from "../components/Button";
@@ -263,32 +265,16 @@ function ExpenseInner() {
 
   /* ── Helpers ── */
   const matchesUser = useCallback(
-    (item) => {
-      const itemEmpId = item.employeeId?._id || item.employeeId;
-      const userEmpId =
-        typeof user?.employeeId === "object"
-          ? user?.employeeId?._id
-          : user?.employeeId;
-
-      if (
-        userEmpId &&
-        itemEmpId &&
-        String(itemEmpId) === String(userEmpId)
-      )
-        return true;
-      const empName = item.employeeId?.name?.toLowerCase?.();
-      return Boolean(
-        empName && user?.name && empName === user?.name?.toLowerCase?.()
-      );
-    },
-    [user?.employeeId, user?.name]
+    (item) => isViewerExpense(item, user),
+    [user]
   );
 
   // Own expense — never show Approve/Reject/Reimburse on these (backend also
-  // blocks self-approval with 403).
+  // blocks self-approval with 403). Compare employee ids only: matching on
+  // display name hid those buttons for teammates with the same name.
   const isOwnExpense = useCallback(
-    (exp) => matchesUser(exp),
-    [matchesUser]
+    (exp) => isViewerExpense(exp, user),
+    [user]
   );
 
   // True direct reportees (reporting manager = me), for org-wide lists where
@@ -689,7 +675,7 @@ function ExpenseInner() {
   }) => (
     <section className="expense-card">
       <h3>{title}</h3>
-      <div style={{ overflowX: "auto" }}>
+      <TableHScroll className="expense-table-wrap" label="Expense table">
         <table className="expense-table">
           <thead>
             <tr>
@@ -700,8 +686,8 @@ function ExpenseInner() {
               <th>Date</th>
               <th>Receipt</th>
               <th>Status</th>
-              {showEmployee ? <th>Approve By (RM)</th> : null}
-              {showActions ? <th>Actions</th> : null}
+              {showEmployee ? <th title="Approve By (Reporting Manager)">Approver</th> : null}
+              {showActions ? <th className="expense-table__actions">Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -721,6 +707,11 @@ function ExpenseInner() {
             ) : null}
             {items.map((exp) => {
               const empName = exp.employeeId?.name || null;
+              const rowActions = expenseRowActions({
+                actionMode,
+                status: exp.status,
+                isOwn: isOwnExpense(exp),
+              });
               return (
                 <tr key={exp._id}>
                   {showEmployee ? <td>{empName || "-"}</td> : null}
@@ -759,20 +750,25 @@ function ExpenseInner() {
                     </td>
                   ) : null}
                   {showActions ? (
-                    <td>
-                      <div className="expense-actions">
-                        {/* Owner: Draft actions */}
-                        {actionMode === "owner" && exp.status === "Draft" ? (
-                          <>
+                    <td className="expense-table__actions">
+                      {rowActions.length === 0 ? (
+                        <span className="expense-actions-empty">—</span>
+                      ) : (
+                        <div className="expense-actions">
+                          {rowActions.includes("submit") ? (
                             <Button
+                              type="button"
                               icon={<Send size={14} />}
-                              className="action-btn-edit edit-expense-btn"
+                              className="edit-expense-btn"
                               title="Submit for approval"
                               onClick={() => handleSubmitDraft(exp._id)}
                             >
                               Submit
                             </Button>
+                          ) : null}
+                          {rowActions.includes("delete") ? (
                             <Button
+                              type="button"
                               className="action-btn-delete"
                               icon={<Trash2 size={14} />}
                               title="Delete draft"
@@ -780,82 +776,52 @@ function ExpenseInner() {
                             >
                               Delete
                             </Button>
-                          </>
-                        ) : null}
-
-                        {actionMode === "owner" && exp.status === "Pending" ? (
-                          <div className="expense-pending-cancel">
+                          ) : null}
+                          {rowActions.includes("cancel") ? (
                             <Button
-                              className="action-btn-edit cancel-expense-btn"
+                              type="button"
+                              className="cancel-expense-btn"
                               icon={<X size={14} />}
                               title="Cancel expense"
                               onClick={() => handleCancel(exp._id)}
                             >
                               Cancel
                             </Button>
-                          </div>
-                        ) : null}
-
-                        {/* Approver: Pending actions — never on own expense */}
-                        {!isOwnExpense(exp) && actionMode === "approve" && exp.status === "Pending" ? (
-                          <>
+                          ) : null}
+                          {rowActions.includes("approve") ? (
                             <Button
-                              className="action-btn-edit approve-expense-btn"
+                              type="button"
+                              className="approve-expense-btn"
                               icon={<Check size={14} />}
+                              aria-label="Approve"
                               onClick={() => handleApprove(exp._id, empName)}
                             >
                               Approve
                             </Button>
+                          ) : null}
+                          {rowActions.includes("reject") ? (
                             <Button
+                              type="button"
+                              className="reject-expense-btn"
                               icon={<X size={14} />}
-                              className=" action-btn-edit reject-expense-btn"
+                              aria-label="Reject"
                               onClick={() => handleReject(exp._id, empName)}
                             >
                               Reject
                             </Button>
-                          </>
-                        ) : null}
-
-                        {/* Reimburse only — never on own expense */}
-                        {!isOwnExpense(exp) && actionMode === "reimburse" && exp.status === "Approved" ? (
-                          <Button
-                            className="reimburse-btn action-btn-edit"
-                            icon={<Banknote size={14} />}
-                            onClick={() => handleReimburse(exp._id, empName)}
-                          >
-                            Reimburse
-                          </Button>
-                        ) : null}
-
-                        {/* Full: approve + reimburse — never on own expense */}
-                        {!isOwnExpense(exp) && actionMode === "full" && exp.status === "Pending" ? (
-                          <>
+                          ) : null}
+                          {rowActions.includes("reimburse") ? (
                             <Button
-                              className="approve-expense-btn action-btn-edit"
-                              icon={<Check size={14} />}
-                              onClick={() => handleApprove(exp._id, empName)}
+                              type="button"
+                              className="reimburse-btn"
+                              icon={<Banknote size={14} />}
+                              onClick={() => handleReimburse(exp._id, empName)}
                             >
-                              Approve
+                              Reimburse
                             </Button>
-                            <Button
-                              className="reject-expense-btn action-btn-edit"
-                              icon={<X size={14} />}
-                              onClick={() => handleReject(exp._id, empName)}
-                            >
-                              Reject
-                            </Button>
-                          </>
-                        ) : null}
-                        {!isOwnExpense(exp) && actionMode === "full" && exp.status === "Approved" ? (
-                          <Button
-                            className="reimburse-btn action-btn-edit"
-                            icon={<Banknote size={14} />}
-                            onClick={() => handleReimburse(exp._id, empName)}
-                          >
-                            Reimburse
-                          </Button>
-                        ) : null}
-                      </div>
+                          ) : null}
+                        </div>
+                      )}
                     </td>
                   ) : null}
                 </tr>
@@ -863,7 +829,7 @@ function ExpenseInner() {
             })}
           </tbody>
         </table>
-      </div>
+      </TableHScroll>
 
       {expPagination.pages > 1 && (
         <Pagination

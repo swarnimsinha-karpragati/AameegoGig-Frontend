@@ -23,6 +23,7 @@ import { useDepartmentNames } from "../hooks/useDepartments";
 import {
   getDocumentViewUrl,
 } from "../services/documentService";
+import { saveDownload } from "../utils/saveDownload";
 import { useEmployeeDocuments, useUploadEmployeeDocument } from "../hooks/useDocuments";
 
 import {
@@ -73,7 +74,7 @@ import Pagination from "../components/Pagination";
 import FloatingMenu from "../components/FloatingMenu";
 import SearchableEmployeeSelectServer from "../components/attendance/SearchableEmployeeSelectServer";
 import EmployeeSalaryStructureView from "../components/EmployeeSalaryStructureView";
-import { saveEmployeeStructure } from "../services/salaryComponentService";
+import { getStructure, saveEmployeeStructure } from "../services/salaryComponentService";
 
 import "./Employees.css";
 import {
@@ -691,6 +692,9 @@ function EmployeesPage() {
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
+  const [salaryStructureOptions, setSalaryStructureOptions] = useState([]);
+  const [salaryStructuresLoading, setSalaryStructuresLoading] = useState(false);
+  const [copiedStructureName, setCopiedStructureName] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
@@ -1028,6 +1032,27 @@ function EmployeesPage() {
   const [showUploadModal, setShowUploadModal] =
     useState(false);
 
+  // Bulk upload: show the org's salary structure names so HR can copy the
+  // exact name into the Excel "CTC Structure / Template Name" column.
+  useEffect(() => {
+    if (!showUploadModal) return undefined;
+    let mounted = true;
+    setSalaryStructuresLoading(true);
+    getStructure(user?.vendorId)
+      .then((res) => {
+        if (mounted) setSalaryStructureOptions(res.data?.data || res.data || []);
+      })
+      .catch(() => {
+        if (mounted) setSalaryStructureOptions([]);
+      })
+      .finally(() => {
+        if (mounted) setSalaryStructuresLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [showUploadModal, user?.vendorId]);
+
 
   const [
     showTerminationModal,
@@ -1219,6 +1244,28 @@ function EmployeesPage() {
       setCopiedKey(key);
       setTimeout(() => {
         setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 1500);
+    } catch (error) {
+      console.error("Copy failed", error);
+    }
+  };
+
+  const handleCopyStructureName = async (structureName) => {
+    if (!structureName) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(structureName);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = structureName;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopiedStructureName(structureName);
+      setTimeout(() => {
+        setCopiedStructureName((prev) => (prev === structureName ? "" : prev));
       }, 1500);
     } catch (error) {
       console.error("Copy failed", error);
@@ -1424,7 +1471,7 @@ function EmployeesPage() {
   // row 2 is the header, rows 3+ are examples — matching the parser exactly.
   const handleDownloadTemplate = () => {
     const rows = [
-      ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required."],
+      ["Employee Bulk Upload Template — keep this row; enter employees below the headers. Only Name is required. For salary, copy a Salary Structure name into the last column and enter the annual CTC in the CTC column."],
       [
         // Basic & Organization Details
         "EmployeeCode", "Name", "Email", "Phone", "Designation", `${name}Id / Name`, "Client", "workLocation",
@@ -1453,7 +1500,7 @@ function EmployeesPage() {
 
         "State Bank of India", "98765432101234", "SBIN0001234", "Ravi Kumar",
 
-        "360000", "Standard_Sales_Structure"
+        "360000", salaryStructureOptions[0]?.name || "Copy_Structure_Name"
       ],
     ];
 
@@ -1579,14 +1626,7 @@ function EmployeesPage() {
       const fileName =
         fileNameMatch?.[1] ||
         `${directoryType === "consultancy" ? "Consultants" : "Employees"}-Export-${new Date().toISOString().split("T")[0]}.xlsx`;
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await saveDownload(blob, fileName);
     } catch (error) {
       const serverMessage =
         error.response?.data instanceof Blob
@@ -2908,6 +2948,39 @@ function EmployeesPage() {
                     </span>
                   ) : null}
                 </div>
+              </div>
+            </FormSection>
+            <FormSection
+              title="Salary Structure Names"
+              description="Copy a name and paste it into the “CTC Structure / Template Name” column. Enter the annual CTC in the “CTC” column."
+            >
+              <div className="emp-field emp-field--full">
+                {salaryStructuresLoading ? (
+                  <span className="emp-field-hint">Loading salary structures…</span>
+                ) : salaryStructureOptions.length > 0 ? (
+                  <div className="emp-structure-copy-list">
+                    {salaryStructureOptions.map((structure) => (
+                      <button
+                        key={structure._id}
+                        type="button"
+                        className="emp-structure-copy-item"
+                        title={`Copy ${structure.name}`}
+                        onClick={() => handleCopyStructureName(structure.name)}
+                      >
+                        <span className="emp-structure-copy-item__name">{structure.name}</span>
+                        {copiedStructureName === structure.name ? (
+                          <Check size={13} />
+                        ) : (
+                          <Copy size={13} />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="emp-field-hint">
+                    No salary structures found. Create one under Payroll → Salary Structures first.
+                  </span>
+                )}
               </div>
             </FormSection>
             {uploadMessage ? (

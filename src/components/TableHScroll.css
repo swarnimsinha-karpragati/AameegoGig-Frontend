@@ -1,0 +1,76 @@
+.table-hscroll {
+  position: relative;
+  max-width: 100%;
+}
+
+.table-hscroll__scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #e2e8f0;
+}
+
+/* WebKit ignores min-width on width:100% tables and squishes headers (RECEIPT). */
+.table-hscroll__scroller > table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.table-hscroll__scroller > table th,
+.table-hscroll__scroller > table td {
+  white-space: nowrap;
+}
+
+.table-hscroll__scroller::-webkit-scrollbar {
+  height: 10px;
+  display: block;
+}
+
+.table-hscroll__scroller::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 99px;
+}
+
+.table-hscroll__scroller::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 99px;
+}
+
+.table-hscroll--more::after,
+.table-hscroll--back::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  top: 2.75rem;
+  bottom: 10px;
+  width: 36px;
+  z-index: 2;
+}
+
+.table-hscroll--more::after {
+  right: 0;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), #fff 85%);
+}
+
+.table-hscroll--back::before {
+  left: 0;
+  background: linear-gradient(to left, rgba(255, 255, 255, 0), #fff 85%);
+}
+
+.table-hscroll__hint {
+  position: absolute;
+  right: 8px;
+  bottom: 14px;
+  z-index: 3;
+  pointer-events: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+}

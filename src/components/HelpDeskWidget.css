@@ -1,9 +1,17 @@
+:root {
+  --hdw-fab-height: 56px;
+  --hdw-fab-width: 45px;
+  --hdw-fab-bottom: max(16px, env(safe-area-inset-bottom, 0px) + 12px);
+  --hdw-fab-gap: 16px;
+  --hdw-fab-clearance: calc(var(--hdw-fab-bottom) + var(--hdw-fab-height) + var(--hdw-fab-gap));
+}
+
 .hdw-fab {
   position: fixed;
-  bottom: 80px;
+  bottom: var(--hdw-fab-bottom);
   right: 0px;
-  width: 45px;
-  height: 56px;
+  width: var(--hdw-fab-width);
+  height: var(--hdw-fab-height);
   border-top-left-radius: 15px;
   border-bottom-left-radius: 15px;
   border: none;
@@ -24,7 +32,7 @@
 
 .hdw-panel {
   position: fixed;
-  bottom:150px;
+  bottom: var(--hdw-fab-clearance);
   right: 24px;
   width: 380px;
   max-width: calc(100vw - 32px);

@@ -47,6 +47,12 @@
   border: 1px solid #fecaca;
 }
 
+.lp-banner.warning {
+  background: #fff8e6;
+  color: #8a5a00;
+  border: 1px solid #f0d48a;
+}
+
 .lp-banner.info {
   background: #eff6ff;
   color: #1d4ed8;

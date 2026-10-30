@@ -5,6 +5,15 @@ import "./LeavePolicyManager.css";
 import { useLeavePolicy, useUpdateLeavePolicy } from "../hooks/useLeave";
 import ConfirmModal from "./ConfirmModal";
 import LeaveAccrualCard from "./LeaveAccrualCard";
+import { validateFields, formatValidationErrors } from "../utils/inputValidation";
+import {
+  elAccrualMethod,
+  elAccrualFieldsForSave,
+  needsMonthlyCredit,
+  showsMinPaidDaysField,
+  showsWorkingDaysField,
+  monthlyCreditExceedsYearlyCapWarning,
+} from "../utils/leavePolicyForm";
 
 const MONTHS = [
   { value: 1, label: "January" },
@@ -32,9 +41,6 @@ const asNumberOrNull = (v) => {
 const monthLabel = (month) => MONTHS.find((m) => m.value === Number(month))?.label || "January";
 
 const STANDARD_CODES = ["CL", "SL", "EL"];
-
-const needsMonthlyCredit = (method) =>
-  ["fixed_monthly", "prorate_paid_days", "full_if_min_present"].includes(method);
 
 const describeType = (t, policy) => {
   if (!t?.enabled) return "Turned off — employees cannot apply for this type.";
@@ -75,6 +81,14 @@ const describeType = (t, policy) => {
       const min = t.accrual?.minPresentDays ?? 0;
       parts.push(
         `${monthly} day${monthly === 1 ? "" : "s"} added after a month closes if paid days reach ${min}, up to ${cap} per year.`
+      );
+    } else if (t.code === "EL" && t.accrual?.method === "prorate_paid_days") {
+      const working = t.accrual?.standardWorkingDays ?? 0;
+      const min = t.accrual?.minPresentDays ?? 0;
+      const minPart =
+        min > 0 ? ` if paid days reach ${min}, then scaled` : ", scaled down if they work fewer";
+      parts.push(
+        `${monthly} day${monthly === 1 ? "" : "s"} for ${working} paid days after a month closes${minPart}, up to ${cap} per year.`
       );
     } else {
       parts.push(`${monthly} day${monthly === 1 ? "" : "s"} added each month, up to ${cap} per year.`);
@@ -307,6 +321,52 @@ export default function LeavePolicyManager() {
   const handleSaveCustom = async () => {
     if (!policy) return;
     setStatus({ type: "", message: "" });
+    const elType = (policy.types || []).find((t) => t.code === "EL");
+    const elMethod = elAccrualMethod(elType);
+    const saveFields = [
+      {
+        name: "monthlyCredit",
+        label: "Days each month",
+        value: elType?.accrual?.monthlyCredit,
+        kind: "number",
+        min: 0,
+        required: true,
+      },
+      {
+        name: "yearlyCap",
+        label: "Maximum per year",
+        value: elType?.accrual?.yearlyCap,
+        kind: "number",
+        min: 0,
+        required: true,
+      },
+    ];
+    if (showsMinPaidDaysField(elMethod)) {
+      saveFields.push({
+        name: "minPresentDays",
+        label: "Minimum paid days in the month",
+        value: elType?.accrual?.minPresentDays,
+        kind: "attendance_days",
+        min: 0,
+        required: elMethod === "full_if_min_present",
+      });
+    }
+    if (showsWorkingDaysField(elMethod)) {
+      saveFields.push({
+        name: "standardWorkingDays",
+        label: "Working days in a full month",
+        value: elType?.accrual?.standardWorkingDays,
+        kind: "attendance_days",
+        min: 0.5,
+        required: true,
+      });
+    }
+    const { valid, errors } = validateFields(saveFields);
+    if (elType?.enabled && !valid) {
+      setStatus({ type: "error", message: formatValidationErrors(errors) });
+      scrollStatusIntoView();
+      return;
+    }
     try {
       const payload = {
         templateKey: "custom",
@@ -314,25 +374,26 @@ export default function LeavePolicyManager() {
         yearStartDay: asNumberOrNull(yearStartDay) ?? 1,
         accruePaidLeaveDuringProbation: policy.accruePaidLeaveDuringProbation === true,
         types: (policy.types || []).map((t) => {
-          // CL/SL stay a fixed monthly credit. EL may instead credit the full
-          // month only after paid days reach a minimum. Carry-forward passes through.
+          // CL/SL stay a fixed monthly credit. EL may be fixed, a paid-day
+          // minimum, or prorated against a set full-month working days.
           if (t.code === "CL" || t.code === "SL" || t.code === "EL") {
-            const method =
-              t.code === "EL" && t.accrual?.method === "full_if_min_present"
-                ? "full_if_min_present"
-                : "fixed_monthly";
+            const accrual =
+              t.code === "EL"
+                ? elAccrualFieldsForSave(t)
+                : {
+                    ...(t.accrual || {}),
+                    method: "fixed_monthly",
+                    monthlyCredit: Number(t.accrual?.monthlyCredit ?? 0.5),
+                    yearlyCap: Number(t.accrual?.yearlyCap ?? 6),
+                    minPresentDays: 0,
+                    standardWorkingDays: 0,
+                  };
             return {
               ...t,
               hasBalance: true,
               accrual: {
                 ...(t.accrual || {}),
-                method,
-                monthlyCredit: Number(t.accrual?.monthlyCredit ?? 0.5),
-                yearlyCap: Number(t.accrual?.yearlyCap ?? 6),
-                minPresentDays:
-                  method === "full_if_min_present"
-                    ? Math.max(0, Number(t.accrual?.minPresentDays) || 0)
-                    : 0,
+                ...accrual,
               },
               yearEnd: {
                 ...(t.yearEnd || {}),
@@ -486,6 +547,13 @@ export default function LeavePolicyManager() {
           const method = t.accrual?.method || "none";
           const isStandard = STANDARD_CODES.includes(t.code);
           const isOpen = expandedType === t.code;
+          const elCapWarning =
+            t.code === "EL"
+              ? monthlyCreditExceedsYearlyCapWarning({
+                  monthlyCredit: t.accrual?.monthlyCredit,
+                  yearlyCap: t.accrual?.yearlyCap,
+                })
+              : null;
           return (
             <article
               className={`lp-type-card ${t.enabled ? "" : "is-off"} ${isOpen ? "is-open" : ""}`}
@@ -534,24 +602,27 @@ export default function LeavePolicyManager() {
                       {t.code === "EL" ? (
                         <Field
                           label="How EL is earned"
-                          hint="Minimum paid days counts Present, Late, Half Day, approved paid leave, and work from home. Credit is added on the 1st for the month that just ended."
+                          hint="Paid days count Present, Late, Half Day, approved paid leave, and work from home. Credit for attendance-based rules is added on the 1st for the month that just ended."
                         >
                           <select
                             className="lp-input"
                             aria-label="How EL is earned"
-                            value={method === "full_if_min_present" ? "full_if_min_present" : "fixed_monthly"}
+                            value={elAccrualMethod(t)}
                             onChange={(e) =>
                               updateAccrual(t.code, {
                                 method: e.target.value,
-                                minPresentDays:
-                                  e.target.value === "full_if_min_present"
-                                    ? t.accrual?.minPresentDays || 0
-                                    : 0,
+                                minPresentDays: showsMinPaidDaysField(e.target.value)
+                                  ? t.accrual?.minPresentDays || 0
+                                  : 0,
+                                standardWorkingDays: showsWorkingDaysField(e.target.value)
+                                  ? t.accrual?.standardWorkingDays || 26
+                                  : 0,
                               })
                             }
                           >
                             <option value="fixed_monthly">Fixed days each month</option>
                             <option value="full_if_min_present">Full credit if minimum paid days</option>
+                            <option value="prorate_paid_days">Prorate by paid days</option>
                           </select>
                         </Field>
                       ) : isStandard ? (
@@ -574,7 +645,9 @@ export default function LeavePolicyManager() {
                             hint={
                               t.code === "EL" && method === "full_if_min_present"
                                 ? "Added on the 1st for the closed month when the minimum is met."
-                                : "Accrues monthly, starting from the joining month."
+                                : t.code === "EL" && method === "prorate_paid_days"
+                                  ? "EL for a full month of the working days below. Added on the 1st for the closed month."
+                                  : "Accrues monthly, starting from the joining month."
                             }
                           >
                             <input
@@ -606,8 +679,15 @@ export default function LeavePolicyManager() {
                             />
                           </Field>
                         ) : null}
-                        {(t.code === "EL" || !isStandard) && method === "full_if_min_present" && t.code !== "CO" ? (
-                          <Field label="Minimum paid days in the month">
+                        {(t.code === "EL" || !isStandard) && showsMinPaidDaysField(method) && t.code !== "CO" ? (
+                          <Field
+                            label="Minimum paid days in the month"
+                            hint={
+                              method === "prorate_paid_days"
+                                ? "No EL is credited below this. 0 means no minimum."
+                                : undefined
+                            }
+                          >
                             <input
                               className="lp-input lp-input-sm"
                               type="number"
@@ -623,7 +703,32 @@ export default function LeavePolicyManager() {
                             />
                           </Field>
                         ) : null}
+                        {(t.code === "EL" || !isStandard) && showsWorkingDaysField(method) && t.code !== "CO" ? (
+                          <Field
+                            label="Working days in a full month"
+                            hint="Paid days above this still credit only the monthly EL."
+                          >
+                            <input
+                              className="lp-input lp-input-sm"
+                              type="number"
+                              min={0.5}
+                              step="0.5"
+                              aria-label="Working days in a full month"
+                              value={t.accrual?.standardWorkingDays ?? 26}
+                              onChange={(e) =>
+                                updateAccrual(t.code, {
+                                  standardWorkingDays: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </Field>
+                        ) : null}
                       </div>
+                      {elCapWarning ? (
+                        <p className="lp-banner warning" role="status">
+                          {elCapWarning}
+                        </p>
+                      ) : null}
 
                       {t.code === "EL" ? (
                         <div className="lp-field-row">

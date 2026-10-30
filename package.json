@@ -17,6 +17,7 @@
     "@tiptap/starter-kit": "^3.31.4",
     "@vis.gl/react-google-maps": "^1.10.1",
     "axios": "^1.15.2",
+    "firebase": "^13.1.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.16.0",

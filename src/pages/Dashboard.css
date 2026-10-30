@@ -204,17 +204,23 @@ body {
   width: 100%;
 }
 
-.topbar h2 {
+.topbar-left h2 {
   font-size: 16px;
   font-weight: 700;
   color: #111827;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.topbar p {
+.topbar-left p {
   font-size: 12px;
   color: #6b7280;
   margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar-actions {
@@ -222,87 +228,6 @@ body {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
-  min-width: 0;
-}
-
-.org-switcher {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.org-switcher label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #6b7280;
-}
-
-.org-switcher select {
-  height: 40px;
-  max-width: 260px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 0 10px;
-  background: #fff;
-  color: #111827;
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.org-switch-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 280px;
-  padding: 14px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(17, 24, 39, 0.12);
-  z-index: 30;
-}
-
-.org-switch-panel p {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: #374151;
-}
-
-.org-switch-panel input {
-  width: 100%;
-  height: 40px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 0 10px;
-  margin-bottom: 8px;
-  box-sizing: border-box;
-}
-
-.org-switch-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.org-switch-actions button {
-  height: 36px;
-  border: none;
-  border-radius: 8px;
-  padding: 0 12px;
-  font-weight: 600;
-  cursor: pointer;
-  background: #111827;
-  color: #fff;
-}
-
-.org-switch-actions button[type="button"] {
-  background: #f3f4f6;
-  color: #111827;
-}
-
-.org-switch-error {
-  color: #b91c1c;
 }
 
 .logout-btn {
@@ -329,10 +254,10 @@ body {
 /* PAGE */
 
 .dashboard-layout .page-content {
-  padding: 20px 24px 32px;
-  flex: 1;
+  padding: 20px 24px var(--hdw-fab-clearance, 88px);
+  flex: 1 0 auto;
   min-width: 0;
-  overflow-x: auto;
+  overflow: visible;
 }
 
 /* STATS */
@@ -974,6 +899,155 @@ body {
   margin-top: 10px;
 }
 
+/* TODAY'S ATTENDANCE CTA (self / team scopes) */
+
+.attendance-cta-wrapper {
+  margin-top: 18px;
+}
+
+.attendance-cta {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: #fff;
+  border: 1px solid #edf2f7;
+  border-radius: 10px;
+  padding: 18px 22px;
+  overflow: hidden;
+}
+
+/* .attendance-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #94a3b8;
+} */
+/* 
+.attendance-cta.is-checked-in::before { background: #16a34a; }
+.attendance-cta.is-checked-out::before { background: #2563eb; }
+.attendance-cta.is-on-leave::before { background: #d97706; }
+.attendance-cta.is-wfh::before { background: #0891b2; } */
+
+.attendance-cta-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.attendance-cta-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.attendance-cta.is-checked-in .attendance-cta-icon { background: #dcfce7; color: #15803d; }
+.attendance-cta.is-checked-out .attendance-cta-icon { background: #dbeafe; color: #2563eb; }
+.attendance-cta.is-on-leave .attendance-cta-icon { background: #fef3c7; color: #d97706; }
+.attendance-cta.is-wfh .attendance-cta-icon { background: #cffafe; color: #0891b2; }
+
+
+.attendance-cta-copy {
+  min-width: 0;
+}
+
+.attendance-cta-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.attendance-cta-heading h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.attendance-cta-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.attendance-cta-badge.is-checked-in { background: #dcfce7; color: #15803d; }
+.attendance-cta-badge.is-checked-out { background: #dbeafe; color: #2563eb; }
+.attendance-cta-badge.is-on-leave { background: #fef3c7; color: #b45309; }
+.attendance-cta-badge.is-wfh { background: #cffafe; color: #0e7490; }
+
+.attendance-cta-status {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.attendance-cta-detail {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.attendance-cta-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.attendance-cta-actions .link-btn {
+  margin-top: 0;
+}
+
+.attendance-cta .primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.attendance-cta .primary:hover {
+  background: #1d4ed8;
+}
+
+.attendance-cta .primary:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 700px) {
+  .attendance-cta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .attendance-cta-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
 .bottom-grid {
   margin-top: 20px;
 }
@@ -1180,7 +1254,7 @@ body {
   }
 
   .dashboard-layout .page-content {
-    padding: 16px 18px 28px;
+    padding: 16px 18px var(--hdw-fab-clearance, 88px);
   }
 }
 
@@ -1206,7 +1280,7 @@ body {
     min-width: 0;
   }
 
-  .dashboard-layout .topbar h2 {
+  .dashboard-layout .topbar-left h2 {
     font-size: 15px;
   }
 }
@@ -2267,7 +2341,11 @@ body {
 html,
 body {
   max-width: 100%;
-  overflow-x: clip;
+  /* overflow-x: clip|hidden with overflow-y: visible computes to
+     overflow-y: auto in Chromium. That makes html/body a viewport-tall
+     scrollport; Android WebView then cannot pan. One scrollport = the
+     document. Side overflow is clipped on cards/tables, not here. */
+  overflow: visible;
 }
 
 .dashboard-layout,
@@ -2284,7 +2362,7 @@ body {
    (sidebar fixed hai, main-area max 100% hai). */
 
 .dashboard-layout .page-content {
-  overflow-x: clip;
+  overflow: visible;
 }
 
 .brand-row {
@@ -2333,6 +2411,11 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.topbar-left > div {
   min-width: 0;
 }
 
@@ -2427,7 +2510,7 @@ body {
   }
 
   .dashboard-layout .page-content {
-    padding: 16px 18px 28px;
+    padding: 16px 18px var(--hdw-fab-clearance, 88px);
   }
 }
 
@@ -2471,7 +2554,29 @@ body {
   }
 
   .dashboard-layout .page-content {
-    padding: 14px 14px 24px;
+    flex: none;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 14px 14px var(--hdw-fab-clearance, 88px);
+  }
+
+  /* Attendance and regularization pages also drop inner overflow:auto. */
+  .dashboard-layout .page-content:has(.attendance-page),
+  .dashboard-layout .page-content:has(.regularization-page) {
+    flex: none;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .dashboard-layout .topbar-left p {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: unset;
   }
 
   .bottom-grid,
@@ -2486,11 +2591,11 @@ body {
     align-items: center;
   }
 
-  .dashboard-layout .topbar h2 {
+  .dashboard-layout .topbar-left h2 {
     font-size: 15px;
   }
 
-  .dashboard-layout .topbar p {
+  .dashboard-layout .topbar-left p {
     font-size: 11px;
   }
 
@@ -2498,10 +2603,6 @@ body {
     height: 40px;
     padding: 0 14px;
     font-size: 13px;
-  }
-
-  .org-switcher select {
-    max-width: 140px;
   }
 
   .stats-grid {

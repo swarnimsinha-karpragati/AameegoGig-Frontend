@@ -44,6 +44,7 @@ export const ROUTE_ACCESS = {
   "/loan-config": ["Admin", "HR"],
   "/letters": ["Admin", "HR"],
   "/settings": ["Admin", "HR", "Manager", "Employee", "Intern"],
+  "/notifications": ["Admin", "HR", "Manager", "Employee", "Intern"],
 };
 
 export const GRANTABLE_MODULES = [
@@ -60,7 +61,7 @@ export const GRANTABLE_MODULES = [
   { key: "letters", label: "Letters", path: "/letters" },
 ];
 
-const ALWAYS_ON_MODULES = ["dashboard", "settings"];
+const ALWAYS_ON_MODULES = ["dashboard", "settings", "notifications"];
 
 const MODULE_BY_PATH = {
   "/dashboard": "dashboard",
@@ -77,6 +78,7 @@ const MODULE_BY_PATH = {
   "/loan-config": "loan-config",
   "/letters": "letters",
   "/settings": "settings",
+  "/notifications": "notifications",
 };
 
 export const normalizeAppPath = (pathname = "") => {
@@ -200,6 +202,9 @@ export const canAccessDepartmentsPage = (role) => canViewDepartments(role);
 
 export const canAccessRoute = (role, path, allowedModules) => {
   const appPath = normalizeAppPath(path);
+
+  // Every signed-in user has an inbox, custom roles included (no module permission gates it).
+  if (appPath === "/notifications") return Boolean(role);
 
   // Employees page hosts 2 tabs: Employees + Consultancy.
   // Consultancy-only users (consultancy:view/manage without employees:view)

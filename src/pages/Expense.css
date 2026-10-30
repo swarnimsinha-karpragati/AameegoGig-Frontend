@@ -211,11 +211,15 @@
 }
 
 /* ── Tables ── */
+.expense-table-wrap {
+  min-width: 0;
+}
+
 .expense-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  gap: 1rem;
 }
 
 .expense-table th {
@@ -236,9 +240,14 @@
   color: #334155;
   text-align: left;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .expense-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.expense-table tbody tr:hover td.expense-table__actions {
   background: #f8fafc;
 }
 
@@ -254,22 +263,56 @@
 }
 
 /* ── Actions ── */
-.expense-actions {
-  display: flex;
-  gap: 6px;
+.expense-table th.expense-table__actions,
+.expense-table td.expense-table__actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: #fff;
+  padding-left: 12px;
+  padding-right: 4px;
+  white-space: nowrap;
+  box-shadow: -8px 0 8px -8px rgba(15, 23, 42, 0.18);
+  vertical-align: middle;
 }
 
+.expense-table thead th.expense-table__actions {
+  background: #fff;
+}
 
+.expense-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.expense-actions-empty {
+  color: #94a3b8;
+}
+
+.expense-actions .generic-btn {
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: none;
+  background-image: none;
+}
+
+.expense-actions .generic-btn.approve-expense-btn,
 .approve-expense-btn {
   background: #d1fae5;
   color: #065f46;
 }
 
+.expense-actions .generic-btn.reject-expense-btn,
 .reject-expense-btn {
   background: #fee2e2;
   color: #991b1b;
 }
 
+.expense-actions .generic-btn.reimburse-btn,
 .reimburse-btn {
   background: #dbeafe;
   color: #1e40af;
@@ -464,7 +507,24 @@
   margin-top: 4px;
 }
 
+@media (max-width: 720px) {
+  .expense-table th.expense-table__actions,
+  .expense-table td.expense-table__actions {
+    position: static;
+    box-shadow: none;
+    padding-left: 10px;
+  }
+}
+
 @media (max-width: 600px) {
+  .expense-page {
+    padding: 12px 12px 24px;
+  }
+
+  .expense-card {
+    padding: 16px 12px;
+  }
+
   .expense-form-row {
     grid-template-columns: 1fr;
   }

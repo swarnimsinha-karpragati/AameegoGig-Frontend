@@ -39,12 +39,29 @@ it("has no AI menu unless the parent provides a rewrite handler", () => {
   expect(screen.queryByRole("button", { name: AI.menu })).not.toBeInTheDocument();
 });
 
-it("is disabled until text is selected", async () => {
-  renderEditor();
+it("with nothing selected, edits and replaces the whole letter", async () => {
+  const { onChange, onAiRewrite } = renderEditor();
+  onAiRewrite.mockResolvedValue("<p>Dear {{employeeName}}, welcome.</p>");
   await screen.findByText("Employee name");
-  expect(screen.getByRole("button", { name: AI.menu })).toBeDisabled();
-  selectFirstParagraph();
-  expect(screen.getByRole("button", { name: AI.menu })).toBeEnabled();
+  userEvent.click(screen.getByRole("button", { name: AI.menu }));
+  expect(await screen.findByRole("menu", { name: AI.menuLabelWhole })).toBeInTheDocument();
+  userEvent.click(screen.getByRole("menuitem", { name: AI.presets.clearer }));
+  await waitFor(() =>
+    expect(onAiRewrite).toHaveBeenCalledWith("<p>Hi {{employeeName}}, welcome aboard.</p><p>Second line.</p>", "clearer", "", "")
+  );
+  userEvent.click(await screen.findByRole("button", { name: AI.applyWhole }));
+  await waitFor(() => expect(onChange.mock.calls.at(-1)[0]).toBe("<p>Dear {{employeeName}}, welcome.</p>"));
+});
+
+it("matches another template's format when templates are offered", async () => {
+  const { onAiRewrite } = renderEditor({ aiFormatOptions: [{ value: "t9", label: "Genex Offer Letter" }] });
+  onAiRewrite.mockResolvedValue("<p>Rewritten.</p>");
+  await screen.findByText("Employee name");
+  userEvent.click(screen.getByRole("button", { name: AI.menu }));
+  userEvent.click(await screen.findByRole("menuitem", { name: AI.presets.match }));
+  userEvent.selectOptions(screen.getByLabelText(AI.matchLabel), "t9");
+  userEvent.click(screen.getByRole("button", { name: AI.rewrite }));
+  await waitFor(() => expect(onAiRewrite).toHaveBeenCalledWith(expect.stringContaining("welcome aboard"), "match", "", "t9"));
 });
 
 it("sends the selection as stored HTML and replaces only it, keeping the detail chip", async () => {
@@ -56,7 +73,7 @@ it("sends the selection as stored HTML and replaces only it, keeping the detail 
   userEvent.click(screen.getByRole("button", { name: AI.menu }));
   userEvent.click(await screen.findByRole("menuitem", { name: AI.presets.formal }));
 
-  await waitFor(() => expect(onAiRewrite).toHaveBeenCalledWith("Hi {{employeeName}}, welcome aboard.", "formal", ""));
+  await waitFor(() => expect(onAiRewrite).toHaveBeenCalledWith("Hi {{employeeName}}, welcome aboard.", "formal", "", ""));
   expect(await screen.findByText(/\[Employee name\], we are delighted/)).toBeInTheDocument();
 
   userEvent.click(screen.getByRole("button", { name: AI.apply }));
@@ -93,6 +110,6 @@ it("asks for a custom instruction and shows AI errors", async () => {
   userEvent.click(await screen.findByRole("menuitem", { name: AI.presets.custom }));
   userEvent.type(screen.getByLabelText(AI.customLabel), "Make it warmer");
   userEvent.click(screen.getByRole("button", { name: AI.rewrite }));
-  await waitFor(() => expect(onAiRewrite).toHaveBeenCalledWith("Hi {{employeeName}}, welcome aboard.", "custom", "Make it warmer"));
+  await waitFor(() => expect(onAiRewrite).toHaveBeenCalledWith("Hi {{employeeName}}, welcome aboard.", "custom", "Make it warmer", ""));
   expect(await screen.findByRole("alert")).toHaveTextContent("The AI changed a detail field in the text. Try again.");
 });

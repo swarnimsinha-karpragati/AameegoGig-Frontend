@@ -66,11 +66,29 @@ describe("Manage templates", () => {
     expect(screen.queryByRole("button", { name: AI.importWord })).not.toBeInTheDocument();
   });
 
-  it("offers Import from Word only when personal data is allowed", async () => {
+  it("offers Import from Word without the personal-data switch (files of several copies send no personal data)", async () => {
     aiOn(false);
     setup();
     expect(await screen.findByRole("button", { name: AI.startWithAi })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: AI.importWord })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: AI.importWord })).toBeInTheDocument();
+  });
+
+  it("drafts in the format of one of the company's templates", async () => {
+    aiOn();
+    templateService.getLetterTemplates.mockResolvedValue([{ _id: "t9", name: "Genex Offer Letter", status: "active" }]);
+    letterAi.draftTemplateWithAi.mockResolvedValue({ template: DRAFT.template, notes: [] });
+    setup();
+    userEvent.click(await screen.findByRole("button", { name: AI.startWithAi }));
+    userEvent.type(screen.getByLabelText(new RegExp(AI.draftDescriptionLabel)), "Relieving letter for site staff");
+    userEvent.selectOptions(await screen.findByLabelText(AI.formatLabel), "t9");
+    userEvent.click(screen.getByRole("button", { name: AI.draftCreate }));
+    await waitFor(() =>
+      expect(letterAi.draftTemplateWithAi).toHaveBeenCalledWith({
+        description: "Relieving letter for site staff",
+        recipientType: "employee",
+        formatTemplateId: "t9",
+      })
+    );
   });
 
   it("drafts a template from a description and hands it to the editor", async () => {
@@ -81,7 +99,11 @@ describe("Manage templates", () => {
     userEvent.type(screen.getByLabelText(new RegExp(AI.draftDescriptionLabel)), "Diwali bonus letter with amount");
     userEvent.click(screen.getByRole("button", { name: AI.draftCreate }));
     await waitFor(() =>
-      expect(letterAi.draftTemplateWithAi).toHaveBeenCalledWith({ description: "Diwali bonus letter with amount", recipientType: "employee" })
+      expect(letterAi.draftTemplateWithAi).toHaveBeenCalledWith({
+        description: "Diwali bonus letter with amount",
+        recipientType: "employee",
+        formatTemplateId: "",
+      })
     );
     await waitFor(() => expect(onAiDrafted).toHaveBeenCalledWith(expect.objectContaining({ template: DRAFT.template, fileName: "" })));
   });
@@ -111,6 +133,14 @@ describe("Template editor with an AI draft", () => {
     expect(screen.getByText(AI.draftedBanner)).toBeInTheDocument();
     expect(screen.getByText("Check the payout date")).toBeInTheDocument();
     expect(screen.getByText(LETTERS_COPY.editor.unsaved)).toBeInTheDocument();
+  });
+
+  it("an import from several copies says no personal data was sent and lists the letterhead lines it moved out", async () => {
+    aiOn();
+    setup({ initialDraft: { ...DRAFT, fileName: "Offer Letter.docx", copies: 6, removed: ["CIN : U00000DL0000PTC000000"] } });
+    expect(await screen.findByText(AI.importedCopies.replace("{count}", "6"))).toBeInTheDocument();
+    expect(screen.getByText(AI.removedTitle)).toBeInTheDocument();
+    expect(screen.getByText("CIN : U00000DL0000PTC000000")).toBeInTheDocument();
   });
 
   it("records the save as AI-assisted with a default note", async () => {

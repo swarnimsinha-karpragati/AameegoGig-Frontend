@@ -6,6 +6,7 @@ import DocumentPreview from "../DocumentPreview";
 import { getMyConsultancyPayments, downloadConsultancyPayslip } from "../../services/payrollService";
 import { getDocumentViewUrl } from "../../services/documentService";
 import { getAvailableMonths, formatInr } from "../../utils/payrollConstants";
+import { saveDownload } from "../../utils/saveDownload";
 import "./ConsultancyPayslipsTab.css";
 
 const MONTH_LABEL = (month) => new Date(2000, month - 1, 1).toLocaleString("en", { month: "long" });
@@ -76,14 +77,10 @@ export default function ConsultancyPayslipsTab({ hideIfEmpty = false }) {
     setError("");
     try {
       const blob = await getPayslipBlob(payment._id);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Consultancy_Payslip_${MONTH_LABEL(payment.month)}_${payment.year}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      await saveDownload(
+        blob,
+        `Consultancy_Payslip_${MONTH_LABEL(payment.month)}_${payment.year}.pdf`
+      );
     } catch (requestError) {
       setError(apiErrorMessage(requestError, "Unable to download payslip"));
     }

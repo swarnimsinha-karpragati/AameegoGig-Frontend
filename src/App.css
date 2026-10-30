@@ -303,12 +303,13 @@ body {
    DASHBOARD BASIC
 ========================= */
 
-.dashboard-layout {
+/* Legacy layout only (Layout.jsx). MainLayout has .main-area and must
+   grow with the page, otherwise every phone screen is stuck at 100vh. */
+.dashboard-layout:not(:has(.main-area)) {
   display: flex;
   height: 100vh;
 }
 
-/* Legacy layout (Layout.jsx only — MainLayout uses Dashboard.css) */
 .dashboard-layout:not(:has(.main-area)) .sidebar {
   width: 240px;
 

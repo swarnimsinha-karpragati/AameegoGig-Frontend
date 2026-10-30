@@ -39,6 +39,10 @@ export const EMPTY_MY_ROW = {
   sessionCount: 0,
 };
 
+/** User-facing check-in/out copy. Never show API payloads or page URLs in the popup. */
+export const attendanceSuccessMessage = (action) =>
+  action === "checkout" ? "Check-out successful." : "Check-in successful.";
+
 export const FILTER_LABELS = {
   today: "Today's Attendance",
   "7days": "Last 7 Days",

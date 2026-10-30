@@ -18,7 +18,8 @@ const ShiftManager = ({ vendorId }) => {
     shiftName: 'General',
     startTime: '',
     endTime: '',
-    graceTime: 0
+    graceTime: 0,
+    status:'Present',
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -37,7 +38,8 @@ const ShiftManager = ({ vendorId }) => {
       shiftName: shift.shiftName,
       startTime: shift.startTime,
       endTime: shift.endTime,
-      graceTime: shift.graceTime
+      graceTime: shift.graceTime,
+      status:shift?.status,
     });
 
     if (shiftFormRef.current) {
@@ -163,6 +165,23 @@ const ShiftManager = ({ vendorId }) => {
               disabled={isActionLoading}
             />
           </div>
+          <div className="form-group">
+            <label htmlFor="status">Late Mark Policy</label>
+            <select
+              id="status"
+              className="shift-input"
+              name="status"
+              value={formData?.status || 'Present'}
+              onChange={handleChange}
+              required
+              disabled={isActionLoading}
+            >
+              <option value="Present">Present</option>
+              <option value="Late">Late</option>
+              <option value="Half Day">Half Day</option>
+              <option value="Absent">Absent</option>
+            </select>
+          </div>
 
           <div className="form-actions">
             {editingShiftId && (
@@ -217,6 +236,10 @@ const ShiftManager = ({ vendorId }) => {
                     <div className="grace-time-info">
                       <span className="grace-label">Grace Period:</span>
                       <span className="grace-value">{shift.graceTime} mins</span>
+                    </div>
+                    <div className="grace-time-info">
+                      <span className="grace-label">Late Mark Policy:</span>
+                      <span className='grace-label'>{shift?.status?shift.status:'Present'}</span>
                     </div>
 
                     <div className="shift-card-actions-wrapper">
