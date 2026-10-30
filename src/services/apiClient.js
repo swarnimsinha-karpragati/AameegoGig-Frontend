@@ -1,6 +1,11 @@
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
 import { clearAuthData } from "../utils/authStorage";
+import {
+  isMobileAppBlockedError,
+  mobileClientHeadersFromStorage,
+  showMobileAppBlockedMessage,
+} from "../utils/mobileClientHeaders";
 
 const API = axios.create({
   baseURL: API_BASE_URL,
@@ -12,6 +17,7 @@ API.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    Object.assign(config.headers, mobileClientHeadersFromStorage(window.localStorage));
     return config;
   },
   (error) => Promise.reject(error)
@@ -20,6 +26,10 @@ API.interceptors.request.use(
 API.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (isMobileAppBlockedError(error)) {
+      showMobileAppBlockedMessage(error.response?.data?.message);
+      return Promise.reject(error);
+    }
     if (error.response && error.response.status === 401) {
       // Login-page auth calls (wrong password, bad OTP) must NOT trigger the
       // global redirect — they need the 401 to reach the form so the inline
