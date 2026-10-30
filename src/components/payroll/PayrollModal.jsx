@@ -8,13 +8,14 @@ export default function PayrollModal({
   description,
   children,
   alignLeft = false,
+  wide = false,
 }) {
   if (!open) return null;
 
   return (
     <div className="upload-overlay" onClick={onClose}>
       <div
-        className="upload-modal glass-morphism"
+        className={`upload-modal glass-morphism${wide ? " upload-modal--wide" : ""}`}
         style={alignLeft ? { textAlign: "left" } : undefined}
         onClick={(e) => e.stopPropagation()}
       >

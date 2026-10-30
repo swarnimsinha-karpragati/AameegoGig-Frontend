@@ -52,6 +52,14 @@ export const migrateEmployeeStructure = async (employeeId) => {
   return API.post(`/salary-components/structure/${employeeId}/migrate`);
 };
 
+export const bulkAssignSalaryStructure = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return API.post("/salary-components/structure/bulk-assign", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
 export const previewEmployeeStructure = async (employeeId, draftPayload = null) => {
   if (draftPayload) {
     return API.post(`/salary-components/structure/${employeeId}/preview`, draftPayload);
