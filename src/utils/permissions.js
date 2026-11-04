@@ -9,7 +9,7 @@
 // Permission key format: module:feature  (e.g. "payroll:manage")
 // ============================================================
 
-export const RBAC_VERSION = 5;
+export const RBAC_VERSION = 6;
 
 // ---------- Employee baseline (everyone gets these) ----------
 export const BASELINE_PERMISSIONS = [
@@ -62,24 +62,36 @@ export const ELEVATED_PERMISSIONS = [
   "leave:policy",
   "leave:balances",
   "leave:direct-edit",
+  "leave:alert-email",
+  "leave:alert-notification",
   "regularization:view-all",
   "regularization:approve",
   "regularization:direct-edit",
+  "regularization:alert-email",
+  "regularization:alert-notification",
   "payroll:manage",
   "payroll:config",
   "payroll:components",
   "payroll:structure",
   "payroll:reports",
   "payroll:payments",
+  "payroll:alert-email",
+  "payroll:alert-notification",
   "expenses:approve",
   "expenses:policy",
   "expenses:reimburse",
+  "expenses:alert-email",
+  "expenses:alert-notification",
   "documents:view-all",
   "resignation:manage",
+  "resignation:alert-email",
+  "resignation:alert-notification",
   "advance-loan:approve",
   "advance-loan:repayment",
   "advance-loan:view-all",
   "advance-loan:statistics",
+  "advance-loan:alert-email",
+  "advance-loan:alert-notification",
   "loan-config:manage",
   "settings:org",
   "settings:shifts",
@@ -89,6 +101,10 @@ export const ELEVATED_PERMISSIONS = [
   "settings:ot",
   "probation:manage",
   "settings:probation",
+  "probation:alert-email",
+  "probation:alert-notification",
+  "helpdesk:alert-email",
+  "helpdesk:alert-notification",
   "roles:manage",
 ];
 
@@ -146,6 +162,8 @@ export const ELEVATED_GROUPS = [
       { key: "leave:policy", label: "Manage Leave Policy" },
       { key: "leave:balances", label: "Edit Leave Balances" },
       { key: "leave:direct-edit", label: "Direct Edit Leave Records" },
+      { key: "leave:alert-email", label: "Email alerts" },
+      { key: "leave:alert-notification", label: "In-app & push alerts" },
     ],
   },
   {
@@ -155,6 +173,8 @@ export const ELEVATED_GROUPS = [
       { key: "regularization:view-all", label: "View All Regularization Requests (Organization)" },
       { key: "regularization:approve", label: "Approve / Reject Regularization" },
       { key: "regularization:direct-edit", label: "Direct Edit Regularization" },
+      { key: "regularization:alert-email", label: "Email alerts" },
+      { key: "regularization:alert-notification", label: "In-app & push alerts" },
     ],
   },
   {
@@ -167,6 +187,8 @@ export const ELEVATED_GROUPS = [
       { key: "payroll:structure", label: "Manage Salary Structure" },
       { key: "payroll:reports", label: "View & Export Payroll Reports" },
       { key: "payroll:payments", label: "Manage Payments" },
+      { key: "payroll:alert-email", label: "Email alerts" },
+      { key: "payroll:alert-notification", label: "In-app & push alerts" },
     ],
   },
   {
@@ -176,6 +198,8 @@ export const ELEVATED_GROUPS = [
       { key: "expenses:approve", label: "Approve / Reject Expenses" },
       { key: "expenses:policy", label: "Manage Expense Policy" },
       { key: "expenses:reimburse", label: "Mark Expenses as Reimbursed" },
+      { key: "expenses:alert-email", label: "Email alerts" },
+      { key: "expenses:alert-notification", label: "In-app & push alerts" },
     ],
   },
   {
@@ -190,6 +214,8 @@ export const ELEVATED_GROUPS = [
     label: "Resignation",
     perms: [
       { key: "resignation:manage", label: "Manage Resignation Status / Final Approval" },
+      { key: "resignation:alert-email", label: "Email alerts" },
+      { key: "resignation:alert-notification", label: "In-app & push alerts" },
     ],
   },
   {
@@ -201,6 +227,8 @@ export const ELEVATED_GROUPS = [
       { key: "advance-loan:view-all", label: "View All Requests" },
       { key: "advance-loan:statistics", label: "View Loan Statistics" },
       { key: "loan-config:manage", label: "Manage Loan Configuration" },
+      { key: "advance-loan:alert-email", label: "Email alerts" },
+      { key: "advance-loan:alert-notification", label: "In-app & push alerts" },
     ],
   },
   {
@@ -209,6 +237,16 @@ export const ELEVATED_GROUPS = [
     perms: [
       { key: "probation:manage", label: "Manage Probation (Confirm / Extend Employees)" },
       { key: "settings:probation", label: "Manage Probation Policy (Duration & Notice Period)" },
+      { key: "probation:alert-email", label: "Email alerts" },
+      { key: "probation:alert-notification", label: "In-app & push alerts" },
+    ],
+  },
+  {
+    key: "helpdesk",
+    label: "Help Desk",
+    perms: [
+      { key: "helpdesk:alert-email", label: "Email alerts" },
+      { key: "helpdesk:alert-notification", label: "In-app & push alerts" },
     ],
   },
   {

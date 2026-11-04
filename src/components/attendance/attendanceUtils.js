@@ -106,3 +106,28 @@ export function normalizeRecord(row, defaultDay = null, monthLabel = "") {
     formattedDate: dateFormatted,
   };
 }
+
+/**
+ * Team attendance is automatic via reporting structure (managerId),
+ * not a permission. Fetch the team list only when the backend reports reportees.
+ */
+export function shouldLoadTeamAttendance(hasTeam) {
+  return Boolean(hasTeam);
+}
+
+/**
+ * Map /attendance/list (target=team) into page state patches for My Team.
+ */
+export function applyTeamAttendanceListResponse(listRes = {}) {
+  return {
+    rows: Array.isArray(listRes.rows) ? listRes.rows : [],
+    pagination: listRes.pagination
+      ? {
+          total: listRes.pagination.total,
+          pages: listRes.pagination.pages,
+        }
+      : null,
+    hasTeam:
+      listRes.hasTeam !== undefined ? Boolean(listRes.hasTeam) : undefined,
+  };
+}

@@ -56,6 +56,8 @@ import {
   EMPTY_MY_ROW,
   FILTER_LABELS,
   attendanceSuccessMessage,
+  shouldLoadTeamAttendance,
+  applyTeamAttendanceListResponse,
 } from "../components/attendance/attendanceUtils";
 import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
 import { validateField } from "../utils/inputValidation";
@@ -88,7 +90,7 @@ function Attendance() {
   const [selfStats, setSelfStats] = useState(EMPTY_STATS);
   const [orgRows, setOrgRows] = useState([]);
   const [orgStats, setOrgStats] = useState(EMPTY_STATS);
-  const [teamRows] = useState([]);
+  const [teamRows, setTeamRows] = useState([]);
   const [todaySelfRow, setTodaySelfRow] = useState(EMPTY_MY_ROW);
   const [todayLoaded, setTodayLoaded] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -278,6 +280,38 @@ function Attendance() {
     }
   };
 
+  // My Team: automatic via reporting structure (managerId), not a permission.
+  // Managers and custom roles with reportees get the same target=team list.
+  const loadTeamData = async () => {
+    if (!shouldLoadTeamAttendance(hasTeam)) {
+      setTeamRows([]);
+      return;
+    }
+    try {
+      const params = buildListParams(
+        "team",
+        personalViewDate,
+        null,
+        teamFilters,
+        teamPagination
+      );
+      const listRes = await getAttendanceList(params);
+      const next = applyTeamAttendanceListResponse(listRes);
+      setTeamRows(next.rows);
+      if (next.pagination) {
+        setTeamPagination((prev) => ({
+          ...prev,
+          total: next.pagination.total,
+          pages: next.pagination.pages,
+        }));
+      }
+      if (next.hasTeam !== undefined) setHasTeam(next.hasTeam);
+    } catch (err) {
+      if (err.response?.status === 403) return;
+      setError(err.response?.data?.message || "Failed to load team attendance");
+    }
+  };
+
   const loadTodaySelf = async () => {
     if (!canSelfCheckIn) return;
     try {
@@ -334,8 +368,26 @@ function Attendance() {
   useEffect(() => {
     loadSelfData();
     loadOrgData();
+    loadTeamData();
     // eslint-disable-next-line
-  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role, orgEmployeeId]);
+  }, [
+    personalViewDate,
+    selectedPersonalDay,
+    orgViewDate,
+    selectedOrgDay,
+    selfFilters,
+    orgFilters,
+    teamFilters,
+    selfPagination.page,
+    selfPagination.limit,
+    orgPagination.page,
+    orgPagination.limit,
+    teamPagination.page,
+    teamPagination.limit,
+    hasTeam,
+    user?.role,
+    orgEmployeeId,
+  ]);
 
   useEffect(() => {
     if (employees.length > 0 && (!markForm.employeeId || !markMonthForm.employeeId)) {
