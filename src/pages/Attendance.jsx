@@ -40,6 +40,7 @@ import {
   hasLinkedEmployeeProfile,
   canMarkAttendance,
   canViewOrgAttendance,
+  canViewTeamAttendance,
   roleHasPermission,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
@@ -117,6 +118,8 @@ function Attendance() {
     endDate: "",
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
+    departmentId: "",
+    employeeStatus: "",
   });
 
 
@@ -156,11 +159,14 @@ function Attendance() {
   // Org section (stats/table/calendar): attendance:view-org or manage.
   // Mark permission alone does NOT unlock org data.
   const canViewOrg = canViewOrgAttendance(user?.role);
+  // My Team: attendance:view-team + Reporting Manager mapping (hasTeam).
+  const canViewTeam = canViewTeamAttendance(user?.role);
   // The org calendar employee picker needs the directory for everyone who
   // may view org data — not just users who can mark for others.
   const { data: employees = [] } = useAllEmployees({ enabled: canMarkForOthers || canViewOrg });
   const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
   const canSelfCheckIn = hasLinkedEmployeeProfile(user);
+  const showTeamAttendance = shouldLoadTeamAttendance(hasTeam, canViewTeam);
 
   const markAttendanceMutation = useMarkAttendance();
   const markMonthAttendanceMutation = useMarkMonthAttendance();
@@ -184,6 +190,8 @@ function Attendance() {
       search: filterObj.search || "",
       page: pagination.page,
       limit: pagination.limit,
+      departmentId: filterObj.departmentId || "",
+      employeeStatus: filterObj.employeeStatus || "",
     };
     if (selectedDay !== null) {
       params.filterType = "custom";
@@ -280,10 +288,9 @@ function Attendance() {
     }
   };
 
-  // My Team: automatic via reporting structure (managerId), not a permission.
-  // Managers and custom roles with reportees get the same target=team list.
+  // My Team: requires attendance:view-team AND Reporting Manager mapping.
   const loadTeamData = async () => {
-    if (!shouldLoadTeamAttendance(hasTeam)) {
+    if (!shouldLoadTeamAttendance(hasTeam, canViewTeam)) {
       setTeamRows([]);
       return;
     }
@@ -1416,9 +1423,8 @@ function Attendance() {
         />
       )}
 
-      {/* Whoever has reportees working under them always sees their team
-          (backend hasTeam flag), in every non-admin view. */}
-      {hasTeam ? (
+      {/* My Team: only when RBAC grants attendance:view-team and hasTeam. */}
+      {showTeamAttendance ? (
         <div>
           <TodayAttendanceTable
             key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}`}
@@ -1557,7 +1563,7 @@ function Attendance() {
         />
       )}
 
-      {hasTeam && (
+      {showTeamAttendance && (
         <div>
           <TodayAttendanceTable
             key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}`}
