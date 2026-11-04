@@ -75,6 +75,8 @@ export default function ApprovalsList({
   description = "Review the recorded value and requested correction before deciding.",
   emptyTitle = "Nothing waiting for review",
   emptyText = null,
+  // Team mapping alone must not show Approve/Reject — RBAC grant required.
+  canDecide = true,
 }) {
   const toastError = toast.error;
   const toastSuccess = toast.success;
@@ -241,7 +243,11 @@ export default function ApprovalsList({
 
                 <p className="regularization-request-card__reason">{request.reason}</p>
                 <div className="regularization-approval-card__actions">
-                  {isOwnRequest(request) ? (
+                  {!canDecide ? (
+                    <span className="regularization-self-blocked">
+                      View only — approval permission not granted
+                    </span>
+                  ) : isOwnRequest(request) ? (
                     <span
                       className="regularization-self-blocked"
                       title="You cannot approve or reject your own correction"

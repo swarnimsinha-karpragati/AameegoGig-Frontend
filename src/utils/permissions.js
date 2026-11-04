@@ -9,7 +9,7 @@
 // Permission key format: module:feature  (e.g. "payroll:manage")
 // ============================================================
 
-export const RBAC_VERSION = 6;
+export const RBAC_VERSION = 7;
 
 // ---------- Employee baseline (everyone gets these) ----------
 export const BASELINE_PERMISSIONS = [
@@ -58,6 +58,7 @@ export const ELEVATED_PERMISSIONS = [
   "attendance:mark",
   "attendance:manage",
   "attendance:view-org",
+  "attendance:view-team",
   "leave:approve-all",
   "leave:policy",
   "leave:balances",
@@ -150,6 +151,7 @@ export const ELEVATED_GROUPS = [
     label: "Attendance",
     perms: [
       { key: "attendance:view-org", label: "View + Download Organization Attendance (Table + Calendar)" },
+      { key: "attendance:view-team", label: "View Team Attendance (Reporting Manager's Team)" },
       { key: "attendance:mark", label: "Mark / Correct Daily Attendance for Others" },
       { key: "attendance:manage", label: "Mark Month Attendance + Bulk Upload + Download Reports" },
     ],
@@ -320,6 +322,7 @@ const MANAGER_ROLE = {
     "employees:view",
     "attendance:mark",
     "attendance:view-org",
+    "attendance:view-team",
     "regularization:approve",
     "expenses:approve",
     "documents:view-all",

@@ -16,13 +16,18 @@ describe("attendanceSuccessMessage", () => {
 });
 
 describe("shouldLoadTeamAttendance", () => {
-  it("loads for managers and custom roles when backend reports reportees", () => {
-    expect(shouldLoadTeamAttendance(true)).toBe(true);
+  it("loads only when both team mapping and view-team permission are present", () => {
+    expect(shouldLoadTeamAttendance(true, true)).toBe(true);
   });
 
-  it("skips the team list when the caller has no reportees", () => {
-    expect(shouldLoadTeamAttendance(false)).toBe(false);
-    expect(shouldLoadTeamAttendance(undefined)).toBe(false);
+  it("skips when the caller has no reportees", () => {
+    expect(shouldLoadTeamAttendance(false, true)).toBe(false);
+    expect(shouldLoadTeamAttendance(undefined, true)).toBe(false);
+  });
+
+  it("skips when team mapping exists but attendance:view-team is missing", () => {
+    expect(shouldLoadTeamAttendance(true, false)).toBe(false);
+    expect(shouldLoadTeamAttendance(true)).toBe(false);
   });
 });
 

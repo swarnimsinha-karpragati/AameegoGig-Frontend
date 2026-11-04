@@ -14,6 +14,7 @@ export const statusTextClass = {
   Late: "status-text-late",
   Leave: "status-text-leave",
   WFH: "status-text-wfh",
+  "Not Marked": "status-text-absent",
 };
 
 export const EMPTY_STATS = {
@@ -23,7 +24,17 @@ export const EMPTY_STATS = {
   Late: 0,
   Leave: 0,
   WFH: 0,
+  "Not Marked": 0,
 };
+
+export const EMPLOYEE_STATUS_FILTER_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "probation", label: "Probation" },
+  { value: "full-time", label: "Full-time" },
+  { value: "inactive", label: "Inactive" },
+  { value: "exited", label: "Exited" },
+];
 
 export const EMPTY_MY_ROW = {
   id: "—",
@@ -108,11 +119,11 @@ export function normalizeRecord(row, defaultDay = null, monthLabel = "") {
 }
 
 /**
- * Team attendance is automatic via reporting structure (managerId),
- * not a permission. Fetch the team list only when the backend reports reportees.
+ * Team attendance requires both Reporting Manager mapping (hasTeam) and
+ * the attendance:view-team RBAC grant (canViewTeam). Mapping alone is not enough.
  */
-export function shouldLoadTeamAttendance(hasTeam) {
-  return Boolean(hasTeam);
+export function shouldLoadTeamAttendance(hasTeam, canViewTeam = false) {
+  return Boolean(hasTeam) && Boolean(canViewTeam);
 }
 
 /**
