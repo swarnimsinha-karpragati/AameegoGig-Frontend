@@ -103,7 +103,7 @@ describe("LeavePolicyManager save confirmation", () => {
     renderPolicy();
 
     const probation = await screen.findByRole("switch", {
-      name: "Accrue paid leave during probation",
+      name: "Allow taking paid leave during probation",
     });
     userEvent.click(probation);
 
