@@ -101,9 +101,9 @@ const describeType = (t, policy) => {
       parts.push("Unused days can be carried forward.");
     }
     if (policy?.accruePaidLeaveDuringProbation !== true) {
-      parts.push("No CL, SL, or EL during probation.");
-    } else if (t.code === "EL") {
-      parts.push("EL can accrue during probation.");
+      parts.push("Collects during probation; can be taken after confirmation.");
+    } else {
+      parts.push("Can be taken during probation.");
     }
     if (t.code === "SL" && t.documents?.requiredWhenDaysGt != null) {
       parts.push(`Medical document needed when sick leave is more than ${t.documents.requiredWhenDaysGt} day${t.documents.requiredWhenDaysGt === 1 ? "" : "s"}.`);
@@ -537,8 +537,8 @@ export default function LeavePolicyManager() {
           onChange={(accruePaidLeaveDuringProbation) =>
             setLocalPolicy((prev) => (prev ? { ...prev, accruePaidLeaveDuringProbation } : prev))
           }
-          label="Accrue paid leave during probation"
-          hint="Off: a probation month earns no CL, SL, or EL, and those leaves cannot be applied. On: CL and SL accrue as usual, and EL follows the rule below."
+          label="Allow taking paid leave during probation"
+          hint="Off: CL, SL, and EL still collect each month, but employees cannot apply them until probation ends. On: employees may apply CL, SL, and EL while still on probation."
         />
       </div>
 

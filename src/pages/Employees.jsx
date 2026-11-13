@@ -58,6 +58,7 @@ import {
   getEmployeeProbationHistory,
 } from "../services/probationService";
 import ProbationHistoryModal from "../components/ProbationHistoryModal";
+import { isOnProbation } from "../utils/probationStatus";
 
 import { createTermination } from "../services/terminationService";
 import IssueLetterPanel from "../components/letters/IssueLetterPanel";
@@ -2472,7 +2473,7 @@ function EmployeesPage() {
                                   : "Inactive"}
                           </span>
                           {!emp.isDeleted && !emp.isExited && !emp.isConsultancy ? (
-                            emp.employmentStatus === "probation" ? (
+                            isOnProbation(emp) ? (
                               <>
                                 <span className="status-badge probation" title={emp.probationEndDate ? `Probation till ${new Date(emp.probationEndDate).toLocaleDateString()}` : "On probation"}>
                                   Probation
@@ -2570,7 +2571,7 @@ function EmployeesPage() {
                                 </>
                               )}
 
-                              {directoryType === "employee" && canManageProbation(user?.role) && !emp.isConsultancy && emp.employmentStatus === "probation" && !emp.isDeleted && !emp.isExited ? (
+                              {directoryType === "employee" && canManageProbation(user?.role) && !emp.isConsultancy && isOnProbation(emp) && !emp.isDeleted && !emp.isExited ? (
                                 <>
                                   {renderMenuSectionToggle("probation", "Probation")}
                                   {expandedMenuSection === "probation" && (
@@ -3172,12 +3173,8 @@ function EmployeesPage() {
                       <div>
                         <label>Employment Status</label>
                         <span>
-                          {selectedEmployee.employmentStatus === "probation"
-                            ? "Probation"
-                            : selectedEmployee.employmentStatus === "full-time"
-                              ? "Full-time"
-                              : "-"}
-                          {selectedEmployee.employmentStatus === "probation" ? (
+                          {isOnProbation(selectedEmployee) ? "Probation" : "Full-time"}
+                          {isOnProbation(selectedEmployee) ? (
                             <button
                               type="button"
                               className="emp-info-btn"

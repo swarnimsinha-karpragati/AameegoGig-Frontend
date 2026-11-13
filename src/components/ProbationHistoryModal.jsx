@@ -2,6 +2,7 @@ import React from "react";
 import { X } from "lucide-react";
 import "./ProbationHistoryModal.css";
 import { convertUTCtoDDMMYYYY } from "../pages/Employees";
+import { isOnProbation } from "../utils/probationStatus";
 
 const ACTION_LABELS = {
   created: "Probation started",
@@ -41,7 +42,7 @@ export default function ProbationHistoryModal({
               <p className="probhist-sub">
                 Current status:{" "}
                 <strong>
-                  {data.employmentStatus === "probation"
+                  {isOnProbation(data)
                     ? `Probation${data.probationEndDate ? ` (till ${convertUTCtoDDMMYYYY(data.probationEndDate)})` : ""}`
                     : "Full-time"}
                 </strong>
