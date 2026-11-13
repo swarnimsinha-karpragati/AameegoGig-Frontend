@@ -41,8 +41,6 @@ export function LandingHeader() {
 
       <nav className="landing-nav-links" id="landing-nav-links" aria-label="Primary">
         <SectionLink id="features" onNavigate={close}>Features</SectionLink>
-        <Link to={FIELD_HRMS_PATH} onClick={close}>Field HRMS</Link>
-        <Link to={OFFICE_HRMS_PATH} onClick={close}>Office HRMS</Link>
         <SectionLink id="how-it-works" onNavigate={close}>How it works</SectionLink>
         <SectionLink id="faq" onNavigate={close}>FAQ</SectionLink>
       </nav>
@@ -80,8 +78,7 @@ export function LandingFooter() {
       <nav className="landing-footer-links" aria-label="Footer">
         <SectionLink id="features">HRMS Features</SectionLink>
         <SectionLink id="who-its-for">Who it&apos;s for</SectionLink>
-        <Link to={FIELD_HRMS_PATH}>Blue-collar &amp; field HRMS</Link>
-        <Link to={OFFICE_HRMS_PATH}>White-collar &amp; office HRMS</Link>
+        <SectionLink id="solutions">Solutions</SectionLink>
         <SectionLink id="how-it-works">How it works</SectionLink>
         <SectionLink id="faq">FAQ</SectionLink>
         <SectionLink id="demo">Request a demo</SectionLink>
