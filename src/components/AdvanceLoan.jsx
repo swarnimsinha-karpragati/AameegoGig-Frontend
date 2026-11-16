@@ -47,6 +47,7 @@ import { getRepaymentLabel, getTypeLabel, rejectionReasonOf } from "../utils/adv
 import "./AdvanceLoanRequest.css";
 import Card from "../components/Card";
 import TableHScroll from "./TableHScroll";
+import FloatingMenu from "./FloatingMenu";
 import LoanConfiguration from "./LoanConfiguration";
 
 const PAYMENT_METHODS = ["SALARY_DEDUCTION", "CASH", "BANK_TRANSFER", "OTHER"];
@@ -1245,6 +1246,11 @@ function AdvanceLoanInner() {
     const [payrollWarning, setPayrollWarning] = useState("");
     const [formApiError, setFormApiError] = useState("");
     const [openMenuId, setOpenMenuId] = useState(null);
+    const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+    const closeRowMenu = useCallback(() => {
+        setOpenMenuId(null);
+        setMenuAnchorEl(null);
+    }, []);
 
     const { refetch: refetchStats } = useAdvanceLoanStatistics({ enabled: canViewAll });
     const { refetch: refetchAll } = useAdvanceLoanAllRequests({}, { enabled: canViewAll });
@@ -1317,10 +1323,9 @@ function AdvanceLoanInner() {
 
     // Close the row action dropdown when clicking anywhere outside it.
     useEffect(() => {
-        const closeMenu = () => setOpenMenuId(null);
-        document.addEventListener("click", closeMenu);
-        return () => document.removeEventListener("click", closeMenu);
-    }, []);
+        document.addEventListener("click", closeRowMenu);
+        return () => document.removeEventListener("click", closeRowMenu);
+    }, [closeRowMenu]);
 
     const [modal, setModal] = useState({
         open: false, title: "", message: "", confirmLabel: "Confirm", variant: "danger",
@@ -1595,18 +1600,47 @@ function AdvanceLoanInner() {
                                                     }
                                                     return (
                                                         <div className={`advance-menu-wrap${openMenuId === req._id ? " open" : ""}`} onClick={(e) => e.stopPropagation()}>
-                                                            <button className="advance-menu-trigger" onClick={(e) => { e.stopPropagation(); setOpenMenuId((cur) => (cur === req._id ? null : req._id)); }} title="Actions" aria-label="Actions">
+                                                            <button
+                                                                type="button"
+                                                                className="advance-menu-trigger"
+                                                                title="Actions"
+                                                                aria-label="Actions"
+                                                                aria-haspopup="menu"
+                                                                aria-expanded={openMenuId === req._id}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (openMenuId === req._id) {
+                                                                        closeRowMenu();
+                                                                        return;
+                                                                    }
+                                                                    setMenuAnchorEl(e.currentTarget);
+                                                                    setOpenMenuId(req._id);
+                                                                }}
+                                                            >
                                                                 <MoreVertical size={17} />
                                                             </button>
                                                             {openMenuId === req._id && items.length > 0 && (
-                                                                <div className="advance-dropdown">
+                                                                <FloatingMenu
+                                                                    anchorEl={menuAnchorEl}
+                                                                    className="advance-dropdown"
+                                                                    role="menu"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
                                                                     {items.map((item) => (
-                                                                        <button key={item.key} className={`advance-dropdown-item ${item.cls}`} onClick={() => { setOpenMenuId(null); item.onClick(); }}>
+                                                                        <button
+                                                                            key={item.key}
+                                                                            type="button"
+                                                                            className={`advance-dropdown-item ${item.cls}`}
+                                                                            onClick={() => {
+                                                                                closeRowMenu();
+                                                                                item.onClick();
+                                                                            }}
+                                                                        >
                                                                             {item.icon}
                                                                             <span>{item.label}</span>
                                                                         </button>
                                                                     ))}
-                                                                </div>
+                                                                </FloatingMenu>
                                                             )}
                                                         </div>
                                                     );

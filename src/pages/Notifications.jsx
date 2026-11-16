@@ -1,4 +1,5 @@
-import { Bell } from "lucide-react";
+import { Bell, ChevronLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import MainLayout from "../layouts/MainLayout";
 import { Button, Card, EmptyState, Spinner } from "../design-system";
@@ -8,6 +9,7 @@ import { getStoredUser } from "../utils/authStorage";
 import { toVendorSlug } from "../utils/vendorPath";
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const vendorCode = toVendorSlug(getStoredUser()?.vendorName);
   const inbox = useInbox({ limit: 20 });
   const { data: unreadCount = 0 } = useUnreadCount();
@@ -56,6 +58,16 @@ export default function Notifications() {
   return (
     <MainLayout>
       <div className="wz-ds">
+      <div style={{ marginBottom: 12 }}>
+        <Button
+          variant="secondary"
+          icon={<ChevronLeft size={16} />}
+          // Opened from a push link or a new tab there is no in-app page to return to.
+          onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate(`/${vendorCode}/dashboard`))}
+        >
+          Back
+        </Button>
+      </div>
       <Card
         padded={false}
         title="All notifications"

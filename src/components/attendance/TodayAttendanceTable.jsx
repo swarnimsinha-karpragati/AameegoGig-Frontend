@@ -6,9 +6,11 @@ import SelfieModal from "./SelfieModal";
 import AttendanceEditModal from "./AttendanceEditModal";
 import { getCheckInSelfieUrl } from "../../services/attendanceService";
 import { useDownloadAttendanceReport } from "../../hooks/useAttendance";
-import { normalizeRecord, statusTextClass } from "./attendanceUtils";
+import { normalizeRecord, statusTextClass, EMPLOYEE_STATUS_FILTER_OPTIONS } from "./attendanceUtils";
 import { saveDownload } from "../../utils/saveDownload";
 import { useToast } from "../Toast";
+import { useDepartmentNames } from "../../hooks/useDepartments";
+import { getStoredUser } from "../../utils/roles";
 import "./TodayAttendanceTable.css";
 
 function TodayAttendanceTable({
@@ -29,6 +31,12 @@ function TodayAttendanceTable({
   target = "self",
   downloadParams = null,
 }) {
+  const showRosterFilters = target === "team" || target === "org";
+  const vendorId = getStoredUser()?.vendorId;
+  // getDepartmentName is open to any signed-in user (Managers included).
+  const { data: departments = [] } = useDepartmentNames(vendorId, {
+    enabled: showRosterFilters && Boolean(vendorId),
+  });
   const [expandedRowId, setExpandedRowId] = useState(null);
   const [selfieModal, setSelfieModal] = useState({ open: false, imageUrl: "", title: "" });
   const [editRecord, setEditRecord] = useState(null);
@@ -76,6 +84,8 @@ function TodayAttendanceTable({
         endDate: filters.endDate || "",
         month: filters.month,
         year: filters.year,
+        departmentId: filters.departmentId || "",
+        employeeStatus: filters.employeeStatus || "",
       };
       const blob = await downloadMutation.mutateAsync(params);
       const fileName = `Attendance_Report_${new Date().toISOString().split("T")[0]}.xlsx`;
@@ -107,11 +117,43 @@ function TodayAttendanceTable({
                 {/* Search Bar */}
                 <input
                   type="text"
-                  placeholder="Search Employee..."
+                  placeholder="Search by name or ID..."
                   value={localSearch || ""}
                   onChange={(e) => setLocalSearch(e.target.value)}
                   className="attendance-search"
                 />
+
+                {showRosterFilters ? (
+                  <>
+                    <select
+                      className="attendance-filter-select"
+                      value={filters.departmentId || ""}
+                      onChange={(e) => onFilterChange("departmentId", e.target.value)}
+                      title="Department"
+                      aria-label="Filter by department"
+                    >
+                      <option value="">All departments</option>
+                      {departments.map((dept) => (
+                        <option key={dept._id} value={dept._id}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="attendance-filter-select"
+                      value={filters.employeeStatus || ""}
+                      onChange={(e) => onFilterChange("employeeStatus", e.target.value)}
+                      title="Employee status"
+                      aria-label="Filter by employee status"
+                    >
+                      {EMPLOYEE_STATUS_FILTER_OPTIONS.map((opt) => (
+                        <option key={opt.value || "all"} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : null}
 
                 {/* Date Range Picker */}
                 <div className="attendance-date-range-wrap" style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
@@ -233,7 +275,9 @@ function TodayAttendanceTable({
                       ? "Paid holiday — no attendance recorded for this day."
                       : isCalendarSelection && weekOff
                         ? "Weekly off — no attendance recorded for this day."
-                        : "No attendance records found."}
+                        : target === "team"
+                          ? "No team members found for this filter."
+                          : "No attendance records found."}
                   </td>
                 </tr>
               )}
@@ -241,7 +285,7 @@ function TodayAttendanceTable({
               {!isTableLoading &&
                 rows.map((unnormalizedRow) => {
                   const row = normalizeRecord(unnormalizedRow);
-                  const rowKey = String(row.employeeId?._id || row.employeeId || row.id);
+                  const rowKey = `${String(row.employeeId?._id || row.employeeId || row.id)}-${row.date || row.formattedDate || ""}`;
                   const isExpanded = expandedRowId === rowKey;
                   const sessions = row.sessions || [];
                   const hasSessions = sessions.length > 0;

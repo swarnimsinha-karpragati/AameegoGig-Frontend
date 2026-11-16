@@ -6,8 +6,9 @@
   flex: 1;
   min-width: 0;
   min-height: 100%;
-  padding: 0 0 24px;
-  overflow-y: auto;
+  padding: 0 0 var(--hdw-fab-clearance, 88px);
+  overflow-x: hidden;
+  overflow-y: visible;
   color: var(--reg-ink);
   background:
     radial-gradient(circle at 92% 0%, rgba(219, 234, 254, 0.72), transparent 28rem),
@@ -235,6 +236,8 @@
 }
 
 .regularization-panel {
+  min-width: 0;
+  max-width: 100%;
   padding: 22px;
   border-radius: 20px;
 }
@@ -602,12 +605,16 @@
   display: grid;
   gap: 10px;
   margin-top: 15px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .regularization-request-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 13px;
+  min-width: 0;
+  max-width: 100%;
   padding: 15px;
   border: 1px solid #e2e8f0;
   border-radius: 15px;
@@ -640,16 +647,28 @@
   background: #ede9fe;
 }
 
+.regularization-request-card__body {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .regularization-request-card__top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+}
+
+.regularization-request-card__top > div {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .regularization-request-card h3 {
   margin: 0;
   font-size: 14px;
+  overflow-wrap: break-word;
 }
 
 .regularization-request-card__top p {
@@ -717,44 +736,84 @@
 
 .regularization-panel--compact .regularization-request-card__body {
   display: flex;
+  flex-direction: column;
   min-width: 0;
-  align-items: center;
-  gap: 12px;
-}
-
-.regularization-panel--compact .regularization-request-card__top {
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 9px;
-}
-
-.regularization-panel--compact .regularization-request-card__top>div {
-  display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
 }
 
+.regularization-panel--compact .regularization-request-card__top {
+  flex: none;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.regularization-panel--compact .regularization-request-card__top>div {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .regularization-panel--compact .regularization-request-card__top p {
-  margin: 0;
-  white-space: nowrap;
+  margin: 4px 0 0;
+  white-space: normal;
 }
 
 .regularization-panel--compact .regularization-request-card__reason {
   min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
+  flex: none;
+  overflow: visible;
   margin: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: unset;
+  white-space: normal;
 }
 
 .regularization-panel--compact .regularization-cancel-trigger {
-  margin-left: auto;
+  margin-left: 0;
   white-space: nowrap;
 }
 
 .regularization-panel--compact .regularization-cancel-box {
   flex: 1 0 100%;
+}
+
+@media (min-width: 901px) {
+  .regularization-panel--compact .regularization-request-card__body {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .regularization-panel--compact .regularization-request-card__top {
+    flex: 0 0 auto;
+    width: auto;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .regularization-panel--compact .regularization-request-card__top>div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .regularization-panel--compact .regularization-request-card__top p {
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .regularization-panel--compact .regularization-request-card__reason {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .regularization-panel--compact .regularization-cancel-trigger {
+    margin-left: auto;
+  }
 }
 
 .regularization-approval-list {
@@ -863,10 +922,12 @@
 
 .regularization-status {
   display: inline-flex;
+  flex-shrink: 0;
   padding: 4px 9px;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .regularization-status.pending {
@@ -1020,10 +1081,6 @@
 }
 
 @media (max-width: 760px) {
-  .regularization-page {
-    padding: 0 0 18px;
-  }
-
   .regularization-header__badge {
     display: none;
   }
@@ -1037,11 +1094,18 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 900px) {
   .regularization-page {
-    padding: 0 0 15px;
+    flex: none;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 0 0 var(--hdw-fab-clearance, 88px);
+    touch-action: pan-y;
   }
+}
 
+@media (max-width: 600px) {
   .regularization-form {
     grid-template-columns: 1fr;
   }
@@ -1071,10 +1135,6 @@
 
   .regularization-form__actions .generic-btn {
     width: 100%;
-  }
-
-  .regularization-request-card {
-    grid-template-columns: 1fr;
   }
 
   .regularization-request-card__icon {

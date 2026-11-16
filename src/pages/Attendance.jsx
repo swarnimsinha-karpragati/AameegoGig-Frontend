@@ -40,6 +40,7 @@ import {
   hasLinkedEmployeeProfile,
   canMarkAttendance,
   canViewOrgAttendance,
+  canViewTeamAttendance,
   roleHasPermission,
 } from "../utils/roles";
 import { formatGeoLocation, getAttendanceLocation } from "../utils/geolocation";
@@ -56,6 +57,8 @@ import {
   EMPTY_MY_ROW,
   FILTER_LABELS,
   attendanceSuccessMessage,
+  shouldLoadTeamAttendance,
+  applyTeamAttendanceListResponse,
 } from "../components/attendance/attendanceUtils";
 import MonthlyAttendanceReport from "../components/MonthlyAttendanceReport";
 import { validateField } from "../utils/inputValidation";
@@ -88,7 +91,7 @@ function Attendance() {
   const [selfStats, setSelfStats] = useState(EMPTY_STATS);
   const [orgRows, setOrgRows] = useState([]);
   const [orgStats, setOrgStats] = useState(EMPTY_STATS);
-  const [teamRows] = useState([]);
+  const [teamRows, setTeamRows] = useState([]);
   const [todaySelfRow, setTodaySelfRow] = useState(EMPTY_MY_ROW);
   const [todayLoaded, setTodayLoaded] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -115,6 +118,8 @@ function Attendance() {
     endDate: "",
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
+    departmentId: "",
+    employeeStatus: "",
   });
 
 
@@ -154,11 +159,14 @@ function Attendance() {
   // Org section (stats/table/calendar): attendance:view-org or manage.
   // Mark permission alone does NOT unlock org data.
   const canViewOrg = canViewOrgAttendance(user?.role);
+  // My Team: attendance:view-team + Reporting Manager mapping (hasTeam).
+  const canViewTeam = canViewTeamAttendance(user?.role);
   // The org calendar employee picker needs the directory for everyone who
   // may view org data — not just users who can mark for others.
   const { data: employees = [] } = useAllEmployees({ enabled: canMarkForOthers || canViewOrg });
   const canManageAttendance = roleHasPermission(user?.role, "attendance:manage");
   const canSelfCheckIn = hasLinkedEmployeeProfile(user);
+  const showTeamAttendance = shouldLoadTeamAttendance(hasTeam, canViewTeam);
 
   const markAttendanceMutation = useMarkAttendance();
   const markMonthAttendanceMutation = useMarkMonthAttendance();
@@ -182,6 +190,8 @@ function Attendance() {
       search: filterObj.search || "",
       page: pagination.page,
       limit: pagination.limit,
+      departmentId: filterObj.departmentId || "",
+      employeeStatus: filterObj.employeeStatus || "",
     };
     if (selectedDay !== null) {
       params.filterType = "custom";
@@ -278,6 +288,37 @@ function Attendance() {
     }
   };
 
+  // My Team: requires attendance:view-team AND Reporting Manager mapping.
+  const loadTeamData = async () => {
+    if (!shouldLoadTeamAttendance(hasTeam, canViewTeam)) {
+      setTeamRows([]);
+      return;
+    }
+    try {
+      const params = buildListParams(
+        "team",
+        personalViewDate,
+        null,
+        teamFilters,
+        teamPagination
+      );
+      const listRes = await getAttendanceList(params);
+      const next = applyTeamAttendanceListResponse(listRes);
+      setTeamRows(next.rows);
+      if (next.pagination) {
+        setTeamPagination((prev) => ({
+          ...prev,
+          total: next.pagination.total,
+          pages: next.pagination.pages,
+        }));
+      }
+      if (next.hasTeam !== undefined) setHasTeam(next.hasTeam);
+    } catch (err) {
+      if (err.response?.status === 403) return;
+      setError(err.response?.data?.message || "Failed to load team attendance");
+    }
+  };
+
   const loadTodaySelf = async () => {
     if (!canSelfCheckIn) return;
     try {
@@ -334,8 +375,26 @@ function Attendance() {
   useEffect(() => {
     loadSelfData();
     loadOrgData();
+    loadTeamData();
     // eslint-disable-next-line
-  }, [personalViewDate, selectedPersonalDay, orgViewDate, selectedOrgDay, selfFilters, orgFilters, selfPagination.page, selfPagination.limit, orgPagination.page, orgPagination.limit, hasTeam, user?.role, orgEmployeeId]);
+  }, [
+    personalViewDate,
+    selectedPersonalDay,
+    orgViewDate,
+    selectedOrgDay,
+    selfFilters,
+    orgFilters,
+    teamFilters,
+    selfPagination.page,
+    selfPagination.limit,
+    orgPagination.page,
+    orgPagination.limit,
+    teamPagination.page,
+    teamPagination.limit,
+    hasTeam,
+    user?.role,
+    orgEmployeeId,
+  ]);
 
   useEffect(() => {
     if (employees.length > 0 && (!markForm.employeeId || !markMonthForm.employeeId)) {
@@ -1364,9 +1423,8 @@ function Attendance() {
         />
       )}
 
-      {/* Whoever has reportees working under them always sees their team
-          (backend hasTeam flag), in every non-admin view. */}
-      {hasTeam ? (
+      {/* My Team: only when RBAC grants attendance:view-team and hasTeam. */}
+      {showTeamAttendance ? (
         <div>
           <TodayAttendanceTable
             key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}`}
@@ -1505,7 +1563,7 @@ function Attendance() {
         />
       )}
 
-      {hasTeam && (
+      {showTeamAttendance && (
         <div>
           <TodayAttendanceTable
             key={`team-filter-${teamFilters.filterType}-${teamFilters.startDate}-${teamFilters.endDate}`}

@@ -21,6 +21,9 @@ import {
   resetRoleAccessLoads,
   SESSION_REQUEST_TIMEOUT_MS,
   subscribeRoleAccess,
+  canViewTeamAttendance,
+  canApproveRegularization,
+  canViewOrgAttendance,
 } from "./roles";
 import { act } from "@testing-library/react";
 import { clearAuthData, getStoredUser, setAuthData } from "./authStorage";
@@ -492,5 +495,22 @@ describe("Intern role access", () => {
     );
     expect(userHasModule({ role: "Intern", allowedModules: internModules }, "payroll")).toBe(true);
     expect(userHasModule({ role: "Intern", allowedModules: internModules }, "employees")).toBe(false);
+  });
+});
+
+describe("team attendance and regularization approve RBAC", () => {
+  test("Employee default role cannot view team attendance or approve regularization", () => {
+    expect(canViewTeamAttendance("Employee")).toBe(false);
+    expect(canApproveRegularization("Employee")).toBe(false);
+  });
+
+  test("Manager default role can view team attendance and approve regularization", () => {
+    expect(canViewTeamAttendance("Manager")).toBe(true);
+    expect(canApproveRegularization("Manager")).toBe(true);
+  });
+
+  test("org attendance view implies team attendance view", () => {
+    expect(canViewOrgAttendance("HR")).toBe(true);
+    expect(canViewTeamAttendance("HR")).toBe(true);
   });
 });

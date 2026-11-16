@@ -26,6 +26,7 @@ import {
 import { getMyProbationHistory } from "../services/probationService";
 import ProbationHistoryModal from "./ProbationHistoryModal";
 import { resolveMediaUrl } from "../utils/mediaUrl";
+import { isOnProbation } from "../utils/probationStatus";
 import "./ProfileCard.css";
 import Button from "./Button";
 
@@ -96,6 +97,7 @@ export default function ProfileCard() {
   const [role, setRole] = useState("");
   const [reportingManager, setReportingManager] = useState(null);
   const [employmentStatus, setEmploymentStatus] = useState(null);
+  const [probationEndDate, setProbationEndDate] = useState(null);
   const [isConsultancy, setIsConsultancy] = useState(false);
   const [employeeCode, setEmployeeCode] = useState("");
   const [dateOfJoining, setDateOfJoining] = useState(null);
@@ -181,6 +183,7 @@ export default function ProfileCard() {
     setReportingManager(data.reportingManager || null);
     setEmployeeCode(data.employeeCode || "");
     setEmploymentStatus(data.employmentStatus || null);
+    setProbationEndDate(data.probationEndDate || null);
     setIsConsultancy(Boolean(data.isConsultancy));
     setDateOfJoining(data.dateOfJoining || null);
     setDob(toDateInput(data.dob));
@@ -457,8 +460,12 @@ export default function ProfileCard() {
             <span className="profile-info-copy">
               <span className="profile-info-label">Employment Status</span>
               <span className="profile-info-value">
-                {isConsultancy ? "Consultancy" : employmentStatus === "probation" ? "Probation" : "Full-time"}
-                {!isConsultancy && employmentStatus === "probation" ? (
+                {isConsultancy
+                  ? "Consultancy"
+                  : isOnProbation({ employmentStatus, probationEndDate, isConsultancy })
+                    ? "Probation"
+                    : "Full-time"}
+                {!isConsultancy && isOnProbation({ employmentStatus, probationEndDate, isConsultancy }) ? (
                   <button
                     type="button"
                     className="emp-info-btn"

@@ -385,6 +385,11 @@ export const canViewOrgAttendance = (role) =>
   roleHasPermission(role, "attendance:view-org") ||
   roleHasPermission(role, "attendance:manage");
 
+// Team attendance (My Team): requires attendance:view-team. Reporting Manager
+// mapping alone is not enough — both permission and reportees are required.
+export const canViewTeamAttendance = (role) =>
+  role === "Admin" || roleHasPermission(role, "attendance:view-team");
+
 export const getLeaveViewKey = (role) => {
   if (role === "Admin") return "Organization";
   if (roleHasPermission(role, "leave:policy") || roleHasPermission(role, "leave:balances")) return "HR";
@@ -542,6 +547,14 @@ export const roleHasPermission = (role, permissionKey) => {
     return true;
   if (
     permissionKey === "attendance:view" &&
+    (perms.includes("attendance:view-org") ||
+      perms.includes("attendance:view-team") ||
+      perms.includes("attendance:manage"))
+  )
+    return true;
+  // Org-wide / manage attendance implies team attendance view.
+  if (
+    permissionKey === "attendance:view-team" &&
     (perms.includes("attendance:view-org") || perms.includes("attendance:manage"))
   )
     return true;

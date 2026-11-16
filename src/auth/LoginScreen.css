@@ -5,12 +5,13 @@
 }
 
 
-/* Strict 100vh Wrapper */
+/* Desktop: lock to viewport so the hero art lines up with the title (Figma).
+   Form card itself never scrolls; mobile allows page scroll below. */
 .login-wrapper {
     font-family: 'Sora', sans-serif;
-    height: 100vh; 
-    height: 100dvh; 
-    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
     display: flex;
     flex-direction: column;
     background-color: #F8FAFC;
@@ -20,13 +21,14 @@
 /* Main Area: Flexes to fill remaining space */
 .login-main {
     display: flex;
-    flex: 1;
-    padding: 2vh 4vw; 
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 2vh 4vw;
     background-size: cover;
-    background-position: top;
-    align-items: center; 
-    overflow: hidden;
+    background-position: top center;
+    align-items: stretch;
     position: relative; /* REQUIRED for the overlay and pills */
+    overflow: hidden;
 }
 
 /* The overlay layer that fills the main area */
@@ -42,14 +44,24 @@
 
 /* --- Left Side / Hero --- */
 .login-left {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     padding-top: 2rem;
     padding-right: 2rem;
-    height: 100%;
-    position: relative; 
+    min-width: 0;
+    position: relative;
     z-index: 2; /* Ensures text and pills sit ABOVE the blue overlay */
+}
+
+/* Keep headline/subtitle in the clear zone left of the illustration */
+.login-left .brand-logo,
+.login-left .hrms-pill,
+.login-left .hero-title,
+.login-left .hero-subtitle {
+    max-width: min(28rem, 52%);
+    position: relative;
+    z-index: 3;
 }
 
 /* Floating Pills Styles */
@@ -139,19 +151,21 @@
 }
 
 .hero-title {
-    font-size: 3rem; 
-    line-height: 1.1;
+    font-size: clamp(2rem, 3.4vw, 3rem);
+    line-height: 1.15;
     font-weight: 700;
     color: #0A1F4A;
     margin: 0 0 2vh 0;
 }
 
-.hero-title .text-green { color: #0BA896; }
+.hero-title .hero-accent {
+    color: #0BA896;
+    display: inline-block;
+}
 
 .hero-subtitle {
     font-size: 0.8rem;
     color: #111112;
-    max-width: 50%;
     line-height: 1.6;
 }
 
@@ -162,39 +176,40 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    z-index: 10;
-    height: 100%;
-    position: relative; 
+    align-self: center;
+    height: auto;
+    max-height: 100%;
+    position: relative;
     z-index: 2; /* Ensures form card sits ABOVE the blue overlay */
+    flex-shrink: 0;
 }
 
 .form-card {
     background: #FFFFFF;
     border-radius: 24px;
-    padding: 4vh 2rem; 
+    padding: clamp(1rem, 2.5vh, 2rem) 2rem;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
-    max-height: 95%; /* Prevents breaking strict 100vh on tiny screens */
+    width: 100%;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    overflow: visible; /* Card grows with content — no nested form scrollbar */
 }
 
 .form-card form {
-    overflow-y: auto; /* If screen is tiny, ONLY form fields scroll inside card */
-    padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
 }
 
-.form-card form::-webkit-scrollbar {
-    width: 4px;
-}
-.form-card form::-webkit-scrollbar-thumb {
-    background: #E2E8F0;
-    border-radius: 4px;
+.form-header {
+    flex-shrink: 0;
 }
 
 .form-header h2 {
-    font-size: 1.7rem;
+    font-size: clamp(1.25rem, 2.2vh, 1.7rem);
     color: #1A2353;
-    margin: 0 0 0.5vh 0;
+    margin: 0 0 clamp(0.15rem, 0.4vh, 0.5rem) 0;
     font-weight: 600;
     flex-shrink: 0;
 }
@@ -202,12 +217,12 @@
 .form-header p {
     font-size: 0.8rem;
     color: #64748B;
-    margin: 0 0 2vh 0;
+    margin: 0 0 clamp(0.5rem, 1.2vh, 1rem) 0;
     flex-shrink: 0;
 }
 
 .input-group {
-    margin-bottom: 2vh;
+    margin-bottom: clamp(0.45rem, 1.2vh, 0.85rem);
     display: flex;
     flex-direction: column;
     position: relative;
@@ -222,7 +237,7 @@
 }
 
 .input-group input {
-    padding: 0.85rem 1rem;
+    padding: clamp(0.55rem, 1.2vh, 0.85rem) 1rem;
     border: 1px solid #E2E8F0;
     border-radius: 8px;
     font-size: 0.95rem;
@@ -294,6 +309,94 @@ input:-webkit-autofill:active{
     font-weight: 500;
 }
 
+.helper-text-plain {
+    display: block;
+    font-weight: 400;
+    color: #6C757D;
+    line-height: 1.45;
+}
+
+.auth-back {
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+}
+
+.auth-back-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+}
+
+.otp-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.otp-boxes {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.otp-box {
+    width: 48px;
+    height: 52px;
+    font-size: 1.25rem;
+    text-align: center;
+    padding: 0;
+    border-radius: 8px;
+    border: 1px solid #D1D5DB;
+    font-weight: 600;
+    color: #1A2353;
+    outline: none;
+    background: #FFFFFF;
+}
+
+.otp-box:focus {
+    border-color: #1867C0;
+    box-shadow: 0 0 0 3px rgba(24, 103, 192, 0.12);
+}
+
+.otp-box-filled {
+    border: 2px solid #111827;
+}
+
+.otp-resend-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    color: #6B7280;
+    margin: 0.25rem 0 1rem;
+    flex-wrap: wrap;
+}
+
+.otp-resend-timer {
+    font-weight: 500;
+    color: #6B7280;
+}
+
+.otp-resend-pill {
+    color: #3B82F6;
+    background: #EFF6FF;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.otp-resend-action {
+    background: none;
+    border: none;
+    color: #3B82F6;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.875rem;
+}
+
 .remember-me {
     display: flex;
     align-items: center;
@@ -301,7 +404,7 @@ input:-webkit-autofill:active{
     font-size: 0.875rem;
     color: #64748B;
     font-weight: 600;
-    margin: 1.5vh 0;
+    margin: clamp(0.35rem, 1vh, 0.75rem) 0;
     cursor: pointer;
     flex-shrink: 0;
 }
@@ -315,7 +418,7 @@ input:-webkit-autofill:active{
 
 .btn-login {
     width: 100%;
-    padding: 1rem;
+    padding: clamp(0.65rem, 1.4vh, 1rem);
     background: #0A1F4A;
     color: white;
     border: none;
@@ -325,7 +428,7 @@ input:-webkit-autofill:active{
     cursor: pointer;
     transition: background 0.2s;
     flex-shrink: 0;
-    margin-bottom: 1vh;
+    margin-bottom: 0;
 }
 
 .btn-login:hover { background: #0F172A; }
@@ -343,10 +446,10 @@ input:-webkit-autofill:active{
 .form-footer {
     display: flex;
     flex-direction: column;
-    margin-top: 2vh;
+    margin-top: clamp(0.5rem, 1.2vh, 1rem);
     text-align: center;
     border-top: 1px solid #E2E8F0;
-    padding-top: 1.5vh;
+    padding-top: clamp(0.5rem, 1vh, 0.85rem);
     flex-shrink: 0;
 }
 
@@ -435,31 +538,39 @@ input:-webkit-autofill:active{
    Strict 100vh, NO Page Scroll 
 ========================================= */
 @media (max-width: 992px) {
-    /* Lock only the login screen. A body rule here applies to every page,
-       because this file is bundled globally, and it blocks scrolling on phones. */
     .login-wrapper {
-        height: 100vh;
-        height: 100dvh;
-        overflow: hidden; 
+        height: auto;
+        min-height: 100dvh;
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
     .login-main {
         flex-direction: column;
+        flex: 0 0 auto;
         padding: 0;
         /* Add !important to override the inline React style */
         background-image: url('../assets/mobile_login.png') !important;
-        background-position: top !important; 
+        background-position: top !important;
         background-size: contain !important;
         align-items: stretch;
-        overflow: hidden;
+        min-height: auto;
+        overflow: visible;
     }
-    
-    /* Top half takes 45% of screen height */
+
     .login-left {
-        flex: 0.35; 
-        padding: 1.5rem 1.5rem 0 1.5rem;
+        flex: 0 0 auto;
+        padding: 1.5rem 1.5rem 1rem 1.5rem;
         justify-content: flex-start;
         height: auto;
+        min-height: 220px;
+    }
+
+    .login-left .brand-logo,
+    .login-left .hrms-pill,
+    .login-left .hero-title,
+    .login-left .hero-subtitle {
+        max-width: 100%;
     }
 
     /* Position Pills inside the Top Half so they don't overlap form */
@@ -484,38 +595,42 @@ input:-webkit-autofill:active{
     .hero-title { font-size: 1.4rem; margin-bottom: 0.5rem; }
     .hero-subtitle { font-size: 0.8rem; max-width: 100%; color: #0e0e0f; }
     .bottom-features { display: none; }
-    
-    /* Bottom half takes 55% of screen height */
+
     .login-right {
-        flex: 0.7; 
+        flex: 0 0 auto;
         width: 100%;
         padding: 0;
         margin-top: 0;
-        overflow: hidden; /* Stops card itself from scrolling page */
-    }
-    
-    .form-card {
-        padding: 1.5rem 1.5rem;
-        border-radius: 0 0 0 0;
-        box-shadow: 0 -10px 40px rgba(0,0,0,0.08);
-        height: 100%; 
-        max-height: 100%;
-        background-color: #F8FAFC; 
+        height: auto;
+        overflow: visible;
     }
 
-    /* ONLY the form fields scroll internally if screen is tiny */
-    .form-card form { 
-        flex: 1;
-        overflow-y: auto; 
+    .form-card {
+        padding: 1.25rem 1.25rem 1.5rem;
+        border-radius: 24px 24px 0 0;
+        box-shadow: 0 -10px 40px rgba(0,0,0,0.08);
+        height: auto;
+        max-height: none;
+        background-color: #F8FAFC;
+        justify-content: flex-start;
+        overflow: visible;
+    }
+
+    .form-card form {
+        overflow: visible;
+    }
+
+    .input-group {
+        margin-bottom: 0.85rem;
     }
 
     .form-footer {
-    display: flex;
-    flex-direction: column;
-    margin-top: 1vh;
-    text-align: center;
-    border-top: 1px solid #E2E8F0;
-    padding-top: 1vh;
-    flex-shrink: 0;
-}
+        display: flex;
+        flex-direction: column;
+        margin-top: 1rem;
+        text-align: center;
+        border-top: 1px solid #E2E8F0;
+        padding-top: 0.75rem;
+        flex-shrink: 0;
+    }
 }

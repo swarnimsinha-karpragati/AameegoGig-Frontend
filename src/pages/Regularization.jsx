@@ -272,9 +272,14 @@ function RegularizationInner() {
               requestParams={{ team: 1, status: "Pending" }}
               eyebrow={teamCount > 0 ? `My team — ${teamCount} member${teamCount === 1 ? "" : "s"}` : "My team"}
               title="Team requests"
-              description="Review your team members' corrections and approve or reject them."
+              description={
+                canApprove
+                  ? "Review your team members' corrections and approve or reject them."
+                  : "Team pending corrections (view only — Approve Regularization permission required to decide)."
+              }
               emptyTitle="No team requests waiting"
               emptyText="Your team members' pending corrections will appear here."
+              canDecide={canApprove}
             />
           </>
         ) : null}
