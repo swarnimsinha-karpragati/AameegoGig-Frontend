@@ -7,6 +7,9 @@ import {
   showMobileAppBlockedMessage,
 } from "../utils/mobileClientHeaders";
 
+export const SESSION_REPLACED_MESSAGE = "Another device login detected. You have been logged out.";
+let sessionReplacedShown = false;
+
 const API = axios.create({
   baseURL: API_BASE_URL,
 });
@@ -41,6 +44,12 @@ API.interceptors.response.use(
       // Already on the login page — redirecting again would just reload it.
       if (window.location.pathname === "/login") {
         return Promise.reject(error);
+      }
+      if (error.response.data?.code === "SESSION_REPLACED") {
+        // Several requests can fail at once; show the popup only for the first.
+        if (sessionReplacedShown) return Promise.reject(error);
+        sessionReplacedShown = true;
+        window.alert(SESSION_REPLACED_MESSAGE);
       }
       clearAuthData();
 

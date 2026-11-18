@@ -34,4 +34,21 @@ describe("apiClient 401 handling", () => {
     expect(localStorage.getItem("token")).toBe("token-b");
     expect(window.location.href).toBe("/acme/letters");
   });
+
+  test("SESSION_REPLACED shows the popup once, then clears auth and goes to login", async () => {
+    setAuthData("token-a", { role: "Employee" }, true);
+    const alert = jest.spyOn(window, "alert").mockImplementation(() => {});
+    const replaced = () =>
+      API.interceptors.response.handlers[0].rejected({
+        response: { status: 401, data: { code: "SESSION_REPLACED" } },
+        config: {},
+      });
+    await expect(replaced()).rejects.toBeDefined();
+    await expect(replaced()).rejects.toBeDefined();
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert).toHaveBeenCalledWith("Another device login detected. You have been logged out.");
+    expect(localStorage.getItem("token")).toBeNull();
+    expect(window.location.href).toBe("/login");
+    alert.mockRestore();
+  });
 });
