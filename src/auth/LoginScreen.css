@@ -410,11 +410,17 @@
 
 .auth-resend {
     display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
     align-items: center;
     justify-content: space-between;
     font-size: 13px;
     line-height: 20px;
     color: var(--auth-muted);
+}
+
+.auth-resend > * {
+    white-space: nowrap;
 }
 
 .auth-resend strong {
@@ -457,11 +463,55 @@
     object-fit: contain;
 }
 
-/* ---------- Tablet / phone: stack, keep only the headline ---------- */
+/* ---------- Small laptops / tablet landscape ---------- */
+@media (max-width: 1200px) and (min-width: 993px) {
+    /* 2 x 2 strip so labels like "Trusted by Modern Teams" don't squeeze */
+    .auth-benefits {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        row-gap: 12px;
+        padding: 14px 18px;
+    }
+    .auth-benefits li { min-height: 32px; }
+    .auth-benefits li + li { border-left: 0; padding-left: 6px; }
+    .auth-benefits li:nth-child(2n) {
+        border-left: 1px solid rgba(255, 255, 255, 0.19);
+        padding-left: 12px;
+    }
+}
+
 @media (max-width: 1100px) {
     .auth-hero { padding: 40px; gap: 40px; }
     .auth-panel { padding: 40px; }
 }
+
+/* Short desktop viewports: tighten vertical rhythm so the card fits */
+@media (max-height: 860px) and (min-width: 993px) {
+    .auth-hero { gap: 32px; padding-top: 24px; padding-bottom: 24px; }
+    .auth-hero-intro, .auth-features-block { gap: 16px; }
+    .auth-panel-col { padding-top: 24px; padding-bottom: 24px; }
+    .auth-panel {
+        min-height: min(820px, calc(100dvh - 48px));
+        gap: 20px;
+        padding-top: 28px;
+        padding-bottom: 28px;
+    }
+    .auth-form { gap: 14px; }
+}
+
+@media (max-height: 760px) and (min-width: 993px) {
+    .auth-panel-col { padding-top: 16px; padding-bottom: 16px; }
+    .auth-panel {
+        min-height: calc(100dvh - 32px);
+        gap: 16px;
+        padding-top: 22px;
+        padding-bottom: 22px;
+    }
+    .auth-form { gap: 12px; }
+    .auth-powered { padding-top: 12px; }
+}
+
+/* ---------- Tablet / phone: stack, keep only the headline ---------- */
 
 @media (max-width: 992px) {
     .auth-page {
@@ -494,6 +544,12 @@
 }
 
 @media (max-width: 480px) {
+    .auth-hero { padding: 24px 16px 4px; }
+    .auth-panel-col { padding: 20px 12px 24px; }
+    .auth-panel { padding: 28px 20px; }
+    .auth-field input:not([type='checkbox']):not([type='file']) { padding-left: 12px; padding-right: 12px; }
+    .auth-password input { padding-right: 44px !important; }
+    .auth-password button { right: 12px; }
     .auth-header h2 { font-size: 24px; }
     .auth-otp { gap: 8px; }
     .auth-otp input { height: 56px; font-size: 22px !important; }
