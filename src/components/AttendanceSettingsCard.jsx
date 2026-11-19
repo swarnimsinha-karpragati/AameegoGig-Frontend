@@ -52,8 +52,8 @@ export default function AttendanceSettingsCard() {
       "allowMultiDeviceLogin",
       next,
       next
-        ? "Employees can now stay logged in on multiple devices."
-        : "Multiple device login is off. An employee's next login signs out their other devices."
+        ? "Everyone can now stay logged in on multiple devices."
+        : "Multiple device login is off. A user's next login signs out their other devices."
     );
 
   if (isError) {
@@ -104,15 +104,14 @@ export default function AttendanceSettingsCard() {
 
       <div className="attendance-settings__row wz-ds">
         <Toggle
-          label="Allow employees to log in on multiple devices"
+          label="Allow users to log in on multiple devices"
           checked={multiDevice}
           onChange={handleDeviceChange}
           disabled={pending !== null}
           aria-describedby={DEVICE_HELP_ID}
         />
         <div id={DEVICE_HELP_ID} className="attendance-settings__help">
-          <p>When off, logging in on a new device signs the employee out everywhere else.</p>
-          <p>Admins are always limited to one device.</p>
+          <p>Applies to everyone, including admins. When off, logging in on a new device signs that person out everywhere else.</p>
         </div>
       </div>
 

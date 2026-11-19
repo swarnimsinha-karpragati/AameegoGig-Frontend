@@ -113,7 +113,7 @@ test("a load failure shows an error instead of a wrong toggle", async () => {
 
 test("the multiple-device toggle is on by default and saves only its own field", async () => {
   renderCard();
-  const sw = await screen.findByRole("switch", { name: /Allow employees to log in on multiple devices/i });
+  const sw = await screen.findByRole("switch", { name: /Allow users to log in on multiple devices/i });
   expect(sw).toHaveAttribute("aria-checked", "true");
   await userEvent.click(sw);
   await waitFor(() =>
