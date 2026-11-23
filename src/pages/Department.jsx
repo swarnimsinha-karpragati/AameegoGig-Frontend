@@ -99,6 +99,7 @@ function Departments() {
     otPolicy: "",
     departmentHead: "",
     sitePayoutRule: "",
+    payrollDaysBaseline: "FULL_MONTH",
     stateName: "",
     latitude: "",
     longitude: "",
@@ -251,6 +252,7 @@ function Departments() {
       otPolicy: form.otPolicy || null,
       departmentHead: form.departmentHead || null,
       sitePayoutRule: form.sitePayoutRule || null,
+      payrollDaysBaseline: form.payrollDaysBaseline || "FULL_MONTH",
       stateName: form.stateName || null,
       latitude: toNullableNumber(form.latitude),
       longitude: toNullableNumber(form.longitude),
@@ -280,6 +282,7 @@ function Departments() {
     departmentHead: dep.departmentHead?._id || "",
     stateName: dep.stateName || "",
     sitePayoutRule: dep.sitePayoutRule || "",
+    payrollDaysBaseline: dep.payrollDaysBaseline || "FULL_MONTH",
     latitude: dep.latitude ?? "",
     longitude: dep.longitude ?? "",
     geofenceRadiusMeters: dep.geofenceRadiusMeters ?? "",
@@ -424,6 +427,14 @@ function Departments() {
             </select>
           </FormField>
         </div>
+         <div className="payroll-days-baseline">
+           <FormField label="Payroll Days Baseline" htmlFor="payroll-days-baseline">
+             <select id="payroll-days-baseline" name="payrollDaysBaseline" value={form.payrollDaysBaseline || "FULL_MONTH"} onChange={handleChange} disabled={isDisabled}>
+               <option value="FULL_MONTH">Full Month Payroll Days</option>
+               <option value="EXCLUDE_SUNDAYS">Full Month Excluding Sundays</option>
+             </select>
+           </FormField>
+         </div>
 
         <div className="site-state-name">
           <FormField
