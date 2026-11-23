@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createVendor } from "../services/authService";
-import LoginLayout from "../auth/LoginLayout";
-import "../auth/LoginScreen.css";
-import bgImage from "../assets/background.png";
-import helpBtn from '../assets/help.svg';
+import AuthLayout, { AuthHeader, AuthLogo } from "../auth/AuthLayout";
 
 function CreateOrg() {
   const navigate = useNavigate();
@@ -82,157 +79,90 @@ function CreateOrg() {
   };
 
   return (
-    <div
-      className="login-container"
-      style={{ backgroundImage: `url(${bgImage})` }}
-    >
-      <div className="login-content">
-        <LoginLayout />
+    <AuthLayout>
+      <AuthLogo />
+      <AuthHeader
+        title="Create Organization"
+        subtitle="Set up your workspace and start managing your workforce."
+      />
 
-        {/* ================= RIGHT FORM CARD SIDE ================= */}
-        <div className="form-section">
-
-          <div className="help-link">
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <img src={helpBtn} alt="Help" width="16" height="16" /> Help
-            </span>
-          </div>
-          <div className="form-card">
-            <div className="form-header">
-              <h2>Create Organization</h2>
-              <p>Set up your workspace and start managing your workforce.</p>
-            </div>
-
-            <form onSubmit={handleSubmit}>
-              <div className="input-group">
-                <label>Company Name</label>
-                <input
-                  type="text"
-                  placeholder="Enter your company name"
-                  required
-                  value={form.companyName}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      companyName: e.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              <div className="input-group">
-                <label>Admin Email</label>
-                <input
-                  type="email"
-                  placeholder="Enter admin email"
-                  required
-                  value={form.email}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      email: e.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              <div className="input-group">
-                <label>Password</label>
-                <input
-                  type="password"
-                  placeholder="Create a password"
-                  required
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      password: e.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              {/* ================= LOGO UPLOAD FIELD ================= */}
-              <div className="input-group" style={{ marginBottom: "15px" }}>
-                <label style={{ display: "block", marginBottom: "4px" }}>
-                  Company Logo
-                </label>
-                <input
-                  type="file"
-                  accept="image/png, image/jpeg"
-                  onChange={handleLogoChange}
-                  style={{ fontSize: "0.85rem" }}
-                />
-
-                {/* Dimension & Spec Guidelines */}
-                <small style={{ display: "block", color: "#666", marginTop: "6px", fontSize: "0.78rem" }}>
-                  <strong>Recommended specifications:</strong><br />
-                  Aspect Ratio: <strong>16:9</strong><br />
-                  Max file size: <strong>~10 MB</strong> (PNG, JPG)
-                </small>
-
-                {/* Optional Image Preview */}
-                {logoPreview && (
-                  <div style={{ marginTop: "10px" }}>
-                    <p style={{ fontSize: "0.75rem", margin: "0 0 4px 0", color: "#444" }}>Preview:</p>
-                    <img
-                      src={logoPreview}
-                      alt="Logo Preview"
-                      style={{
-                        width: "203px",
-                        height: "52px",
-                        objectFit: "contain",
-                        border: "1px dashed #ccc",
-                        borderRadius: "4px",
-                        padding: "2px"
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <button type="submit" className="btn-login mt-3" disabled={loading}>
-                {loading ? "Creating..." : "Create Organization"}
-              </button>
-            </form>
-
-            {message && (
-              <p className="success-message" style={{ color: "green", marginTop: "10px" }}>
-                {message}
-              </p>
-            )}
-
-            {error && <p className="error" style={{ color: "red", marginTop: "10px" }}>{error}</p>}
-
-            <div
-              className="auth-links"
-              style={{
-                display: "flex",
-                justifyContent: "flex-start",
-                alignItems: "center",
-                gap: "5px",
-                marginTop: "20px",
-              }}
-            >
-              <span>Already have an organization?</span>
-
-              <Link
-                to="/login"
-                style={{ textDecoration: "none" }}
-              >
-                Sign In
-              </Link>
-            </div>
-          </div>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <div className="auth-field">
+          <label htmlFor="co-name">Company Name</label>
+          <input
+            id="co-name"
+            type="text"
+            placeholder="Enter your company name"
+            required
+            value={form.companyName}
+            onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+          />
         </div>
 
-      </div>
+        <div className="auth-field">
+          <label htmlFor="co-email">Admin Email</label>
+          <input
+            id="co-email"
+            type="email"
+            placeholder="Enter admin email"
+            required
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+        </div>
 
-      {/* Footer Powered By text */}
-      <footer className="footer-copyright">
-        Powered by Kar Pragati Technologies Pvt. Ltd.
-      </footer>
-    </div>
+        <div className="auth-field">
+          <label htmlFor="co-password">Password</label>
+          <input
+            id="co-password"
+            type="password"
+            placeholder="Create a password"
+            required
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+        </div>
+
+        <div className="auth-field">
+          <label htmlFor="co-logo">Company Logo</label>
+          <input
+            id="co-logo"
+            type="file"
+            accept="image/png, image/jpeg"
+            onChange={handleLogoChange}
+            style={{ fontSize: "13px" }}
+          />
+          <p className="auth-help">
+            Recommended: 16:9 aspect ratio, PNG or JPG, up to ~10 MB.
+          </p>
+          {logoPreview && (
+            <img
+              src={logoPreview}
+              alt="Logo Preview"
+              style={{
+                width: "203px",
+                height: "52px",
+                objectFit: "contain",
+                border: "1px dashed #dee2e6",
+                borderRadius: "8px",
+                padding: "2px",
+              }}
+            />
+          )}
+        </div>
+
+        {message && <p className="auth-success">{message}</p>}
+        {error && <p className="auth-error">{error}</p>}
+
+        <button type="submit" className="auth-submit" disabled={loading}>
+          {loading ? "Creating..." : "Create Organization"}
+        </button>
+
+        <p className="auth-alt">
+          Already have an organization? <Link to="/login">Sign In</Link>
+        </p>
+      </form>
+    </AuthLayout>
   );
 }
 

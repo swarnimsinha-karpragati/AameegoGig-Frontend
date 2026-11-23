@@ -19,6 +19,7 @@ import {
   formatRegDate,
   formatRegRange,
 } from "../../utils/regularizationFormatters";
+import { countLeaveWorkingDays } from "../../utils/leaveWorkingDays";
 
 const ATTENDANCE_STATUSES = [
   "Present",
@@ -61,19 +62,18 @@ export const buildApiErrorMessage = (error, fallback) =>
   error?.message ||
   fallback;
 
-export const countWeekdaysInclusive = (startValue, endValue) => {
-  if (!startValue || !endValue) return null;
-  const start = new Date(`${startValue}T00:00:00`);
-  const end = new Date(`${endValue}T00:00:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
-    return null;
-  }
-  let count = 0;
-  for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
-    if (day.getDay() !== 0 && day.getDay() !== 6) count += 1;
-  }
-  return count;
-};
+export const countWeekdaysInclusive = (
+  startValue,
+  endValue,
+  holidayDateKeys = null
+) =>
+  countLeaveWorkingDays({
+    startDate: startValue,
+    endDate: endValue,
+    weekOffDays: ["Saturday", "Sunday"],
+    holidayDateKeys,
+    includeOffDays: false,
+  });
 
 /**
  * Calendar-day count (weekends included). Comp-Off can be earned and taken

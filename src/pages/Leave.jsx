@@ -48,6 +48,12 @@ import {
   getDayPartLabel,
   isHalfDayPart,
 } from "../utils/leaveLabels";
+import {
+  countLeaveWorkingDays,
+  holidayKeysFromApiList,
+  monthsSpannedByRange,
+} from "../utils/leaveWorkingDays";
+import { getHolidays } from "../services/holidayService";
 import "./Leave.css";
 import "../components/attendance/RecordEditModal.css";
 import Button from "../components/Button";
@@ -297,31 +303,46 @@ function LeaveInner() {
   // Backend validation error for the selected range (e.g. no working days
   // for the employee's department week-offs). Surfaced inline.
   const [serverDateError, setServerDateError] = useState("");
-
-  const countDaysInclusiveClient = (startStr, endStr, weekdaysOnly) => {
-    if (!startStr || !endStr) return null;
-    const start = new Date(`${startStr}T00:00:00`);
-    const end = new Date(`${endStr}T00:00:00`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-    if (end < start) return null;
-
-    let count = 0;
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      if (!weekdaysOnly) {
-        count += 1;
-      } else {
-        const day = d.getDay(); // 0=Sun, 6=Sat
-        if (day !== 0 && day !== 6) count += 1;
-      }
-    }
-    return count;
-  };
+  // Company holiday YYYY-MM-DD keys for the selected range (org timezone).
+  // Backend already excludes these on submit; the apply form must too.
+  const [holidayDateKeys, setHolidayDateKeys] = useState([]);
 
   // Comp Off credit (earned) applies to off-days — weekends/holidays included.
   const isCoCredit =
     leaveForm.leaveType === "CO" &&
     leaveForm.requestType !== "WFH" &&
     coPurpose === "credit";
+
+  useEffect(() => {
+    let cancelled = false;
+    const start = leaveForm.startDate;
+    const end = leaveForm.endDate;
+    if (!start || !end || end < start) {
+      setHolidayDateKeys([]);
+      return undefined;
+    }
+    const months = monthsSpannedByRange(start, end);
+    (async () => {
+      try {
+        const lists = await Promise.all(
+          months.map(({ year, month }) =>
+            getHolidays({ year, month }).then((res) => res?.data?.data || [])
+          )
+        );
+        if (cancelled) return;
+        const keys = holidayKeysFromApiList(lists.flat());
+        // Keep only holidays that fall inside the selected range.
+        setHolidayDateKeys(
+          keys.filter((key) => key >= start && key <= end)
+        );
+      } catch {
+        if (!cancelled) setHolidayDateKeys([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [leaveForm.startDate, leaveForm.endDate]);
 
   const slRequiredWhenDaysGt = useMemo(() => {
     // Policy API is Admin/HR-only: employees get no policy, so fall back to
@@ -335,22 +356,24 @@ function LeaveInner() {
 
   const computedLeaveDays = useMemo(
     () =>
-      countDaysInclusiveClient(
-        leaveForm.startDate,
-        leaveForm.endDate,
-        !isCoCredit
-      ),
-    [leaveForm.startDate, leaveForm.endDate, isCoCredit]
+      countLeaveWorkingDays({
+        startDate: leaveForm.startDate,
+        endDate: leaveForm.endDate,
+        weekOffDays: ["Saturday", "Sunday"],
+        holidayDateKeys,
+        includeOffDays: isCoCredit,
+      }),
+    [leaveForm.startDate, leaveForm.endDate, isCoCredit, holidayDateKeys]
   );
 
-  // Raw number of dates picked in the range (independent of week-offs).
+  // Raw number of dates picked in the range (independent of week-offs/holidays).
   const selectedDaysTotal = useMemo(
     () =>
-      countDaysInclusiveClient(
-        leaveForm.startDate,
-        leaveForm.endDate,
-        false
-      ),
+      countLeaveWorkingDays({
+        startDate: leaveForm.startDate,
+        endDate: leaveForm.endDate,
+        includeOffDays: true,
+      }),
     [leaveForm.startDate, leaveForm.endDate]
   );
 
@@ -1183,7 +1206,13 @@ function LeaveInner() {
                         : `${computedLeaveDays} working days`}
                   </strong>
                   <p className="leave-date-feedback__text">
-                    Weekly offs are excluded from the day count automatically.
+                    Weekly offs and company holidays are excluded from the day
+                    count automatically.
+                    {holidayDateKeys.length > 0
+                      ? ` (${holidayDateKeys.length} holiday${
+                          holidayDateKeys.length === 1 ? "" : "s"
+                        } in this range)`
+                      : ""}
                   </p>
                 </>
               )}

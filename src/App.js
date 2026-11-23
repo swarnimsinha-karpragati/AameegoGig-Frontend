@@ -18,7 +18,6 @@ import Regularization from "./pages/Regularization";
 import Departments from './pages/Department';
 import Expense from "./pages/Expense";
 import ForgotPassword from './pages/ForgotPassword';
-// import ForgotOrgCode from './pages/ForgotOrgCode';
 import Resignations from './pages/Resignations';
 import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
@@ -96,7 +95,6 @@ function App() {
         <Route path="/create-org" element={<UnProtectedRoute><CreateOrg /></UnProtectedRoute>} />
         <Route path="/join" element={<UnProtectedRoute><JoinOrg /></UnProtectedRoute>} />
         <Route path="/forgot-password" element={<UnProtectedRoute><ForgotPassword /></UnProtectedRoute>} />
-        {/* <Route path="/forgot-org-code" element={<ForgotOrgCode />} /> */}
 
         {/* Protected Vendor Routes */}
         <Route path=":vendor/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

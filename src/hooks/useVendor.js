@@ -15,7 +15,10 @@ export function useAttendanceSettings(options = {}) {
   return useQuery({
     queryKey: [ATTENDANCE_SETTINGS_KEY],
     queryFn: () => getAttendanceSettings(),
-    select: (res) => ({ autoMarkAttendance: res.data?.data?.autoMarkAttendance === true }),
+    select: (res) => ({
+      autoMarkAttendance: res.data?.data?.autoMarkAttendance === true,
+      allowMultiDeviceLogin: res.data?.data?.allowMultiDeviceLogin !== false,
+    }),
     ...options,
   });
 }
