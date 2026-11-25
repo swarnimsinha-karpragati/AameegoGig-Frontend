@@ -1227,7 +1227,7 @@ body:has(.landing-page) {
 
 .landing-features-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   gap: 60px;
 }
@@ -1247,7 +1247,7 @@ body:has(.landing-page) {
   align-items: flex-start;
   gap: 20px;
   width: 400px;
-  height: 205px;
+  min-height: 205px;
   padding: 32px;
   box-sizing: border-box;
   background: #ffffff;
