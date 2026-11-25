@@ -37,9 +37,6 @@ import iconEmployee from "../assets/landing/icon-employee.svg";
 import iconAdmin from "../assets/landing/icon-admin.svg";
 import iconHr from "../assets/landing/icon-hr.svg";
 import iconManager from "../assets/landing/icon-manager.svg";
-import logoPartner1 from "../assets/landing/logo-partner-1.png";
-import logoPartner2 from "../assets/landing/logo-partner-2.png";
-import logoPartner3 from "../assets/landing/logo-partner-3.png";
 import logoPartner4 from "../assets/landing/logo-partner-4.png";
 import logoPartner5 from "../assets/landing/logo-partner-5.png";
 import logoPartner6 from "../assets/landing/logo-partner-6.png";
@@ -126,21 +123,6 @@ function LandingStat({ value, label, play, delayMs }) {
 
 const PARTNER_LOGOS = [
   {
-    src: logoPartner1,
-    alt: "Blinkit",
-    className: "landing-logo-item--blinkit",
-  },
-  {
-    src: logoPartner2,
-    alt: "Zepto",
-    className: "landing-logo-item--zepto",
-  },
-  {
-    src: logoPartner3,
-    alt: "Meesho",
-    className: "landing-logo-item--meesho",
-  },
-  {
     src: logoPartner4,
     alt: "Holisol",
     className: "landing-logo-item--holisol",
@@ -157,6 +139,10 @@ const PARTNER_LOGOS = [
     text: "THREYE",
   },
 ];
+
+// Each marquee copy must be wider than the screen or a gap shows mid-loop;
+// three logos are ~600px, so repeat them to cover screens up to ~2400px.
+const MARQUEE_LOGOS = Array.from({ length: 4 }, () => PARTNER_LOGOS).flat();
 
 const ROLE_TABS = ["Admin", "HR", "Manager", "Employee"];
 const ROLE_ROTATE_MS = 4500;
@@ -737,13 +723,13 @@ function LandingPage() {
                   className="landing-logos-set"
                   aria-hidden={copy === 1 ? true : undefined}
                 >
-                  {PARTNER_LOGOS.map((p) => (
+                  {MARQUEE_LOGOS.map((p, i) => (
                     <div
-                      key={`${p.alt}-${copy}`}
+                      key={`${p.alt}-${copy}-${i}`}
                       className={`landing-logo-item ${p.className || ""}`}
                     >
                       <span className="landing-logo-frame">
-                        <img src={p.src} alt={copy === 0 ? p.alt : ""} />
+                        <img src={p.src} alt={copy === 0 && i < PARTNER_LOGOS.length ? p.alt : ""} />
                       </span>
                       {p.text ? (
                         <span className="landing-logo-text-label">{p.text}</span>
