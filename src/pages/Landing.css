@@ -805,46 +805,6 @@ body:has(.landing-page) {
   display: block;
 }
 
-/* Blinkit — Figma crop: 140×35, img h 247.11% top -72.18% */
-.landing-logo-item--blinkit .landing-logo-frame {
-  width: 140px;
-  height: 35px;
-}
-
-.landing-logo-item--blinkit .landing-logo-frame img {
-  width: 100%;
-  height: 247.11%;
-  left: 0;
-  top: -72.18%;
-}
-
-/* Zepto — Figma crop: 148×47, img h 182.76% top -45.74% left -0.34% */
-.landing-logo-item--zepto .landing-logo-frame {
-  width: 148px;
-  height: 47px;
-}
-
-.landing-logo-item--zepto .landing-logo-frame img {
-  width: 100%;
-  height: 182.76%;
-  left: -0.34%;
-  top: -45.74%;
-}
-
-/* Meesho — 147×38 object-cover */
-.landing-logo-item--meesho .landing-logo-frame {
-  width: 147px;
-  height: 38px;
-}
-
-.landing-logo-item--meesho .landing-logo-frame img {
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  position: absolute;
-}
-
 /* Holisol — 92×34 */
 .landing-logo-item--holisol .landing-logo-frame {
   width: 92px;
@@ -2380,21 +2340,6 @@ body:has(.landing-page) {
 
   .landing-logos {
     --logo-gap: 48px;
-  }
-
-  .landing-logo-item--blinkit .landing-logo-frame {
-    width: 110px;
-    height: 28px;
-  }
-
-  .landing-logo-item--zepto .landing-logo-frame {
-    width: 116px;
-    height: 37px;
-  }
-
-  .landing-logo-item--meesho .landing-logo-frame {
-    width: 116px;
-    height: 30px;
   }
 
   .landing-who {
