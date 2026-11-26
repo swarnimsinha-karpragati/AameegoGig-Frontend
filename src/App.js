@@ -10,6 +10,7 @@ import JoinOrg from './pages/JoinOrg';
 import Dashboard from './pages/Dashboard';
 import Employees from "./pages/Employees";
 import Documents from "./pages/Documents";
+import Assets from "./pages/Assets";
 import Settings from "./pages/Setting";
 import Payroll from './pages/Payroll';
 import Attendance from "./pages/Attendance";
@@ -102,6 +103,7 @@ function App() {
         <Route path=":vendor/sites" element={<ProtectedRoute><Departments /></ProtectedRoute>} />
         <Route path=":vendor/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
         <Route path=":vendor/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+        <Route path=":vendor/assets" element={<ProtectedRoute><Assets /></ProtectedRoute>} />
         <Route path=":vendor/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path=":vendor/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
         <Route path=":vendor/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />

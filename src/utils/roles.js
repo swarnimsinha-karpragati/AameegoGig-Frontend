@@ -38,6 +38,7 @@ export const ROUTE_ACCESS = {
   "/regularization": ["Admin", "HR", "Manager", "Employee"],
   "/payroll": ["Admin", "HR", "Manager", "Employee"],
   "/documents": ["Admin", "HR", "Manager", "Employee", "Intern"],
+  "/assets": ["Admin", "HR", "Manager", "Employee", "Intern"],
   "/expenses": ["Admin", "HR", "Manager", "Employee"],
   "/resignation": ["Admin", "HR", "Manager", "Employee"],
   "/advance-loan": ["Admin", "HR", "Manager", "Employee"],
@@ -205,6 +206,9 @@ export const canAccessRoute = (role, path, allowedModules) => {
 
   // Every signed-in user has an inbox, custom roles included (no module permission gates it).
   if (appPath === "/notifications") return Boolean(role);
+
+  // Everyone can see the assets assigned to them; managing them is checked on the page and API.
+  if (appPath === "/assets") return Boolean(role);
 
   // Employees page hosts 2 tabs: Employees + Consultancy.
   // Consultancy-only users (consultancy:view/manage without employees:view)

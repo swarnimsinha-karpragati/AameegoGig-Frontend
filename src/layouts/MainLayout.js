@@ -17,7 +17,8 @@ import {
   Menu,
   X,
   ChevronsLeft,
-  Mails
+  Mails,
+  Package
 } from "lucide-react";
 
 import "../pages/Dashboard.css";
@@ -192,6 +193,7 @@ function MainLayout({ children }) {
     "/advance-loan": { title: "Advance Loan", subtitle: "Submit and manage Advance Loan claims" },
     "/resignation": { title: "Resignation", subtitle: "Submit and manage resignation" },
     "/documents": { title: "Documents", subtitle: "Store and manage company documents" },
+    "/assets": { title: "Assets", subtitle: "Track company assets and who they are assigned to" },
     "/letters": { title: "Letters", subtitle: "Issue letters, find issued letters and send offers" },
     "/settings": { title: "Settings", subtitle: "Configure your HRMS preferences" },
     "/roles": { title: "Roles & Access", subtitle: "Manage role-based access control" },
@@ -211,6 +213,7 @@ function MainLayout({ children }) {
     { label: "Expenses", path: "/expenses", icon: ReceiptText },
     { label: "Advance Loan", path: "/advance-loan", icon: Wallet },
     { label: "Documents", path: "/documents", icon: FileText },
+    { label: "Assets", path: "/assets", icon: Package },
     { label: "Letters", path: "/letters", icon: Mails },
     { label: "Resignation", path: "/resignation", icon: FileSignature },
     { label: "Settings", path: "/settings", icon: Settings },
