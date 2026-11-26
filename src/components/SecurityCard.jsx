@@ -69,7 +69,7 @@ export default function SecurityCard() {
         alert('Email or phone is required');
         return;
       }
-      const res = await sendOtp({emailOrPhone})
+      const res = await sendOtp({emailOrPhone,vendorCode:user?.vendor_code,scope:'2fa'})
       setOtpSent(true)
       setMessage(res.message)
 
