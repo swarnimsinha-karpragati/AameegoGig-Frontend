@@ -10,6 +10,7 @@ import JoinOrg from './pages/JoinOrg';
 import Dashboard from './pages/Dashboard';
 import Employees from "./pages/Employees";
 import Documents from "./pages/Documents";
+import Assets from "./pages/Assets";
 import Settings from "./pages/Setting";
 import Payroll from './pages/Payroll';
 import Attendance from "./pages/Attendance";
@@ -18,7 +19,6 @@ import Regularization from "./pages/Regularization";
 import Departments from './pages/Department';
 import Expense from "./pages/Expense";
 import ForgotPassword from './pages/ForgotPassword';
-// import ForgotOrgCode from './pages/ForgotOrgCode';
 import Resignations from './pages/Resignations';
 import LeavePolicy from './pages/LeavePolicy';
 import { getCurrentUser } from './services/authService';
@@ -96,7 +96,6 @@ function App() {
         <Route path="/create-org" element={<UnProtectedRoute><CreateOrg /></UnProtectedRoute>} />
         <Route path="/join" element={<UnProtectedRoute><JoinOrg /></UnProtectedRoute>} />
         <Route path="/forgot-password" element={<UnProtectedRoute><ForgotPassword /></UnProtectedRoute>} />
-        {/* <Route path="/forgot-org-code" element={<ForgotOrgCode />} /> */}
 
         {/* Protected Vendor Routes */}
         <Route path=":vendor/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -104,6 +103,7 @@ function App() {
         <Route path=":vendor/sites" element={<ProtectedRoute><Departments /></ProtectedRoute>} />
         <Route path=":vendor/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
         <Route path=":vendor/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+        <Route path=":vendor/assets" element={<ProtectedRoute><Assets /></ProtectedRoute>} />
         <Route path=":vendor/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path=":vendor/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
         <Route path=":vendor/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />

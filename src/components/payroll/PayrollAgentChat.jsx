@@ -8,7 +8,7 @@ import "./PayrollAgentChat.css";
 // (history survives tab switches — it only resets on page refresh).
 export const AGENT_GREETING = {
   from: "agent",
-  text: "Hi! I'm the payroll assistant. Tell me employee codes (e.g. GRV-0001, GRV-0002) plus a month and year, and I'll preview payroll and — after your confirmation — save it for approval.",
+  text: "Hi! I'm the payroll assistant. Tell me employee codes (e.g. GRV-0001, GRV-0002) plus a month and year, and I'll preview payroll and — after your confirmation — save it for approval. You can also assign a salary structure: type the employee code, structure name, and annual CTC — e.g. \"GRV-0001 India Standard 600000\".",
 };
 
 // Controlled component: `messages` lives in the parent (Payroll.jsx) so
@@ -98,7 +98,7 @@ export default function PayrollAgentChat({ messages, onMessagesChange }) {
         <div className="agent-chat-headings">
           <h3 className="agent-chat-title">Payroll Assistant</h3>
           <p className="agent-chat-subtitle">
-            Preview payroll in chat, confirm, and save for approval — Admin/HR only
+            Preview payroll, assign salary structures, confirm, and save — Admin/HR only
           </p>
         </div>
         {list.length > 1 && (

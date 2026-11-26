@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Check, Copy } from "lucide-react";
 
 // Tiny markdown renderer for agent chat bubbles — tables, **bold**, _italic_,
 // and bullet lists. Deliberately NOT react-markdown (no new dependency):
@@ -12,13 +13,52 @@ const BULLET_LINE = /^\s*[-*•]\s+/;
 // Long tables collapse to this many body rows + a working "Show all" button.
 const COLLAPSED_ROWS = 10;
 
+// Copyable chip emitted by the payroll agent as [[copy:VALUE]] — used for
+// employee codes and salary-structure names so users can paste them back.
+function CopyChip({ value }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button
+      type="button"
+      className="agent-md-copy"
+      onClick={handleCopy}
+      title={`Copy ${value}`}
+    >
+      <span>{value}</span>
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+    </button>
+  );
+}
+
 // **bold** and _italic_ -> elements. Unmatched markers left as-is.
 // Italic needs word boundaries so snake_case or a_b stays literal.
 function inlineFormat(text, keyPrefix) {
-  const tokens = String(text).split(/(\*\*[^*]+\*\*|_[^_\n]+_)/g);
+  const tokens = String(text).split(
+    /(\*\*[^*]+\*\*|_[^_\n]+_|\[\[copy:[^\]]+\]\])/g
+  );
   if (tokens.length === 1) return text;
   return tokens.map((tok, i) => {
     const key = `${keyPrefix}-f${i}`;
+    const copyMatch = tok.match(/^\[\[copy:(.+)\]\]$/);
+    if (copyMatch) {
+      return <CopyChip key={key} value={copyMatch[1].trim()} />;
+    }
     if (tok.startsWith("**") && tok.endsWith("**") && tok.length > 4) {
       return <strong key={key}>{tok.slice(2, -2)}</strong>;
     }

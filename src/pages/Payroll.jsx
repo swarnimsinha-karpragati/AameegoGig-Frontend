@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Upload } from "lucide-react";
 import {
   previewPayroll,
   calculateSinglePayroll,
@@ -31,6 +32,7 @@ import ConsultancyPayslipsTab from "../components/payroll/ConsultancyPayslipsTab
 import PayrollTabs from "../components/payroll/PayrollTabs";
 import PayrollBreakdownDrawer from "../components/PayrollBreakdownDrawer";
 import PayrollStatusBanner from "../components/payroll/PayrollStatusBanner";
+import PayrollBulkStructureModal from "../components/payroll/PayrollBulkStructureModal";
 import "./Payroll.css";
 import MainLayout from "../layouts/MainLayout";
 
@@ -77,7 +79,7 @@ export default function Payroll() {
   // Department/site filter for the payroll records list (Payroll tab).
   const [recordDeptId, setRecordDeptId] = useState("");
 
-  const { data: employees = [] } = useAllEmployees({ enabled: isAdminOrHR });
+  const { data: employees = [], refetch: refetchEmployees } = useAllEmployees({ enabled: isAdminOrHR });
   const { data: departments = [] } = useDepartments(storedUser?.vendorId, {
     enabled: isAdminOrHR && Boolean(storedUser?.vendorId),
   });
@@ -93,6 +95,7 @@ export default function Payroll() {
   const [statusMessage, setStatusMessage] = useState({ type: "", text: "" });
   const [bulkResult, setBulkResult] = useState(null);
   const [showAllSkipped, setShowAllSkipped] = useState(false);
+  const [showStructureModal, setShowStructureModal] = useState(false);
 
   const [confirmModal, setConfirmModal] = useState({ open: false, title: "", message: "", onConfirm: null });
   const [deleteModal, setDeleteModal] = useState({ open: false, payrollId: null });
@@ -727,6 +730,19 @@ export default function Payroll() {
         <PayrollTabs isAdminOrHR={isAdminOrHR} activeTab={activeTab} onTabChange={handleTabChange} />
 
         {isAdminOrHR && activeTab === "payroll" && (
+          <div className="payroll-page-actions">
+            <button
+              type="button"
+              className="payroll-bulk-structure-btn"
+              onClick={() => setShowStructureModal(true)}
+            >
+              <Upload size={16} />
+              Bulk Assign Salary Structure
+            </button>
+          </div>
+        )}
+
+        {isAdminOrHR && activeTab === "payroll" && (
           <PayrollManager
             employees={employees}
             payrolls={payrolls}
@@ -808,6 +824,14 @@ export default function Payroll() {
             {!isAdminOrHR && !isConsultancyUser ? <ConsultancyPayslipsTab hideIfEmpty /> : null}
           </>
         )}
+
+        <PayrollBulkStructureModal
+          open={showStructureModal}
+          vendorId={storedUser?.vendorId}
+          employees={employees}
+          onClose={() => setShowStructureModal(false)}
+          onUploaded={() => refetchEmployees()}
+        />
 
         <PayrollBreakdownDrawer
           open={showDetailsPopup}

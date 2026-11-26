@@ -6,6 +6,7 @@ import "./OrgProfileCard.css";
 import "./AttendanceSettingsCard.css";
 
 const HELP_ID = "auto-attendance-help";
+const DEVICE_HELP_ID = "multi-device-help";
 
 export default function AttendanceSettingsCard() {
   const { data, isError } = useAttendanceSettings();
@@ -23,23 +24,37 @@ export default function AttendanceSettingsCard() {
     timer.current = setTimeout(() => setMessage(""), 3500);
   };
 
-  const handleChange = async (next) => {
+  const save = async (field, next, successText) => {
     setMessage("");
     setError("");
-    setPending(next);
+    setPending({ [field]: next });
     try {
-      await updateMutation.mutateAsync({ autoMarkAttendance: next });
-      flash(
-        next
-          ? "Automatic attendance is on. Employees with no attendance will be marked present at 11:30 PM."
-          : "Automatic attendance is off."
-      );
+      await updateMutation.mutateAsync({ [field]: next });
+      flash(successText);
     } catch (err) {
       setError(err?.response?.data?.message || "Could not save the attendance setting. Please try again.");
     } finally {
       setPending(null);
     }
   };
+
+  const handleChange = (next) =>
+    save(
+      "autoMarkAttendance",
+      next,
+      next
+        ? "Automatic attendance is on. Employees with no attendance will be marked present at 11:30 PM."
+        : "Automatic attendance is off."
+    );
+
+  const handleDeviceChange = (next) =>
+    save(
+      "allowMultiDeviceLogin",
+      next,
+      next
+        ? "Everyone can now stay logged in on multiple devices."
+        : "Multiple device login is off. A user's next login signs out their other devices."
+    );
 
   if (isError) {
     return (
@@ -59,7 +74,8 @@ export default function AttendanceSettingsCard() {
     );
   }
 
-  const checked = pending ?? data.autoMarkAttendance;
+  const checked = pending?.autoMarkAttendance ?? data.autoMarkAttendance;
+  const multiDevice = pending?.allowMultiDeviceLogin ?? data.allowMultiDeviceLogin;
 
   return (
     <div className="org-profile-card">
@@ -83,6 +99,19 @@ export default function AttendanceSettingsCard() {
           <p>Runs every day at 11:30 PM (India time).</p>
           <p>Only employees with no attendance for that day are marked present. Days already marked — checked in, absent, leave, WFH or half day — are never changed.</p>
           <p>Week-offs, holidays and approved leave are skipped, as are employees who have not joined yet or have left.</p>
+        </div>
+      </div>
+
+      <div className="attendance-settings__row wz-ds">
+        <Toggle
+          label="Allow users to log in on multiple devices"
+          checked={multiDevice}
+          onChange={handleDeviceChange}
+          disabled={pending !== null}
+          aria-describedby={DEVICE_HELP_ID}
+        />
+        <div id={DEVICE_HELP_ID} className="attendance-settings__help">
+          <p>Applies to everyone, including admins. When off, logging in on a new device signs that person out everywhere else.</p>
         </div>
       </div>
 

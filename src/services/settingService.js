@@ -76,3 +76,34 @@ export const markAllNotificationsRead = () => {
 export const registerPushDevice = (token, platform = "web") => {
   return API.post(`/notification/devices`, { token, platform });
 };
+
+/*──────────────────────────────────────────────────────────────
+  Organisation profile (vendor) settings — Settings → Organization
+  Backend: GET/PUT /api/vendor/profile, POST /api/vendor/{logo,signature,stamp}
+──────────────────────────────────────────────────────────────*/
+
+export const getOrgProfile = () => {
+  return API.get("/vendor/profile");
+};
+
+export const updateOrgProfile = (data) => {
+  return API.put("/vendor/profile", data);
+};
+
+export const uploadOrgLogo = (formData) => {
+  return API.post("/vendor/logo", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+export const uploadOrgSignature = (formData) => {
+  return API.post("/vendor/signature", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+export const uploadOrgStamp = (formData) => {
+  return API.post("/vendor/stamp", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};

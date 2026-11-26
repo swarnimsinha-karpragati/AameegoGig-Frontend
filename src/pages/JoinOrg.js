@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { signupUser } from "../services/authService";
-import LoginLayout from "../auth/LoginLayout";
-import "../auth/LoginScreen.css";
-import bgImage from "../assets/background.png";
-import helpBtn from '../assets/help.svg';
+import AuthLayout, { AuthHeader, AuthLogo } from "../auth/AuthLayout";
 
 
 function JoinOrg() {
@@ -57,128 +54,75 @@ function JoinOrg() {
   };
 
   return (
-    <div
-      className="login-container"
-      style={{ backgroundImage: `url(${bgImage})` }}
-    >
-      <div className="login-content">
+    <AuthLayout>
+      <AuthLogo />
+      <AuthHeader
+        title="Join Organization"
+        subtitle="Join your organization and manage your workforce seamlessly."
+      />
 
-        {/* ================= LEFT HERO SIDE ================= */}
-        <LoginLayout />
-
-        {/* ================= RIGHT FORM CARD SIDE ================= */}
-        <div className="form-section">
-          <div className="help-link">
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <img src={helpBtn} alt="Help" width="16" height="16" /> Help
-            </span>
-          </div>
-          <div className="form-card">
-            <div className="form-header">
-              <h2>Join Organization</h2>
-              <p>Join your organization and manage your workforce seamlessly.</p>
-            </div>
-
-            <form onSubmit={handleSubmit}>
-              <div className="input-group">
-                <label>Full Name</label>
-                <input
-                  type="text"
-                  placeholder="Enter your full name"
-                  required
-                  value={form.name}
-                  onChange={(e) =>
-                    handleChange("name", e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="input-group">
-                <label>Work Email or Mobile Number</label>
-                <input
-                  type="text"
-                  placeholder="Enter your work email or mobile number"
-                  required
-                  value={form.emailOrPhone}
-                  onChange={(e) =>
-                    handleChange("emailOrPhone", e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="input-group">
-                <label>Password</label>
-                <input
-                  type="password"
-                  placeholder="Create a password"
-                  required
-                  value={form.password}
-                  onChange={(e) =>
-                    handleChange("password", e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="input-group">
-                <label>Organization Code</label>
-                <input
-                  type="text"
-                  placeholder="Enter your organization code"
-                  required
-                  value={form.vendorCode}
-                  onChange={(e) =>
-                    handleChange("vendorCode", e.target.value)
-                  }
-                />
-                <span className="helper-text">Provided by your HR administrator</span>
-              </div>
-
-              <button type="submit" className="btn-login" disabled={loading}>
-                {loading
-                  ? "Joining..."
-                  : "Join Organization"}
-              </button>
-            </form>
-
-            {message && (
-              <p className="success-message" style={{ color: "green", marginTop: "10px" }}>
-                {message}
-              </p>
-            )}
-
-            {error && <p className="error">{error}</p>}
-
-            <div
-              className="auth-links"
-              style={{
-                display: "flex",
-                justifyContent: "flex-start",
-                alignItems: "center",
-                gap: "5px",
-                marginTop: "20px",
-              }}
-            >
-              <span>Already have an organization?</span>
-
-              <Link
-                to="/login"
-                style={{
-                  textDecoration: "none",
-                }}
-              >
-                Sign In
-              </Link>
-            </div>
-          </div>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <div className="auth-field">
+          <label htmlFor="jo-name">Full Name</label>
+          <input
+            id="jo-name"
+            type="text"
+            placeholder="Enter your full name"
+            required
+            value={form.name}
+            onChange={(e) => handleChange("name", e.target.value)}
+          />
         </div>
 
-      </div>
+        <div className="auth-field">
+          <label htmlFor="jo-contact">Work Email or Mobile Number</label>
+          <input
+            id="jo-contact"
+            type="text"
+            placeholder="Enter your work email or mobile number"
+            required
+            value={form.emailOrPhone}
+            onChange={(e) => handleChange("emailOrPhone", e.target.value)}
+          />
+        </div>
 
-      {/* Footer Powered By text */}
-      <footer className="footer-copyright">
-        Powered by Kar Pragati Technologies Pvt. Ltd.
-      </footer>
-    </div>
+        <div className="auth-field">
+          <label htmlFor="jo-password">Password</label>
+          <input
+            id="jo-password"
+            type="password"
+            placeholder="Create a password"
+            required
+            value={form.password}
+            onChange={(e) => handleChange("password", e.target.value)}
+          />
+        </div>
+
+        <div className="auth-field">
+          <label htmlFor="jo-org">Organization Code</label>
+          <input
+            id="jo-org"
+            type="text"
+            placeholder="Enter your organisation code"
+            required
+            value={form.vendorCode}
+            onChange={(e) => handleChange("vendorCode", e.target.value)}
+          />
+          <p className="auth-help">Provided by your HR administrator</p>
+        </div>
+
+        {message && <p className="auth-success">{message}</p>}
+        {error && <p className="auth-error">{error}</p>}
+
+        <button type="submit" className="auth-submit" disabled={loading}>
+          {loading ? "Joining..." : "Join Organization"}
+        </button>
+
+        <p className="auth-alt">
+          Already have an organization? <Link to="/login">Sign In</Link>
+        </p>
+      </form>
+    </AuthLayout>
   );
 }
 
